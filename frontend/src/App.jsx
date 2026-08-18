@@ -197,7 +197,7 @@ export default function App() {
                 <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} />
               </div>
               <aside id="approvals-section">
-                <DecisionPanel approved={approved} approval={approval} onApprove={approve} onUndo={reopen} onEvidence={() => setShowEvidence(true)} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} />
+                <DecisionPanel approved={approved} approval={approval} actionRecord={workflowState?.action_record} onApprove={approve} onUndo={reopen} onEvidence={() => setShowEvidence(true)} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} />
               </aside>
             </div>
             <WorkflowTimeline state={workflowState} />

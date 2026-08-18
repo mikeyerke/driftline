@@ -67,6 +67,7 @@ class WorkflowState:
     events: list[dict[str, Any]] = field(default_factory=list)
     data_mode: str = "synthetic_demo"
     artifact_packets: list[dict[str, Any]] = field(default_factory=list)
+    action_record: dict[str, Any] | None = None
     agent_trace: dict[str, Any] | None = None
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)

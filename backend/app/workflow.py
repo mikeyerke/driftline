@@ -256,6 +256,17 @@ class DriftlineWorkflow:
             )
         state.impacts = updated_impacts
         state.artifact_packets = packets
+        state.action_record = {
+            "action_id": f"action-{uuid4().hex[:12]}",
+            "kind": "firestore_sandbox_packet",
+            "status": "active",
+            "workflow_id": state.workflow_id,
+            "evidence_hash": state.evidence.evidence_hash,
+            "packet_count": len(packets),
+            "external_systems_changed": False,
+            "reversible": True,
+            "created_at": self._timestamp(),
+        }
         packet_count = sum(
             1 for value in requested_actions.values() if value == "packet"
         )
@@ -283,6 +294,12 @@ class DriftlineWorkflow:
         state.stage = Stage.AWAIT_APPROVAL
         state.status = WorkflowStatus.NEEDS_APPROVAL
         state.artifact_packets = []
+        if state.action_record is not None:
+            state.action_record = {
+                **state.action_record,
+                "status": "reversed",
+                "reversed_at": self._timestamp(),
+            }
         state.impacts = [
             ArtifactImpact(
                 i.name,
@@ -313,6 +330,8 @@ def packet_markdown(state: WorkflowState) -> str:
         f"- Evidence hash: `{evidence.evidence_hash if evidence else 'none'}`",
         f"- Data mode: `{state.data_mode}`",
         "- External systems changed: **No** (sandbox output)",
+        f"- Firestore action record: `{(state.action_record or {}).get('action_id', 'none')}`",
+        f"- Action status: `{(state.action_record or {}).get('status', 'none')}`",
         "",
         "## Source change",
         "",

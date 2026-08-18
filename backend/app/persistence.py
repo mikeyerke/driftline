@@ -54,6 +54,7 @@ def _state_from_dict(payload: dict[str, Any]) -> WorkflowState:
         events=events,
         data_mode=payload.get("data_mode", "synthetic_demo"),
         artifact_packets=[dict(item) for item in payload.get("artifact_packets", [])],
+        action_record=payload.get("action_record"),
         agent_trace=payload.get("agent_trace"),
         created_at=payload.get("created_at") or utc_now(),
         updated_at=payload.get("updated_at") or utc_now(),

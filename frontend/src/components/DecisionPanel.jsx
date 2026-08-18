@@ -1,6 +1,6 @@
 import { AlertTriangle, Check, Download, FileText, RotateCcw } from "lucide-react";
 
-export default function DecisionPanel({ approved, approval, onApprove, onUndo, onEvidence, isLive, busy, packetHref }) {
+export default function DecisionPanel({ approved, approval, actionRecord, onApprove, onUndo, onEvidence, isLive, busy, packetHref }) {
   if (approved) {
     const approver = approval?.approver || "Demo operator";
     const initials = approver.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -20,6 +20,7 @@ export default function DecisionPanel({ approved, approval, onApprove, onUndo, o
             : "No server decision was recorded."}
         </p>
         <div className="audit-id"><strong>Audit event</strong><span>{auditEvent}</span></div>
+        {actionRecord && <div className="audit-id"><strong>Firestore action record</strong><span>{actionRecord.action_id} · {actionRecord.status}</span></div>}
         {packetHref && <a className="secondary full packet-link" href={packetHref} target="_blank" rel="noreferrer"><Download size={17} />Download change packet</a>}
         <button className="secondary full evidence-button" onClick={onEvidence}><FileText size={17} />Open evidence</button>
       </aside>

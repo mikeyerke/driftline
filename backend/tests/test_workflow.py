@@ -34,6 +34,9 @@ def test_named_approval_resumes_and_publishes_bounded_artifacts() -> None:
         "owner_review",
         "queued",
     ]
+    assert result.action_record["kind"] == "firestore_sandbox_packet"
+    assert result.action_record["status"] == "active"
+    assert result.action_record["external_systems_changed"] is False
 
 
 def test_agent_cannot_self_approve_without_named_human() -> None:
@@ -172,4 +175,5 @@ def test_reopen_is_not_claimed_as_external_undo() -> None:
 
     assert reopened.status is WorkflowStatus.NEEDS_APPROVAL
     assert reopened.artifact_packets == []
+    assert reopened.action_record["status"] == "reversed"
     assert reopened.events[-1]["outcome"] == "decision_reopened"
