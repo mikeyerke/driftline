@@ -31,7 +31,7 @@ export default function AgentTrace({ job }) {
             <div className={job.status === "queued" ? "trace-step current" : "trace-step complete"}><span>1</span><strong>Queued</strong><small>Durable job</small></div>
             <div className={running ? "trace-step current" : "trace-step complete"}><span>2</span><strong>ADK turn</strong><small>{job.execution_mode || "Google ADK"}</small></div>
             <div className={job.workflow_id ? "trace-step complete" : "trace-step current"}><span>3</span><strong>Workflow</strong><small>{job.workflow_id ? "Firestore state" : "Awaiting state"}</small></div>
-            <div className={job.workflow?.status === "needs_approval" ? "trace-step current" : job.workflow ? "trace-step complete" : "trace-step"}><span>4</span><strong>Policy gate</strong><small>{job.workflow?.status === "needs_approval" ? "Human decision" : "Awaiting run"}</small></div>
+            <div className={job.workflow?.status === "needs_approval" ? "trace-step current" : job.workflow ? "trace-step complete" : "trace-step"}><span>4</span><strong>Policy gate</strong><small>{job.workflow?.status === "needs_approval" ? "Human decision" : job.workflow?.status === "complete" ? "Decision recorded" : "Awaiting run"}</small></div>
           </div>
           {job.response && <p className="trace-response"><CheckCircle2 size={15} />{job.response}</p>}
           {job.error && <p className="trace-error" role="alert">{job.error}</p>}
