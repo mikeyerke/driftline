@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app import api
 from app.api import app
 
 client = TestClient(app)
@@ -37,3 +38,17 @@ def test_demo_approval_and_undo_round_trip() -> None:
 def test_live_agent_query_is_bounded_before_execution() -> None:
     response = client.post("/api/agent/run", json={"query": "x" * 2001})
     assert response.status_code == 422
+
+
+def test_identity_free_demo_mutations_are_rate_limited(monkeypatch) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 1)
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+
+    first = client.post("/api/workflows/demo")
+    second = client.post("/api/workflows/demo")
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()

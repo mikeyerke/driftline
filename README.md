@@ -31,7 +31,8 @@ console in one container, with Firestore as the intended production event and
 workflow store. The deterministic synthetic demo works without cloud
 credentials so judges can evaluate the interaction immediately; /api/agent/run
 exercises the live ADK/Gemini path when Vertex AI credentials are available. The
-live endpoint is query-capped and rate-limited to bound demo spend.
+live endpoint is query-capped and rate-limited to bound demo spend; the
+identity-free preview also caps demo starts and approval/undo writes per hour.
 
 ## Repository layout
 

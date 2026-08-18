@@ -62,6 +62,14 @@ AGENT_WINDOW_SECONDS = _positive_int("DRIFTLINE_AGENT_WINDOW_SECONDS", 3600)
 _agent_call_times: deque[float] = deque()
 _agent_call_lock = Lock()
 
+# Demo starts and state transitions also write durable documents. Keep the
+# public, identity-free preview bounded so an exposed endpoint cannot turn a
+# judge-facing demo into an unbounded Firestore write surface.
+DEMO_MAX_MUTATIONS = _positive_int("DRIFTLINE_DEMO_MAX_MUTATIONS", 30)
+DEMO_WINDOW_SECONDS = _positive_int("DRIFTLINE_DEMO_WINDOW_SECONDS", 3600)
+_demo_mutation_times: deque[float] = deque()
+_demo_mutation_lock = Lock()
+
 
 def _reserve_agent_call() -> bool:
     now = monotonic()
@@ -72,6 +80,18 @@ def _reserve_agent_call() -> bool:
         if len(_agent_call_times) >= AGENT_MAX_CALLS:
             return False
         _agent_call_times.append(now)
+        return True
+
+
+def _reserve_demo_mutation() -> bool:
+    now = monotonic()
+    cutoff = now - DEMO_WINDOW_SECONDS
+    with _demo_mutation_lock:
+        while _demo_mutation_times and _demo_mutation_times[0] <= cutoff:
+            _demo_mutation_times.popleft()
+        if len(_demo_mutation_times) >= DEMO_MAX_MUTATIONS:
+            return False
+        _demo_mutation_times.append(now)
         return True
 
 
@@ -96,6 +116,11 @@ def _resolve_workflow(workflow_id: str):
 
 @app.post("/api/workflows/demo")
 def start_demo() -> dict:
+    if not _reserve_demo_mutation():
+        raise HTTPException(
+            status_code=429,
+            detail="Demo workflow rate limit reached; retry later.",
+        )
     state = workflow_store.start_demo()
     persist_workflow(state)
     return state.to_dict()
@@ -130,6 +155,11 @@ def get_workflow(workflow_id: str) -> dict:
 
 @app.post("/api/workflows/{workflow_id}/approve")
 def approve(workflow_id: str, request: ApprovalRequest) -> dict:
+    if not _reserve_demo_mutation():
+        raise HTTPException(
+            status_code=429,
+            detail="Demo workflow rate limit reached; retry later.",
+        )
     try:
         _resolve_workflow(workflow_id)
         state = workflow_store.approve(
@@ -147,6 +177,11 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
 
 @app.post("/api/workflows/{workflow_id}/undo")
 def undo(workflow_id: str, request: UndoRequest) -> dict:
+    if not _reserve_demo_mutation():
+        raise HTTPException(
+            status_code=429,
+            detail="Demo workflow rate limit reached; retry later.",
+        )
     try:
         _resolve_workflow(workflow_id)
         state = workflow_store.undo(workflow_id, request.actor)
