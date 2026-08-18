@@ -38,6 +38,29 @@ def test_public_adapter_records_history_and_labels_public_data(monkeypatch) -> N
     assert second["confidence"] != 0.99
 
 
+def test_demo_replay_compares_public_body_to_published_baseline(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "DRIFTLINE_PUBLIC_SOURCE_URL",
+        "https://raw.githubusercontent.com/mikeyerke/driftline/abc/fixtures/public-pricing-after.txt",
+    )
+    monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+    monkeypatch.setattr(
+        source,
+        "urlopen",
+        lambda request, timeout: _Response(
+            "Enterprise includes 365-day audit-log retention."
+        ),
+    )
+
+    result = source.inspect_allowlisted_source("public/pricing", force_replay=True)
+
+    assert result["status"] == "changed"
+    assert result["change_detected"] is True
+    assert result["before"] == "Enterprise includes unlimited audit-log retention."
+    assert result["data_mode"] == "public_source"
+    assert "demo replay" in str(result["snapshot_label"])
+
+
 class _Response:
     def __init__(self, body: str) -> None:
         self.body = body

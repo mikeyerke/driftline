@@ -141,7 +141,35 @@ async def test_duplicate_job_delivery_cannot_run_agent_twice(monkeypatch) -> Non
     assert api._resolve_job(job.job_id).run_attempts == 1
 
 
-def test_approval_requires_explicit_signed_token_when_signed_mode_enabled(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_monitor_job_completes_without_inventing_a_workflow(monkeypatch) -> None:
+    async def fake_run_agent_task(query: str, user_id: str, run_mode: str) -> dict:
+        assert run_mode == "monitor"
+        return {
+            "model": "test-model",
+            "execution_mode": "google_adk",
+            "tool_calls": ["inspect_source_change"],
+            "event_count": 2,
+            "response": "No material source change was found.",
+            "source_status": "unchanged",
+            "change_detected": False,
+        }
+
+    monkeypatch.setattr(api, "run_agent_task", fake_run_agent_task)
+    job = JobState(job_id="job-monitor-unchanged", query="monitor", run_mode="monitor")
+    api._set_job(job)
+
+    await api._run_job(job.job_id)
+
+    result = api._resolve_job(job.job_id)
+    assert result.status == "complete"
+    assert result.workflow_id is None
+    assert result.response == "No material source change was found."
+
+
+def test_approval_requires_explicit_signed_token_when_signed_mode_enabled(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "signed")
     started = client.post("/api/workflows/demo")
     workflow_id = started.json()["workflow_id"]

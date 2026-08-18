@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from contextvars import ContextVar, Token
 
 from dotenv import load_dotenv
 from google.adk.agents import Agent
@@ -14,11 +15,27 @@ load_dotenv()
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 
+_run_mode: ContextVar[str] = ContextVar("driftline_run_mode", default="demo")
+
+
+def set_run_mode(mode: str) -> Token[str]:
+    """Set the per-request source mode without leaking across async jobs."""
+    return _run_mode.set(mode)
+
+
+def reset_run_mode(token: Token[str]) -> None:
+    _run_mode.reset(token)
+
 
 def inspect_source_change(source_id: str) -> dict:
     """Detect and verify a material change in an approved source."""
-    snapshot = inspect_allowlisted_source(source_id)
+    snapshot = inspect_allowlisted_source(
+        source_id,
+        force_replay=_run_mode.get() == "demo",
+    )
     if snapshot.get("status") == "rejected":
+        return snapshot
+    if not snapshot.get("change_detected", True):
         return snapshot
     state = workflow_store.start_demo(
         data_mode=snapshot["data_mode"],
@@ -26,7 +43,10 @@ def inspect_source_change(source_id: str) -> dict:
         snapshot_label=snapshot["snapshot_label"],
         after_text=snapshot["after"],
         snapshot_hash=snapshot["snapshot_hash"],
+        previous_snapshot_hash=snapshot.get("previous_snapshot_hash"),
         retrieved_at=snapshot["retrieved_at"],
+        before_text=snapshot.get("before") or None,
+        confidence=float(snapshot.get("confidence", 0.99)),
     )
     persist_workflow(state)
     return state.to_dict()
@@ -66,8 +86,10 @@ You may not manufacture or infer that approval. For the judge-ready demo
 request, call inspect_source_change with the exact allowlisted source_id
 "public/pricing" before responding, then ground the response in the returned
 workflow state. Call get_workflow_state with the returned workflow_id before
-the final response so the state read is independently verified. Name whether
-the source was a public snapshot or synthetic replay.
+the final response so the state read is independently verified. For a monitor
+run, if the source tool returns baseline_established or unchanged, do not
+invent a workflow or approval; report that no material change was found. Name
+whether the source was a public snapshot or synthetic replay.
 Keep explanations concise and evidence-grounded.
 Your final response must be a complete plain-text summary of no more than 80
 words. Do not use markdown, tables, backticks, or a workflow ID; end with a

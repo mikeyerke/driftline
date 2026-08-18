@@ -40,6 +40,7 @@ class SourceEvidence:
     source_url: str | None = None
     retrieved_at: str | None = None
     snapshot_hash: str | None = None
+    previous_snapshot_hash: str | None = None
 
 
 @dataclass(frozen=True)
@@ -94,6 +95,7 @@ class JobState:
     status: str = "queued"
     query: str = ""
     user_id: str = "demo-operator"
+    run_mode: str = "demo"
     workflow_id: str | None = None
     model: str | None = None
     execution_mode: str | None = None

@@ -132,7 +132,11 @@ async def _run_analysis_events(prompt: str) -> list[str]:
         session_id=session.id,
         new_message=message,
     ):
-        if not event.is_final_response() or not event.content or not event.content.parts:
+        if (
+            not event.is_final_response()
+            or not event.content
+            or not event.content.parts
+        ):
             continue
         text_parts.extend(
             part.text for part in event.content.parts if getattr(part, "text", None)
@@ -149,7 +153,9 @@ def validate_analysis(payload: Any, expected_evidence_hash: str) -> StructuredAn
             else StructuredAnalysis.model_validate(payload)
         )
     except (ValidationError, TypeError, ValueError) as exc:
-        raise AnalysisUnavailable("Structured analysis failed schema validation") from exc
+        raise AnalysisUnavailable(
+            "Structured analysis failed schema validation"
+        ) from exc
 
     if result.evidence_hash != expected_evidence_hash:
         raise AnalysisUnavailable("Structured analysis used the wrong evidence hash")
@@ -200,7 +206,9 @@ async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise AnalysisUnavailable("Gemini returned non-JSON structured analysis") from exc
+        raise AnalysisUnavailable(
+            "Gemini returned non-JSON structured analysis"
+        ) from exc
     result = validate_analysis(payload, state.evidence.evidence_hash)
     apply_analysis(state, result)
     return result

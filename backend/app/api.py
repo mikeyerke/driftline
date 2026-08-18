@@ -57,6 +57,25 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; "
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    )
+    if request.url.scheme == "https":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
+
+
 class ApprovalRequest(BaseModel):
     approver: str = Field(min_length=1, max_length=120)
     decision: str = Field(default="grandfather_existing_customers", max_length=64)
@@ -86,6 +105,7 @@ class JobStartRequest(BaseModel):
         max_length=2000,
     )
     user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
+    run_mode: Literal["demo", "monitor"] = "demo"
 
 
 def _positive_int(name: str, default: int) -> int:
@@ -239,12 +259,14 @@ def _enqueue_cloud_task(job: JobState) -> None:
                 service_account_email=service_account,
                 audience=target_url.rstrip("/"),
             ),
-        )
+        ),
     )
     try:
         client.create_task(parent=parent, task=task)
     except TaskAlreadyExists:
-        logger.info("Cloud Task for %s already exists; treating enqueue as success", job.job_id)
+        logger.info(
+            "Cloud Task for %s already exists; treating enqueue as success", job.job_id
+        )
 
 
 def _verify_task_request(request: Request) -> None:
@@ -268,6 +290,30 @@ def _verify_task_request(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Invalid task identity") from exc
     if expected_email and claims.get("email") != expected_email:
         raise HTTPException(status_code=403, detail="Unexpected task identity")
+
+
+def _verify_scheduler_request(request: Request) -> None:
+    """Verify the dedicated Cloud Scheduler identity before monitor ticks."""
+    authorization = request.headers.get("authorization", "")
+    expected_audience = os.getenv("DRIFTLINE_SCHEDULER_AUDIENCE", "").rstrip("/")
+    expected_email = os.getenv("DRIFTLINE_SCHEDULER_SERVICE_ACCOUNT", "")
+    if not authorization.startswith("Bearer ") or not expected_audience:
+        raise HTTPException(status_code=401, detail="Scheduler identity is required")
+    try:
+        from google.auth.transport.requests import Request as GoogleRequest
+        from google.oauth2 import id_token
+
+        claims = id_token.verify_oauth2_token(
+            authorization.removeprefix("Bearer ").strip(),
+            GoogleRequest(),
+            audience=expected_audience,
+        )
+    except Exception as exc:  # pragma: no cover - token verification is cloud-only.
+        raise HTTPException(
+            status_code=401, detail="Invalid scheduler identity"
+        ) from exc
+    if expected_email and claims.get("email") != expected_email:
+        raise HTTPException(status_code=403, detail="Unexpected scheduler identity")
 
 
 def _verify_approval_mode(
@@ -332,9 +378,29 @@ async def _run_job(job_id: str) -> None:
         return
     job = _resolve_job(job_id)
     try:
-        result = await run_agent_task(job.query, job.user_id)
+        if job.run_mode == "demo":
+            result = await run_agent_task(job.query, job.user_id)
+        else:
+            result = await run_agent_task(job.query, job.user_id, job.run_mode)
         workflow_id = result.get("workflow_id")
         if not workflow_id:
+            if result.get("change_detected") is False or result.get(
+                "source_status"
+            ) in {
+                "baseline_established",
+                "unchanged",
+            }:
+                job.status = "complete"
+                job.model = result.get("model")
+                job.execution_mode = result.get("execution_mode")
+                job.tool_calls = result.get("tool_calls", [])
+                job.event_count = int(result.get("event_count", 0))
+                job.response = (
+                    result.get("response") or "No material source change was found."
+                )
+                job.error = None
+                _set_job(job)
+                return
             raise RuntimeError("Agent completed without creating a workflow")
         state = _resolve_workflow(workflow_id)
         state.agent_trace = result.get("agent_trace")
@@ -362,6 +428,31 @@ def _schedule_local_job(job: JobState) -> None:
     task = asyncio.create_task(_run_job(job.job_id))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
+
+
+def _start_job(
+    *, query: str, user_id: str, run_mode: str, background_tasks: BackgroundTasks
+) -> JobState:
+    job = JobState(
+        job_id=f"job-{uuid4().hex[:12]}",
+        query=query,
+        user_id=user_id,
+        run_mode=run_mode,
+    )
+    _set_job(job)
+    try:
+        if _tasks_enabled():
+            _enqueue_cloud_task(job)
+        else:
+            background_tasks.add_task(_run_job, job.job_id)
+    except Exception:
+        logger.exception("Unable to enqueue async Driftline job")
+        job.status = "failed"
+        job.error = (
+            "Async execution is not configured. Check the Cloud Tasks deployment."
+        )
+        _set_job(job)
+    return job
 
 
 @app.get("/health")
@@ -397,24 +488,33 @@ async def start_demo_job(
             status_code=429,
             detail="Live agent demo rate limit reached; retry later.",
         )
-    job = JobState(
-        job_id=f"job-{uuid4().hex[:12]}",
+    job = _start_job(
         query=request.query,
         user_id=request.user_id,
+        run_mode=request.run_mode,
+        background_tasks=background_tasks,
     )
-    _set_job(job)
-    try:
-        if _tasks_enabled():
-            _enqueue_cloud_task(job)
-        else:
-            background_tasks.add_task(_run_job, job.job_id)
-    except Exception:
-        logger.exception("Unable to enqueue async Driftline job")
-        job.status = "failed"
-        job.error = (
-            "Async execution is not configured. Check the Cloud Tasks deployment."
+    return job.to_dict()
+
+
+@app.post("/api/scheduler/tick")
+async def scheduler_tick(request: Request, background_tasks: BackgroundTasks) -> dict:
+    """Start one historical source-monitor run from Cloud Scheduler."""
+    _verify_scheduler_request(request)
+    if not _reserve_agent_call():
+        raise HTTPException(
+            status_code=429, detail="Monitor rate limit reached; retry later."
         )
-        _set_job(job)
+    job = _start_job(
+        query=(
+            "Monitor the historical allowlisted public/pricing snapshot. "
+            "Report baseline_established, unchanged, or a verified material "
+            "change; never invent an approval."
+        ),
+        user_id="driftline-scheduler",
+        run_mode="monitor",
+        background_tasks=background_tasks,
+    )
     return job.to_dict()
 
 
@@ -494,6 +594,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         request.approval_token,
     )
     try:
+
         def apply(current: WorkflowState) -> WorkflowState:
             state = workflow_store.approve(
                 current.workflow_id,
@@ -532,6 +633,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         request.approval_token,
     )
     try:
+
         def apply(current: WorkflowState) -> WorkflowState:
             state = workflow_store.undo(current.workflow_id, request.actor)
             state.events[-1]["approval_identity"] = approval_identity

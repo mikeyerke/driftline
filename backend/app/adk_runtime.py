@@ -7,7 +7,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from .agent import root_agent
+from .agent import reset_run_mode, root_agent, set_run_mode
 from .analysis import AnalysisUnavailable, analysis_trace, analyze_workflow
 from .persistence import load_workflow, persist_workflow
 from .workflow import workflow_store
@@ -15,7 +15,9 @@ from .workflow import workflow_store
 APP_NAME = "driftline"
 
 
-async def run_agent_task(query: str, user_id: str = "demo-operator") -> dict:
+async def run_agent_task(
+    query: str, user_id: str = "demo-operator", run_mode: str = "demo"
+) -> dict:
     """Run one real Gemini/ADK turn and return its final grounded response."""
     started_at = datetime.now(UTC).isoformat()
     session_service = InMemorySessionService()
@@ -35,27 +37,38 @@ async def run_agent_task(query: str, user_id: str = "demo-operator") -> dict:
     event_count = 0
     tool_calls: list[str] = []
     workflow_id: str | None = None
+    source_status: str | None = None
+    change_detected: bool | None = None
     trace: list[dict[str, str]] = []
-    async for event in runner.run_async(
-        user_id=user_id,
-        session_id=session.id,
-        new_message=message,
-    ):
-        event_count += 1
-        for function_call in event.get_function_calls() or []:
-            if function_call.name and function_call.name not in tool_calls:
-                tool_calls.append(function_call.name)
-                trace.append({"kind": "tool_call", "name": function_call.name})
-        if event.content and event.content.parts:
-            for part in event.content.parts:
-                function_response = getattr(part, "function_response", None)
-                response = getattr(function_response, "response", None)
-                if isinstance(response, dict) and response.get("workflow_id"):
-                    workflow_id = str(response["workflow_id"])
-        if event.is_final_response() and event.content and event.content.parts:
-            final_text = "".join(
-                part.text or "" for part in event.content.parts if part.text
-            )
+    mode_token = set_run_mode(run_mode)
+    try:
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session.id,
+            new_message=message,
+        ):
+            event_count += 1
+            for function_call in event.get_function_calls() or []:
+                if function_call.name and function_call.name not in tool_calls:
+                    tool_calls.append(function_call.name)
+                    trace.append({"kind": "tool_call", "name": function_call.name})
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    function_response = getattr(part, "function_response", None)
+                    response = getattr(function_response, "response", None)
+                    if isinstance(response, dict):
+                        if response.get("workflow_id"):
+                            workflow_id = str(response["workflow_id"])
+                        if response.get("status"):
+                            source_status = str(response["status"])
+                        if "change_detected" in response:
+                            change_detected = bool(response["change_detected"])
+            if event.is_final_response() and event.content and event.content.parts:
+                final_text = "".join(
+                    part.text or "" for part in event.content.parts if part.text
+                )
+    finally:
+        reset_run_mode(mode_token)
 
     # The coordinator turn only discovers and verifies the source.  A second,
     # schema-constrained ADK turn performs the substantive impact mapping.  It
@@ -89,6 +102,7 @@ async def run_agent_task(query: str, user_id: str = "demo-operator") -> dict:
         analysis_info = {
             "mode": "deterministic_demo_fallback",
             "reason": "coordinator did not produce a workflow",
+            "source_status": source_status,
         }
 
     return {
@@ -99,6 +113,8 @@ async def run_agent_task(query: str, user_id: str = "demo-operator") -> dict:
         "model": root_agent.model,
         "execution_mode": "google_adk",
         "workflow_id": workflow_id,
+        "source_status": source_status,
+        "change_detected": change_detected,
         "agent_trace": {
             "started_at": started_at,
             "completed_at": datetime.now(UTC).isoformat(),

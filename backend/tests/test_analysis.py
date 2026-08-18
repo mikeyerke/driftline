@@ -59,7 +59,9 @@ def test_structured_output_is_evidence_bound_and_replaces_drafts() -> None:
     analysis.apply_analysis(state, result)
 
     assert state.impacts[0].proposed.startswith("Enterprise: 365-day")
-    assert all(item.evidence_hash == state.evidence.evidence_hash for item in state.impacts)
+    assert all(
+        item.evidence_hash == state.evidence.evidence_hash for item in state.impacts
+    )
 
 
 def test_structured_output_rejects_unknown_artifact() -> None:

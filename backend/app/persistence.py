@@ -96,9 +96,7 @@ def _create_audit_events(
                 )
 
 
-def compare_and_set_workflow(
-    state: WorkflowState, expected_status: str
-) -> bool:
+def compare_and_set_workflow(state: WorkflowState, expected_status: str) -> bool:
     """Persist a workflow transition only if its durable status is unchanged.
 
     The API mutates an in-memory workflow first because the existing workflow
@@ -164,6 +162,7 @@ def load_job(job_id: str) -> JobState | None:
         status=payload.get("status", "queued"),
         query=payload.get("query", ""),
         user_id=payload.get("user_id", "demo-operator"),
+        run_mode=payload.get("run_mode", "demo"),
         workflow_id=payload.get("workflow_id"),
         model=payload.get("model"),
         execution_mode=payload.get("execution_mode"),

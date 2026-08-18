@@ -110,8 +110,11 @@ class DriftlineWorkflow:
         data_mode: str = "synthetic_demo",
         source_url: str | None = None,
         snapshot_label: str | None = None,
+        before_text: str | None = None,
         after_text: str = DEMO_AFTER,
         snapshot_hash: str | None = None,
+        previous_snapshot_hash: str | None = None,
+        confidence: float = 0.99,
         retrieved_at: str | None = None,
     ) -> WorkflowState:
         state = WorkflowState(
@@ -126,14 +129,15 @@ class DriftlineWorkflow:
         state.evidence = SourceEvidence(
             source_id="public/pricing",
             source_name="Public pricing snapshot",
-            before=DEMO_BEFORE,
+            before=before_text or DEMO_BEFORE,
             after=after_text,
-            evidence_hash=_evidence_digest(DEMO_BEFORE, after_text),
-            confidence=0.99,
+            evidence_hash=_evidence_digest(before_text or DEMO_BEFORE, after_text),
+            confidence=confidence,
             snapshot_label=snapshot_label or "Synthetic demo fixture · public/pricing",
             source_url=source_url or DEMO_SOURCE_URL,
             retrieved_at=retrieved_at,
             snapshot_hash=snapshot_hash,
+            previous_snapshot_hash=previous_snapshot_hash,
         )
         self._event(state, "evidence_verifier", "verified")
 
