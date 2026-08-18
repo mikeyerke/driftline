@@ -67,9 +67,11 @@ class AnalysisUnavailable(RuntimeError):
 analysis_agent = Agent(
     name="driftline_impact_analyst",
     model=MODEL_NAME,
-    output_schema=StructuredAnalysis,
     # ADK's Runner accepts chat/task roots; task keeps this analyst bounded
-    # while remaining compatible with the deployed ADK runtime.
+    # while remaining compatible with the deployed ADK runtime. We request
+    # JSON MIME output and apply the stricter Pydantic contract below; this
+    # avoids version-specific ADK output-schema coercion while preserving a
+    # fail-closed validation boundary before any workflow state is changed.
     mode="task",
     generate_content_config=GenerateContentConfig(
         response_mime_type="application/json",
