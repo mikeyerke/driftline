@@ -13,7 +13,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 
 The isolated project, free-tier Firestore database, and dedicated runtime
 identity now exist. Cloud Run, Artifact Registry, and the budget remain blocked
-by the missing billing account. Rows marked `planned` are not claims that the
+by the missing billing account. Rows marked `blocked` are not claims that the
 resource exists.
 
 | Resource | Name / scope | Status | Driftline label |
