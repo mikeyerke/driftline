@@ -23,7 +23,13 @@ except ImportError:  # pragma: no cover - exercised only in a minimal local env.
 
 from .adk_runtime import run_agent_task
 from .models import JobState
-from .persistence import load_job, load_workflow, persist_job, persist_workflow
+from .persistence import (
+    load_job,
+    load_workflow,
+    persist_job,
+    persist_workflow,
+    update_jobs_for_workflow,
+)
 from .workflow import PolicyViolation, packet_markdown, workflow_store
 
 logger = logging.getLogger("driftline.api")
@@ -148,6 +154,15 @@ def _set_job(job: JobState) -> None:
     with _jobs_lock:
         _jobs[job.job_id] = job
     persist_job(job)
+
+
+def _sync_jobs_for_workflow(workflow_id: str, status: str) -> None:
+    with _jobs_lock:
+        matching = [job for job in _jobs.values() if job.workflow_id == workflow_id]
+    for job in matching:
+        job.status = status
+        _set_job(job)
+    update_jobs_for_workflow(workflow_id, status)
 
 
 def _enqueue_cloud_task(job: JobState) -> None:
@@ -374,6 +389,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             request.artifact_decisions,
         )
         persist_workflow(state)
+        _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -392,6 +408,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         _resolve_workflow(workflow_id)
         state = workflow_store.undo(workflow_id, request.actor)
         persist_workflow(state)
+        _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

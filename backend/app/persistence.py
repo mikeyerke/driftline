@@ -115,3 +115,15 @@ def load_job(job_id: str) -> JobState | None:
         created_at=payload.get("created_at") or "",
         updated_at=payload.get("updated_at") or "",
     )
+
+
+def update_jobs_for_workflow(workflow_id: str, status: str) -> None:
+    """Keep durable job status aligned after a human decision transition."""
+    if not _enabled():
+        return
+    now = datetime.now(UTC).isoformat()
+    query = (
+        _client().collection(JOBS_COLLECTION).where("workflow_id", "==", workflow_id)
+    )
+    for snapshot in query.stream():
+        snapshot.reference.update({"status": status, "updated_at": now})

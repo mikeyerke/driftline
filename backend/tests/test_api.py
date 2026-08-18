@@ -87,6 +87,17 @@ def test_async_job_records_agent_trace_and_workflow(monkeypatch) -> None:
     ]
     assert payload["workflow"]["agent_trace"]["model"] == "test-model"
 
+    workflow_id = payload["workflow_id"]
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={
+            "approver": "Alex Kim",
+            "decision": "grandfather_existing_customers",
+        },
+    )
+    assert approved.status_code == 200
+    assert client.get(f"/api/jobs/{queued['job_id']}").json()["status"] == "complete"
+
 
 def test_identity_free_demo_mutations_are_rate_limited(monkeypatch) -> None:
     monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 1)
