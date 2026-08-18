@@ -69,10 +69,13 @@ async def security_headers(request: Request, call_next):
         "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; "
         "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     )
-    if request.url.scheme == "https":
-        response.headers.setdefault(
-            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
-        )
+    # Cloud Run terminates TLS before forwarding to Uvicorn, so the app often
+    # sees an internal HTTP scheme even for the public HTTPS URL. The service
+    # has no HTTP-only public route; emit HSTS unconditionally so the browser
+    # never downgrades the deployed console.
+    response.headers.setdefault(
+        "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+    )
     return response
 
 
