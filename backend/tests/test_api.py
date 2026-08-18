@@ -1,7 +1,12 @@
+import hashlib
+import hmac
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app import api
 from app.api import app
+from app.models import JobState
 
 client = TestClient(app)
 
@@ -111,3 +116,71 @@ def test_identity_free_demo_mutations_are_rate_limited(monkeypatch) -> None:
     assert second.status_code == 429
     with api._demo_mutation_lock:
         api._demo_mutation_times.clear()
+
+
+@pytest.mark.asyncio
+async def test_duplicate_job_delivery_cannot_run_agent_twice(monkeypatch) -> None:
+    calls = 0
+
+    async def fake_run_agent_task(query: str, user_id: str) -> dict:
+        nonlocal calls
+        calls += 1
+        state = api.workflow_store.start_demo()
+        return {"workflow_id": state.workflow_id, "model": "test-model"}
+
+    monkeypatch.setattr(api, "run_agent_task", fake_run_agent_task)
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+    job = JobState(job_id="job-idempotent", query="test")
+    api._set_job(job)
+
+    await api._run_job(job.job_id)
+    await api._run_job(job.job_id)
+
+    assert calls == 1
+    assert api._resolve_job(job.job_id).run_attempts == 1
+
+
+def test_approval_requires_explicit_signed_token_when_signed_mode_enabled(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "signed")
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+
+    rejected = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Alex Kim"},
+    )
+    assert rejected.status_code == 403
+
+    secret = "test-only-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    token = hmac.new(
+        secret.encode(), f"{workflow_id}:Alex Kim".encode(), hashlib.sha256
+    ).hexdigest()
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={
+            "approver": "Alex Kim",
+            "approval_mode": "signed",
+            "approval_token": token,
+        },
+    )
+    assert approved.status_code == 200
+    assert approved.json()["approval"]["approval_identity"]["mode"] == "signed"
+
+
+def test_failed_workflow_cas_restores_pending_state(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    monkeypatch.setattr(api, "compare_and_set_workflow", lambda state, expected: False)
+
+    response = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Demo operator"},
+    )
+
+    assert response.status_code == 409
+    assert client.get(f"/api/workflows/{workflow_id}").json()["status"] == (
+        "needs_approval"
+    )

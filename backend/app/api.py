@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+import hashlib
+import hmac
 import json
 import logging
 import os
 from collections import deque
+from collections.abc import Callable
 from pathlib import Path
 from threading import Lock
 from time import monotonic
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -17,13 +22,17 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 try:  # Cloud Tasks is optional for local synthetic development.
+    from google.api_core.exceptions import AlreadyExists as TaskAlreadyExists
     from google.cloud import tasks_v2
 except ImportError:  # pragma: no cover - exercised only in a minimal local env.
     tasks_v2 = None
+    TaskAlreadyExists = type("TaskAlreadyExists", (Exception,), {})
 
 from .adk_runtime import run_agent_task
-from .models import JobState
+from .models import JobState, WorkflowState
 from .persistence import (
+    claim_job,
+    compare_and_set_workflow,
     load_job,
     load_workflow,
     persist_job,
@@ -52,10 +61,14 @@ class ApprovalRequest(BaseModel):
     approver: str = Field(min_length=1, max_length=120)
     decision: str = Field(default="grandfather_existing_customers", max_length=64)
     artifact_decisions: dict[str, str] | None = None
+    approval_mode: Literal["demo", "signed"] = "demo"
+    approval_token: str | None = Field(default=None, max_length=256)
 
 
 class UndoRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
+    approval_mode: Literal["demo", "signed"] = "demo"
+    approval_token: str | None = Field(default=None, max_length=256)
 
 
 class AgentRunRequest(BaseModel):
@@ -95,6 +108,7 @@ _demo_mutation_lock = Lock()
 
 _jobs: dict[str, JobState] = {}
 _jobs_lock = Lock()
+_workflow_transition_lock = Lock()
 _background_tasks: set[asyncio.Task[None]] = set()
 
 
@@ -149,6 +163,39 @@ def _resolve_job(job_id: str) -> JobState:
     raise KeyError(f"Unknown job: {job_id}")
 
 
+def _claim_job_for_run(job_id: str) -> bool:
+    """Claim a queued job before invoking the agent runtime.
+
+    The process lock closes the local race; ``claim_job`` adds the durable
+    Firestore transaction for duplicate Cloud Tasks deliveries across Cloud
+    Run instances.
+    """
+    claim_id = f"claim-{uuid4().hex}"
+    with _jobs_lock:
+        try:
+            job = _jobs.get(job_id) or load_job(job_id)
+        except Exception:
+            logger.exception("Unable to load job %s for claiming", job_id)
+            return False
+        if job is None:
+            return False
+        if job.status != "queued":
+            _jobs[job_id] = job
+            return False
+        if not claim_job(job_id, claim_id):
+            durable = load_job(job_id)
+            if durable is not None:
+                _jobs[job_id] = durable
+            return False
+        job.status = "running"
+        job.claim_id = claim_id
+        job.run_attempts += 1
+        job.touch()
+        _jobs[job_id] = job
+    persist_job(job)
+    return True
+
+
 def _set_job(job: JobState) -> None:
     job.touch()
     with _jobs_lock:
@@ -179,6 +226,10 @@ def _enqueue_cloud_task(job: JobState) -> None:
     client = tasks_v2.CloudTasksClient()
     parent = client.queue_path(project, location, queue)
     task = tasks_v2.Task(
+        # A deterministic task name makes an enqueue retry idempotent.  Cloud
+        # Tasks returns ALREADY_EXISTS for the same job instead of creating a
+        # second delivery.
+        name=client.task_path(project, location, queue, job.job_id),
         http_request=tasks_v2.HttpRequest(
             http_method=tasks_v2.HttpMethod.POST,
             url=f"{target_url.rstrip('/')}/api/jobs/{job.job_id}/run",
@@ -190,7 +241,10 @@ def _enqueue_cloud_task(job: JobState) -> None:
             ),
         )
     )
-    client.create_task(parent=parent, task=task)
+    try:
+        client.create_task(parent=parent, task=task)
+    except TaskAlreadyExists:
+        logger.info("Cloud Task for %s already exists; treating enqueue as success", job.job_id)
 
 
 def _verify_task_request(request: Request) -> None:
@@ -216,14 +270,67 @@ def _verify_task_request(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Unexpected task identity")
 
 
+def _verify_approval_mode(
+    workflow_id: str,
+    actor: str,
+    mode: str,
+    token: str | None,
+) -> dict[str, str]:
+    """Bound public decisions to an explicit demo or signed approval mode.
+
+    The public judge console intentionally runs in ``demo`` mode and creates
+    sandbox packets only.  A deployment that wants real operator identity can
+    set ``DRIFTLINE_APPROVAL_MODE=signed`` and provide an HMAC token generated
+    from the dedicated approval secret; unsigned public names are then
+    rejected before the workflow policy engine runs.
+    """
+    configured = os.getenv("DRIFTLINE_APPROVAL_MODE", "demo").casefold()
+    if mode != configured:
+        raise HTTPException(status_code=403, detail="Approval mode is not enabled")
+    cleaned = actor.strip()
+    if mode == "demo":
+        return {
+            "mode": "demo",
+            "identity": "named_demo_actor",
+            "scope": "sandbox_packet_only",
+        }
+    secret = os.getenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "")
+    if not secret or not token:
+        raise HTTPException(status_code=401, detail="Signed approval is required")
+    message = f"{workflow_id}:{cleaned}".encode()
+    expected = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(token, expected):
+        raise HTTPException(status_code=401, detail="Invalid signed approval")
+    return {"mode": "signed", "identity": "signed_operator", "scope": "configured"}
+
+
+def _transition_workflow(
+    workflow_id: str,
+    expected_status: str,
+    transition: Callable[[WorkflowState], WorkflowState],
+) -> WorkflowState:
+    """Run one policy transition and commit it with a durable CAS."""
+    with _workflow_transition_lock:
+        state = _resolve_workflow(workflow_id)
+        previous = copy.deepcopy(state)
+        result = transition(state)
+        if not compare_and_set_workflow(result, expected_status):
+            # Restore this process from durable truth after a cross-instance
+            # race, rather than leaving a locally mutated but uncommitted run.
+            durable = load_workflow(workflow_id)
+            if durable is not None:
+                workflow_store.restore(durable)
+            else:
+                workflow_store.restore(previous)
+            raise PolicyViolation("Workflow changed concurrently; retry the decision")
+        return result
+
+
 async def _run_job(job_id: str) -> None:
-    try:
-        job = _resolve_job(job_id)
-    except KeyError:
-        logger.error("Job %s disappeared before execution", job_id)
+    if not _claim_job_for_run(job_id):
+        logger.info("Job %s was already claimed or completed", job_id)
         return
-    job.status = "running"
-    _set_job(job)
+    job = _resolve_job(job_id)
     try:
         result = await run_agent_task(job.query, job.user_id)
         workflow_id = result.get("workflow_id")
@@ -380,15 +487,29 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             status_code=429,
             detail="Demo workflow rate limit reached; retry later.",
         )
+    approval_identity = _verify_approval_mode(
+        workflow_id,
+        request.approver,
+        request.approval_mode,
+        request.approval_token,
+    )
     try:
-        _resolve_workflow(workflow_id)
-        state = workflow_store.approve(
+        def apply(current: WorkflowState) -> WorkflowState:
+            state = workflow_store.approve(
+                current.workflow_id,
+                request.approver,
+                request.decision,
+                request.artifact_decisions,
+            )
+            if state.approval is not None:
+                state.approval["approval_identity"] = approval_identity
+            return state
+
+        state = _transition_workflow(
             workflow_id,
-            request.approver,
-            request.decision,
-            request.artifact_decisions,
+            "needs_approval",
+            apply,
         )
-        persist_workflow(state)
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:
@@ -404,10 +525,23 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
             status_code=429,
             detail="Demo workflow rate limit reached; retry later.",
         )
+    approval_identity = _verify_approval_mode(
+        workflow_id,
+        request.actor,
+        request.approval_mode,
+        request.approval_token,
+    )
     try:
-        _resolve_workflow(workflow_id)
-        state = workflow_store.undo(workflow_id, request.actor)
-        persist_workflow(state)
+        def apply(current: WorkflowState) -> WorkflowState:
+            state = workflow_store.undo(current.workflow_id, request.actor)
+            state.events[-1]["approval_identity"] = approval_identity
+            return state
+
+        state = _transition_workflow(
+            workflow_id,
+            "complete",
+            apply,
+        )
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:

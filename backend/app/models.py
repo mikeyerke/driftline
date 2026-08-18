@@ -101,6 +101,10 @@ class JobState:
     event_count: int = 0
     response: str = ""
     error: str | None = None
+    # A durable claim prevents Cloud Tasks retries from starting a second
+    # Gemini run for the same job.  It is intentionally opaque to callers.
+    claim_id: str | None = None
+    run_attempts: int = 0
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
 

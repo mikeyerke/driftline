@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
 
+from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore
 
 from .models import (
@@ -68,10 +70,67 @@ def persist_workflow(state: WorkflowState) -> None:
     payload = state.to_dict()
     payload["updated_at"] = datetime.now(UTC).isoformat()
     document.set(payload)
-    audit_collection = document.collection("audit_events")
-    for index, event in enumerate(state.events):
+    _create_audit_events(document.collection("audit_events"), state.events)
+
+
+def _create_audit_events(
+    audit_collection: Any, events: Iterable[dict[str, Any]]
+) -> None:
+    """Create audit events without ever overwriting an event id.
+
+    Replaying an identical workflow snapshot is safe, but an existing id with
+    different content is treated as tampering/corruption rather than silently
+    replaced.  Audit history is append-only even when the parent workflow is
+    updated with ``set``.
+    """
+    for index, event in enumerate(events):
         event_id = event.get("event_id") or f"event-{index:04d}"
-        audit_collection.document(event_id).set(event)
+        reference = audit_collection.document(event_id)
+        try:
+            reference.create(dict(event))
+        except AlreadyExists:
+            existing = reference.get()
+            if not existing.exists or (existing.to_dict() or {}) != event:
+                raise RuntimeError(
+                    f"Audit event {event_id} already exists with different content"
+                )
+
+
+def compare_and_set_workflow(
+    state: WorkflowState, expected_status: str
+) -> bool:
+    """Persist a workflow transition only if its durable status is unchanged.
+
+    The API mutates an in-memory workflow first because the existing workflow
+    policy engine owns the transition rules.  This seam makes the final write
+    a Firestore transaction, so two Cloud Run instances cannot both commit an
+    approval or reopen transition from the same prior status.
+    """
+    if not _enabled():
+        persist_workflow(state)
+        return True
+
+    client = _client()
+    document = client.collection(COLLECTION).document(state.workflow_id)
+    payload = state.to_dict()
+    payload["updated_at"] = datetime.now(UTC).isoformat()
+    transaction = client.transaction()
+
+    @firestore.transactional
+    def transition(tx: Any) -> bool:
+        snapshot = document.get(transaction=tx)
+        if not snapshot.exists:
+            return False
+        current = snapshot.to_dict() or {}
+        if current.get("status") != expected_status:
+            return False
+        tx.set(document, payload)
+        return True
+
+    committed = transition(transaction)
+    if committed:
+        _create_audit_events(document.collection("audit_events"), state.events)
+    return committed
 
 
 def load_workflow(workflow_id: str) -> WorkflowState | None:
@@ -112,9 +171,48 @@ def load_job(job_id: str) -> JobState | None:
         event_count=int(payload.get("event_count", 0)),
         response=payload.get("response", ""),
         error=payload.get("error"),
+        claim_id=payload.get("claim_id"),
+        run_attempts=int(payload.get("run_attempts", 0)),
         created_at=payload.get("created_at") or "",
         updated_at=payload.get("updated_at") or "",
     )
+
+
+def claim_job(job_id: str, claim_id: str) -> bool:
+    """Atomically claim a queued job for one execution attempt.
+
+    Cloud Tasks may deliver the same task more than once.  Only the first
+    transaction that observes ``queued`` wins; later deliveries return false
+    before the agent runtime is invoked.
+    """
+    if not _enabled():
+        return True
+
+    client = _client()
+    document = client.collection(JOBS_COLLECTION).document(job_id)
+    transaction = client.transaction()
+    now = datetime.now(UTC).isoformat()
+
+    @firestore.transactional
+    def claim(tx: Any) -> bool:
+        snapshot = document.get(transaction=tx)
+        if not snapshot.exists:
+            return False
+        payload = snapshot.to_dict() or {}
+        if payload.get("status", "queued") != "queued":
+            return False
+        tx.update(
+            document,
+            {
+                "status": "running",
+                "claim_id": claim_id,
+                "run_attempts": firestore.Increment(1),
+                "updated_at": now,
+            },
+        )
+        return True
+
+    return claim(transaction)
 
 
 def update_jobs_for_workflow(workflow_id: str, status: str) -> None:
