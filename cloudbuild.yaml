@@ -1,0 +1,36 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/driftline:$BUILD_ID
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/driftline:$BUILD_ID
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - driftline
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/driftline:$BUILD_ID
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --service-account=${_RUN_SERVICE_ACCOUNT}
+      - --min=0
+      - --max=1
+      - --cpu=1
+      - --memory=512Mi
+      - --timeout=300
+      - --concurrency=20
+      - --labels=app=driftline,environment=production,hackathon=all-things-agentic
+      - --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=${_REGION},GOOGLE_GENAI_USE_VERTEXAI=true,MODEL_NAME=gemini-3.5-flash,DRIFTLINE_PERSISTENCE=firestore,FIRESTORE_DATABASE=(default)
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: driftline
+  _RUN_SERVICE_ACCOUNT: driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/driftline:$BUILD_ID
