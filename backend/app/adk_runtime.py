@@ -8,6 +8,9 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from .agent import root_agent
+from .analysis import AnalysisUnavailable, analysis_trace, analyze_workflow
+from .persistence import load_workflow, persist_workflow
+from .workflow import workflow_store
 
 APP_NAME = "driftline"
 
@@ -54,6 +57,40 @@ async def run_agent_task(query: str, user_id: str = "demo-operator") -> dict:
                 part.text or "" for part in event.content.parts if part.text
             )
 
+    # The coordinator turn only discovers and verifies the source.  A second,
+    # schema-constrained ADK turn performs the substantive impact mapping.  It
+    # has no tools and no approval/publishing authority; the deterministic
+    # workflow gate remains the only path to a decision.  If structured output
+    # is unavailable, retain the reproducible fixture drafts and label the
+    # fallback explicitly rather than presenting them as Gemini analysis.
+    analysis_info: dict[str, object]
+    if workflow_id:
+        try:
+            state = workflow_store.get(workflow_id)
+        except KeyError:
+            state = load_workflow(workflow_id)
+        if state is None:
+            analysis_info = {
+                "mode": "deterministic_demo_fallback",
+                "reason": "workflow state unavailable for structured analysis",
+            }
+        else:
+            try:
+                structured = await analyze_workflow(state)
+                analysis_info = analysis_trace(structured)
+                persist_workflow(state)
+            except AnalysisUnavailable as exc:
+                analysis_info = {
+                    "mode": "deterministic_demo_fallback",
+                    "reason": str(exc),
+                    "artifact_count": len(state.impacts),
+                }
+    else:
+        analysis_info = {
+            "mode": "deterministic_demo_fallback",
+            "reason": "coordinator did not produce a workflow",
+        }
+
     return {
         "session_id": session.id,
         "response": final_text,
@@ -69,5 +106,6 @@ async def run_agent_task(query: str, user_id: str = "demo-operator") -> dict:
             "execution_mode": "google_adk",
             "tool_calls": trace,
             "event_count": event_count,
+            "structured_analysis": analysis_info,
         },
     }
