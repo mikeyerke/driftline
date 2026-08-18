@@ -42,12 +42,15 @@ system.
 ## Google technology
 
 - Gemini 3.5 Flash through Vertex AI for evidence-grounded interpretation and
-  bounded drafting.
-- Google Agent Development Kit for the coordinator, session runner, and
-  allowlisted tools.
+  bounded drafting. A second task-mode ADK analyst returns a strict JSON impact
+  contract; Driftline validates every artifact owner, risk, and evidence hash.
+- Google Agent Development Kit for the coordinator, structured analyst, session
+  runner, and allowlisted tools.
 - Cloud Tasks for durable asynchronous job dispatch.
+- Cloud Scheduler for the six-hour historical monitor and signed monitor calls.
 - Cloud Run for the public API and operational console with scale-to-zero.
-- Firestore for workflow documents plus audit_events subcollections.
+- Firestore for workflow documents, the source snapshot ledger, and
+  audit_events subcollections.
 - Artifact Registry and Cloud Build for the isolated deployment.
 
 The model can inspect an allowlisted source and read workflow state. It cannot
@@ -63,8 +66,10 @@ Firestore job, Cloud Tasks dispatches an OIDC-authenticated worker request, and
 the ADK run records its model/tool trace against the resulting workflow. The
 deterministic workflow engine creates evidence, impact records, approval
 interrupts, sandbox packets, and audit events. Firestore persists the job,
-whole workflow, and each audit event. A workflow loaded after a process restart
-is restored into the policy engine before approval or reopening is accepted.
+whole workflow, source history, and each audit event. A workflow loaded after a
+process restart is restored into the policy engine before approval or reopening
+is accepted. Cloud Scheduler's monitor path records a baseline or no-change
+result without inventing a workflow.
 
 ## Disclosure of prior work
 

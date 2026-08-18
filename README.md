@@ -29,10 +29,14 @@ Driftline is a complete resumable workflow rather than a chat interface:
 7. Preserve an auditable event trail for every action.
 
 The Google ADK coordinator is configured for the Gemini 3.5 Flash model and a
-strictly allowlisted read/inspect tool set for reasoning. Cloud Tasks starts
+strictly allowlisted read/inspect tool set for reasoning. A second ADK task
+performs structured, evidence-hash-bound impact analysis; its JSON is validated
+again by Driftline before it can replace draft artifacts. Cloud Tasks starts
 the live run asynchronously, so the browser is not holding a model request
 open. A separate deterministic API gate owns high-risk approval; the model is
-not given an approval tool. Cloud Run serves the API and web console in one
+not given an approval tool. Cloud Scheduler runs the historical monitor every
+six hours and records `baseline_established`, `unchanged`, or `changed` in a
+Firestore snapshot ledger. Cloud Run serves the API and web console in one
 container, with Firestore as the durable workflow, job, and audit store. The
 synthetic replay remains available for predictable judging. Both live and
 identity-free preview mutations are query-capped and rate-limited to bound
