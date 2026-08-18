@@ -74,6 +74,11 @@ The current public release was exercised on revision `driftline-00014-8zh`:
 - A signed Cloud Scheduler run created monitor job `job-9668cbe22717`, which
   completed `baseline_established` with no workflow or approval invented. The
   Firestore snapshot ledger contains one `public/pricing` baseline document.
+- A controlled ledger replay created monitor job `job-2813b664a871`, which
+  detected `changed` with the exact before/after sentences and
+  `confidence=0.99`, then reached the same deterministic approval gate. Its
+  explicit structured-analysis fallback was safe and labelled; the final
+  judge-facing demo run above is the verified `gemini_structured` path.
 - The first post-deploy live run exposed and fixed an ADK mode incompatibility;
   one subsequent enqueue returned a transient queue-not-found while the
   service was warming. The final run succeeded; treat Cloud Run error logs as
