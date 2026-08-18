@@ -10,6 +10,7 @@ const completedOutcomes = new Set([
 ]);
 
 export default function ActivityLog({ events = [], onClose }) {
+  const formatLabel = (value) => (value || "").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   const formatTime = (timestamp) => {
     if (!timestamp) return "Synthetic fixture";
     const date = new Date(timestamp);
@@ -30,12 +31,12 @@ export default function ActivityLog({ events = [], onClose }) {
         return (
           <div className="activity-grid" key={event.event_id || (event.timestamp + "-" + event.action)}>
             <span><ChevronRight size={14} />{formatTime(event.timestamp)}</span>
-            <span>{(event.action || "workflow event").replace(/_/g, " ")}</span>
-            <span>{event.stage || "workflow"}</span>
+            <span>{formatLabel(event.action || "workflow event")}</span>
+            <span>{formatLabel(event.stage || "workflow")}</span>
             <span className="evidence-link">{event.event_id || "audit event"}</span>
             <span className={"outcome " + (completed ? "success" : "queued")}>
               {completed ? <CheckCircle2 size={14} /> : <Clock3 size={14} />}
-              {outcome.replace(/_/g, " ")}
+              {formatLabel(outcome)}
             </span>
           </div>
         );
