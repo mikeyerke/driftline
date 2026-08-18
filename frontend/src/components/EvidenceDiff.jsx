@@ -1,15 +1,17 @@
 import { ArrowRight, ChevronUp } from "lucide-react";
 
-export default function EvidenceDiff({ collapsed, onToggle, evidence }) {
+export default function EvidenceDiff({ collapsed, onToggle, evidence, showToggle = true }) {
   const before = (evidence?.before || "Enterprise includes unlimited audit-log retention.").replace(/\.$/, "");
   const after = (evidence?.after || "Enterprise includes 365-day audit-log retention.").replace(/\.$/, "");
   return (
     <section className="panel evidence-panel">
       <header className="panel-header">
         <h2>Evidence diff</h2>
-        <button className="secondary compact" onClick={onToggle}>
-          {collapsed ? "Expand" : "Collapse"}<ChevronUp className={collapsed ? "rotated" : ""} size={16} />
-        </button>
+        {showToggle && (
+          <button className="secondary compact" onClick={onToggle}>
+            {collapsed ? "Expand" : "Collapse"}<ChevronUp className={collapsed ? "rotated" : ""} size={16} />
+          </button>
+        )}
       </header>
       {!collapsed && (
         <div className="evidence-body">

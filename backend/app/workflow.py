@@ -16,8 +16,26 @@ DEMO_BEFORE = "Enterprise includes unlimited audit-log retention."
 DEMO_AFTER = "Enterprise includes 365-day audit-log retention."
 
 
+def _evidence_digest(before: str, after: str) -> str:
+    return hashlib.sha256(f"{before}\n{after}".encode()).hexdigest()
+
+
 class PolicyViolation(ValueError):
     """Raised when an action violates a deterministic workflow policy."""
+
+
+_NON_HUMAN_IDENTITIES = frozenset(
+    {"agent", "assistant", "driftline", "model", "system"}
+)
+
+
+def _require_named_human(value: str, field_name: str) -> str:
+    cleaned = value.strip()
+    if not cleaned:
+        raise PolicyViolation(f"A named human {field_name} is required")
+    if any(token in _NON_HUMAN_IDENTITIES for token in cleaned.casefold().split()):
+        raise PolicyViolation("An agent or system cannot approve or undo a decision")
+    return cleaned
 
 
 class DriftlineWorkflow:
@@ -55,13 +73,12 @@ class DriftlineWorkflow:
         self._event(state, "source_monitor", "change_detected")
 
         state.stage = Stage.VERIFY
-        payload = f"{DEMO_BEFORE}\n{DEMO_AFTER}".encode()
         state.evidence = SourceEvidence(
             source_id="public/pricing",
             source_name="Public pricing page",
             before=DEMO_BEFORE,
             after=DEMO_AFTER,
-            evidence_hash=hashlib.sha256(payload).hexdigest(),
+            evidence_hash=_evidence_digest(DEMO_BEFORE, DEMO_AFTER),
             confidence=0.99,
             snapshot_label="Synthetic demo fixture · public/pricing",
         )
@@ -102,17 +119,11 @@ class DriftlineWorkflow:
         state = self.get(workflow_id)
         if state.status is not WorkflowStatus.NEEDS_APPROVAL:
             raise PolicyViolation("Workflow is not waiting for approval")
-        cleaned_approver = approver.strip()
-        if not cleaned_approver:
-            raise PolicyViolation("A named human approver is required")
-        if cleaned_approver.casefold() in {
-            "agent",
-            "assistant",
-            "driftline",
-            "model",
-            "system",
-        }:
-            raise PolicyViolation("An agent or system cannot approve its own action")
+        if state.evidence is None or state.evidence.evidence_hash != _evidence_digest(
+            state.evidence.before, state.evidence.after
+        ):
+            raise PolicyViolation("Evidence hash no longer matches the source snapshot")
+        cleaned_approver = _require_named_human(approver, "approver")
         if decision != "grandfather_existing_customers":
             raise PolicyViolation("Decision is not in the allowlisted policy set")
 
@@ -140,9 +151,9 @@ class DriftlineWorkflow:
 
     def undo(self, workflow_id: str, actor: str) -> WorkflowState:
         state = self.get(workflow_id)
-        cleaned_actor = actor.strip()
-        if not cleaned_actor:
-            raise PolicyViolation("A named actor is required")
+        if state.status is not WorkflowStatus.COMPLETE or state.approval is None:
+            raise PolicyViolation("There is no recorded human decision to undo")
+        _require_named_human(actor, "actor")
         state.approval = None
         state.stage = Stage.AWAIT_APPROVAL
         state.status = WorkflowStatus.NEEDS_APPROVAL

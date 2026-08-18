@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import logging
 import os
+from collections import deque
 from pathlib import Path
+from threading import Lock
+from time import monotonic
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .adk_runtime import run_agent_task
 from .persistence import load_workflow, persist_workflow
 from .workflow import PolicyViolation, workflow_store
 
+logger = logging.getLogger("driftline.api")
 app = FastAPI(title="Driftline API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
@@ -28,17 +33,46 @@ app.add_middleware(
 
 
 class ApprovalRequest(BaseModel):
-    approver: str
-    decision: str = "grandfather_existing_customers"
+    approver: str = Field(min_length=1, max_length=120)
+    decision: str = Field(
+        default="grandfather_existing_customers",
+        max_length=64,
+    )
 
 
 class UndoRequest(BaseModel):
-    actor: str
+    actor: str = Field(min_length=1, max_length=120)
 
 
 class AgentRunRequest(BaseModel):
-    query: str
-    user_id: str = "demo-operator"
+    query: str = Field(min_length=1, max_length=2000)
+    user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
+
+
+def _positive_int(name: str, default: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+AGENT_MAX_CALLS = _positive_int("DRIFTLINE_AGENT_MAX_CALLS", 10)
+AGENT_WINDOW_SECONDS = _positive_int("DRIFTLINE_AGENT_WINDOW_SECONDS", 3600)
+_agent_call_times: deque[float] = deque()
+_agent_call_lock = Lock()
+
+
+def _reserve_agent_call() -> bool:
+    now = monotonic()
+    cutoff = now - AGENT_WINDOW_SECONDS
+    with _agent_call_lock:
+        while _agent_call_times and _agent_call_times[0] <= cutoff:
+            _agent_call_times.popleft()
+        if len(_agent_call_times) >= AGENT_MAX_CALLS:
+            return False
+        _agent_call_times.append(now)
+        return True
 
 
 @app.get("/health")
@@ -71,9 +105,15 @@ def start_demo() -> dict:
 async def run_agent(request: AgentRunRequest) -> dict:
     if not request.query.strip():
         raise HTTPException(status_code=422, detail="Query cannot be empty")
+    if not _reserve_agent_call():
+        raise HTTPException(
+            status_code=429,
+            detail="Live agent demo rate limit reached; retry later.",
+        )
     try:
         return await run_agent_task(request.query, request.user_id)
     except Exception as exc:
+        logger.exception("Live ADK execution failed")
         raise HTTPException(
             status_code=503,
             detail="Live ADK execution is unavailable; check Google Cloud credentials.",

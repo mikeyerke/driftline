@@ -44,10 +44,10 @@ decision** and show that the high-risk gate and draft statuses return.
 ## 2:45–3:25 — Live Google path and Cloud proof
 
 In a terminal or API client, call the deployed /api/agent/run endpoint with
-the allowlisted synthetic source request. Show the response model and
-execution_mode fields. Show the Cloud Run URL, revision, and a log line from
-the same request, plus a Firestore document containing the workflow and its
-audit_events subcollection.
+the allowlisted synthetic source request. Show the response model,
+execution_mode, and tool_calls fields. Show the Cloud Run URL, revision, and a
+log line from the same request, plus a Firestore document containing the
+workflow and its audit_events subcollection.
 
 ## 3:25–4:00 — Close
 

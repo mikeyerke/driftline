@@ -32,3 +32,8 @@ def test_demo_approval_and_undo_round_trip() -> None:
     )
     assert undone.status_code == 200
     assert undone.json()["status"] == "needs_approval"
+
+
+def test_live_agent_query_is_bounded_before_execution() -> None:
+    response = client.post("/api/agent/run", json={"query": "x" * 2001})
+    assert response.status_code == 422

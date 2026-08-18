@@ -14,7 +14,11 @@ export default function DecisionPanel({ approved, approval, onApprove, onUndo, o
           <dt>Decided</dt><dd>{approval?.timestamp ? new Date(approval.timestamp).toLocaleString() : "Synthetic local fallback"}</dd>
         </dl>
         <button className="secondary full" onClick={onUndo}><RotateCcw size={17} />Undo decision</button>
-        <p className="decision-note">This decision is logged and controls downstream actions.</p>
+        <p className="decision-note">
+          {approval?.timestamp
+            ? "This decision is logged and controls downstream actions."
+            : "Synthetic preview only; no server decision was recorded."}
+        </p>
         <div className="audit-id"><strong>Audit event</strong><span>{auditEvent}</span></div>
         <button className="secondary full evidence-button" onClick={onEvidence}><FileText size={17} />Open evidence</button>
       </aside>

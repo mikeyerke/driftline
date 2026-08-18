@@ -24,8 +24,8 @@ way to turn evidence into coordinated action.
 
 ## What it does
 
-Driftline monitors an approved source and runs a resumable change-to-action
-workflow. It verifies evidence, maps operational impact, drafts updates for
+Driftline runs a resumable change-to-action workflow from an approved source
+fixture. It verifies evidence, maps operational impact, drafts updates for
 each downstream artifact, and executes only bounded actions. When a change
 touches a contractual expectation, deterministic policy pauses the workflow and
 requests a named human decision. After approval, Driftline resumes exactly
@@ -50,8 +50,9 @@ system.
 
 The model can inspect an allowlisted source and read workflow state. It cannot
 approve, resume, widen its own permissions, or publish a high-risk action. The
-separate API policy gate requires an explicit named human and an exact
-allowlisted decision.
+separate API policy gate requires an explicit named demo actor and an exact
+allowlisted decision. The public demonstration does not include production
+identity authentication, so this named actor is not an enterprise IAM claim.
 
 ## Architecture and state
 
@@ -74,13 +75,14 @@ created during the contest.
 ## Accomplishments
 
 - Full change-to-action workflow with resumable human approval.
-- Immutable SHA-256 evidence attached to the approval decision.
+- SHA-256 evidence attached to the approval decision.
 - Four independently owned downstream artifacts mapped from one source change.
 - A synthetic, reproducible demonstration that requires no private company data.
 - An isolated Cloud Run and Firestore deployment configuration with a
   dedicated runtime identity (live deployment evidence will be added before
   submission).
-- Deterministic safety controls around an actual Google ADK/Gemini path.
+- Deterministic safety controls around the Google ADK/Gemini path, pending the
+  direct Vertex AI execution evidence required before submission.
 
 ## Limitations and next steps
 

@@ -1,9 +1,10 @@
 # Driftline
 
-Driftline is an autonomous change-to-action agent for enterprise operations.
-It monitors approved public sources, verifies material changes, maps every
-downstream artifact that may be affected, drafts precise updates, and pauses
-only when a consequential human decision is required.
+Driftline is a change-to-action agent prototype for enterprise operations. It
+is designed to monitor approved public sources, verify material changes, map
+downstream artifacts, draft precise updates, and pause when a consequential
+human decision is required. The included judge-ready flow starts from one
+approved synthetic source fixture; it does not claim a live source connector.
 
 The included demonstration uses clearly labelled synthetic data. It models a
 pricing-page change from unlimited audit-log retention to 365-day retention,
@@ -29,7 +30,8 @@ given an approval tool. The Cloud Run deployment target serves the API and web
 console in one container, with Firestore as the intended production event and
 workflow store. The deterministic synthetic demo works without cloud
 credentials so judges can evaluate the interaction immediately; /api/agent/run
-exercises the live ADK/Gemini path when Vertex AI credentials are available.
+exercises the live ADK/Gemini path when Vertex AI credentials are available. The
+live endpoint is query-capped and rate-limited to bound demo spend.
 
 ## Repository layout
 
@@ -113,9 +115,11 @@ logs before the public URL is added here.
 ## Safety model
 
 - Synthetic or explicitly approved public data only in the demonstration.
-- Every detected change carries immutable source evidence.
+- Every detected change carries hash-bound source evidence.
 - High-risk actions stop at a human approval gate.
-- Tools are allowlisted and artifact writes are idempotent.
+- Tools are allowlisted and the demonstration state transitions are bounded.
 - The model proposes actions; deterministic policy code decides whether they
   may execute.
+- The public demonstration names a demo operator but does not provide
+  production identity authentication.
 - No real Salesforce, CRM, billing, customer, or private company data is used.

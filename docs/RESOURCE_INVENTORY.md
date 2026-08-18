@@ -28,7 +28,8 @@ The intended deployment uses Cloud Run scale-to-zero and a bounded maximum
 instance count. Once created, Firestore will be used only for Driftline
 workflow documents and their audit_events subcollections. No existing bucket,
 database, service account, API key, repository, or environment variable is
-reused.
+reused. The public live-agent endpoint is configured for at most 10 calls per
+hour and a 2,000-character query; this is a spend guard, not authentication.
 
 ## Evidence and cleanup
 

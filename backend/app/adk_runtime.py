@@ -28,12 +28,16 @@ async def run_agent_task(query: str, user_id: str = "demo-operator") -> dict:
 
     final_text = ""
     event_count = 0
+    tool_calls: list[str] = []
     async for event in runner.run_async(
         user_id=user_id,
         session_id=session.id,
         new_message=message,
     ):
         event_count += 1
+        for function_call in event.get_function_calls() or []:
+            if function_call.name and function_call.name not in tool_calls:
+                tool_calls.append(function_call.name)
         if event.is_final_response() and event.content and event.content.parts:
             final_text = "".join(
                 part.text or "" for part in event.content.parts if part.text
@@ -43,6 +47,7 @@ async def run_agent_task(query: str, user_id: str = "demo-operator") -> dict:
         "session_id": session.id,
         "response": final_text,
         "event_count": event_count,
+        "tool_calls": tool_calls,
         "model": root_agent.model,
         "execution_mode": "google_adk",
     }

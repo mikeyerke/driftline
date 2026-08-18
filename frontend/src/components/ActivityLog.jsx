@@ -7,6 +7,7 @@ const completedOutcomes = new Set([
   "4_updates_drafted",
   "approval_recorded",
   "2_published_1_queued_1_scheduled",
+  "decision_undone",
 ]);
 
 export default function ActivityLog({ events = [], onClose }) {
@@ -20,11 +21,11 @@ export default function ActivityLog({ events = [], onClose }) {
   return (
     <section className="panel activity-log">
       <header className="panel-header simple">
-        <div><h2>Activity</h2><span className="live-label">Live</span><span className="muted">Auto-updates</span></div>
+        <div><h2>Activity</h2><span className="live-label">Recorded</span><span className="muted">Workflow audit</span></div>
         <button className="text-button" onClick={onClose}>Close<X size={14} /></button>
       </header>
       <div className="activity-grid activity-heading"><span>Time</span><span>Activity</span><span>Stage</span><span>Audit event</span><span>Outcome</span></div>
-      {events.length === 0 && <p className="empty-state">Run the scan to create durable audit events.</p>}
+      {events.length === 0 && <p className="empty-state">Run the scan while the API is connected to create audit events.</p>}
       {events.map((event) => {
         const outcome = event.outcome || "recorded";
         const completed = completedOutcomes.has(outcome);

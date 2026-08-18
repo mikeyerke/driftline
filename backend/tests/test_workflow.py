@@ -1,5 +1,6 @@
+import app.agent as agent_module
 from app.agent import root_agent
-from app.models import Stage, WorkflowStatus
+from app.models import SourceEvidence, Stage, WorkflowStatus
 from app.workflow import DriftlineWorkflow, PolicyViolation
 
 
@@ -79,3 +80,65 @@ def test_agent_tool_allowlist_has_no_approval_capability() -> None:
         assert "cannot approve" in str(exc)
     else:
         raise AssertionError("Agent identity should never satisfy the human gate")
+
+
+def test_undo_requires_a_recorded_human_decision() -> None:
+    workflow = DriftlineWorkflow()
+    state = workflow.start_demo()
+    try:
+        workflow.undo(state.workflow_id, "Demo operator")
+    except PolicyViolation as exc:
+        assert "no recorded human decision" in str(exc)
+    else:
+        raise AssertionError("A pending workflow should not have a decision to undo")
+
+    workflow.approve(
+        state.workflow_id,
+        "Demo operator",
+        "grandfather_existing_customers",
+    )
+    try:
+        workflow.undo(state.workflow_id, "agent")
+    except PolicyViolation as exc:
+        assert "cannot approve or undo" in str(exc)
+    else:
+        raise AssertionError("An agent identity should not undo a human decision")
+
+
+def test_approval_rejects_changed_evidence() -> None:
+    workflow = DriftlineWorkflow()
+    state = workflow.start_demo()
+    state.evidence = SourceEvidence(
+        source_id="public/pricing",
+        source_name="Public pricing page",
+        before="Changed before",
+        after="Changed after",
+        evidence_hash=state.evidence.evidence_hash,
+        confidence=0.99,
+        snapshot_label="Synthetic demo fixture · public/pricing",
+    )
+    try:
+        workflow.approve(
+            state.workflow_id,
+            "Demo operator",
+            "grandfather_existing_customers",
+        )
+    except PolicyViolation as exc:
+        assert "Evidence hash" in str(exc)
+    else:
+        raise AssertionError("Approval must reject changed evidence")
+
+
+def test_agent_source_tool_persists_the_created_workflow() -> None:
+    persisted_ids: list[str] = []
+    original_persist = agent_module.persist_workflow
+    agent_module.persist_workflow = lambda state: persisted_ids.append(
+        state.workflow_id
+    )
+    try:
+        payload = agent_module.inspect_source_change("public/pricing")
+    finally:
+        agent_module.persist_workflow = original_persist
+
+    assert payload["workflow_id"] in persisted_ids
+    assert payload["data_mode"] == "synthetic_demo"

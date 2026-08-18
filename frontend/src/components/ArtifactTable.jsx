@@ -16,8 +16,14 @@ export default function ArtifactTable({ items, onSelect, selected }) {
             {items.map((item, index) => {
               const Icon = artifactIcons[index];
               const status = statusFor(index, item.status);
+              const selectRow = (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(item.name);
+                }
+              };
               return (
-                <tr className={selected === item.name ? "selected-row" : ""} key={item.name} onClick={() => onSelect(item.name)}>
+                <tr className={selected === item.name ? "selected-row" : ""} key={item.name} tabIndex={0} aria-selected={selected === item.name} onClick={() => onSelect(item.name)} onKeyDown={selectRow}>
                   <td><Icon size={16} />{item.name}</td><td>{item.owner}</td><td>{item.action}</td>
                   <td><span className={`tag ${item.risk.toLowerCase()}`}>{item.risk.charAt(0).toUpperCase() + item.risk.slice(1)}</span></td>
                   <td className={`status status-${status.toLowerCase().replace(" ", "-")}`}>

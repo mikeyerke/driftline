@@ -27,7 +27,7 @@ steps:
       - --timeout=300
       - --concurrency=20
       - --labels=app=driftline,environment=production,hackathon=all-things-agentic
-      - --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=${_REGION},GOOGLE_GENAI_USE_VERTEXAI=true,MODEL_NAME=gemini-3.5-flash,DRIFTLINE_PERSISTENCE=firestore,FIRESTORE_DATABASE=(default)
+      - --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=true,MODEL_NAME=gemini-3.5-flash,DRIFTLINE_PERSISTENCE=firestore,FIRESTORE_DATABASE=(default),DRIFTLINE_AGENT_MAX_CALLS=10,DRIFTLINE_AGENT_WINDOW_SECONDS=3600
 substitutions:
   _REGION: us-central1
   _REPOSITORY: driftline

@@ -7,6 +7,7 @@ are:
 - [Official rules](https://allthingsagentichackathon.devpost.com/rules)
 - [Google Cloud free program](https://cloud.google.com/free)
 - [Contest credit request](https://forms.gle/riGhgDSHkHeMx8Ca6)
+- [Google Cloud Gemini 3.5 Flash model reference](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash)
 
 ## Dates and eligibility
 
@@ -26,6 +27,10 @@ Every project must use Gemini 3.5 or newer through Gemini API or Vertex AI, at
 least one Google agent framework (Google ADK, GenAI SDK, Antigravity SDK, or
 GenKit 3), and at least one Google Cloud infrastructure service. Driftline uses
 Vertex AI, Google ADK, Cloud Run, and Firestore.
+
+The model reference lists Gemini 3.5 Flash on the `global` and `us` Vertex AI
+endpoints. Driftline keeps Cloud Run and Firestore in `us-central1` but sends
+the model client to the `global` location.
 
 The Devpost submission must include a hosted project URL, English description,
 public or judge-accessible repository, reproducible README.md, architecture
@@ -72,4 +77,3 @@ Discipline & Tech Stack at 30%, and Demo & Production Readiness at 30%. The
 rules specifically ask for autonomous execution beyond chat, clean state and
 tool isolation, an unedited live action proof, Google Cloud deployment proof,
 and reproducible documentation.
-

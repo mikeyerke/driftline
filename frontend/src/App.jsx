@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ExternalLink, Play, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Play, X } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import EvidenceDiff from "./components/EvidenceDiff";
 import ImpactMap from "./components/ImpactMap";
@@ -44,6 +44,7 @@ export default function App() {
       ? { approver: "Demo operator", timestamp: null, audit_event_id: "Local synthetic fallback" }
       : null;
   const events = workflowState?.events || [];
+  const scanFailed = scanMessage.startsWith("API unavailable");
 
   useEffect(() => {
     if (!showEvidence) return undefined;
@@ -84,7 +85,8 @@ export default function App() {
         setShowActivity(true);
         return;
       } catch {
-        setScanMessage("API unavailable · local synthetic approval shown");
+        setScanMessage("API unavailable · decision was not recorded");
+        return;
       }
     }
     setLocalApproved(true);
@@ -97,10 +99,11 @@ export default function App() {
         const state = await undoWorkflow(workflowId);
         setWorkflowState(state);
         setLocalApproved(false);
-        setShowActivity(false);
+        setShowActivity(true);
         return;
       } catch {
-        setScanMessage("API unavailable · local synthetic undo shown");
+        setScanMessage("API unavailable · decision was not changed");
+        return;
       }
     }
     setLocalApproved(false);
@@ -114,8 +117,8 @@ export default function App() {
         <header className="topbar">
           <h1>Change operations</h1>
           <div className="topbar-actions">
-            {scanMessage && <span className="scan-message"><CheckCircle2 size={15} />{scanMessage}</span>}
-            <button className="workspace-button">Synthetic workspace<ChevronDown size={15} /></button>
+            {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
+            <span className="workspace-button">Synthetic workspace<ChevronDown size={15} /></span>
             <button className="primary" onClick={runScan} disabled={scanning}>
               <Play size={17} />{scanning ? "Scanning…" : "Run scan"}
             </button>
@@ -131,13 +134,13 @@ export default function App() {
             <div className="incident-title">
               <h2>Enterprise plan packaging changed</h2>
               <div className="metadata">
-                <span><strong>Source</strong>{evidence.source_name}<ExternalLink size={13} /></span>
+                <span><strong>Source</strong>{evidence.source_name}</span>
                 <i /><span><strong>Detected</strong>{workflowState ? "Just now" : "Synthetic fixture"}</span><i />
                 <span><strong>Confidence</strong><CheckCircle2 className="verified" size={15} />Verified</span><i />
                 <span><strong>Severity</strong><b className="risk-dot high-dot" />High</span>
               </div>
             </div>
-            <button className="secondary incident-details">View incident details<ChevronDown size={16} /></button>
+            <button className="secondary incident-details" onClick={() => setShowEvidence(true)}>View incident evidence<ChevronDown size={16} /></button>
           </section>
 
           <div className="dashboard-grid">
@@ -161,11 +164,11 @@ export default function App() {
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setShowEvidence(false)}>
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="evidence-title" onMouseDown={(event) => event.stopPropagation()}>
             <header>
-              <div><h2 id="evidence-title">Source evidence</h2><p>Immutable snapshot · SHA-256 verified</p></div>
+              <div><h2 id="evidence-title">Source evidence</h2><p>SHA-256 snapshot verified</p></div>
               <button className="icon-button" aria-label="Close evidence" onClick={() => setShowEvidence(false)}><X size={20} /></button>
             </header>
             <div className="modal-source"><strong>{evidence.source_name}</strong><span>{evidence.source_id}</span></div>
-            <EvidenceDiff collapsed={false} onToggle={() => {}} evidence={evidence} />
+            <EvidenceDiff collapsed={false} evidence={evidence} showToggle={false} />
             <div className="hash"><strong>Evidence hash</strong><code>{evidence.evidence_hash}</code></div>
             <footer><button className="secondary" onClick={() => setShowEvidence(false)}>Close</button></footer>
           </section>
