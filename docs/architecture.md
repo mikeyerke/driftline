@@ -8,16 +8,16 @@ flowchart TD
     T --> W
     W --> E[Evidence, impact map, draft state]
     E --> G{Deterministic policy gate}
-    G -->|High risk| H[Named human decision]
+    G --> H[Named human decision]
     H --> P[Bounded demo publisher]
-    G -->|No approval needed| P
     P --> F[(Firestore workflow + audit events)]
     F --> U[React operations console]
 ```
 
 Gemini 3.5 Flash supplies the live ADK turn when Vertex AI is configured.
-Google ADK owns the coordinator and its two read/inspect tools. The
-deterministic workflow engine—not the model—creates the reproducible synthetic
+Google ADK owns the coordinator and its two allowlisted inspect/state tools;
+the inspect tool creates the synthetic workflow and the state tool reads it.
+The deterministic workflow engine—not the model—creates the reproducible synthetic
 evidence, maps four bounded demo artifacts, applies the approval policy, and
 records the state transitions. Cloud Run is the intended public API and console
 host; Firestore is the intended durable workflow and audit store after the
