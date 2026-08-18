@@ -169,7 +169,17 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 }
 
 @media (max-width: 560px) {
-  .sidebar nav { justify-content: space-around; }.nav-item:nth-child(n+5) { display: none; }.metadata { display: grid; grid-template-columns: 1fr 1fr; }.dashboard-grid { gap: 12px; }.evidence-body { grid-template-columns: 1fr; }.evidence-body > div:nth-child(2), .diff-arrow { display: none; }.snapshot { grid-column: 1; }.impact-row { grid-template-columns: 30px 35px 1fr; }.impact-row .tag { grid-column: 3; justify-self: start; }.workflow-timeline { grid-template-columns: repeat(2, 1fr); }.workflow-step:nth-child(3), .workflow-step:nth-child(5) { }.workflow-step:nth-child(odd) .step-line { display: none; }.modal-source, .hash { flex-direction: column; }
+  .sidebar nav { justify-content: space-around; }.nav-item:nth-child(n+5) { display: none; }
+  .topbar { height: auto; min-height: 65px; flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 14px; }
+  .topbar h1 { min-width: 0; font-size: 19px; }
+  .topbar-actions { justify-content: flex-end; }
+  .workspace-banner { width: 100%; }
+  .workspace-banner > span:not(.banner-status) { width: 100%; min-width: 0; overflow-wrap: anywhere; }
+  .metadata { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-width: 0; }
+  .metadata span { min-width: 0; flex-wrap: wrap; }
+  .metadata strong { margin-right: 0; }
+  .incident-title { min-width: 0; }
+  .dashboard-grid { gap: 12px; }.evidence-body { grid-template-columns: 1fr; }.evidence-body > div:nth-child(2), .diff-arrow { display: none; }.snapshot { grid-column: 1; }.impact-row { grid-template-columns: 30px 35px minmax(0, 1fr); }.impact-row .tag { grid-column: 3; justify-self: start; }.impact-copy small { white-space: normal; overflow-wrap: anywhere; }.workflow-timeline { grid-template-columns: repeat(2, 1fr); }.workflow-step:nth-child(3), .workflow-step:nth-child(5) { }.workflow-step:nth-child(odd) .step-line { display: none; }.modal-source, .hash { flex-direction: column; }
 }
  .source-panel, .agent-trace, .trust-panel { margin-top: 18px; scroll-margin-top: 84px; }
  .source-panel .panel-header > div, .agent-trace .panel-header > div, .trust-panel .panel-header > div { display: flex; align-items: center; gap: 10px; }
