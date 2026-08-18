@@ -22,14 +22,14 @@ Driftline is a complete resumable workflow rather than a chat interface:
 6. Resume from the decision and publish or queue each artifact.
 7. Preserve an auditable event trail for every action.
 
-The Google ADK coordinator uses the configured Gemini 3.5 Flash model and a
+The Google ADK coordinator is configured for the Gemini 3.5 Flash model and a
 strictly allowlisted read/inspect tool set for reasoning. A separate
 deterministic API gate owns high-risk approval and publishing; the model is not
-given an approval tool. Cloud Run hosts the API and web console in one
-container, and Firestore is the production event and workflow store. The
-deterministic synthetic demo works without cloud credentials so judges can
-evaluate the interaction immediately; /api/agent/run exercises the live
-ADK/Gemini path when Vertex AI credentials are available.
+given an approval tool. The Cloud Run deployment target serves the API and web
+console in one container, with Firestore as the intended production event and
+workflow store. The deterministic synthetic demo works without cloud
+credentials so judges can evaluate the interaction immediately; /api/agent/run
+exercises the live ADK/Gemini path when Vertex AI credentials are available.
 
 ## Repository layout
 
@@ -90,7 +90,7 @@ API key is embedded in the client.
 ## Public links
 
 - Live demo: added after the Cloud Run smoke test
-- GitHub: added after the public repository is created
+- GitHub: https://github.com/mikeyerke/driftline
 - Demo video: added after the four-minute public video is uploaded
 - Architecture: docs/architecture.md
 - Verified rules: docs/hackathon-rules.md
@@ -119,4 +119,3 @@ logs before the public URL is added here.
 - The model proposes actions; deterministic policy code decides whether they
   may execute.
 - No real Salesforce, CRM, billing, customer, or private company data is used.
-

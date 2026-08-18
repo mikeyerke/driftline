@@ -3,7 +3,7 @@
 ## Submission links
 
 - Hosted application: added after the Cloud Run smoke test
-- Source repository: added after the public GitHub push
+- Source repository: https://github.com/mikeyerke/driftline
 - Demonstration video: added after the public YouTube upload
 - Architecture diagram: docs/architecture.md in the repository
 
@@ -77,7 +77,9 @@ created during the contest.
 - Immutable SHA-256 evidence attached to the approval decision.
 - Four independently owned downstream artifacts mapped from one source change.
 - A synthetic, reproducible demonstration that requires no private company data.
-- Cloud Run and Firestore deployment with a dedicated runtime identity.
+- An isolated Cloud Run and Firestore deployment configuration with a
+  dedicated runtime identity (live deployment evidence will be added before
+  submission).
 - Deterministic safety controls around an actual Google ADK/Gemini path.
 
 ## Limitations and next steps
