@@ -38,7 +38,9 @@ audit-event documents.
 The policy gate is deliberately deterministic. A model cannot self-approve a
 high-risk action, widen its own tool permissions, or call the approval and undo
 endpoints. Approval creates a packet inside Driftline only; it never claims to
-have updated Salesforce, a CRM, billing, support, or customer records.
+have updated Salesforce, a CRM, billing, support, or customer records. The
+approval also creates a reversible Firestore action record with its own ID;
+undo changes that record to `reversed` and reopens the gate.
 Reopening a decision restores the approval gate and is not an external undo.
 The public demo has no identity provider, so the displayed “Demo operator” is
 a named demo actor, not production authentication.
