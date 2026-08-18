@@ -1,0 +1,40 @@
+1
+00:00:00,000 --> 00:00:20,000
+DRIFTLINE — Change-to-action operations
+Live Cloud Run demo · synthetic fixture clearly labelled
+
+2
+00:00:20,000 --> 00:00:50,000
+One verified source change maps to four downstream artifacts.
+High-risk work pauses for a named human decision.
+
+3
+00:00:50,000 --> 00:01:20,000
+Evidence is visible before action: removed language, added language,
+the synthetic source ID, and a SHA-256 snapshot hash.
+
+4
+00:01:20,000 --> 00:01:50,000
+The impact map keeps owners, bounded actions, and risk visible.
+The model proposes; deterministic policy owns the approval boundary.
+
+5
+00:01:50,000 --> 00:02:25,000
+Approve resumes the workflow: two published, one owner review, one scheduled.
+The named operator and durable audit event are recorded.
+
+6
+00:02:25,000 --> 00:02:55,000
+Activity shows every stage, outcome, timestamp, and audit event ID.
+The workflow is resumable rather than another alert or chat window.
+
+7
+00:02:55,000 --> 00:03:20,000
+Undo returns the workflow to the approval gate and restores draft states.
+The ADK agent has no approval or publish tool.
+
+8
+00:03:20,000 --> 00:03:50,000
+LIVE GOOGLE PATH VERIFIED · Gemini 3.5 Flash + Google ADK · Cloud Run + Firestore
+Allowlisted inspect/state tools · deterministic human gate
+driftline-xvxczqg62a-uc.a.run.app · github.com/mikeyerke/driftline
