@@ -1,9 +1,9 @@
-import { Circle, Clock3, MoreVertical } from "lucide-react";
+import { Circle, Clock3, ExternalLink } from "lucide-react";
 import { artifactIcons } from "./Icons";
 
 export default function ArtifactTable({ items, onSelect, selected }) {
   const statusFor = (index, fallback) => {
-    return fallback || ["Draft ready", "Needs approval", "Draft ready", "Scheduled"][index];
+    return fallback || ["Draft ready", "Draft ready", "Draft ready", "Draft ready"][index];
   };
 
   return (
@@ -26,10 +26,10 @@ export default function ArtifactTable({ items, onSelect, selected }) {
                 <tr className={selected === item.name ? "selected-row" : ""} key={item.name} tabIndex={0} aria-selected={selected === item.name} onClick={() => onSelect(item.name)} onKeyDown={selectRow}>
                   <td><Icon size={16} />{item.name}</td><td>{item.owner}</td><td>{item.action}</td>
                   <td><span className={`tag ${item.risk.toLowerCase()}`}>{item.risk.charAt(0).toUpperCase() + item.risk.slice(1)}</span></td>
-                  <td className={`status status-${status.toLowerCase().replace(" ", "-")}`}>
-                    {status === "Scheduled" || status === "Needs approval" ? <Clock3 size={14} /> : <Circle size={10} fill="currentColor" />}{status}
+                  <td className={`status status-${status.toLowerCase().replaceAll(" ", "-")}`}>
+                    {status === "Queued" || status === "Owner review" ? <Clock3 size={14} /> : <Circle size={10} fill="currentColor" />}{status}
                   </td>
-                  <td><button className="icon-button" aria-label={`More actions for ${item.name}`}><MoreVertical size={16} /></button></td>
+                  <td><button className="icon-button" aria-label={`Open details for ${item.name}`} onClick={(event) => { event.stopPropagation(); onSelect(item.name); }}><ExternalLink size={15} /></button></td>
                 </tr>
               );
             })}

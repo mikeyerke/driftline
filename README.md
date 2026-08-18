@@ -1,15 +1,19 @@
 # Driftline
 
-Driftline is a change-to-action agent prototype for enterprise operations. It
-is designed to monitor approved public sources, verify material changes, map
-downstream artifacts, draft precise updates, and pause when a consequential
-human decision is required. The included judge-ready flow starts from one
-approved synthetic source fixture; it does not claim a live source connector.
+Driftline is a change-to-action agent for operational teams. It monitors one
+explicitly allowlisted public source, verifies a material change, maps the
+downstream artifacts that could become stale, drafts evidence-linked updates,
+and pauses when a consequential human decision is required. The hosted demo
+uses a bounded asynchronous job and a durable Firestore workflow; it produces
+an auditable sandbox packet rather than pretending to write to a customer's
+systems.
 
-The included demonstration uses clearly labelled synthetic data. It models a
-pricing-page change from unlimited audit-log retention to 365-day retention,
-then traces the impact into a pricing battlecard, renewal playbook, enterprise
-FAQ, and CRM guidance. It is not connected to a real company system.
+The demonstration models a pricing-page change from unlimited audit-log
+retention to 365-day retention, then traces the impact into a pricing
+battlecard, renewal playbook, enterprise FAQ, and CRM guidance. The deployed
+source adapter fetches a single public GitHub snapshot when reachable and
+falls back to the clearly labelled synthetic replay when it is not. It is not
+connected to a real company system.
 
 ## Why it is agentic
 
@@ -20,18 +24,19 @@ Driftline is a complete resumable workflow rather than a chat interface:
 3. Map the change to downstream artifacts and owners.
 4. Draft bounded updates with evidence attached.
 5. Interrupt the workflow for high-risk human decisions.
-6. Resume from the decision and publish or queue each artifact.
+6. Resume from the decision and create a reversible packet, owner-review item,
+   or queued item for each artifact.
 7. Preserve an auditable event trail for every action.
 
 The Google ADK coordinator is configured for the Gemini 3.5 Flash model and a
-strictly allowlisted read/inspect tool set for reasoning. A separate
-deterministic API gate owns high-risk approval and publishing; the model is not
-given an approval tool. Cloud Run serves the API and web console in one
-container, with Firestore as the durable workflow and audit store. The
-deterministic synthetic demo works without cloud credentials so judges can
-evaluate the interaction immediately; `/api/agent/run` exercises the live
-ADK/Gemini path on the deployed service. Both live and identity-free preview
-mutations are query-capped and rate-limited to bound demo spend.
+strictly allowlisted read/inspect tool set for reasoning. Cloud Tasks starts
+the live run asynchronously, so the browser is not holding a model request
+open. A separate deterministic API gate owns high-risk approval; the model is
+not given an approval tool. Cloud Run serves the API and web console in one
+container, with Firestore as the durable workflow, job, and audit store. The
+synthetic replay remains available for predictable judging. Both live and
+identity-free preview mutations are query-capped and rate-limited to bound
+demo spend.
 
 ## Repository layout
 
@@ -101,18 +106,18 @@ API key is embedded in the client.
 ## Reproducible verification
 
 ~~~bash
-curl -fsS https://driftline-xvxczqg62a-uc.a.run.app/health
-curl -fsS -X POST https://driftline-xvxczqg62a-uc.a.run.app/api/workflows/demo
-curl -fsS -X POST https://driftline-xvxczqg62a-uc.a.run.app/api/agent/run \
-  -H 'content-type: application/json' \
-  -d '{"query":"Inspect the synthetic public/pricing change and stop at the human approval gate."}'
+BASE=https://driftline-xvxczqg62a-uc.a.run.app
+curl -fsS "$BASE/health"
+JOB=$(curl -fsS -X POST "$BASE/api/jobs/demo" -H 'content-type: application/json')
+JOB_ID=$(printf '%s' "$JOB" | jq -r .job_id)
+curl -fsS "$BASE/api/jobs/$JOB_ID"
 ~~~
 
-The verified 2026-08-18 release run passed scan, evidence, approval, undo, the
-live ADK response, Firestore workflow state, Firestore audit events, a public
-browser smoke test, and Cloud Run log review. The deployed response included
-`model=gemini-3.5-flash`, `execution_mode=google_adk`, and both allowlisted
-tools (`inspect_source_change`, `get_workflow_state`).
+The final release evidence in `docs/RESOURCE_INVENTORY.md` records the exact
+Cloud Run revision, async job result, browser smoke test, Firestore documents,
+and Cloud Run logs. A live ADK response is only claimed when those fields have
+been observed directly; the identity-free deterministic `/api/workflows/demo`
+endpoint is the fallback for evaluation.
 
 ## Safety model
 
@@ -120,8 +125,9 @@ tools (`inspect_source_change`, `get_workflow_state`).
 - Every detected change carries hash-bound source evidence.
 - High-risk actions stop at a human approval gate.
 - Tools are allowlisted and the demonstration state transitions are bounded.
-- The model proposes actions; deterministic policy code decides whether they
-  may execute.
+- The model proposes actions; deterministic policy code decides whether a
+  bounded packet may be created.
+- Generated packets explicitly state that no external systems changed.
 - The public demonstration names a demo operator but does not provide
   production identity authentication.
 - No real Salesforce, CRM, billing, customer, or private company data is used.
@@ -130,7 +136,8 @@ tools (`inspect_source_change`, `get_workflow_state`).
 
 The deployment is isolated in the new `driftline-hackathon-2026` Google Cloud
 project. Cloud Run is configured with zero minimum instances and a maximum of
-one instance. A $10 monthly billing budget is filtered to this project with
+one instance. Cloud Tasks is limited to one concurrent dispatch and 0.2
+dispatches per second. A $10 monthly billing budget is filtered to this project with
 25%, 50%, 75%, 90%, and 100% current-spend thresholds. The Google Cloud free
 trial started 2026-08-18 and ends 2026-11-17; the full paid-account activation
 control is intentionally not enabled. See `docs/RESOURCE_INVENTORY.md` for

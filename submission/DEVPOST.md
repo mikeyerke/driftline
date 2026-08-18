@@ -4,7 +4,7 @@
 
 - Hosted application: https://driftline-xvxczqg62a-uc.a.run.app/
 - Source repository: https://github.com/mikeyerke/driftline
-- Demonstration video: to be added after the public YouTube upload
+- Demonstration video: private draft while the product is being pressure-tested
 - Architecture diagram: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
 
 ## Category
@@ -24,14 +24,15 @@ way to turn evidence into coordinated action.
 
 ## What it does
 
-Driftline runs a resumable change-to-action workflow from an approved source
-fixture. It verifies evidence, maps operational impact, drafts updates for
-each downstream artifact, and executes only bounded actions. When a change
-touches a contractual expectation, deterministic policy pauses the workflow and
-requests a named human decision. After approval, Driftline resumes exactly
-where it stopped, publishes two bounded updates, queues one owner review, and
-schedules one low-risk update. Every step receives an event ID and the
-evidence hash is carried into the approval record.
+Driftline runs a resumable change-to-action workflow from one allowlisted public
+source. Cloud Tasks starts the scan asynchronously; the ADK coordinator
+verifies evidence, maps operational impact, and drafts updates for each
+downstream artifact. When a change touches a contractual expectation,
+deterministic policy pauses the workflow and requests a named human decision.
+After approval, Driftline creates an evidence-linked sandbox packet, an owner
+review item, or a queued item per artifact. Every step receives an event ID and
+the evidence hash is carried into the approval record and packet. No external
+system is changed by the public demo.
 
 The judge-ready workflow uses synthetic data: a public/pricing fixture changes
 Enterprise audit-log retention from unlimited to 365 days. The UI labels this
@@ -44,6 +45,7 @@ system.
   bounded drafting.
 - Google Agent Development Kit for the coordinator, session runner, and
   allowlisted tools.
+- Cloud Tasks for durable asynchronous job dispatch.
 - Cloud Run for the public API and operational console with scale-to-zero.
 - Firestore for workflow documents plus audit_events subcollections.
 - Artifact Registry and Cloud Build for the isolated deployment.
@@ -56,11 +58,13 @@ identity authentication, so this named actor is not an enterprise IAM claim.
 
 ## Architecture and state
 
-The React console calls FastAPI on the same Cloud Run service. The deterministic
-workflow engine creates evidence, impact records, approval interrupts, and
-audit events. Firestore persists the whole workflow and each audit event. A
-workflow loaded after a process restart is restored into the policy engine
-before approval or undo is accepted.
+The React console calls FastAPI on the same Cloud Run service. A scan creates a
+Firestore job, Cloud Tasks dispatches an OIDC-authenticated worker request, and
+the ADK run records its model/tool trace against the resulting workflow. The
+deterministic workflow engine creates evidence, impact records, approval
+interrupts, sandbox packets, and audit events. Firestore persists the job,
+whole workflow, and each audit event. A workflow loaded after a process restart
+is restored into the policy engine before approval or reopening is accepted.
 
 ## Disclosure of prior work
 
@@ -74,15 +78,17 @@ created during the contest.
 
 ## Accomplishments
 
-- Full change-to-action workflow with resumable human approval.
+- Full asynchronous change-to-action workflow with resumable human approval.
 - SHA-256 evidence attached to the approval decision.
 - Four independently owned downstream artifacts mapped from one source change.
 - A synthetic, reproducible demonstration that requires no private company data.
-- A live isolated Cloud Run and Firestore deployment with a dedicated runtime
-  identity, scale-to-zero configuration, and a project-scoped budget guardrail.
-- Direct Vertex AI execution evidence: the public endpoint returned
-  `gemini-3.5-flash`, `google_adk`, and both allowlisted tool calls; Firestore
-  received the workflow and audit events.
+- A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
+  dedicated runtime identity, scale-to-zero configuration, and a
+  project-scoped budget guardrail.
+- Direct Vertex AI execution evidence is claimed only in the release inventory
+  after the deployed endpoint returns `gemini-3.5-flash`, `google_adk`, and both
+  allowlisted tool calls; Firestore must receive the job, workflow, and audit
+  events.
 
 ## Limitations and next steps
 

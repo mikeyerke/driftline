@@ -5,6 +5,12 @@ from enum import StrEnum
 from typing import Any
 
 
+def utc_now() -> str:
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC).isoformat()
+
+
 class Stage(StrEnum):
     MONITOR = "monitor"
     VERIFY = "verify"
@@ -15,9 +21,11 @@ class Stage(StrEnum):
 
 
 class WorkflowStatus(StrEnum):
+    QUEUED = "queued"
     RUNNING = "running"
     NEEDS_APPROVAL = "needs_approval"
     COMPLETE = "complete"
+    FAILED = "failed"
 
 
 @dataclass(frozen=True)
@@ -29,6 +37,9 @@ class SourceEvidence:
     evidence_hash: str
     confidence: float
     snapshot_label: str = "Synthetic demo fixture"
+    source_url: str | None = None
+    retrieved_at: str | None = None
+    snapshot_hash: str | None = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +49,9 @@ class ArtifactImpact:
     action: str
     risk: str
     status: str = "draft_ready"
+    detail: str = ""
+    proposed: str = ""
+    evidence_hash: str = ""
 
 
 @dataclass
@@ -51,6 +65,10 @@ class WorkflowState:
     approval: dict[str, Any] | None = None
     events: list[dict[str, Any]] = field(default_factory=list)
     data_mode: str = "synthetic_demo"
+    artifact_packets: list[dict[str, Any]] = field(default_factory=list)
+    agent_trace: dict[str, Any] | None = None
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a Firestore/API-safe representation of the state."""
@@ -65,3 +83,29 @@ class WorkflowState:
             return value
 
         return serialise(asdict(self))
+
+
+@dataclass
+class JobState:
+    """Durable asynchronous execution record for a judge-visible run."""
+
+    job_id: str
+    kind: str = "change_scan"
+    status: str = "queued"
+    query: str = ""
+    user_id: str = "demo-operator"
+    workflow_id: str | None = None
+    model: str | None = None
+    execution_mode: str | None = None
+    tool_calls: list[str] = field(default_factory=list)
+    event_count: int = 0
+    response: str = ""
+    error: str | None = None
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
+
+    def touch(self) -> None:
+        self.updated_at = utc_now()
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)

@@ -15,13 +15,13 @@ export default function ImpactMap({ items, approved, sourceName }) {
           const status = item.status || "Draft ready";
           const statusLabel = status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
           const riskLabel = item.risk.charAt(0).toUpperCase() + item.risk.slice(1);
-          const resolved = approved && status.toLowerCase() === "published";
+          const resolvedStatus = approved ? status.toLowerCase().replace(/\s+/g, "-") : item.risk.toLowerCase();
           return (
             <div className="impact-row" key={item.name}>
               <span className="branch" />
               <span className="artifact-icon"><Icon size={18} /></span>
               <span className="impact-copy"><strong>{item.name}</strong><small>{item.detail}</small></span>
-              <span className={resolved ? "tag published" : `tag ${item.risk.toLowerCase()}`}>
+              <span className={`tag ${approved ? resolvedStatus : item.risk.toLowerCase()}`}>
                 {approved ? statusLabel : riskLabel}
               </span>
             </div>

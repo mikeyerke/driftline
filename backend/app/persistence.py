@@ -6,9 +6,18 @@ from typing import Any
 
 from google.cloud import firestore
 
-from .models import ArtifactImpact, SourceEvidence, Stage, WorkflowState, WorkflowStatus
+from .models import (
+    ArtifactImpact,
+    JobState,
+    SourceEvidence,
+    Stage,
+    WorkflowState,
+    WorkflowStatus,
+    utc_now,
+)
 
 COLLECTION = "driftline_workflows"
+JOBS_COLLECTION = "driftline_jobs"
 
 
 def _enabled() -> bool:
@@ -42,6 +51,10 @@ def _state_from_dict(payload: dict[str, Any]) -> WorkflowState:
         approval=payload.get("approval"),
         events=events,
         data_mode=payload.get("data_mode", "synthetic_demo"),
+        artifact_packets=[dict(item) for item in payload.get("artifact_packets", [])],
+        agent_trace=payload.get("agent_trace"),
+        created_at=payload.get("created_at") or utc_now(),
+        updated_at=payload.get("updated_at") or utc_now(),
     )
 
 
@@ -57,7 +70,8 @@ def persist_workflow(state: WorkflowState) -> None:
     document.set(payload)
     audit_collection = document.collection("audit_events")
     for index, event in enumerate(state.events):
-        audit_collection.document(f"{index:04d}").set(event)
+        event_id = event.get("event_id") or f"event-{index:04d}"
+        audit_collection.document(event_id).set(event)
 
 
 def load_workflow(workflow_id: str) -> WorkflowState | None:
@@ -68,3 +82,36 @@ def load_workflow(workflow_id: str) -> WorkflowState | None:
     if not snapshot.exists:
         return None
     return _state_from_dict(snapshot.to_dict() or {})
+
+
+def persist_job(job: JobState) -> None:
+    if not _enabled():
+        return
+    payload = job.to_dict()
+    payload["updated_at"] = datetime.now(UTC).isoformat()
+    _client().collection(JOBS_COLLECTION).document(job.job_id).set(payload)
+
+
+def load_job(job_id: str) -> JobState | None:
+    if not _enabled():
+        return None
+    snapshot = _client().collection(JOBS_COLLECTION).document(job_id).get()
+    if not snapshot.exists:
+        return None
+    payload = snapshot.to_dict() or {}
+    return JobState(
+        job_id=payload["job_id"],
+        kind=payload.get("kind", "change_scan"),
+        status=payload.get("status", "queued"),
+        query=payload.get("query", ""),
+        user_id=payload.get("user_id", "demo-operator"),
+        workflow_id=payload.get("workflow_id"),
+        model=payload.get("model"),
+        execution_mode=payload.get("execution_mode"),
+        tool_calls=list(payload.get("tool_calls", [])),
+        event_count=int(payload.get("event_count", 0)),
+        response=payload.get("response", ""),
+        error=payload.get("error"),
+        created_at=payload.get("created_at") or "",
+        updated_at=payload.get("updated_at") or "",
+    )

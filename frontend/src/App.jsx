@@ -1,14 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, Play, X } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import EvidenceDiff from "./components/EvidenceDiff";
 import ImpactMap from "./components/ImpactMap";
 import DecisionPanel from "./components/DecisionPanel";
 import ArtifactTable from "./components/ArtifactTable";
+import ArtifactDetail from "./components/ArtifactDetail";
 import WorkflowTimeline from "./components/WorkflowTimeline";
 import ActivityLog from "./components/ActivityLog";
+import AgentTrace from "./components/AgentTrace";
+import SourcePanel from "./components/SourcePanel";
+import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence } from "./data";
-import { apiEnabled, approveWorkflow, startDemo, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, getJob, packetUrl, startDemoJob, undoWorkflow } from "./api";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -16,38 +20,60 @@ function displayStatus(status) {
   return (status || "draft_ready").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+const initialDecisions = {
+  "Pricing battlecard": "packet",
+  "Renewal playbook": "packet",
+  "Enterprise FAQ": "owner_review",
+  "CRM guidance": "queued",
+};
+
 export default function App() {
   const [selectedNav, setSelectedNav] = useState("Overview");
-  const [localApproved, setLocalApproved] = useState(false);
   const [workflowState, setWorkflowState] = useState(null);
-  const [collapsed, setCollapsed] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState("Pricing battlecard");
+  const [evidenceCollapsed, setEvidenceCollapsed] = useState(false);
+  const [artifactDecisions, setArtifactDecisions] = useState(initialDecisions);
   const [showEvidence, setShowEvidence] = useState(false);
-  const [showActivity, setShowActivity] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [decisionBusy, setDecisionBusy] = useState(false);
   const [scanMessage, setScanMessage] = useState("");
   const [workflowId, setWorkflowId] = useState(null);
+  const [job, setJob] = useState(null);
+  const modalRef = useRef(null);
+  const modalTriggerRef = useRef(null);
 
-  const approved = localApproved || workflowState?.status === "complete";
+  const approved = workflowState?.status === "complete";
+  const liveWorkflow = Boolean(workflowState?.workflow_id && workflowId);
   const evidence = workflowState?.evidence || demoEvidence;
   const impacts = workflowState?.impacts?.map((impact, index) => ({
     ...impact,
     status: displayStatus(impact.status),
-    detail: artifacts[index]?.detail || "Downstream guidance",
-  })) || artifacts;
+    detail: impact.detail || artifacts[index]?.detail || "Downstream guidance",
+    proposed: impact.proposed || artifacts[index]?.proposed || "Evidence-linked update",
+    before: evidence.before,
+    evidence_hash: impact.evidence_hash || evidence.evidence_hash,
+  })) || artifacts.map((item) => ({ ...item, before: evidence.before }));
+  const selectedItem = impacts.find((item) => item.name === selectedArtifact) || impacts[0];
   const approval = workflowState?.approval
     ? {
         ...workflowState.approval,
         audit_event_id: workflowState.events?.find((event) => event.outcome === "approval_recorded")?.event_id,
       }
-    : localApproved
-      ? { approver: "Demo operator", timestamp: null, audit_event_id: "Local synthetic fallback" }
-      : null;
+    : null;
   const events = workflowState?.events || [];
-  const scanFailed = scanMessage.startsWith("API unavailable");
+  const scanFailed = scanMessage.startsWith("Unable");
+  const packetHref = workflowId ? packetUrl(workflowId) : null;
+
+  const selectNav = (label) => {
+    setSelectedNav(label);
+    const targetId = `${label.toLowerCase()}-section`;
+    window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   useEffect(() => {
     if (!showEvidence) return undefined;
+    modalTriggerRef.current = document.activeElement;
+    window.requestAnimationFrame(() => modalRef.current?.focus());
     const onKeyDown = (event) => {
       if (event.key === "Escape") setShowEvidence(false);
     };
@@ -55,122 +81,148 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [showEvidence]);
 
+  useEffect(() => {
+    if (!showEvidence && modalTriggerRef.current) {
+      modalTriggerRef.current.focus?.();
+      modalTriggerRef.current = null;
+    }
+  }, [showEvidence]);
+
   const runScan = async () => {
     setScanMessage("");
     setScanning(true);
-    setLocalApproved(false);
-    setShowActivity(false);
+    setWorkflowState(null);
+    setWorkflowId(null);
+    setJob(null);
     try {
       if (!apiEnabled) throw new Error("API disabled");
-      const [state] = await Promise.all([startDemo(), delay(700)]);
-      setWorkflowState(state);
-      setWorkflowId(state.workflow_id);
-      setScanMessage("Scan complete · 1 verified change");
-    } catch {
-      await delay(700);
-      setWorkflowState(null);
-      setWorkflowId(null);
-      setScanMessage("API unavailable · synthetic preview active");
+      const queued = await startDemoJob();
+      setJob(queued);
+      setScanMessage("Agent queued · waiting for a durable run");
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        await delay(700);
+        const current = await getJob(queued.job_id);
+        setJob(current);
+        if (current.status === "failed") throw new Error(current.error || "Agent job failed");
+        if (["needs_approval", "complete"].includes(current.status) && current.workflow) {
+          setWorkflowState(current.workflow);
+          setWorkflowId(current.workflow.workflow_id);
+          setArtifactDecisions(current.workflow.approval?.artifact_decisions || initialDecisions);
+          setScanMessage("Scan complete · evidence verified · approval gate active");
+          return;
+        }
+        setScanMessage(current.status === "running" ? "Agent running · verifying source and mapping impact" : "Agent queued · waiting for a durable run");
+      }
+      throw new Error("The agent job timed out");
+    } catch (error) {
+      setScanMessage(`Unable to start the live scan · ${error.message || "retry the request"}`);
+      setJob((current) => current ? { ...current, status: "failed", error: error.message } : current);
     } finally {
       setScanning(false);
     }
   };
 
   const approve = async () => {
-    if (workflowId && apiEnabled) {
-      try {
-        const state = await approveWorkflow(workflowId);
-        setWorkflowState(state);
-        setLocalApproved(false);
-        setShowActivity(true);
-        return;
-      } catch {
-        setScanMessage("API unavailable · decision was not recorded");
-        return;
-      }
+    if (!workflowId || !liveWorkflow || decisionBusy) return;
+    setDecisionBusy(true);
+    try {
+      const state = await approveWorkflow(workflowId, artifactDecisions);
+      setWorkflowState(state);
+      setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
+      setScanMessage("Action plan recorded · sandbox packet created");
+    } catch (error) {
+      setScanMessage(`Unable to record the decision · ${error.message || "retry the request"}`);
+    } finally {
+      setDecisionBusy(false);
     }
-    setLocalApproved(true);
-    setShowActivity(true);
   };
 
-  const undo = async () => {
-    if (workflowId && apiEnabled) {
-      try {
-        const state = await undoWorkflow(workflowId);
-        setWorkflowState(state);
-        setLocalApproved(false);
-        setShowActivity(true);
-        return;
-      } catch {
-        setScanMessage("API unavailable · decision was not changed");
-        return;
-      }
+  const reopen = async () => {
+    if (!workflowId || !liveWorkflow || decisionBusy) return;
+    setDecisionBusy(true);
+    try {
+      const state = await undoWorkflow(workflowId);
+      setWorkflowState(state);
+      setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
+      setScanMessage("Decision reopened · no external systems were changed");
+    } catch (error) {
+      setScanMessage(`Unable to reopen the decision · ${error.message || "retry the request"}`);
+    } finally {
+      setDecisionBusy(false);
     }
-    setLocalApproved(false);
-    setShowActivity(false);
+  };
+
+  const updateArtifactDecision = (name, decision) => {
+    setArtifactDecisions((current) => ({ ...current, [name]: decision }));
   };
 
   return (
     <div className="app-shell">
-      <Sidebar selected={selectedNav} onSelect={setSelectedNav} />
-      <main>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <Sidebar selected={selectedNav} onSelect={selectNav} />
+      <main id="main-content">
         <header className="topbar">
-          <h1>Change operations</h1>
+          <h1>Promise drift operations</h1>
           <div className="topbar-actions">
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
-            <span className="workspace-button">Synthetic workspace<ChevronDown size={15} /></span>
-            <button className="primary" onClick={runScan} disabled={scanning}>
-              <Play size={17} />{scanning ? "Scanning…" : "Run scan"}
+            <span className="workspace-button">Evaluation sandbox<ChevronDown size={15} /></span>
+            <button className="primary" onClick={runScan} disabled={scanning} type="button">
+              <Play size={17} />{scanning ? "Running…" : "Run scan"}
             </button>
           </div>
         </header>
 
         <div className="content">
-          {selectedNav !== "Overview" && (
-            <div className="view-notice">The {selectedNav} view is represented in this demo through the Overview workflow. Select Overview to return.</div>
-          )}
-          <section className="incident-header">
-            <span className="incident-icon"><AlertTriangle size={30} /></span>
-            <div className="incident-title">
-              <h2>Enterprise plan packaging changed</h2>
-              <div className="metadata">
-                <span><strong>Source</strong>{evidence.source_name}</span>
-                <i /><span><strong>Detected</strong>{workflowState ? "Just now" : "Synthetic fixture"}</span><i />
-                <span><strong>Confidence</strong><CheckCircle2 className="verified" size={15} />Verified</span><i />
-                <span><strong>Severity</strong><b className="risk-dot high-dot" />High</span>
+          <div className="workspace-banner"><strong>Evaluation sandbox</strong><span>Public source snapshot · Firestore state · deterministic human gate</span><span className="banner-status">{liveWorkflow ? "Live workflow" : "Preview only"}</span></div>
+          <section id="overview-section" className="overview-section">
+            <section className="incident-header">
+              <span className="incident-icon"><AlertTriangle size={30} /></span>
+              <div className="incident-title">
+                <h2>Enterprise plan packaging changed</h2>
+                <div className="metadata">
+                  <span><strong>Source</strong>{evidence.source_name}</span><i /><span><strong>Detected</strong>{workflowState ? "Just now" : "Preview"}</span><i />
+                  <span><strong>Confidence</strong><CheckCircle2 className="verified" size={15} />Verified</span><i /><span><strong>Severity</strong><b className="risk-dot high-dot" />High</span>
+                </div>
               </div>
+              <button className="secondary incident-details" onClick={() => setShowEvidence(true)} type="button">View source evidence<ChevronDown size={16} /></button>
+            </section>
+
+            <div className="dashboard-grid">
+              <div className="main-column">
+                <div className="upper-grid">
+                  <EvidenceDiff collapsed={evidenceCollapsed} onToggle={() => setEvidenceCollapsed((current) => !current)} evidence={evidence} />
+                  <ImpactMap items={impacts} approved={approved} sourceName={evidence.source_name} />
+                </div>
+                <ArtifactTable items={impacts} onSelect={setSelectedArtifact} selected={selectedArtifact} />
+                <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} />
+              </div>
+              <aside id="approvals-section">
+                <DecisionPanel approved={approved} approval={approval} onApprove={approve} onUndo={reopen} onEvidence={() => setShowEvidence(true)} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} />
+              </aside>
             </div>
-            <button className="secondary incident-details" onClick={() => setShowEvidence(true)}>View incident evidence<ChevronDown size={16} /></button>
+            <WorkflowTimeline state={workflowState} />
           </section>
 
-          <div className="dashboard-grid">
-            <div className="main-column">
-              <div className="upper-grid">
-                <EvidenceDiff collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} evidence={evidence} />
-                <ImpactMap items={impacts} approved={approved} sourceName={evidence.source_name} />
-              </div>
-              <ArtifactTable items={impacts} onSelect={setSelectedArtifact} selected={selectedArtifact} />
-            </div>
-            <DecisionPanel approved={approved} approval={approval} onApprove={approve} onUndo={undo} onEvidence={() => setShowEvidence(true)} />
-          </div>
-
-          <WorkflowTimeline approved={approved} />
-          {showActivity && <ActivityLog events={events} onClose={() => setShowActivity(false)} />}
-          <footer className="demo-footer"><span>ⓘ Synthetic demo data. Not connected to live systems.</span><span>Approval gating is on for high-risk changes.</span></footer>
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} />
+          <AgentTrace job={job} />
+          <section id="activity-section"><ActivityLog events={events} /></section>
+          <TrustPanel />
+          <footer className="demo-footer"><span>ⓘ Synthetic replay remains available when the public source cannot be fetched.</span><span>Approval gating is deterministic; no external systems are changed.</span></footer>
         </div>
       </main>
 
       {showEvidence && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setShowEvidence(false)}>
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="evidence-title" onMouseDown={(event) => event.stopPropagation()}>
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="evidence-title" tabIndex={-1} ref={modalRef} onMouseDown={(event) => event.stopPropagation()}>
             <header>
-              <div><h2 id="evidence-title">Source evidence</h2><p>SHA-256 snapshot verified</p></div>
-              <button className="icon-button" aria-label="Close evidence" onClick={() => setShowEvidence(false)}><X size={20} /></button>
+              <div><h2 id="evidence-title">Source evidence</h2><p>Hash-bound snapshot verification</p></div>
+              <button className="icon-button" aria-label="Close source evidence" onClick={() => setShowEvidence(false)} type="button"><X size={20} /></button>
             </header>
             <div className="modal-source"><strong>{evidence.source_name}</strong><span>{evidence.source_id}</span></div>
             <EvidenceDiff collapsed={false} evidence={evidence} showToggle={false} />
             <div className="hash"><strong>Evidence hash</strong><code>{evidence.evidence_hash}</code></div>
-            <footer><button className="secondary" onClick={() => setShowEvidence(false)}>Close</button></footer>
+            {evidence.source_url && <a className="source-link modal-link" href={evidence.source_url} target="_blank" rel="noreferrer">Open source snapshot</a>}
+            <footer><button className="secondary" onClick={() => setShowEvidence(false)} type="button">Close evidence</button></footer>
           </section>
         </div>
       )}

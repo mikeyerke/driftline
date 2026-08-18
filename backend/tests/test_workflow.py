@@ -1,7 +1,7 @@
 import app.agent as agent_module
 from app.agent import root_agent
 from app.models import SourceEvidence, Stage, WorkflowStatus
-from app.workflow import DriftlineWorkflow, PolicyViolation
+from app.workflow import DriftlineWorkflow, PolicyViolation, packet_markdown
 
 
 def test_demo_pauses_for_high_risk_human_decision() -> None:
@@ -29,10 +29,10 @@ def test_named_approval_resumes_and_publishes_bounded_artifacts() -> None:
     assert result.status is WorkflowStatus.COMPLETE
     assert result.approval["approver"] == "Alex Kim"
     assert [item.status for item in result.impacts] == [
-        "published",
-        "published",
+        "packet_ready",
+        "packet_ready",
         "owner_review",
-        "scheduled",
+        "queued",
     ]
 
 
@@ -142,3 +142,31 @@ def test_agent_source_tool_persists_the_created_workflow() -> None:
 
     assert payload["workflow_id"] in persisted_ids
     assert payload["data_mode"] == "synthetic_demo"
+
+
+def test_approval_creates_evidence_bound_sandbox_packets() -> None:
+    workflow = DriftlineWorkflow()
+    state = workflow.start_demo()
+    result = workflow.approve(
+        state.workflow_id,
+        "Alex Kim",
+        "grandfather_existing_customers",
+        {"Pricing battlecard": "packet", "Renewal playbook": "owner_review"},
+    )
+
+    assert len(result.artifact_packets) == 4
+    assert result.artifact_packets[0]["status"] == "packet_ready"
+    assert result.artifact_packets[1]["status"] == "owner_review"
+    assert result.artifact_packets[0]["evidence_hash"] == result.evidence.evidence_hash
+    assert "External systems changed: **No**" in packet_markdown(result)
+
+
+def test_reopen_is_not_claimed_as_external_undo() -> None:
+    workflow = DriftlineWorkflow()
+    state = workflow.start_demo()
+    workflow.approve(state.workflow_id, "Alex Kim", "grandfather_existing_customers")
+    reopened = workflow.undo(state.workflow_id, "Alex Kim")
+
+    assert reopened.status is WorkflowStatus.NEEDS_APPROVAL
+    assert reopened.artifact_packets == []
+    assert reopened.events[-1]["outcome"] == "decision_reopened"

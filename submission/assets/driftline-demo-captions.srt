@@ -20,8 +20,9 @@ The model proposes; deterministic policy owns the approval boundary.
 
 5
 00:01:50,000 --> 00:02:25,000
-Approve resumes the workflow: two published, one owner review, one scheduled.
-The named operator and durable audit event are recorded.
+Approve resumes the workflow: packets, owner review, and queued work are
+recorded without changing external systems. The named operator and durable
+audit event are recorded.
 
 6
 00:02:25,000 --> 00:02:55,000
@@ -30,7 +31,7 @@ The workflow is resumable rather than another alert or chat window.
 
 7
 00:02:55,000 --> 00:03:20,000
-Undo returns the workflow to the approval gate and restores draft states.
+Reopen returns the workflow to the approval gate and restores draft states.
 The ADK agent has no approval or publish tool.
 
 8

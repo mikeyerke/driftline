@@ -7,6 +7,7 @@ from google.adk.agents import Agent
 from google.genai.types import GenerateContentConfig, ThinkingConfig
 
 from .persistence import load_workflow, persist_workflow
+from .source import inspect_allowlisted_source
 from .workflow import workflow_store
 
 load_dotenv()
@@ -16,9 +17,17 @@ os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 
 def inspect_source_change(source_id: str) -> dict:
     """Detect and verify a material change in an approved source."""
-    if source_id != "public/pricing":
-        return {"status": "rejected", "reason": "source_not_allowlisted"}
-    state = workflow_store.start_demo()
+    snapshot = inspect_allowlisted_source(source_id)
+    if snapshot.get("status") == "rejected":
+        return snapshot
+    state = workflow_store.start_demo(
+        data_mode=snapshot["data_mode"],
+        source_url=snapshot["source_url"],
+        snapshot_label=snapshot["snapshot_label"],
+        after_text=snapshot["after"],
+        snapshot_hash=snapshot["snapshot_hash"],
+        retrieved_at=snapshot["retrieved_at"],
+    )
     persist_workflow(state)
     return state.to_dict()
 
@@ -50,14 +59,15 @@ root_agent = Agent(
 You are Driftline's change operations coordinator. Work only with approved
 public or synthetic sources. Always gather hash-bound evidence before proposing
 an action. Use tools rather than narrating actions. Never claim an artifact was
-updated unless the workflow state records it. High-risk changes must pause for
-a named human decision. Approval is owned by the separate human approval
-endpoint; you cannot approve, resume, or publish a workflow yourself. You may
-not manufacture or infer that approval. For the judge-ready demo request,
-call inspect_source_change with the exact allowlisted source_id
+updated unless the workflow state records a bounded packet. High-risk changes
+must pause for a named human decision. Approval is owned by the separate human
+approval endpoint; you cannot approve, resume, or publish a workflow yourself.
+You may not manufacture or infer that approval. For the judge-ready demo
+request, call inspect_source_change with the exact allowlisted source_id
 "public/pricing" before responding, then ground the response in the returned
 workflow state. Call get_workflow_state with the returned workflow_id before
-the final response so the state read is independently verified.
+the final response so the state read is independently verified. Name whether
+the source was a public snapshot or synthetic replay.
 Keep explanations concise and evidence-grounded.
 Your final response must be a complete plain-text summary of no more than 80
 words. Do not use markdown, tables, backticks, or a workflow ID; end with a

@@ -15,11 +15,11 @@ https://driftline-xvxczqg62a-uc.a.run.app/ and the “Synthetic demo data” lab
 
 ## 0:25–0:55 — Start the workflow
 
-Click **Run scan**. Explain that the deterministic synthetic fixture creates a
-reproducible workflow for judges. Show the /api/workflows/demo request in the
-browser network view or a terminal beside the console. The live /api/agent/run
-path is shown separately so the demo does not imply that the fixture itself
-needed a model call.
+Click **Run scan**. Explain that this creates a durable asynchronous job: the
+browser queues work, Cloud Tasks invokes the worker, and Firestore stores the
+job and workflow. The public snapshot badge shows whether the allowlisted
+GitHub fixture was fetched; synthetic replay is explicitly labelled if the
+fetch is unavailable. Keep the agent trace panel visible.
 
 ## 0:55–1:35 — Evidence and impact
 
@@ -37,18 +37,18 @@ not given an approval tool and cannot manufacture a human decision.
 
 ## 2:10–2:45 — Approve, resume, and undo
 
-Click **Approve exception path**. Show the two Published rows, one Owner Review
-row, one Scheduled row, the named Demo operator, and the real audit event ID.
-Open the Activity panel and show the event IDs and stages. Click **Undo
-decision** and show that the high-risk gate and draft statuses return.
+Choose a different action for one artifact, then click **Approve action plan**.
+Show the packet-ready, owner-review, and queued rows, the named Demo operator,
+the evidence hash, and the real audit event ID. Open the generated packet and
+show its explicit “External systems changed: No” line. Click **Reopen decision**
+and show that the high-risk gate and draft statuses return.
 
 ## 2:45–3:25 — Live Google path and Cloud proof
 
-In a terminal or API client, call the deployed /api/agent/run endpoint with
-the allowlisted synthetic source request. Show the response model,
-execution_mode, and tool_calls fields. Show the Cloud Run URL, revision, and a
-log line from the same request, plus a Firestore document containing the
-workflow and its audit_events subcollection.
+Show the Agent run panel with `gemini-3.5-flash`, `google_adk`, the two
+allowlisted tools, and the job event count. In a terminal or API client, show
+the same `/api/jobs/{job_id}` payload, the Cloud Run revision, and a Firestore
+job/workflow document with its `audit_events` subcollection.
 
 ## 3:25–4:00 — Close
 
@@ -57,5 +57,5 @@ auditable change-to-action system: autonomous where policy allows, human where
 judgment matters.”
 
 End on the deployed URL, repository URL, and architecture diagram URL. The
-official rules require the final video to be publicly visible; an unlisted
-YouTube upload would not qualify.
+official rules require the final video to be publicly visible; keep the current
+YouTube draft private until the product and all claims are final.

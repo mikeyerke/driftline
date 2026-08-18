@@ -15,12 +15,27 @@ export function startDemo() {
   return request("/api/workflows/demo", { method: "POST" });
 }
 
-export function approveWorkflow(workflowId) {
+export function startDemoJob() {
+  return request("/api/jobs/demo", {
+    method: "POST",
+    body: JSON.stringify({
+      query: "Inspect the allowlisted public/pricing change, verify the evidence, map the affected artifacts, and stop at the human approval gate.",
+      user_id: "demo-operator",
+    }),
+  });
+}
+
+export function getJob(jobId) {
+  return request(`/api/jobs/${jobId}`);
+}
+
+export function approveWorkflow(workflowId, artifactDecisions) {
   return request(`/api/workflows/${workflowId}/approve`, {
     method: "POST",
     body: JSON.stringify({
       approver: "Demo operator",
       decision: "grandfather_existing_customers",
+      artifact_decisions: artifactDecisions,
     }),
   });
 }
@@ -30,4 +45,8 @@ export function undoWorkflow(workflowId) {
     method: "POST",
     body: JSON.stringify({ actor: "Demo operator" }),
   });
+}
+
+export function packetUrl(workflowId) {
+  return `${API_BASE}/api/workflows/${workflowId}/packet`;
 }

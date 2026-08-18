@@ -15,18 +15,19 @@
    and Datastore User.
 6. Confirm the existing `$10` project-filtered budget with 25/50/75/90/100%
    current-spend thresholds in docs/RESOURCE_INVENTORY.md.
-7. The verified release build is Cloud Build
-   `2e07f172-3683-4b7b-868c-08c4984c17c5`, serving revision
-   `driftline-00002-7ld`.
+7. Record the final Cloud Build ID, image digest, and serving Cloud Run
+   revision in docs/RESOURCE_INVENTORY.md.
 8. Open https://driftline-xvxczqg62a-uc.a.run.app/ in a logged-out browser and
-   exercise scan, evidence, approval, undo, and the live agent endpoint.
+   exercise the asynchronous scan, evidence, packet, reopening, and live ADK
+   trace. Record the job ID and matching Firestore documents.
 
 ## GitHub
 
 1. Review the staged source and scan for credentials, tokens, environment
    files, generated dependencies, and local build output.
 2. Create the public repository named driftline under the existing account.
-3. Push the tested baseline with the verified Cloud Run URL in README.md.
+3. Push the tested release with the verified Cloud Run URL and exact revision
+   evidence in README.md and docs/RESOURCE_INVENTORY.md.
 4. Confirm the public repository accurately describes the deployed revision.
 
 ## Demo and submission

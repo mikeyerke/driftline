@@ -5,15 +5,17 @@ export const artifacts = [
     action: "Replace claim",
     risk: "High",
     status: "Draft ready",
-    detail: "Claims & positioning",
+    detail: "Claims and positioning",
+    proposed: "Enterprise: 365-day audit-log retention.",
   },
   {
     name: "Renewal playbook",
     owner: "Customer Success",
     action: "Add exception path",
     risk: "High",
-    status: "Needs approval",
+    status: "Draft ready",
     detail: "Renewal motions",
+    proposed: "Grandfather existing customers through their next renewal; renewals after that use 365-day retention.",
   },
   {
     name: "Enterprise FAQ",
@@ -22,14 +24,16 @@ export const artifacts = [
     risk: "Medium",
     status: "Draft ready",
     detail: "Support answers",
+    proposed: "Enterprise audit logs are retained for 365 days.",
   },
   {
     name: "CRM guidance",
     owner: "RevOps",
     action: "Update qualification note",
     risk: "Low",
-    status: "Scheduled",
+    status: "Draft ready",
     detail: "Sales qualification",
+    proposed: "Confirm retention expectations before positioning Enterprise.",
   },
 ];
 
@@ -41,4 +45,6 @@ export const demoEvidence = {
   evidence_hash: "0b3a67f305258cd3ffee8e504739f1185d3c0f6e29f88964f755fef8d9355b57",
   confidence: 0.99,
   snapshot_label: "Synthetic demo fixture · public/pricing",
+  source_url: "https://raw.githubusercontent.com/mikeyerke/driftline/main/fixtures/public-pricing-after.txt",
+  data_mode: "synthetic_demo",
 };

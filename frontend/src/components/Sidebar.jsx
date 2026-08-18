@@ -11,6 +11,8 @@ export default function Sidebar({ selected, onSelect }) {
             className={selected === label ? "nav-item active" : "nav-item"}
             key={label}
             aria-label={label}
+            aria-current={selected === label ? "page" : undefined}
+            type="button"
             onClick={() => onSelect(label)}
           >
             <Icon size={20} strokeWidth={1.8} />
@@ -18,7 +20,7 @@ export default function Sidebar({ selected, onSelect }) {
           </button>
         ))}
       </nav>
-      <button className="profile">
+      <button className="profile" type="button" aria-label="Evaluation sandbox operator">
         <span className="avatar">DO</span>
         <span><strong>Demo operator</strong><small>Synthetic workspace</small></span>
         <ChevronDown size={16} />
