@@ -2,10 +2,10 @@
 
 ## Submission links
 
-- Hosted application: added after the Cloud Run smoke test
+- Hosted application: https://driftline-xvxczqg62a-uc.a.run.app/
 - Source repository: https://github.com/mikeyerke/driftline
-- Demonstration video: added after the public YouTube upload
-- Architecture diagram: docs/architecture.md in the repository
+- Demonstration video: to be added after the public YouTube upload
+- Architecture diagram: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
 
 ## Category
 
@@ -78,11 +78,11 @@ created during the contest.
 - SHA-256 evidence attached to the approval decision.
 - Four independently owned downstream artifacts mapped from one source change.
 - A synthetic, reproducible demonstration that requires no private company data.
-- An isolated Cloud Run and Firestore deployment configuration with a
-  dedicated runtime identity (live deployment evidence will be added before
-  submission).
-- Deterministic safety controls around the Google ADK/Gemini path, pending the
-  direct Vertex AI execution evidence required before submission.
+- A live isolated Cloud Run and Firestore deployment with a dedicated runtime
+  identity, scale-to-zero configuration, and a project-scoped budget guardrail.
+- Direct Vertex AI execution evidence: the public endpoint returned
+  `gemini-3.5-flash`, `google_adk`, and both allowlisted tool calls; Firestore
+  received the workflow and audit events.
 
 ## Limitations and next steps
 
@@ -95,6 +95,6 @@ use.
 
 ## Official links
 
-See docs/hackathon-rules.md for the rules, dates, required technology, video
-limit, category definitions, and eligibility disclosures verified from the
-official Devpost rules page.
+See [docs/hackathon-rules.md](https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md)
+for the rules, dates, required technology, video limit, category definitions,
+and eligibility disclosures verified from the official Devpost rules page.

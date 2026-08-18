@@ -4,27 +4,29 @@
 
 1. Confirm the active project is exactly driftline-hackathon-2026 before every
    mutation; never reuse an existing project.
-2. Confirm billing and enable only Cloud Build, Cloud Run, Artifact Registry,
-   Vertex AI, Firestore, and budget APIs required by the deployment.
+2. Confirm billing and the isolated project. Cloud Build, Cloud Run, Artifact
+   Registry, Vertex AI, Firestore, and budget APIs are enabled there; do not
+   switch the active project to an existing application.
 3. Create a Docker Artifact Registry repository named driftline in
    us-central1 with Driftline labels.
 4. Create a Firestore Native database in us-central1 if the new project has
    none.
 5. Create the dedicated runtime service account and grant only Vertex AI User
    and Datastore User.
-6. Create the $10 project budget with low-threshold alerts and record it in
-   docs/RESOURCE_INVENTORY.md.
-7. Run gcloud builds submit --project=driftline-hackathon-2026
-   --config cloudbuild.yaml . from the repository root.
-8. Open the Cloud Run URL in a logged-out browser and exercise scan, evidence,
-   approval, undo, and the live agent endpoint.
+6. Confirm the existing `$10` project-filtered budget with 25/50/75/90/100%
+   current-spend thresholds in docs/RESOURCE_INVENTORY.md.
+7. The verified release build is Cloud Build
+   `2e07f172-3683-4b7b-868c-08c4984c17c5`, serving revision
+   `driftline-00002-7ld`.
+8. Open https://driftline-xvxczqg62a-uc.a.run.app/ in a logged-out browser and
+   exercise scan, evidence, approval, undo, and the live agent endpoint.
 
 ## GitHub
 
 1. Review the staged source and scan for credentials, tokens, environment
    files, generated dependencies, and local build output.
 2. Create the public repository named driftline under the existing account.
-3. Push the tested baseline and add the final Cloud Run URL to README.md.
+3. Push the tested baseline with the verified Cloud Run URL in README.md.
 4. Confirm the public repository accurately describes the deployed revision.
 
 ## Demo and submission

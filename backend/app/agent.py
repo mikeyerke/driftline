@@ -4,7 +4,7 @@ import os
 
 from dotenv import load_dotenv
 from google.adk.agents import Agent
-from google.genai.types import GenerateContentConfig
+from google.genai.types import GenerateContentConfig, ThinkingConfig
 
 from .persistence import load_workflow, persist_workflow
 from .workflow import workflow_store
@@ -39,8 +39,8 @@ root_agent = Agent(
     name="driftline_change_operator",
     model=os.getenv("MODEL_NAME", "gemini-3.5-flash"),
     generate_content_config=GenerateContentConfig(
-        temperature=0.1,
         max_output_tokens=512,
+        thinking_config=ThinkingConfig(thinking_level="LOW"),
     ),
     description=(
         "Autonomous enterprise change operator that turns verified source "
@@ -59,6 +59,9 @@ call inspect_source_change with the exact allowlisted source_id
 workflow state. Call get_workflow_state with the returned workflow_id before
 the final response so the state read is independently verified.
 Keep explanations concise and evidence-grounded.
+Your final response must be a complete plain-text summary of no more than 80
+words. Do not use markdown, tables, backticks, or a workflow ID; end with a
+complete sentence.
 """.strip(),
     tools=[inspect_source_change, get_workflow_state],
 )

@@ -1,69 +1,85 @@
 # Driftline resource inventory
 
-This inventory is intentionally scoped to the isolated project
-driftline-hackathon-2026. No Driftline command should target an existing
-project. Before any mutation:
+This inventory is intentionally scoped to the isolated Google Cloud project
+`driftline-hackathon-2026`. The active gcloud configuration was checked during
+the release run:
 
-~~~bash
+```text
+core.account: mikeyerke@gmail.com
+core.project: driftline-hackathon-2026
+project number: 724959673622
+```
+
+Before any future mutation, verify the target explicitly:
+
+```bash
 gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
-~~~
+```
 
 ## Resources
 
-The isolated project, free-tier Firestore database, and dedicated runtime
-identity now exist. Cloud Run, Artifact Registry, and the budget remain blocked
-by the missing billing account. Rows marked `blocked` are not claims that the
-resource exists.
+| Resource | Name / scope | Verified status | Labels / notes |
+| --- | --- | --- | --- |
+| Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
+| Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
+| Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
+| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00002-7ld`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s |
+| Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
+| Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:2e07f172-3683-4b7b-868c-08c4984c17c5`; digest `sha256:5dce7a41ce9e4529bda391b42a90399edacd7c4bd5721fd378b44e36738871d3` |
+| Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | Driftline workflow documents and `audit_events` subcollections only |
+| Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
+| Cloud Build source bucket | `gs://driftline-hackathon-2026_us-central1_cloudbuild` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
+| Cloud Build compatibility bucket | `gs://driftline-hackathon-2026_cloudbuild` | Created by Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
+| GitHub repository | `https://github.com/mikeyerke/driftline` | Public, source matches deployed revision | Separate repository under existing user account; no organization created |
 
-| Resource | Name / scope | Status | Driftline label |
-| --- | --- | --- |
-| Google Cloud project | driftline-hackathon-2026 (number 724959673622) | created 2026-08-18 | app=driftline,environment=hackathon,hackathon=all-things-agentic |
-| Cloud Run service | driftline in us-central1 | blocked: billing required | app=driftline,environment=production,hackathon=all-things-agentic |
-| Artifact Registry | driftline in us-central1 | blocked: billing required | app=driftline,environment=production,hackathon=all-things-agentic |
-| Firestore database | (default) in us-central1 | created 2026-08-18, free tier | project-scoped |
-| Runtime service account | driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com | created 2026-08-18 | app=driftline,role=runtime |
-| Budget | $10 USD project budget with low thresholds | blocked until billing is linked | app=driftline,budget=10-usd |
+Cloud Build ID `2e07f172-3683-4b7b-868c-08c4984c17c5` completed successfully in
+`us-central1`. Its Docker image digest is the exact image serving Cloud Run.
+Cloud Build and Cloud Run may enable Google-managed dependency APIs in addition
+to the six explicitly requested application APIs; no Driftline code uses the
+unrelated managed services. No existing project, bucket, database, service
+account, API key, repository, or environment variable is reused.
 
-Enabled in this project only: `aiplatform.googleapis.com`,
-`firestore.googleapis.com`, and `billingbudgets.googleapis.com`. A direct
-Vertex `gemini-3.5-flash` request returned `BILLING_DISABLED`; enabling Cloud
-Run, Artifact Registry, and Cloud Build returned the same project-billing
-precondition. The runtime identity has only `roles/datastore.user` and
-`roles/aiplatform.user` at this checkpoint. No service-account key was created.
+## Verified live evidence
 
-The intended deployment uses Cloud Run scale-to-zero and a bounded maximum
-instance count. Firestore was directly write/read/delete verified with a
-temporary Driftline-only document; the document was removed after the check.
-Once deployed, Firestore will be used only for Driftline workflow documents and
-their audit_events subcollections. No existing bucket,
-database, service account, API key, repository, or environment variable is
-reused. The public live-agent endpoint is configured for at most 10 calls per
-hour and a 2,000-character query. Demo starts and approval/undo writes share a
-30-mutation hourly cap. These are spend guards, not authentication.
+- `GET /health` returned `{"status":"ok","service":"driftline-agent","persistence":"firestore"}`.
+- Public browser QA passed at desktop and 390px widths with no horizontal overflow.
+- Scan, evidence modal/hash, artifact selection, approval, publish/queue/schedule,
+  undo, and activity audit states passed against the public service.
+- `/api/agent/run` returned `model=gemini-3.5-flash`,
+  `execution_mode=google_adk`, and the allowlisted tools
+  `inspect_source_change` and `get_workflow_state`.
+- Firestore REST inspection found the live workflow parent and five audit
+  documents for the latest live ADK invocation. The approval/undo run produced
+  eight audit documents.
+- Cloud Run revision logs showed successful requests and no application
+  exceptions; the browser reload produced no console exceptions or log entries.
 
-## Evidence and cleanup
+The public live-agent endpoint is configured for at most 10 calls per hour and a
+2,000-character query. Demo starts and approval/undo writes share a 30-mutation
+hourly cap. These are spend guards, not production authentication.
 
-Record the project number, Cloud Run URL, Artifact Registry image digest,
-Firestore database location, service-account email, and budget name here after
-creation. Do not record access tokens, private keys, or billing credentials.
+## Cleanup and disablement
 
-To disable the application without touching another project:
+The following commands target only the Driftline project. Review the inventory
+before running destructive commands and never paste credentials or tokens into
+the repository:
 
-~~~bash
-gcloud run services update driftline --project=driftline-hackathon-2026 \
-  --region=us-central1 --max=0
-gcloud run services delete driftline --project=driftline-hackathon-2026 \
-  --region=us-central1
-gcloud artifacts repositories delete driftline --project=driftline-hackathon-2026 \
-  --location=us-central1
-gcloud firestore databases delete '(default)' \
-  --project=driftline-hackathon-2026
-~~~
+```bash
+PROJECT=driftline-hackathon-2026
+REGION=us-central1
 
-The final project-level deletion command, if ever needed, must be reviewed
-against this inventory first because it is irreversible:
+gcloud run services delete driftline --project="$PROJECT" --region="$REGION"
+gcloud artifacts repositories delete driftline --project="$PROJECT" --location="$REGION"
+gcloud storage buckets delete gs://724959673622-us-central1-cloudbuild-logs
+gcloud storage buckets delete gs://driftline-hackathon-2026_us-central1_cloudbuild
+gcloud storage buckets delete gs://driftline-hackathon-2026_cloudbuild
+gcloud firestore databases delete --database='(default)' --project="$PROJECT"
+gcloud projects delete "$PROJECT"
+```
 
-~~~bash
-gcloud projects delete driftline-hackathon-2026
-~~~
+Project deletion is irreversible and should be the final reviewed action. The
+free trial closes automatically on 2026-11-17 unless the full paid account is
+activated; do not click the Cloud Console “Activate” upsell while the project
+is no longer needed.

@@ -26,13 +26,12 @@ Driftline is a complete resumable workflow rather than a chat interface:
 The Google ADK coordinator is configured for the Gemini 3.5 Flash model and a
 strictly allowlisted read/inspect tool set for reasoning. A separate
 deterministic API gate owns high-risk approval and publishing; the model is not
-given an approval tool. The Cloud Run deployment target serves the API and web
-console in one container, with Firestore as the intended production event and
-workflow store. The deterministic synthetic demo works without cloud
-credentials so judges can evaluate the interaction immediately; /api/agent/run
-exercises the live ADK/Gemini path when Vertex AI credentials are available. The
-live endpoint is query-capped and rate-limited to bound demo spend; the
-identity-free preview also caps demo starts and approval/undo writes per hour.
+given an approval tool. Cloud Run serves the API and web console in one
+container, with Firestore as the durable workflow and audit store. The
+deterministic synthetic demo works without cloud credentials so judges can
+evaluate the interaction immediately; `/api/agent/run` exercises the live
+ADK/Gemini path on the deployed service. Both live and identity-free preview
+mutations are query-capped and rate-limited to bound demo spend.
 
 ## Repository layout
 
@@ -92,26 +91,28 @@ API key is embedded in the client.
 
 ## Public links
 
-- Live demo: added after the Cloud Run smoke test
+- Live demo: https://driftline-xvxczqg62a-uc.a.run.app/
 - GitHub: https://github.com/mikeyerke/driftline
-- Demo video: added after the four-minute public video is uploaded
-- Architecture: docs/architecture.md
-- Verified rules: docs/hackathon-rules.md
-- Cloud inventory: docs/RESOURCE_INVENTORY.md
+- Demo video: to be added after the four-minute public video is uploaded
+- Architecture: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
+- Verified rules: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
+- Cloud inventory: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
 
 ## Reproducible verification
 
 ~~~bash
-curl -fsS https://YOUR_CLOUD_RUN_URL/health
-curl -fsS -X POST https://YOUR_CLOUD_RUN_URL/api/workflows/demo
-curl -fsS -X POST https://YOUR_CLOUD_RUN_URL/api/agent/run \
+curl -fsS https://driftline-xvxczqg62a-uc.a.run.app/health
+curl -fsS -X POST https://driftline-xvxczqg62a-uc.a.run.app/api/workflows/demo
+curl -fsS -X POST https://driftline-xvxczqg62a-uc.a.run.app/api/agent/run \
   -H 'content-type: application/json' \
   -d '{"query":"Inspect the synthetic public/pricing change and stop at the human approval gate."}'
 ~~~
 
-The deployed smoke run must verify scan, evidence, approval, undo, the live
-ADK response, Firestore workflow state, Firestore audit events, and Cloud Run
-logs before the public URL is added here.
+The verified 2026-08-18 release run passed scan, evidence, approval, undo, the
+live ADK response, Firestore workflow state, Firestore audit events, a public
+browser smoke test, and Cloud Run log review. The deployed response included
+`model=gemini-3.5-flash`, `execution_mode=google_adk`, and both allowlisted
+tools (`inspect_source_change`, `get_workflow_state`).
 
 ## Safety model
 
@@ -124,3 +125,13 @@ logs before the public URL is added here.
 - The public demonstration names a demo operator but does not provide
   production identity authentication.
 - No real Salesforce, CRM, billing, customer, or private company data is used.
+
+## Cost and isolation
+
+The deployment is isolated in the new `driftline-hackathon-2026` Google Cloud
+project. Cloud Run is configured with zero minimum instances and a maximum of
+one instance. A $10 monthly billing budget is filtered to this project with
+25%, 50%, 75%, 90%, and 100% current-spend thresholds. The Google Cloud free
+trial started 2026-08-18 and ends 2026-11-17; the full paid-account activation
+control is intentionally not enabled. See `docs/RESOURCE_INVENTORY.md` for
+the complete cleanup inventory and exact image digest.

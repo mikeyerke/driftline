@@ -10,7 +10,8 @@ Caption: “One sentence changes on a public pricing page. The alert is easy.
 Finding every downstream promise, deciding what can update safely, and proving
 who approved the risky part is the actual work.”
 
-Show the deployed Driftline console and the “Synthetic demo data” label.
+Show the deployed Driftline console at
+https://driftline-xvxczqg62a-uc.a.run.app/ and the “Synthetic demo data” label.
 
 ## 0:25–0:55 — Start the workflow
 
@@ -55,4 +56,6 @@ Caption: “Driftline is not another alert and not another chat window. It is an
 auditable change-to-action system: autonomous where policy allows, human where
 judgment matters.”
 
-End on the deployed URL, repository URL, and architecture diagram URL.
+End on the deployed URL, repository URL, and architecture diagram URL. The
+official rules require the final video to be publicly visible; an unlisted
+YouTube upload would not qualify.
