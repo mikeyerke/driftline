@@ -5,6 +5,7 @@ const label = (value) => (value || "—").replace(/_/g, " ");
 export default function AgentTrace({ job }) {
   const trace = job?.workflow?.agent_trace;
   const calls = job?.tool_calls || trace?.tool_calls?.map((item) => item.name) || [];
+  const analysis = trace?.structured_analysis;
   const running = job?.status === "queued" || job?.status === "running";
   const failed = job?.status === "failed";
 
@@ -27,6 +28,20 @@ export default function AgentTrace({ job }) {
             <span><Wrench size={15} /><strong>Tools</strong>{calls.length ? calls.join(", ") : "Waiting for tool calls"}</span>
             <span><Clock3 size={15} /><strong>Events</strong>{job.event_count || trace?.event_count || "—"}</span>
           </div>
+          {analysis && (
+            <div className="analysis-proof" aria-label="Structured impact analysis">
+              <div className="analysis-proof-header">
+                <strong>Impact analysis</strong>
+                <span className={`live-label ${analysis.mode === "gemini_structured" ? "public" : "synthetic"}`}>
+                  {label(analysis.mode)}
+                </span>
+              </div>
+              {analysis.summary && <p>{analysis.summary}</p>}
+              {analysis.rationale && <small>{analysis.rationale}</small>}
+              {analysis.artifact_count && <span className="analysis-count">{analysis.artifact_count} evidence-bound artifacts</span>}
+              {analysis.reason && <small className="analysis-fallback">{analysis.reason}</small>}
+            </div>
+          )}
           <div className="trace-path" aria-label="Agent execution path">
             <div className={job.status === "queued" ? "trace-step current" : "trace-step complete"}><span>1</span><strong>Queued</strong><small>Durable job</small></div>
             <div className={running ? "trace-step current" : "trace-step complete"}><span>2</span><strong>ADK turn</strong><small>{job.execution_mode || "Google ADK"}</small></div>

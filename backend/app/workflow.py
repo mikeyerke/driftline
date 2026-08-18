@@ -84,10 +84,11 @@ class DriftlineWorkflow:
     def _timestamp() -> str:
         return datetime.now(UTC).isoformat()
 
-    def _event(self, state: WorkflowState, action: str, outcome: str) -> None:
+    def _event(self, state: WorkflowState, action: str, outcome: str) -> str:
+        event_id = f"evt-{uuid4().hex[:12]}"
         state.events.append(
             {
-                "event_id": f"evt-{uuid4().hex[:12]}",
+                "event_id": event_id,
                 "timestamp": self._timestamp(),
                 "action": action,
                 "outcome": outcome,
@@ -98,6 +99,7 @@ class DriftlineWorkflow:
             }
         )
         state.updated_at = self._timestamp()
+        return event_id
 
     def restore(self, state: WorkflowState) -> WorkflowState:
         """Register a state loaded from durable persistence."""
@@ -234,8 +236,14 @@ class DriftlineWorkflow:
                     item.evidence_hash,
                 )
             )
+            packet_event_id = self._event(
+                state,
+                "bounded_packet",
+                f"{item.name}:{status}",
+            )
             packets.append(
                 {
+                    "event_id": packet_event_id,
                     "artifact": item.name,
                     "owner": item.owner,
                     "action": item.action,

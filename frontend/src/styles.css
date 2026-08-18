@@ -202,6 +202,12 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
  .trace-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
  .trace-summary span { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 11px; color: var(--muted); }
  .trace-summary strong { width: 100%; color: var(--ink); font-size: 11px; }
+ .analysis-proof { margin-top: 12px; padding: 12px; border: 1px solid #c7d9fa; border-radius: 4px; background: var(--blue-soft); }
+ .analysis-proof-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
+ .analysis-proof p { margin: 8px 0 4px; font-size: 12px; line-height: 1.45; }
+ .analysis-proof small { display: block; color: var(--muted); font-size: 11px; line-height: 1.45; }
+ .analysis-count { display: inline-block; margin-top: 8px; color: var(--blue); font-size: 11px; font-weight: 600; }
+ .analysis-fallback { color: #6b4e00 !important; }
  .trace-path { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-top: 16px; }
  .trace-step { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 10px 10px 10px 38px; border: 1px solid var(--line); border-radius: 4px; font-size: 11px; }
  .trace-step span { position: absolute; top: 10px; left: 10px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #eef1f6; color: var(--muted); font-size: 11px; }

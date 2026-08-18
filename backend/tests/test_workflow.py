@@ -158,6 +158,9 @@ def test_approval_creates_evidence_bound_sandbox_packets() -> None:
     assert result.artifact_packets[0]["status"] == "packet_ready"
     assert result.artifact_packets[1]["status"] == "owner_review"
     assert result.artifact_packets[0]["evidence_hash"] == result.evidence.evidence_hash
+    packet_event_ids = {packet["event_id"] for packet in result.artifact_packets}
+    assert len(packet_event_ids) == 4
+    assert packet_event_ids.issubset({event["event_id"] for event in result.events})
     assert "External systems changed: **No**" in packet_markdown(result)
 
 
