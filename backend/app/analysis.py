@@ -75,6 +75,7 @@ analysis_agent = Agent(
     mode="task",
     generate_content_config=GenerateContentConfig(
         response_mime_type="application/json",
+        response_json_schema=StructuredAnalysis.model_json_schema(),
         max_output_tokens=1200,
         thinking_config=ThinkingConfig(thinking_level="LOW"),
     ),
