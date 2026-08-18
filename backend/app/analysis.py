@@ -68,7 +68,9 @@ analysis_agent = Agent(
     name="driftline_impact_analyst",
     model=MODEL_NAME,
     output_schema=StructuredAnalysis,
-    mode="single_turn",
+    # ADK's Runner accepts chat/task roots; task keeps this analyst bounded
+    # while remaining compatible with the deployed ADK runtime.
+    mode="task",
     generate_content_config=GenerateContentConfig(
         response_mime_type="application/json",
         max_output_tokens=1200,
