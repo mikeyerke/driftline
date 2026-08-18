@@ -207,6 +207,19 @@ async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
     raw = "".join(text_parts).strip()
     if not raw:
         raise AnalysisUnavailable("Gemini returned no structured analysis")
+    # Gemini occasionally wraps otherwise valid JSON in a markdown fence even
+    # when JSON MIME output is requested. Extract only one object and continue
+    # through the same strict Pydantic/evidence validator; never accept prose
+    # or a partial object as a model proposal.
+    if raw.startswith("```"):
+        raw = raw.removeprefix("```").removeprefix("json").strip()
+        if raw.endswith("```"):
+            raw = raw[:-3].strip()
+    if not raw.startswith("{"):
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start >= 0 and end > start:
+            raw = raw[start : end + 1]
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:

@@ -96,3 +96,23 @@ async def test_analysis_turn_uses_model_payload_and_not_fixture(monkeypatch) -> 
 
     assert result.summary.startswith("Retention language changed")
     assert state.impacts[1].action == "Add exception path"
+
+
+@pytest.mark.asyncio
+async def test_analysis_turn_accepts_fenced_json_but_not_unvalidated_prose(
+    monkeypatch,
+) -> None:
+    state = DriftlineWorkflow().start_demo()
+    payload = _payload(state)
+
+    async def fake_events(prompt: str) -> list[str]:
+        return [
+            "Here is the contract:\n```json\n",
+            __import__("json").dumps(payload),
+            "\n```",
+        ]
+
+    monkeypatch.setattr(analysis, "_run_analysis_events", fake_events)
+    result = await analysis.analyze_workflow(state)
+
+    assert result.evidence_hash == state.evidence.evidence_hash
