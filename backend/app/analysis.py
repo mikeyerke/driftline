@@ -157,6 +157,12 @@ def validate_analysis(payload: Any, expected_evidence_hash: str) -> StructuredAn
             else StructuredAnalysis.model_validate(payload)
         )
     except (ValidationError, TypeError, ValueError) as exc:
+        if isinstance(exc, ValidationError):
+            first = exc.errors()[0] if exc.errors() else {}
+            location = ".".join(str(part) for part in first.get("loc", ()))
+            raise AnalysisUnavailable(
+                f"Structured analysis failed schema validation at {location or 'root'}"
+            ) from exc
         raise AnalysisUnavailable(
             "Structured analysis failed schema validation"
         ) from exc
