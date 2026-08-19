@@ -47,15 +47,20 @@ label: **Approve competitive response**. This approval is still a human gate;
 it is not a model-generated permission.
 Show the packet-ready, owner-review, and queued rows, the named Demo operator,
 the evidence hash, and the real audit event ID. Open the generated packet and
-show its explicit “External systems changed: No” line. Click **Reopen decision**
-and show that the high-risk gate and draft statuses return.
+show its explicit “External systems changed: No” line plus the connector cards'
+`prepared_only` status. Explain that public demo approvals cannot write to
+external systems; only the separately authenticated signed-operator lane can.
+Click **Reopen decision** and show that the high-risk gate and draft statuses
+return.
 
 ## 2:45–3:25 — Live Google path and Cloud proof
 
 Show the Agent run panel with `gemini-3.5-flash`, `google_adk`, the two
 allowlisted tools, and the job event count. In a terminal or API client, show
-the same `/api/jobs/{job_id}` payload, the Cloud Run revision, and a Firestore
-job/workflow document with its `audit_events` subcollection.
+the same `/api/jobs/{job_id}` payload, the Cloud Run revision, the
+`/api/ops/summary` approval posture, and a Firestore job/workflow document with
+its `audit_events` subcollection. If signed-operator proof is shown, use a
+separate authenticated capture and never expose the signing secret.
 
 ## 3:25–4:00 — Close
 

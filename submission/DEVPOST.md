@@ -39,14 +39,15 @@ The packet and one approved low-risk operational output are persisted as
 private, versioned Cloud Storage objects inside the isolated Driftline project;
 undo writes separate reversal markers while preserving the original evidence.
 Every step receives an event ID and the evidence hash is carried into the
-approval record and packet. The hosted build has one real, least-privilege Jira
-connector for the isolated free `KAN` / `Driftline` project: after approval it
-creates at most one marker-idempotent Jira Task, and undo keeps that issue,
-changes only Driftline-owned labels, and appends a reversal comment. The live
-deployment verified Jira Task `KAN-3` create (`jira_status=created`) and undo
-(`jira_status=reversed`) through Atlassian's scoped-token API gateway. Approval
-also prepares target-specific Confluence, Slack, and GitHub handoff manifests;
-those remain drafts with `external_write: false` until separately configured.
+approval record and packet. The isolated build has one real, least-privilege
+Jira connector for the free `KAN` / `Driftline` project: only the separately
+authenticated signed-operator lane can create at most one marker-idempotent
+Jira Task, and undo keeps that issue, changes only Driftline-owned labels, and
+appends a reversal comment. The public judge console is packet-only even when
+credentials are present; its named demo actor is not production identity.
+Approval also prepares target-specific Confluence, Slack, GitHub, and
+Salesforce-context manifests. The Salesforce contract is read-only and
+prepared-only; it is not authenticated in this deployment.
 
 The judge-ready workflow uses synthetic data: a public/pricing fixture changes
 Enterprise audit-log retention from unlimited to 365 days. The UI labels this
@@ -70,9 +71,10 @@ system.
 
 The model can inspect an allowlisted source and read workflow state. It cannot
 approve, resume, widen its own permissions, or publish a high-risk action. The
-separate API policy gate requires an explicit named demo actor and an exact
-allowlisted decision. The public demonstration does not include production
-identity authentication, so this named actor is not an enterprise IAM claim.
+separate API policy gate requires an exact allowlisted decision. Public demo
+approvals are packet-only; configured connector writes require a signed
+operator token. The public demonstration does not include production identity
+authentication, so its named actor is not an enterprise IAM claim.
 
 ## Architecture and state
 
@@ -103,8 +105,8 @@ created during the contest.
 - Four independently owned downstream artifacts mapped from one source change.
 - Offering impact graph that routes own and competitor changes into Product
   Marketing, enablement, support, customer lifecycle, and planning surfaces.
-- Approval-gated handoff manifests plus one verified, reversible Jira Task
-  connector with explicit project and token scope boundaries.
+- Approval-gated handoff manifests plus one signed-operator-only, reversible
+  Jira Task connector with explicit project and token scope boundaries.
 - A synthetic, reproducible demonstration that requires no private company data.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
@@ -121,16 +123,14 @@ created during the contest.
 ## Limitations and next steps
 
 The current public build intentionally stops at approved public or synthetic
-sources and does not perform live writes to Confluence, Slack, GitHub,
-Salesforce, CPQ, customer records, or private knowledge bases. The integration
-layer produces bounded, target-specific handoff manifests and tracks their
-prepared state. The one live external connector is deliberately limited to the
-free Driftline Jira project, uses a Jira-scoped token held only in Secret
-Manager, and never deletes Jira work. Future connectors would need
-source-level permissions, rate limits, retries, idempotency keys, signed
-operator identity, and organization-specific approval policies before
-production use. The isolated Cloud Storage output remains a separate reversible
-Driftline-owned side effect.
+sources and does not perform live writes from the public console. The
+integration layer produces bounded, target-specific handoff manifests and
+tracks their prepared state. The signed operator connector lane is deliberately
+limited to the free Driftline Jira project, uses a Jira-scoped token held only
+in Secret Manager, and never deletes Jira work. Confluence, Slack, and GitHub
+are similarly bounded but require their own isolated configuration. Salesforce
+is read-only context preparation only. Customer ROI, hours saved, and
+willingness-to-pay remain unmeasured; see `docs/VALIDATION_PLAN.md`.
 
 ## Official links
 

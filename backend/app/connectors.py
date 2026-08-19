@@ -18,12 +18,79 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode, urljoin
+from urllib.parse import quote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 
 class ConnectorError(RuntimeError):
     """A configured connector could not complete its bounded operation."""
+
+
+@dataclass(frozen=True)
+class SalesforceConfig:
+    """Read-only CRM context contract; writes are intentionally out of scope."""
+
+    enabled: bool
+    base_url: str = ""
+    token: str = ""
+    api_version: str = "v61.0"
+
+    @classmethod
+    def from_env(cls) -> SalesforceConfig:
+        enabled = (
+            os.getenv("DRIFTLINE_SALESFORCE_ENABLED", "false").casefold() == "true"
+        )
+        return cls(
+            enabled=enabled,
+            base_url=os.getenv("DRIFTLINE_SALESFORCE_BASE_URL", "").rstrip("/"),
+            token=_secret_or_env("DRIFTLINE_SALESFORCE_TOKEN") if enabled else "",
+            api_version=os.getenv("DRIFTLINE_SALESFORCE_API_VERSION", "v61.0"),
+        )
+
+    def validate(self) -> None:
+        if not self.enabled:
+            return
+        parsed = urlparse(self.base_url)
+        if parsed.scheme != "https" or not (
+            parsed.netloc.endswith(".salesforce.com")
+            or parsed.netloc.endswith(".force.com")
+        ):
+            raise ConnectorError("salesforce_base_url_must_be_salesforce_https")
+        if not self.token:
+            raise ConnectorError("salesforce_read_token_missing")
+        if not re.fullmatch(r"v\d+\.\d+", self.api_version):
+            raise ConnectorError("salesforce_api_version_invalid")
+
+
+def salesforce_readiness() -> dict[str, object]:
+    """Expose CRM readiness without making a network call or leaking a token."""
+    config = SalesforceConfig.from_env()
+    if not config.enabled:
+        return {
+            "status": "not_configured",
+            "mode": "prepared_only",
+            "external_write": False,
+            "scope": "read_only_context",
+            "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
+        }
+    try:
+        config.validate()
+    except ConnectorError as exc:
+        return {
+            "status": "invalid_config",
+            "mode": "prepared_only",
+            "external_write": False,
+            "scope": "read_only_context",
+            "reason": str(exc),
+        }
+    return {
+        "status": "configured_read_only",
+        "mode": "prepared_only",
+        "external_write": False,
+        "scope": "read_only_context",
+        "api_version": config.api_version,
+        "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
+    }
 
 
 def _secret_or_env(env_name: str) -> str:

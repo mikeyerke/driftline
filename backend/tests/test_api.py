@@ -31,6 +31,13 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert ops_payload["project_id"]
     assert set(ops_payload["connectors"]) == {"jira", "confluence", "slack", "github"}
     assert "guardrails" in ops_payload
+    assert ops_payload["crm"]["salesforce"]["mode"] == "prepared_only"
+    assert ops_payload["approval_security"]["external_writes_require_signed"] is True
+
+    value_proof = client.get("/api/ops/value-proof")
+    assert value_proof.status_code == 200
+    assert value_proof.json()["scope"] == "observed_driftline_sandbox_records"
+    assert "willingness_to_pay" in value_proof.json()["not_measured"]
 
 
 def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:
@@ -72,7 +79,7 @@ def test_demo_approval_and_undo_round_trip() -> None:
     assert approved.status_code == 200
     assert approved.json()["status"] == "complete"
     assert approved.json()["action_record"]["operational_status"] == "not_configured"
-    assert approved.json()["action_record"]["jira_status"] == "not_configured"
+    assert approved.json()["action_record"]["jira_status"] == "prepared_only"
 
     undone = client.post(
         f"/api/workflows/{workflow_id}/undo",
@@ -81,7 +88,74 @@ def test_demo_approval_and_undo_round_trip() -> None:
     assert undone.status_code == 200
     assert undone.json()["status"] == "needs_approval"
     assert undone.json()["action_record"]["operational_status"] == "not_configured"
-    assert undone.json()["action_record"]["jira_status"] == "not_configured"
+    assert undone.json()["action_record"]["jira_status"] == "prepared_only"
+
+
+def test_demo_approval_never_calls_configured_connectors(monkeypatch) -> None:
+    """Public named actors receive a packet even if connector env is present."""
+    calls: list[str] = []
+
+    def forbidden(state):
+        calls.append("write")
+        raise AssertionError("demo approval crossed the external-write boundary")
+
+    monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_CONFLUENCE_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_SLACK_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_GITHUB_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "_CONNECTOR_HANDOFFS",
+        tuple((name, forbidden, forbidden) for name, _, _ in api._CONNECTOR_HANDOFFS),
+    )
+
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Public demo reviewer"},
+    )
+
+    assert approved.status_code == 200
+    action = approved.json()["action_record"]
+    assert not calls
+    assert action["external_write"] is False
+    assert action["external_write_authorized"] is False
+    assert all(action[f"{name}_status"] == "prepared_only" for name in ("jira", "confluence", "slack", "github"))
+
+
+def test_signed_approval_can_cross_connector_boundary_when_enabled(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def create(state):
+        calls.append("write")
+        return {"jira_status": "created", "external_write": True}
+
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "test-only-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setattr(
+        api,
+        "_CONNECTOR_HANDOFFS",
+        (("jira", create, create),),
+    )
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    actor = "Signed operator"
+    token = hmac.new(secret.encode(), f"{workflow_id}:{actor}".encode(), hashlib.sha256).hexdigest()
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={
+            "approver": actor,
+            "approval_mode": "signed",
+            "approval_token": token,
+        },
+    )
+
+    assert approved.status_code == 200
+    assert calls == ["write"]
+    assert approved.json()["action_record"]["external_write_authorized"] is True
 
 
 def test_source_history_endpoint_is_explicitly_append_only() -> None:

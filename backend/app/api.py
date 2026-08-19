@@ -40,6 +40,7 @@ from .connectors import (
     reverse_github_handoff,
     reverse_jira_handoff,
     reverse_slack_handoff,
+    salesforce_readiness,
 )
 from .decision_copilot import validate_approval_choice
 from .memory import build_memory_summary
@@ -390,7 +391,18 @@ def _verify_approval_mode(
     rejected before the workflow policy engine runs.
     """
     configured = os.getenv("DRIFTLINE_APPROVAL_MODE", "demo").casefold()
-    if mode != configured:
+    signed_enabled = (
+        os.getenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "false").casefold()
+        == "true"
+    )
+    # Keep the public judge console in demo mode while allowing a separately
+    # signed operator lane to exercise configured connectors.  A deployment
+    # configured as signed remains strict and never accepts demo approvals.
+    if configured == "signed" and mode != "signed":
+        raise HTTPException(status_code=403, detail="Approval mode is not enabled")
+    if mode == "signed" and configured != "signed" and not signed_enabled:
+        raise HTTPException(status_code=403, detail="Signed approval is not enabled")
+    if mode == "demo" and configured != "demo":
         raise HTTPException(status_code=403, detail="Approval mode is not enabled")
     cleaned = actor.strip()
     if mode == "demo":
@@ -407,6 +419,45 @@ def _verify_approval_mode(
     if not hmac.compare_digest(token, expected):
         raise HTTPException(status_code=401, detail="Invalid signed approval")
     return {"mode": "signed", "identity": "signed_operator", "scope": "configured"}
+
+
+_CONNECTOR_HANDOFFS: tuple[tuple[str, Callable[[WorkflowState], dict[str, object]], Callable[[WorkflowState], dict[str, object]]], ...] = (
+    ("jira", execute_jira_handoff, reverse_jira_handoff),
+    ("confluence", execute_confluence_handoff, reverse_confluence_handoff),
+    ("slack", execute_slack_handoff, reverse_slack_handoff),
+    ("github", execute_github_handoff, reverse_github_handoff),
+)
+
+
+def _prepared_connector_info() -> dict[str, object]:
+    """Return an honest packet-only result for the public demo lane.
+
+    Connector configuration is intentionally not enough to authorize a write:
+    only a signed operator approval can cross that boundary. This protects the
+    public demo even if credentials are present in the isolated deployment.
+    """
+    result: dict[str, object] = {}
+    for name, _, _ in _CONNECTOR_HANDOFFS:
+        result[f"{name}_status"] = "prepared_only"
+        result[f"{name}_prepared_only"] = True
+        result[f"{name}_external_write"] = False
+    return result
+
+
+def _connector_handoff_info(
+    state: WorkflowState,
+    approval_identity: dict[str, str],
+    *,
+    reverse: bool = False,
+) -> dict[str, object]:
+    """Execute connector work only inside the signed, configured lane."""
+    if approval_identity.get("scope") != "configured":
+        return _prepared_connector_info()
+    result: dict[str, object] = {}
+    for name, execute, undo in _CONNECTOR_HANDOFFS:
+        operation = undo if reverse else execute
+        result.update(_safe_connector_call(operation, name, state))
+    return result
 
 
 def _transition_workflow(
@@ -579,6 +630,15 @@ def get_ops_summary() -> dict[str, object]:
             "demo_max_mutations": DEMO_MAX_MUTATIONS,
             "monitor_max_sources": _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5),
         },
+        "approval_security": {
+            "public_demo_packet_only": True,
+            "configured_mode": os.getenv("DRIFTLINE_APPROVAL_MODE", "demo"),
+            "signed_approvals_enabled": os.getenv(
+                "DRIFTLINE_SIGNED_APPROVALS_ENABLED", "false"
+            ).casefold()
+            == "true",
+            "external_writes_require_signed": True,
+        },
         "jobs": {
             "total": len(jobs),
             "by_status": {
@@ -598,7 +658,63 @@ def get_ops_summary() -> dict[str, object]:
             == "true"
             for name in connector_names
         },
+        "crm": {"salesforce": salesforce_readiness()},
         "source_health": source_health,
+    }
+
+
+@app.get("/api/ops/value-proof")
+def get_value_proof() -> dict[str, object]:
+    """Return observed workflow throughput without extrapolating ROI claims."""
+    with _jobs_lock:
+        jobs = list(_jobs.values())
+    if not jobs and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
+        jobs = list_jobs(50)
+    workflows = list(workflow_store._runs.values())
+    if (
+        not workflows
+        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+    ):
+        workflows = list_workflows(50)
+    action_items = [item for state in workflows for item in state.action_items]
+    source_health = source_registry_health()
+    external_writes = sum(
+        bool((state.action_record or {}).get("external_write")) for state in workflows
+    )
+    reversed_workflows = sum(
+        any(event.get("detail") == "decision_reopened" for event in state.events)
+        for state in workflows
+    )
+    return {
+        "generated_at": utc_now(),
+        "scope": "observed_driftline_sandbox_records",
+        "observed": {
+            "jobs": len(jobs),
+            "workflows": len(workflows),
+            "workflows_reversed_or_reopened": reversed_workflows,
+            "external_write_actions": external_writes,
+            "action_items": len(action_items),
+            "action_items_completed": sum(
+                item.get("status") == ActionItemStatus.COMPLETED.value
+                for item in action_items
+            ),
+            "healthy_sources": sum(
+                item.get("status") == "healthy" for item in source_health
+            ),
+            "source_observations": sum(
+                int(item.get("observation_count", 0)) for item in source_health
+            ),
+        },
+        "not_measured": [
+            "hours_saved_per_change",
+            "revenue_or_win_rate_lift",
+            "customer_retention_impact",
+            "willingness_to_pay",
+        ],
+        "interpretation": (
+            "Counts are direct records from this isolated Driftline deployment; "
+            "they are not customer or revenue claims."
+        ),
     }
 
 
@@ -1129,30 +1245,25 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         )
         storage_info = persist_action_artifact(state, kind="active")
         operational_info = persist_operational_output(state, kind="active")
-        jira_info = _safe_connector_call(execute_jira_handoff, "jira", state)
-        confluence_info = _safe_connector_call(
-            execute_confluence_handoff, "confluence", state
-        )
-        slack_info = _safe_connector_call(execute_slack_handoff, "slack", state)
-        github_info = _safe_connector_call(execute_github_handoff, "github", state)
+        connector_info = _connector_handoff_info(state, approval_identity)
         state.action_record = {
             **(state.action_record or {}),
             **storage_info,
             **operational_info,
-            **jira_info,
-            **confluence_info,
-            **slack_info,
-            **github_info,
+            **connector_info,
             "operational_side_effect": operational_info.get(
                 "operational_status", "not_configured"
             ),
+            "external_write_authorized": approval_identity.get("scope") == "configured",
             "external_write": any(
-                info.get("external_write", False)
-                for info in (jira_info, confluence_info, slack_info, github_info)
+                connector_info.get(f"{name}_external_write", False)
+                or connector_info.get("external_write", False)
+                for name, _, _ in _CONNECTOR_HANDOFFS
             ),
             "external_systems_changed": any(
-                info.get("external_write", False)
-                for info in (jira_info, confluence_info, slack_info, github_info)
+                connector_info.get(f"{name}_external_write", False)
+                or connector_info.get("external_write", False)
+                for name, _, _ in _CONNECTOR_HANDOFFS
             ),
         }
         if storage_info.get("storage_status") != "not_configured":
@@ -1182,6 +1293,14 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
     try:
 
         def apply(current: WorkflowState) -> WorkflowState:
+            if (
+                current.action_record
+                and current.action_record.get("external_write")
+                and approval_identity.get("scope") != "configured"
+            ):
+                raise PolicyViolation(
+                    "Signed approval is required to reverse configured connector writes"
+                )
             state = workflow_store.undo(current.workflow_id, request.actor)
             state.events[-1]["approval_identity"] = approval_identity
             return state
@@ -1193,30 +1312,27 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         )
         storage_info = persist_action_artifact(state, kind="rollback")
         operational_info = persist_operational_output(state, kind="rollback")
-        jira_info = _safe_connector_call(reverse_jira_handoff, "jira", state)
-        confluence_info = _safe_connector_call(
-            reverse_confluence_handoff, "confluence", state
+        connector_info = _connector_handoff_info(
+            state, approval_identity, reverse=True
         )
-        slack_info = _safe_connector_call(reverse_slack_handoff, "slack", state)
-        github_info = _safe_connector_call(reverse_github_handoff, "github", state)
         state.action_record = {
             **(state.action_record or {}),
             **storage_info,
             **operational_info,
-            **jira_info,
-            **confluence_info,
-            **slack_info,
-            **github_info,
+            **connector_info,
             "operational_side_effect": operational_info.get(
                 "operational_status", "not_configured"
             ),
+            "external_write_authorized": approval_identity.get("scope") == "configured",
             "external_write": any(
-                info.get("external_write", False)
-                for info in (jira_info, confluence_info, slack_info, github_info)
+                connector_info.get(f"{name}_external_write", False)
+                or connector_info.get("external_write", False)
+                for name, _, _ in _CONNECTOR_HANDOFFS
             ),
             "external_systems_changed": any(
-                info.get("external_write", False)
-                for info in (jira_info, confluence_info, slack_info, github_info)
+                connector_info.get(f"{name}_external_write", False)
+                or connector_info.get("external_write", False)
+                for name, _, _ in _CONNECTOR_HANDOFFS
             ),
         }
         if storage_info.get("storage_status") != "not_configured":

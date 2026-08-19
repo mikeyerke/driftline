@@ -3,13 +3,16 @@ import json
 from app.connectors import (
     ConfluenceConfig,
     ConfluenceConnector,
+    ConnectorError,
     GitHubConfig,
     GitHubConnector,
     JiraConfig,
     JiraConnector,
+    SalesforceConfig,
     SlackConfig,
     SlackConnector,
     execute_confluence_handoff,
+    salesforce_readiness,
 )
 from app.workflow import DriftlineWorkflow
 
@@ -228,3 +231,26 @@ def test_github_issue_creation_is_repository_scoped_and_idempotent() -> None:
     body = json.loads(requests[1].data)
     assert body["labels"] == ["driftline-active", "driftline-approval-gated"]
     assert "Driftline action action-1" in body["body"]
+
+
+def test_salesforce_defaults_to_read_only_prepared_contract(monkeypatch) -> None:
+    monkeypatch.delenv("DRIFTLINE_SALESFORCE_ENABLED", raising=False)
+    monkeypatch.delenv("DRIFTLINE_SALESFORCE_TOKEN", raising=False)
+    result = salesforce_readiness()
+    assert result["status"] == "not_configured"
+    assert result["mode"] == "prepared_only"
+    assert result["external_write"] is False
+
+
+def test_salesforce_config_rejects_non_salesforce_hosts() -> None:
+    config = SalesforceConfig(
+        enabled=True,
+        base_url="https://example.com",
+        token="test-token",
+    )
+    try:
+        config.validate()
+    except ConnectorError as exc:
+        assert "salesforce_base_url" in str(exc)
+    else:  # pragma: no cover - assertion documents the security boundary.
+        raise AssertionError("non-Salesforce host was accepted")

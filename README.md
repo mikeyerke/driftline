@@ -33,8 +33,9 @@ Driftline is a complete resumable workflow rather than a chat interface:
 7. Let a named human claim and complete each bounded owner action, with
    idempotency keys and evidence hashes carried through the lifecycle.
 8. Prepare reversible, target-specific handoff packets for Product Marketing's
-   Jira, Confluence, Slack, or GitHub workflow, then write only through an
-   explicitly enabled, scoped connector after approval.
+   Jira, Confluence, Slack, or GitHub workflow. Only the separately
+   authenticated signed-operator lane may write through an explicitly enabled,
+   scoped connector; the public demo is packet-only.
 9. Preserve an auditable event trail for every action.
 
 The decision surface is intentionally richer than a single model answer. The
@@ -69,19 +70,18 @@ demo spend.
 
 ### Verified Jira connector
 
-The public deployment includes one real, bounded Jira connector for the free
+The isolated deployment includes one real, bounded Jira connector for the free
 `Driftline` Team-managed project (`KAN`). It is restricted to the Atlassian
 Jira gateway for this site and uses a Jira-scoped token with the classic
 `read:jira-work`, `read:jira-user`, and `write:jira-work` scopes. The token is
 mounted from the isolated `driftline-jira-token` Secret Manager secret; it is
 never sent to the browser or committed to this repository.
 
-After a named human approves the first packet, the adapter searches the current
-project for a Driftline action marker before creating one `Task`. The latest
-verified live run created `KAN-3` (`jira_status=created`, `external_write=true`). Undo is
+After a signed operator approves a packet, the adapter searches the current
+project for a Driftline action marker before creating one `Task`. A public demo
+approval cannot invoke this path, even when credentials are present. Undo is
 reversible: it keeps the issue, removes only the Driftline active label, adds
-`driftline-reversed`, and appends an audit comment. The same run verified
-`jira_status=reversed` against Jira through the gateway. Confluence, Slack, and
+`driftline-reversed`, and appends an audit comment. Confluence, Slack, and
 GitHub use the same real adapter boundary, with Secret Manager-or-environment
 credential resolution, HTTPS and scope validation, marker-based idempotency, and
 reversible markers. GitHub is authenticated for the isolated `mikeyerke/driftline`
@@ -92,7 +92,10 @@ Confluence is provisioned on the free plan in the dedicated `DRIFT` space and is
 authenticated through the Atlassian API gateway with a Confluence-scoped token.
 Each connector can be enabled independently with its own project, space, channel,
 or repository scope; a failed connector is recorded as `failed` and never turns
-into a successful claim.
+into a successful claim. Salesforce is a prepared-only, read-only context
+contract for product, pricebook, and opportunity objects; it has no write path
+and is not authenticated in this deployment. See
+`docs/CONNECTOR_SECURITY.md` for the lane boundary.
 
 | Connector | Enable flag | Required scope |
 | --- | --- | --- |
@@ -100,9 +103,11 @@ into a successful claim.
 | Confluence | `DRIFTLINE_CONFLUENCE_ENABLED=true` | one Atlassian space and optional parent page |
 | Slack | `DRIFTLINE_SLACK_ENABLED=true` | one channel |
 | GitHub | `DRIFTLINE_GITHUB_ENABLED=true` | one owner/repository |
+| Salesforce context | `DRIFTLINE_SALESFORCE_ENABLED=true` | read-only OAuth context; no write path |
 
 Every connector returns an explicit per-system status (`created`, `reused`,
-`reversed`, `not_configured`, `not_eligible`, or `failed`) in the action record.
+`reversed`, `prepared_only`, `not_configured`, `not_eligible`,
+`invalid_config`, or `failed`) in the action record.
 
 ## Repository layout
 

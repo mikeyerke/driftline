@@ -67,9 +67,11 @@ fetching or mutating a source. `/api/ops/summary` exposes bounded
 job/workflow counts, connector enablement, model and call guardrails, and
 source health for production operations; it never returns secret values.
 Reopening a decision restores the approval gate and is not an external undo.
-Connector manifests are deliberately marked `external_write: false` until a
-human approves the action. The hosted project has separately configured,
-least-privilege Jira, Confluence, Slack, and GitHub connectors. Jira uses the
+Connector manifests are deliberately marked `external_write: false` in the
+public demo. A configured connector is callable only after a separately signed
+operator approval; a named public demo actor can never cross that boundary. The
+hosted project has separately configured, least-privilege Jira, Confluence,
+Slack, and GitHub connectors. Jira uses the
 Atlassian `api.atlassian.com/ex/jira/<cloudId>` gateway and is restricted to the
 free `KAN` / `Driftline` project. Confluence uses the scoped
 `api.atlassian.com/ex/confluence/<cloudId>/wiki/api/v2` gateway and is restricted
@@ -79,7 +81,11 @@ restricted to `mikeyerke/driftline`. Each adapter uses marker idempotency and
 Secret Manager credentials. Undo never deletes customer work: Jira changes only
 Driftline-owned labels and adds a comment, Confluence appends a named-human
 reversal note through a page version, Slack posts a reversal message, and GitHub
-adds a reversal label/comment. The current deployment directly verified create
-and reversal for all four while keeping tokens out of the browser and repository.
-The public demo has no identity provider, so the displayed “Demo operator” is
-a named demo actor, not production authentication.
+adds a reversal label/comment. The signed operator lane directly verifies
+connector create/reversal while keeping tokens out of the browser and
+repository. The public demo has no identity provider, so the displayed “Demo
+operator” is a named demo actor, not production authentication; its connector
+statuses remain `prepared_only`. Salesforce is represented by a read-only,
+prepared-only context contract and is not authenticated in this isolated
+deployment. `/api/ops/value-proof` reports observed deployment counts and
+explicitly separates them from unmeasured customer ROI.
