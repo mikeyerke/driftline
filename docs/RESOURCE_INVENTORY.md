@@ -32,6 +32,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
 | Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Serving image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:775d0bab-aebd-4985-b7ae-59e515c0fcda`; digest `sha256:71931430f64d9b54f43c6480a73fceaf705815dfd204709e0f737353dc832782` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
+| Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | Cloud Build source bucket | `gs://driftline-hackathon-2026_us-central1_cloudbuild` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | Cloud Build compatibility bucket | `gs://driftline-hackathon-2026_cloudbuild` | Created by Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -81,6 +82,12 @@ The current public release was exercised on revision `driftline-00015-g9k`:
   `confidence=0.99`, then reached the same deterministic approval gate. Its
   explicit structured-analysis fallback was safe and labelled; the final
   judge-facing demo run above is the verified `gemini_structured` path.
+- The source registry now exposes a second realistic public source type,
+  `public/terms`, with its own pinned fixture and independent snapshot key;
+  the console shows both bounded monitors without exposing arbitrary URL input.
+- The artifact bucket is isolated from Cloud Build buckets and has no public
+  IAM members. A successful approval writes a packet object; undo writes a
+  separate rollback marker so the original object remains versioned evidence.
 - The first post-deploy live run exposed and fixed an ADK mode incompatibility;
   one subsequent enqueue returned a transient queue-not-found while the
   service was warming. The final run succeeded; treat Cloud Run error logs as
@@ -108,6 +115,7 @@ gcloud artifacts repositories delete driftline --project="$PROJECT" --location="
 gcloud storage buckets delete gs://724959673622-us-central1-cloudbuild-logs
 gcloud storage buckets delete gs://driftline-hackathon-2026_us-central1_cloudbuild
 gcloud storage buckets delete gs://driftline-hackathon-2026_cloudbuild
+gcloud storage buckets delete gs://driftline-artifacts-724959673622
 gcloud firestore databases delete --database='(default)' --project="$PROJECT"
 gcloud projects delete "$PROJECT"
 ```

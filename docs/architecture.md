@@ -15,6 +15,7 @@ flowchart TD
     H --> P[Bounded sandbox packet]
     W --> F[(Firestore jobs, workflow + audit events)]
     P --> F
+    P --> GCS[(Versioned Cloud Storage action artifacts)]
     F --> U[React operations console]
 ```
 
@@ -25,9 +26,10 @@ analyst's artifact names, owners, risk values, and evidence hash before using
 the proposals; invalid output fails closed to an explicitly labelled
 deterministic demo fallback. Cloud Tasks turns the scan into a durable
 asynchronous job; the task carries an OIDC identity and the worker verifies
-that identity before running. The source adapter can read only
-`public/pricing`, with a bounded timeout and snapshot size; failed fetches
-become an explicitly labelled synthetic replay. Cloud Scheduler runs monitor
+that identity before running. The source adapter can read only the two
+explicitly registered public snapshots (`public/pricing` and `public/terms`),
+with a bounded timeout and snapshot size; failed fetches become an explicitly
+labelled synthetic replay. Cloud Scheduler runs monitor
 mode every six hours, and a Firestore snapshot ledger distinguishes a baseline,
 unchanged source, and a verified change. The deterministic workflow engine—not
 the model—creates the evidence, maps four bounded demo artifacts, applies the
@@ -40,7 +42,10 @@ high-risk action, widen its own tool permissions, or call the approval and undo
 endpoints. Approval creates a packet inside Driftline only; it never claims to
 have updated Salesforce, a CRM, billing, support, or customer records. The
 approval also creates a reversible Firestore action record with its own ID;
-undo changes that record to `reversed` and reopens the gate.
+undo changes that record to `reversed` and reopens the gate. Each approved
+sandbox packet is also written to the isolated, versioned Cloud Storage bucket;
+undo writes a separate rollback marker object. These objects are private and
+are referenced by `gs://` URI in the action record.
 Reopening a decision restores the approval gate and is not an external undo.
 The public demo has no identity provider, so the displayed “Demo operator” is
 a named demo actor, not production authentication.

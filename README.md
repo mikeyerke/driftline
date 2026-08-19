@@ -11,8 +11,9 @@ systems.
 The demonstration models a pricing-page change from unlimited audit-log
 retention to 365-day retention, then traces the impact into a pricing
 battlecard, renewal playbook, enterprise FAQ, and CRM guidance. The deployed
-source adapter fetches a single public GitHub snapshot when reachable and
-falls back to the clearly labelled synthetic replay when it is not. It is not
+source adapter fetches one of two explicitly registered public GitHub snapshots
+(`public/pricing` or `public/terms`) when reachable and falls back to the
+clearly labelled synthetic replay when it is not. It is not
 connected to a real company system.
 
 ## Why it is agentic
@@ -37,7 +38,9 @@ open. A separate deterministic API gate owns high-risk approval; the model is
 not given an approval tool. Cloud Scheduler runs the historical monitor every
 six hours and records `baseline_established`, `unchanged`, or `changed` in a
 Firestore snapshot ledger. Cloud Run serves the API and web console in one
-container, with Firestore as the durable workflow, job, and audit store. The
+container, with Firestore as the durable workflow, job, source-history, and
+audit store. Approved sandbox packets and undo markers are also persisted as
+private, versioned Cloud Storage objects in the isolated project. The
 synthetic replay remains available for predictable judging. Both live and
 identity-free preview mutations are query-capped and rate-limited to bound
 demo spend.
@@ -132,6 +135,9 @@ endpoint is the fallback for evaluation.
 - The model proposes actions; deterministic policy code decides whether a
   bounded packet may be created.
 - Generated packets explicitly state that no external systems changed.
+- Approved packets have a versioned private Cloud Storage artifact and undo
+  writes an explicit rollback marker; neither operation mutates an external
+  customer system.
 - The public demonstration names a demo operator but does not provide
   production identity authentication.
 - No real Salesforce, CRM, billing, customer, or private company data is used.
