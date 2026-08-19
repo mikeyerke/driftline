@@ -275,6 +275,25 @@ hourly cap. These are spend guards, not production authentication.
 - Cloud Run error-log query for revision `driftline-00063-fr9` returned no
   `ERROR` entries after deployment and both approval-lane smoke tests.
 
+## 2026-08-19 console copy release
+
+- Source commit: `19cc28c` (`clarify public connector approval boundary`).
+- Cloud Build: `0c90bf4a-3898-4d8c-8c17-6f6dcec7f128` — `SUCCESS`.
+- Artifact image digest: `sha256:8cb778def6a9402924849e6a6c00822c363d0bf36f90826eb9fdd293c36571e3`.
+- Cloud Run revision: `driftline-00064-m9k`, serving 100% of traffic at the
+  existing public alias. The updated console now states that public packets
+  are prepared-only and signed operator approval is required for writes.
+- Latest ADK smoke `job-a866c705b0c7` / workflow
+  `28d2f8fd-8c6f-4e8c-8cf3-bc25819173ff` reached approval with
+  `gemini-3.5-flash`, `google_adk`, and the two allowlisted tools. Public
+  approve/undo returned all four connector statuses as `prepared_only` with
+  `external_write=false`.
+- Latest signed connector smoke workflow
+  `a193aecb-9c85-4824-b62b-806e27c26438` created Jira `KAN-15`, reused
+  Confluence page `720897`, created Slack message `1787176373.596609`, and
+  created GitHub issue `mikeyerke/driftline#8`; signed undo returned all four
+  statuses to `reversed`.
+
 ## Cleanup and disablement
 
 The following commands target only the Driftline project. Review the inventory
