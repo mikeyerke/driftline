@@ -38,6 +38,10 @@ export function getSources() {
   return request("/api/sources");
 }
 
+export function getSourceHistory(sourceId, limit = 8) {
+  return request(`/api/sources/${encodeURIComponent(sourceId)}/history?limit=${limit}`);
+}
+
 export function approveWorkflow(workflowId, artifactDecisions, decision = "grandfather_existing_customers") {
   return request(`/api/workflows/${workflowId}/approve`, {
     method: "POST",

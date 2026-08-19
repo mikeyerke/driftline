@@ -12,6 +12,7 @@ from .snapshots import (
     InMemorySnapshotStore,
     SnapshotStore,
     compare_and_record,
+    snapshot_history,
 )
 from .workflow import DEMO_AFTER, DEMO_BEFORE, DEMO_SOURCE_URL
 
@@ -218,3 +219,11 @@ def list_allowlisted_sources() -> list[dict[str, str]]:
         }
         for source_id, definition in SOURCE_DEFINITIONS.items()
     ]
+
+
+def list_source_history(source_id: str, limit: int = 20) -> list[dict[str, str]]:
+    """Return append-only observations for one allowlisted source."""
+
+    if source_id not in SOURCE_DEFINITIONS:
+        return []
+    return snapshot_history(source_id, store=_default_public_store(), limit=limit)

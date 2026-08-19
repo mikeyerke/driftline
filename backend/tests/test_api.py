@@ -31,6 +31,7 @@ def test_demo_approval_and_undo_round_trip() -> None:
     )
     assert approved.status_code == 200
     assert approved.json()["status"] == "complete"
+    assert approved.json()["action_record"]["operational_status"] == "not_configured"
 
     undone = client.post(
         f"/api/workflows/{workflow_id}/undo",
@@ -38,6 +39,13 @@ def test_demo_approval_and_undo_round_trip() -> None:
     )
     assert undone.status_code == 200
     assert undone.json()["status"] == "needs_approval"
+    assert undone.json()["action_record"]["operational_status"] == "not_configured"
+
+
+def test_source_history_endpoint_is_explicitly_append_only() -> None:
+    response = client.get("/api/sources/public/pricing/history")
+    assert response.status_code == 200
+    assert response.json()["append_only"] is True
 
 
 def test_competitor_source_builds_offering_impact_graph_and_handoffs() -> None:

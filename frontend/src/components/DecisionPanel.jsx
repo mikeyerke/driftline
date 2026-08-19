@@ -19,12 +19,13 @@ export default function DecisionPanel({ approved, approval, artifactDecisions, a
         <button className="secondary full" onClick={onUndo} disabled={busy}><RotateCcw size={17} />Reopen decision</button>
         <p className="decision-note">
           {approval?.timestamp
-            ? "Bounded outputs are recorded; no external system was changed."
+            ? "One approved operational output is published inside the isolated Driftline project; no external customer system was changed."
             : "No server decision was recorded."}
         </p>
         <div className="audit-id"><strong>Audit event</strong><span>{auditEvent}</span></div>
         {actionRecord && <div className="audit-id"><strong>Firestore action record</strong><span>{actionRecord.action_id} · {actionRecord.status}</span></div>}
         {actionRecord?.storage_status && <div className="audit-id"><strong>Cloud Storage artifact</strong><span>{actionRecord.storage_status === "persisted" ? `${actionRecord.artifact_kind === "rollback" ? "Rollback marker" : "Versioned packet"} persisted` : actionRecord.storage_status}</span>{actionRecord.artifact_uri && <code className="artifact-uri">{actionRecord.artifact_uri}</code>}</div>}
+        {actionRecord?.operational_status && <div className="audit-id"><strong>Operational output</strong><span>{actionRecord.operational_status === "active" ? "Approved output published to the isolated Driftline bucket" : actionRecord.operational_status === "reversed" ? "Operational output reversed with a durable marker" : `Output ${actionRecord.operational_status}`}</span>{actionRecord.operational_output_uri && <code className="artifact-uri">{actionRecord.operational_output_uri}</code>}</div>}
         {packetHref && <a className="secondary full packet-link" href={packetHref} target="_blank" rel="noreferrer"><Download size={17} />Download change packet</a>}
         <button className="secondary full evidence-button" onClick={onEvidence}><FileText size={17} />Open evidence</button>
       </aside>
@@ -40,7 +41,7 @@ export default function DecisionPanel({ approved, approval, artifactDecisions, a
       <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>High-risk artifacts remain behind this deterministic human gate.</small></div>
       <button className="primary full" onClick={onApprove} disabled={!isLive || busy}><Check size={18} />{busy ? "Recording decision…" : "Approve action plan"}</button>
       <button className="secondary full" onClick={onEvidence}><FileText size={17} />Open evidence</button>
-      <p className="decision-note">Approval creates a reversible, evidence-linked sandbox packet. The agent cannot approve itself.</p>
+      <p className="decision-note">Approval creates a reversible, evidence-linked packet and one isolated Google Cloud operational output. The agent cannot approve itself.</p>
       {!isLive && <p className="decision-note decision-warning">Run the scan to create a live Firestore workflow before deciding.</p>}
     </aside>
   );

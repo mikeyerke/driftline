@@ -48,15 +48,18 @@ The policy gate is deliberately deterministic. A model cannot self-approve a
 high-risk action, widen its own tool permissions, or call the approval and undo
 endpoints. Approval creates a packet inside Driftline only; it never claims to
 have updated Salesforce, a CRM, billing, support, or customer records. The
-approval also creates a reversible Firestore action record with its own ID,
+approval also creates one approved operational output inside the isolated
+Driftline project and a reversible Firestore action record with its own ID,
 evidence-bound owner action items, and target-specific Jira, Confluence, Slack,
 and GitHub handoff manifests. A human can claim and complete an item
 without granting the model any write authority; the lifecycle is
 `queued → claimed → completed` and is compare-and-set protected. Undo changes
 the action record and every item to `reversed` and reopens the gate. Each approved
-sandbox packet is also written to the isolated, versioned Cloud Storage bucket;
-undo writes a separate rollback marker object. These objects are private and
-are referenced by `gs://` URI in the action record.
+sandbox packet and the approved operational output are written to the isolated,
+versioned Cloud Storage bucket; undo writes separate rollback markers. These
+objects are private and are referenced by `gs://` URI in the action record.
+Source observations use an append-only `observations` subcollection plus a
+current pointer for comparison.
 Reopening a decision restores the approval gate and is not an external undo.
 Connector manifests are deliberately marked `external_write: false`; real
 writes require a separately configured least-privilege connector, signed

@@ -35,9 +35,10 @@ After approval, Driftline creates an evidence-linked sandbox packet, an owner
 review item, or a queued item per artifact. Each artifact also receives a
 durable human-owned action item with an idempotency key and evidence hash; a
 named reviewer can claim and complete it without giving the model write access.
-The packet is persisted as a private,
-versioned Cloud Storage object; undo writes a separate rollback marker while
-preserving the original evidence. Every step receives an event ID and the
+The packet and one approved low-risk operational output are persisted as
+private, versioned Cloud Storage objects inside the isolated Driftline project;
+undo writes separate reversal markers while preserving the original evidence.
+Every step receives an event ID and the
 evidence hash is carried into the approval record and packet. No external system
 is changed by the public demo. Approval also prepares target-specific Jira,
 Confluence, Slack, and GitHub handoff manifests; each is explicitly marked as a
@@ -122,7 +123,10 @@ Salesforce, CPQ, customer records, or private knowledge bases. The integration
 layer produces bounded, target-specific handoff manifests and tracks their
 prepared state. Future live connectors would need source-level permissions,
 rate limits, retries, idempotency keys, signed operator identity, and
-organization-specific approval policies before production use.
+organization-specific approval policies before production use. The one real
+downstream side effect is deliberately scoped to an approved operational
+artifact in the isolated Driftline Cloud Storage lane; it is reversible and
+does not touch a customer system.
 
 ## Official links
 

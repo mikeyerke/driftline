@@ -358,6 +358,7 @@ def packet_markdown(state: WorkflowState) -> str:
         "- External systems changed: **No** (sandbox output)",
         f"- Firestore action record: `{(state.action_record or {}).get('action_id', 'none')}`",
         f"- Action status: `{(state.action_record or {}).get('status', 'none')}`",
+        f"- Google Cloud operational output: `{(state.action_record or {}).get('operational_side_effect', 'not yet published')}`",
         "",
         "## Source change",
         "",

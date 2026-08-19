@@ -4,8 +4,9 @@ The source adapter deliberately separates fetching a bounded source body from
 deciding whether it is new.  That makes the monitor honest: the first read
 establishes a baseline, an identical hash is unchanged, and only a different
 hash is a change.  The Firestore implementation stores one latest snapshot per
-allowlisted source while the in-memory implementation keeps local tests and
-the synthetic judge fixture deterministic.
+allowlisted source plus an immutable observation history while the in-memory
+implementation mirrors that contract for local tests and the synthetic judge
+fixture.
 """
 
 from __future__ import annotations
@@ -90,12 +91,15 @@ class SnapshotStore(Protocol):
         self, source_id: str, current: SnapshotRecord
     ) -> SnapshotRecord | None: ...
 
+    def history(self, source_id: str, limit: int = 20) -> list[SnapshotRecord]: ...
+
 
 class InMemorySnapshotStore:
     """Small process-local store for tests and explicitly synthetic runs."""
 
     def __init__(self) -> None:
         self._records: dict[str, SnapshotRecord] = {}
+        self._history_records: dict[str, list[SnapshotRecord]] = {}
         self._lock = threading.Lock()
 
     def record(self, source_id: str, current: SnapshotRecord) -> SnapshotRecord | None:
@@ -104,7 +108,15 @@ class InMemorySnapshotStore:
         with self._lock:
             previous = self._records.get(source_id)
             self._records[source_id] = current
+            self._history_records.setdefault(source_id, []).append(current)
             return previous
+
+    def history(self, source_id: str, limit: int = 20) -> list[SnapshotRecord]:
+        bounded_limit = max(1, min(limit, 100))
+        with self._lock:
+            return list(reversed(self._history_records.get(source_id, [])))[
+                :bounded_limit
+            ]
 
     def clear(self) -> None:
         with self._lock:
@@ -148,6 +160,10 @@ class FirestoreSnapshotStore:
         reference = self._client.collection(self._collection).document(
             _firestore_document_key(source_id)
         )
+        observation_id = hashlib.sha256(
+            f"{source_id}|{current.retrieved_at}|{current.snapshot_hash}".encode()
+        ).hexdigest()[:32]
+        observation = reference.collection("observations").document(observation_id)
         previous: list[SnapshotRecord | None] = [None]
         transaction = self._client.transaction()
 
@@ -156,10 +172,31 @@ class FirestoreSnapshotStore:
             existing = reference.get(transaction=transaction)
             if existing.exists:
                 previous[0] = SnapshotRecord.from_dict(existing.to_dict() or {})
+            # The observation path is append-only. A deterministic key makes a
+            # retried monitor write idempotent while the current pointer remains
+            # a cheap comparison read.
+            transaction.set(
+                observation,
+                {**current.to_dict(), "observation_id": observation_id},
+                merge=False,
+            )
             transaction.set(reference, current.to_dict())
 
         write(transaction)
         return previous[0]
+
+    def history(self, source_id: str, limit: int = 20) -> list[SnapshotRecord]:
+        bounded_limit = max(1, min(limit, 100))
+        reference = self._client.collection(self._collection).document(
+            _firestore_document_key(source_id)
+        )
+        observations = list(reference.collection("observations").stream())
+        records = [
+            SnapshotRecord.from_dict(snapshot.to_dict() or {})
+            for snapshot in observations
+        ]
+        records.sort(key=lambda item: item.retrieved_at, reverse=True)
+        return records[:bounded_limit]
 
 
 def compare_and_record(
@@ -216,3 +253,11 @@ def compare_and_record(
         "data_mode": current.data_mode,
         "confidence": confidence,
     }
+
+
+def snapshot_history(
+    source_id: str, *, store: SnapshotStore, limit: int = 20
+) -> list[dict[str, str]]:
+    """Return newest immutable observations for a bounded source."""
+
+    return [record.to_dict() for record in store.history(source_id, limit)]

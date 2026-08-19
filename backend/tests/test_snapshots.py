@@ -72,3 +72,19 @@ def test_store_rejects_mismatched_source_id() -> None:
         assert str(exc) == "snapshot_source_id_mismatch"
     else:
         raise AssertionError("store must reject mismatched source IDs")
+
+
+def test_in_memory_history_is_append_only_and_newest_first() -> None:
+    store = InMemorySnapshotStore()
+    kwargs = {
+        "source_id": "public/pricing",
+        "source_url": "https://example.test/pricing",
+        "data_mode": "public_source",
+        "snapshot_label": "test",
+        "store": store,
+    }
+    compare_and_record(body="old", **kwargs, retrieved_at="2026-08-19T10:00:00+00:00")
+    compare_and_record(body="new", **kwargs, retrieved_at="2026-08-19T11:00:00+00:00")
+
+    history = store.history("public/pricing")
+    assert [record.body for record in history] == ["new", "old"]

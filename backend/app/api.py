@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover - exercised only in a minimal local env.
     TaskAlreadyExists = type("TaskAlreadyExists", (Exception,), {})
 
 from .adk_runtime import run_agent_task
-from .artifacts import persist_action_artifact
+from .artifacts import persist_action_artifact, persist_operational_output
 from .models import ActionItemStatus, JobState, WorkflowState, utc_now
 from .persistence import (
     claim_job,
@@ -41,7 +41,11 @@ from .persistence import (
     persist_workflow,
     update_jobs_for_workflow,
 )
-from .source import SOURCE_DEFINITIONS, list_allowlisted_sources
+from .source import (
+    SOURCE_DEFINITIONS,
+    list_allowlisted_sources,
+    list_source_history,
+)
 from .workflow import PolicyViolation, packet_markdown, workflow_store
 
 logger = logging.getLogger("driftline.api")
@@ -482,6 +486,18 @@ def get_sources() -> dict[str, object]:
     return {"sources": list_allowlisted_sources()}
 
 
+@app.get("/api/sources/{source_id:path}/history")
+def get_source_history(source_id: str, limit: int = 12) -> dict[str, object]:
+    if source_id not in SOURCE_DEFINITIONS:
+        raise HTTPException(status_code=404, detail="Source is not allowlisted")
+    bounded_limit = max(1, min(limit, 50))
+    return {
+        "source_id": source_id,
+        "append_only": True,
+        "observations": list_source_history(source_id, bounded_limit),
+    }
+
+
 @app.post("/api/workflows/demo")
 def start_demo(source_id: str = "public/pricing") -> dict:
     """Legacy deterministic fixture endpoint retained for reproducible tests."""
@@ -766,7 +782,15 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             apply,
         )
         storage_info = persist_action_artifact(state, kind="active")
-        state.action_record = {**(state.action_record or {}), **storage_info}
+        operational_info = persist_operational_output(state, kind="active")
+        state.action_record = {
+            **(state.action_record or {}),
+            **storage_info,
+            **operational_info,
+            "operational_side_effect": operational_info.get(
+                "operational_status", "not_configured"
+            ),
+        }
         if storage_info.get("storage_status") != "not_configured":
             compare_and_set_workflow(state, "complete")
             workflow_store.restore(state)
@@ -804,7 +828,15 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
             apply,
         )
         storage_info = persist_action_artifact(state, kind="rollback")
-        state.action_record = {**(state.action_record or {}), **storage_info}
+        operational_info = persist_operational_output(state, kind="rollback")
+        state.action_record = {
+            **(state.action_record or {}),
+            **storage_info,
+            **operational_info,
+            "operational_side_effect": operational_info.get(
+                "operational_status", "not_configured"
+            ),
+        }
         if storage_info.get("storage_status") != "not_configured":
             compare_and_set_workflow(state, "needs_approval")
             workflow_store.restore(state)
