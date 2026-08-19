@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
 
-from google.api_core.exceptions import AlreadyExists
+from google.api_core.exceptions import AlreadyExists, InvalidArgument
 from google.cloud import firestore
 
 from .models import (
@@ -118,8 +119,6 @@ def compare_and_set_workflow(state: WorkflowState, expected_status: str) -> bool
     document = client.collection(COLLECTION).document(state.workflow_id)
     payload = state.to_dict()
     payload["updated_at"] = datetime.now(UTC).isoformat()
-    transaction = client.transaction()
-
     @firestore.transactional
     def transition(tx: Any) -> bool:
         snapshot = document.get(transaction=tx)
@@ -131,7 +130,18 @@ def compare_and_set_workflow(state: WorkflowState, expected_status: str) -> bool
         tx.set(document, payload)
         return True
 
-    committed = transition(transaction)
+    # Firestore can expire a transaction during a cold-start/network hiccup.
+    # Retry once with a fresh transaction; never reuse a transaction object
+    # after an unsuccessful commit attempt.
+    committed = False
+    for attempt in range(2):
+        try:
+            committed = transition(client.transaction())
+            break
+        except InvalidArgument as exc:
+            if "transaction" not in str(exc).casefold() or attempt == 1:
+                raise
+            time.sleep(0.05)
     if committed:
         _create_audit_events(document.collection("audit_events"), state.events)
     return committed
