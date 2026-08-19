@@ -29,6 +29,10 @@ export function getJob(jobId) {
   return request(`/api/jobs/${jobId}`);
 }
 
+export function getSources() {
+  return request("/api/sources");
+}
+
 export function approveWorkflow(workflowId, artifactDecisions) {
   return request(`/api/workflows/${workflowId}/approve`, {
     method: "POST",

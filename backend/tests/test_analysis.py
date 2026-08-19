@@ -116,3 +116,23 @@ async def test_analysis_turn_accepts_fenced_json_but_not_unvalidated_prose(
     result = await analysis.analyze_workflow(state)
 
     assert result.evidence_hash == state.evidence.evidence_hash
+
+
+@pytest.mark.asyncio
+async def test_analysis_turn_retries_transient_empty_response(monkeypatch) -> None:
+    state = DriftlineWorkflow().start_demo()
+    payload = _payload(state)
+    calls = 0
+
+    async def flaky_events(prompt: str) -> list[str]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return []
+        return [__import__("json").dumps(payload)]
+
+    monkeypatch.setattr(analysis, "_run_analysis_events", flaky_events)
+    result = await analysis.analyze_workflow(state)
+
+    assert calls == 2
+    assert result.artifacts[-1].name == "CRM guidance"

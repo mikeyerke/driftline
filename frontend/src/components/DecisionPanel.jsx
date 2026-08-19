@@ -21,6 +21,7 @@ export default function DecisionPanel({ approved, approval, actionRecord, onAppr
         </p>
         <div className="audit-id"><strong>Audit event</strong><span>{auditEvent}</span></div>
         {actionRecord && <div className="audit-id"><strong>Firestore action record</strong><span>{actionRecord.action_id} · {actionRecord.status}</span></div>}
+        {actionRecord?.storage_status && <div className="audit-id"><strong>Cloud Storage artifact</strong><span>{actionRecord.storage_status === "persisted" ? `${actionRecord.artifact_kind === "rollback" ? "Rollback marker" : "Versioned packet"} persisted` : actionRecord.storage_status}</span>{actionRecord.artifact_uri && <code className="artifact-uri">{actionRecord.artifact_uri}</code>}</div>}
         {packetHref && <a className="secondary full packet-link" href={packetHref} target="_blank" rel="noreferrer"><Download size={17} />Download change packet</a>}
         <button className="secondary full evidence-button" onClick={onEvidence}><FileText size={17} />Open evidence</button>
       </aside>

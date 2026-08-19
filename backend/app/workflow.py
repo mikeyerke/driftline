@@ -109,6 +109,8 @@ class DriftlineWorkflow:
     def start_demo(
         self,
         *,
+        source_id: str = "public/pricing",
+        source_name: str = "Public pricing snapshot",
         data_mode: str = "synthetic_demo",
         source_url: str | None = None,
         snapshot_label: str | None = None,
@@ -121,7 +123,11 @@ class DriftlineWorkflow:
     ) -> WorkflowState:
         state = WorkflowState(
             workflow_id=str(uuid4()),
-            title="Enterprise plan packaging changed",
+            title=(
+                "Enterprise plan packaging changed"
+                if source_id == "public/pricing"
+                else "Enterprise contract terms changed"
+            ),
             data_mode=data_mode,
         )
         self._runs[state.workflow_id] = state
@@ -129,8 +135,8 @@ class DriftlineWorkflow:
 
         state.stage = Stage.VERIFY
         state.evidence = SourceEvidence(
-            source_id="public/pricing",
-            source_name="Public pricing snapshot",
+            source_id=source_id,
+            source_name=source_name,
             before=before_text or DEMO_BEFORE,
             after=after_text,
             evidence_hash=_evidence_digest(before_text or DEMO_BEFORE, after_text),

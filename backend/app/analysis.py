@@ -7,6 +7,7 @@ publishing remain deterministic responsibilities of ``workflow.py``.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any, Literal
@@ -207,10 +208,47 @@ def apply_analysis(state: WorkflowState, result: StructuredAnalysis) -> None:
 
 
 async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
-    """Ask Gemini for structured proposals and fail closed on any mismatch."""
+    """Ask Gemini for structured proposals with one bounded transient retry."""
     if state.evidence is None:
         raise AnalysisUnavailable("Workflow has no source evidence")
-    text_parts = await _run_analysis_events(_analysis_prompt(state))
+    prompt = _analysis_prompt(state)
+    last_error: AnalysisUnavailable | None = None
+    for attempt in range(2):
+        try:
+            text_parts = await _run_analysis_events(prompt)
+            result = _parse_analysis(text_parts, state.evidence.evidence_hash)
+            apply_analysis(state, result)
+            return result
+        except AnalysisUnavailable as exc:
+            last_error = exc
+            # Empty/non-JSON responses and transport failures are transient in
+            # scheduled runs. Schema/evidence violations are deterministic and
+            # must fail closed without burning another model call.
+            retryable = any(
+                marker in str(exc).casefold()
+                for marker in (
+                    "no structured analysis",
+                    "non-json structured analysis",
+                    "analysis request failed",
+                )
+            )
+            if attempt == 0 and retryable:
+                await asyncio.sleep(0.25)
+                continue
+            raise
+        except Exception as exc:
+            last_error = AnalysisUnavailable("Gemini analysis request failed")
+            if attempt == 0:
+                await asyncio.sleep(0.25)
+                continue
+            raise last_error from exc
+    raise last_error or AnalysisUnavailable("Gemini analysis unavailable")
+
+
+def _parse_analysis(
+    text_parts: list[str], expected_evidence_hash: str
+) -> StructuredAnalysis:
+    """Parse and validate one bounded model response."""
     raw = "".join(text_parts).strip()
     if not raw:
         raise AnalysisUnavailable("Gemini returned no structured analysis")
@@ -233,8 +271,7 @@ async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
         raise AnalysisUnavailable(
             "Gemini returned non-JSON structured analysis"
         ) from exc
-    result = validate_analysis(payload, state.evidence.evidence_hash)
-    apply_analysis(state, result)
+    result = validate_analysis(payload, expected_evidence_hash)
     return result
 
 

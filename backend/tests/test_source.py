@@ -61,6 +61,27 @@ def test_demo_replay_compares_public_body_to_published_baseline(monkeypatch) -> 
     assert "demo replay" in str(result["snapshot_label"])
 
 
+def test_terms_source_is_a_separate_allowlisted_snapshot(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+    monkeypatch.setenv(
+        "DRIFTLINE_TERMS_SOURCE_URL",
+        "https://raw.githubusercontent.com/mikeyerke/driftline/abc/fixtures/public-terms-after.txt",
+    )
+    monkeypatch.setattr(
+        source,
+        "urlopen",
+        lambda request, timeout: _Response(
+            "Enterprise contracts renew annually with 365-day audit history."
+        ),
+    )
+    store = InMemorySnapshotStore()
+    result = source.inspect_allowlisted_source("public/terms", store=store)
+
+    assert result["status"] == "baseline_established"
+    assert result["source_id"] == "public/terms"
+    assert result["data_mode"] == "public_source"
+
+
 class _Response:
     def __init__(self, body: str) -> None:
         self.body = body

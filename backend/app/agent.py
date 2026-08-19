@@ -38,6 +38,12 @@ def inspect_source_change(source_id: str) -> dict:
     if not snapshot.get("change_detected", True):
         return snapshot
     state = workflow_store.start_demo(
+        source_id=str(snapshot.get("source_id", source_id)),
+        source_name=(
+            "Public terms snapshot"
+            if source_id == "public/terms"
+            else "Public pricing snapshot"
+        ),
         data_mode=snapshot["data_mode"],
         source_url=snapshot["source_url"],
         snapshot_label=snapshot["snapshot_label"],

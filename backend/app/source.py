@@ -17,8 +17,30 @@ from .workflow import DEMO_AFTER, DEMO_BEFORE, DEMO_SOURCE_URL
 
 _SYNTHETIC_STORE = InMemorySnapshotStore()
 
+# The monitor intentionally has a tiny, reviewable source registry. Adding a
+# source means adding its pinned URL, bounded fallback text, and tests; it
+# never becomes an arbitrary URL crawler.
+SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
+    "public/pricing": {
+        "name": "Public pricing snapshot",
+        "url_env": "DRIFTLINE_PUBLIC_SOURCE_URL",
+        "url": DEMO_SOURCE_URL,
+        "before": DEMO_BEFORE,
+        "after": DEMO_AFTER,
+        "fixture": "public-pricing-after.txt",
+    },
+    "public/terms": {
+        "name": "Public terms snapshot",
+        "url_env": "DRIFTLINE_TERMS_SOURCE_URL",
+        "url": "https://raw.githubusercontent.com/mikeyerke/driftline/main/fixtures/public-terms-after.txt",
+        "before": "Enterprise contracts renew annually with unlimited audit history.",
+        "after": "Enterprise contracts renew annually with 365-day audit history.",
+        "fixture": "public-terms-after.txt",
+    },
+}
 
-def _public_url_is_allowlisted(url: str) -> bool:
+
+def _public_url_is_allowlisted(url: str, fixture: str) -> bool:
     """Allow only Driftline's pinned raw GitHub fixture, without redirects."""
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.netloc != "raw.githubusercontent.com":
@@ -29,7 +51,7 @@ def _public_url_is_allowlisted(url: str) -> bool:
     return (
         len(parts) == 5
         and parts[:2] == ["mikeyerke", "driftline"]
-        and parts[3:] == ["fixtures", "public-pricing-after.txt"]
+        and parts[3:] == ["fixtures", fixture]
     )
 
 
@@ -39,8 +61,8 @@ def _default_public_store() -> SnapshotStore:
     return _SYNTHETIC_STORE
 
 
-def _public_pricing_snapshot(
-    *, store: SnapshotStore | None = None, force_replay: bool = False
+def _public_snapshot(
+    source_id: str, *, store: SnapshotStore | None = None, force_replay: bool = False
 ) -> dict[str, object]:
     """Read the one explicitly allowlisted public source.
 
@@ -48,8 +70,9 @@ def _public_pricing_snapshot(
     cannot reach GitHub, the deterministic fixture remains available, but the
     returned mode makes that fallback visible instead of pretending it was live.
     """
-    url = os.getenv("DRIFTLINE_PUBLIC_SOURCE_URL", DEMO_SOURCE_URL)
-    if not _public_url_is_allowlisted(url):
+    definition = SOURCE_DEFINITIONS[source_id]
+    url = os.getenv(str(definition["url_env"]), definition["url"])
+    if not _public_url_is_allowlisted(url, definition["fixture"]):
         return {
             "status": "rejected",
             "reason": "source_url_not_allowlisted",
@@ -74,24 +97,24 @@ def _public_pricing_snapshot(
             return {
                 "status": "changed",
                 "change_detected": True,
-                "before": DEMO_BEFORE,
+                "before": definition["before"],
                 "after": body,
-                "source_id": "public/pricing",
+                "source_id": source_id,
                 "source_url": url,
                 "snapshot_label": "Public GitHub snapshot · demo replay baseline",
                 "snapshot_hash": hashlib.sha256(body.encode("utf-8")).hexdigest(),
                 "previous_snapshot_hash": hashlib.sha256(
-                    DEMO_BEFORE.encode("utf-8")
+                    definition["before"].encode("utf-8")
                 ).hexdigest(),
                 "retrieved_at": datetime.now(UTC).isoformat(),
                 "data_mode": "public_source",
                 "confidence": 0.99,
             }
         return compare_and_record(
-            source_id="public/pricing",
+            source_id=source_id,
             body=body,
             source_url=url,
-            snapshot_label="Public GitHub snapshot · allowlisted source",
+            snapshot_label=f"Public GitHub snapshot · allowlisted {source_id}",
             data_mode="public_source",
             store=store or _default_public_store(),
         )
@@ -99,13 +122,15 @@ def _public_pricing_snapshot(
         return {
             "status": "synthetic_fallback",
             "change_detected": True,
-            "after": DEMO_AFTER,
-            "before": DEMO_BEFORE,
+            "after": definition["after"],
+            "before": definition["before"],
             "source_url": url,
-            "snapshot_label": "Synthetic replay fixture · source fetch unavailable",
-            "snapshot_hash": hashlib.sha256(DEMO_AFTER.encode("utf-8")).hexdigest(),
+            "snapshot_label": f"Synthetic replay fixture · {source_id} fetch unavailable",
+            "snapshot_hash": hashlib.sha256(
+                definition["after"].encode("utf-8")
+            ).hexdigest(),
             "previous_snapshot_hash": hashlib.sha256(
-                DEMO_BEFORE.encode("utf-8")
+                definition["before"].encode("utf-8")
             ).hexdigest(),
             "retrieved_at": datetime.now(UTC).isoformat(),
             "data_mode": "synthetic_demo",
@@ -116,28 +141,44 @@ def _public_pricing_snapshot(
 def inspect_allowlisted_source(
     source_id: str, *, store: SnapshotStore | None = None, force_replay: bool = False
 ) -> dict[str, object]:
-    if source_id != "public/pricing":
+    definition = SOURCE_DEFINITIONS.get(source_id)
+    if definition is None:
         return {"status": "rejected", "reason": "source_not_allowlisted"}
     if os.getenv("DRIFTLINE_SOURCE_MODE", "synthetic").casefold() != "public":
         return {
             "status": "changed",
             "change_detected": True,
-            "after": DEMO_AFTER,
-            "source_url": DEMO_SOURCE_URL,
-            "snapshot_label": "Synthetic replay fixture · public/pricing",
-            "snapshot_hash": hashlib.sha256(DEMO_AFTER.encode("utf-8")).hexdigest(),
+            "after": definition["after"],
+            "source_url": definition["url"],
+            "snapshot_label": f"Synthetic replay fixture · {source_id}",
+            "snapshot_hash": hashlib.sha256(
+                definition["after"].encode("utf-8")
+            ).hexdigest(),
             "previous_snapshot_hash": hashlib.sha256(
-                DEMO_BEFORE.encode("utf-8")
+                definition["before"].encode("utf-8")
             ).hexdigest(),
             "retrieved_at": datetime.now(UTC).isoformat(),
             "data_mode": "synthetic_demo",
             "source_id": source_id,
-            "before": DEMO_BEFORE,
+            "before": definition["before"],
             "confidence": 0.99,
         }
-    snapshot = _public_pricing_snapshot(store=store, force_replay=force_replay)
+    snapshot = _public_snapshot(source_id, store=store, force_replay=force_replay)
     if snapshot.get("status") == "rejected":
         snapshot["source_id"] = source_id
         return snapshot
     snapshot["source_id"] = source_id
     return snapshot
+
+
+def list_allowlisted_sources() -> list[dict[str, str]]:
+    """Return safe source metadata for the monitor UI, never raw credentials."""
+    return [
+        {
+            "source_id": source_id,
+            "name": definition["name"],
+            "fixture": definition["fixture"],
+            "mode": "public_or_synthetic",
+        }
+        for source_id, definition in SOURCE_DEFINITIONS.items()
+    ]

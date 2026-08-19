@@ -29,6 +29,7 @@ except ImportError:  # pragma: no cover - exercised only in a minimal local env.
     TaskAlreadyExists = type("TaskAlreadyExists", (Exception,), {})
 
 from .adk_runtime import run_agent_task
+from .artifacts import persist_action_artifact
 from .models import JobState, WorkflowState
 from .persistence import (
     claim_job,
@@ -39,6 +40,7 @@ from .persistence import (
     persist_workflow,
     update_jobs_for_workflow,
 )
+from .source import list_allowlisted_sources
 from .workflow import PolicyViolation, packet_markdown, workflow_store
 
 logger = logging.getLogger("driftline.api")
@@ -468,6 +470,12 @@ def health() -> dict[str, str | bool]:
     }
 
 
+@app.get("/api/sources")
+def get_sources() -> dict[str, object]:
+    """Expose the deliberately small source registry to the monitor UI."""
+    return {"sources": list_allowlisted_sources()}
+
+
 @app.post("/api/workflows/demo")
 def start_demo() -> dict:
     """Legacy deterministic fixture endpoint retained for reproducible tests."""
@@ -614,6 +622,11 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             "needs_approval",
             apply,
         )
+        storage_info = persist_action_artifact(state, kind="active")
+        state.action_record = {**(state.action_record or {}), **storage_info}
+        if storage_info.get("storage_status") != "not_configured":
+            compare_and_set_workflow(state, "complete")
+            workflow_store.restore(state)
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:
@@ -647,6 +660,11 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
             "complete",
             apply,
         )
+        storage_info = persist_action_artifact(state, kind="rollback")
+        state.action_record = {**(state.action_record or {}), **storage_info}
+        if storage_info.get("storage_status") != "not_configured":
+            compare_and_set_workflow(state, "needs_approval")
+            workflow_store.restore(state)
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:
