@@ -250,7 +250,15 @@ def _parse_model_json(raw: str) -> dict[str, Any]:
     try:
         payload = json.loads(candidate)
     except json.JSONDecodeError as exc:
-        raise MultimodalUnavailable("vision_analysis_not_json") from exc
+        # Keep the model seam strict while tolerating a single explanatory
+        # prefix/suffix around the requested JSON object.
+        start, end = candidate.find("{"), candidate.rfind("}")
+        if start < 0 or end <= start:
+            raise MultimodalUnavailable("vision_analysis_not_json") from exc
+        try:
+            payload = json.loads(candidate[start : end + 1])
+        except json.JSONDecodeError as nested_exc:
+            raise MultimodalUnavailable("vision_analysis_not_json") from nested_exc
     if not isinstance(payload, dict):
         raise MultimodalUnavailable("vision_analysis_not_object")
     return payload
