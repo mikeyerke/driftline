@@ -79,11 +79,13 @@ reversible: it keeps the issue, removes only the Driftline active label, adds
 `jira_status=reversed` against Jira through the gateway. Confluence, Slack, and
 GitHub have real API adapters in the same code path, with Secret Manager-or-
 environment credential resolution, HTTPS and scope validation, marker-based
-idempotency, and reversible markers. They are explicitly disabled in the public
-deployment (`not_configured` / prepared-only) because no external credentials
-were supplied for those systems. Each can be enabled independently with its own
-project, space, channel, or repository scope; a failed connector is recorded as
-`failed` and never turns into a successful claim.
+idempotency, and reversible markers. GitHub is authenticated for the isolated
+`mikeyerke/driftline` repository and was directly verified by creating and
+reversing issue #1. Confluence and Slack remain explicit `not_configured` /
+prepared-only states because this Atlassian site has no reachable Confluence API
+surface and no Slack credential is present. Each can be enabled independently
+with its own project, space, channel, or repository scope; a failed connector is
+recorded as `failed` and never turns into a successful claim.
 
 | Connector | Enable flag | Required scope |
 | --- | --- | --- |
