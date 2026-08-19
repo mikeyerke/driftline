@@ -27,7 +27,9 @@ Driftline is a complete resumable workflow rather than a chat interface:
 5. Interrupt the workflow for high-risk human decisions.
 6. Resume from the decision and create a reversible packet, owner-review item,
    or queued item for each artifact.
-7. Preserve an auditable event trail for every action.
+7. Let a named human claim and complete each bounded owner action, with
+   idempotency keys and evidence hashes carried through the lifecycle.
+8. Preserve an auditable event trail for every action.
 
 The Google ADK coordinator is configured for the Gemini 3.5 Flash model and a
 strictly allowlisted read/inspect tool set for reasoning. A second ADK task
@@ -105,7 +107,7 @@ API key is embedded in the client.
 
 - Live demo: https://driftline-xvxczqg62a-uc.a.run.app/
 - GitHub: https://github.com/mikeyerke/driftline
-- Demo video: https://youtu.be/r9z-GNQasBc (public, caption-led, 44 seconds)
+- Demo video: held while the product is being pressure-tested; do not submit this draft yet
 - Architecture: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
 - Verified rules: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
 - Cloud inventory: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md

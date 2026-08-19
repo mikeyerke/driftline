@@ -4,7 +4,7 @@
 
 - Hosted application: https://driftline-xvxczqg62a-uc.a.run.app/
 - Source repository: https://github.com/mikeyerke/driftline
-- Demonstration video: https://youtu.be/r9z-GNQasBc (public, caption-led, 44 seconds)
+- Demonstration video: held while the product is being pressure-tested; replace with a public upload only after final QA
 - Architecture diagram: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
 
 ## Category
@@ -30,7 +30,10 @@ verifies evidence, maps operational impact, and drafts updates for each
 downstream artifact. When a change touches a contractual expectation,
 deterministic policy pauses the workflow and requests a named human decision.
 After approval, Driftline creates an evidence-linked sandbox packet, an owner
-review item, or a queued item per artifact. The packet is persisted as a private,
+review item, or a queued item per artifact. Each artifact also receives a
+durable human-owned action item with an idempotency key and evidence hash; a
+named reviewer can claim and complete it without giving the model write access.
+The packet is persisted as a private,
 versioned Cloud Storage object; undo writes a separate rollback marker while
 preserving the original evidence. Every step receives an event ID and the
 evidence hash is carried into the approval record and packet. No external system

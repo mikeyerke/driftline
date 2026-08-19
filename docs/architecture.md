@@ -12,7 +12,7 @@ flowchart TD
     W --> E[Evidence, impact map, draft state]
     E --> G{Deterministic policy gate}
     G --> H[Named human decision]
-    H --> P[Bounded sandbox packet]
+    H --> P[Bounded sandbox packet + owner action items]
     W --> F[(Firestore jobs, workflow + audit events)]
     P --> F
     P --> GCS[(Versioned Cloud Storage action artifacts)]
@@ -23,8 +23,8 @@ Gemini 3.5 Flash supplies the live ADK turns through Vertex AI. Google ADK owns
 the coordinator and its two allowlisted inspect/state tools, then runs a
 separate task-mode analyst with a strict JSON contract. Driftline validates the
 analyst's artifact names, owners, risk values, and evidence hash before using
-the proposals; invalid output fails closed to an explicitly labelled
-deterministic demo fallback. Cloud Tasks turns the scan into a durable
+the proposals; invalid output fails closed, with a deterministic fallback kept
+only for the explicitly labelled synthetic demo path. Cloud Tasks turns the scan into a durable
 asynchronous job; the task carries an OIDC identity and the worker verifies
 that identity before running. The source adapter can read only the two
 explicitly registered public snapshots (`public/pricing` and `public/terms`),
@@ -41,8 +41,11 @@ The policy gate is deliberately deterministic. A model cannot self-approve a
 high-risk action, widen its own tool permissions, or call the approval and undo
 endpoints. Approval creates a packet inside Driftline only; it never claims to
 have updated Salesforce, a CRM, billing, support, or customer records. The
-approval also creates a reversible Firestore action record with its own ID;
-undo changes that record to `reversed` and reopens the gate. Each approved
+approval also creates a reversible Firestore action record with its own ID and
+four evidence-bound owner action items. A human can claim and complete an item
+without granting the model any write authority; the lifecycle is
+`queued → claimed → completed` and is compare-and-set protected. Undo changes
+the action record and every item to `reversed` and reopens the gate. Each approved
 sandbox packet is also written to the isolated, versioned Cloud Storage bucket;
 undo writes a separate rollback marker object. These objects are private and
 are referenced by `gs://` URI in the action record.
