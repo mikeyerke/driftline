@@ -95,9 +95,9 @@ class VisionAnalysis(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     evidence_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    summary: str = Field(min_length=1, max_length=300)
-    before_observation: str = Field(min_length=1, max_length=300)
-    after_observation: str = Field(min_length=1, max_length=300)
+    summary: str = Field(min_length=1, max_length=800)
+    before_observation: str = Field(min_length=1, max_length=800)
+    after_observation: str = Field(min_length=1, max_length=800)
     material_change: bool
     confidence: float = Field(ge=0.0, le=1.0)
 
