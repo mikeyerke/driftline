@@ -293,17 +293,20 @@ def _run_vision_model(evidence: VisualEvidence) -> VisionAnalysis:
         "schema. Describe observable operational differences, do not infer "
         f"hidden pixels, and set evidence_hash exactly to {evidence.evidence_hash}."
     )
-    contents = [
-        types.Part.from_text(text=prompt),
-        types.Part.from_text(text="BEFORE VISUAL"),
-        types.Part.from_bytes(
-            data=evidence.before.body, mime_type=evidence.before.mime_type
-        ),
-        types.Part.from_text(text="AFTER VISUAL"),
-        types.Part.from_bytes(
-            data=evidence.after.body, mime_type=evidence.after.mime_type
-        ),
-    ]
+    contents = types.Content(
+        role="user",
+        parts=[
+            types.Part.from_text(text=prompt),
+            types.Part.from_text(text="BEFORE VISUAL"),
+            types.Part.from_bytes(
+                data=evidence.before.body, mime_type=evidence.before.mime_type
+            ),
+            types.Part.from_text(text="AFTER VISUAL"),
+            types.Part.from_bytes(
+                data=evidence.after.body, mime_type=evidence.after.mime_type
+            ),
+        ],
+    )
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         response_json_schema=VisionAnalysis.model_json_schema(),
