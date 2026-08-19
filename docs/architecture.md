@@ -62,14 +62,18 @@ Source observations use an append-only `observations` subcollection plus a
 current pointer for comparison.
 Reopening a decision restores the approval gate and is not an external undo.
 Connector manifests are deliberately marked `external_write: false` until a
-human approves the action. The hosted project now has one separately configured
-least-privilege Jira connector: a Jira-scoped token is held in Secret Manager,
-the runtime calls Atlassian's `api.atlassian.com/ex/jira/<cloudId>` gateway, and
-the adapter is restricted to the free `KAN` / `Driftline` project. It creates
-one marker-idempotent Task for the first approved packet, then undo changes only
-Driftline-owned labels and appends an audit comment; it never deletes the Jira
-issue. The live deployment verified `KAN-3` create and reversal while keeping
-the token out of the browser and repository. Other target manifests remain
-drafts until their own connectors are configured.
+human approves the action. The hosted project has separately configured,
+least-privilege Jira, Confluence, Slack, and GitHub connectors. Jira uses the
+Atlassian `api.atlassian.com/ex/jira/<cloudId>` gateway and is restricted to the
+free `KAN` / `Driftline` project. Confluence uses the scoped
+`api.atlassian.com/ex/confluence/<cloudId>/wiki/api/v2` gateway and is restricted
+to the dedicated `DRIFT` space. Slack is restricted to the isolated Driftline
+workspace and one channel with `channels:history` and `chat:write`; GitHub is
+restricted to `mikeyerke/driftline`. Each adapter uses marker idempotency and
+Secret Manager credentials. Undo never deletes customer work: Jira changes only
+Driftline-owned labels and adds a comment, Confluence appends a named-human
+reversal note through a page version, Slack posts a reversal message, and GitHub
+adds a reversal label/comment. The current deployment directly verified create
+and reversal for all four while keeping tokens out of the browser and repository.
 The public demo has no identity provider, so the displayed “Demo operator” is
 a named demo actor, not production authentication.
