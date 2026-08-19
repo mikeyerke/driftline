@@ -341,6 +341,32 @@ class ConfluenceConnector:
             return f"wiki/{normalized}"
         return normalized
 
+    @property
+    def _uses_v2_gateway(self) -> bool:
+        return self.config.base_url.startswith("https://api.atlassian.com/ex/confluence/")
+
+    @staticmethod
+    def _page_url(result: dict[str, Any]) -> str | None:
+        links = result.get("_links") or {}
+        webui = links.get("webui")
+        if not webui:
+            return None
+        if webui.startswith("http"):
+            return webui
+        base = links.get("base", "").rstrip("/")
+        return f"{base}/{webui.lstrip('/')}" if base else webui
+
+    def _space_id(self) -> str:
+        spaces = self._request(
+            "GET",
+            "/api/v2/spaces",
+            query={"keys": self.config.space_key, "limit": "1"},
+        )
+        space = (spaces.get("results") or [None])[0]
+        if not space or not space.get("id"):
+            raise ConnectorError("confluence_space_not_found")
+        return str(space["id"])
+
     def _request(
         self,
         method: str,
@@ -386,17 +412,25 @@ class ConfluenceConnector:
     ) -> dict[str, Any]:
         marker = f"Driftline action {action_id}"
         title = f"[Driftline] {artifact} - {source_name}"
-        result = self._request(
-            "GET",
-            "/rest/api/content",
-            query={"spaceKey": self.config.space_key, "title": title, "limit": "1"},
-        )
+        if self._uses_v2_gateway:
+            space_id = self._space_id()
+            result = self._request(
+                "GET",
+                "/api/v2/pages",
+                query={"space-id": space_id, "title": title, "limit": "1"},
+            )
+        else:
+            result = self._request(
+                "GET",
+                "/rest/api/content",
+                query={"spaceKey": self.config.space_key, "title": title, "limit": "1"},
+            )
         existing = (result.get("results") or [None])[0]
         if existing:
             return {
                 "status": "reused",
                 "page_id": existing.get("id"),
-                "page_url": existing.get("_links", {}).get("webui"),
+                "page_url": self._page_url(existing),
                 "idempotent": True,
             }
         body = (
@@ -405,29 +439,67 @@ class ConfluenceConnector:
             f"Evidence hash: {evidence_hash}<br/>Owner: {owner}</p>"
             f"<h2>Proposed update</h2><p>{html.escape(proposed)}</p>"
         )
-        payload: dict[str, Any] = {
-            "type": "page",
-            "title": title,
-            "space": {"key": self.config.space_key},
-            "body": {"storage": {"value": body, "representation": "storage"}},
-            "metadata": {"labels": {"results": [{"name": "driftline-active"}]}},
-        }
-        if self.config.parent_page_id:
-            payload["ancestors"] = [{"id": self.config.parent_page_id}]
-        created = self._request("POST", "/rest/api/content", payload)
+        if self._uses_v2_gateway:
+            payload = {
+                "spaceId": space_id,
+                "status": "current",
+                "title": title,
+                "body": {"representation": "storage", "value": body},
+            }
+            if self.config.parent_page_id:
+                payload["parentId"] = self.config.parent_page_id
+            created = self._request("POST", "/api/v2/pages", payload)
+        else:
+            payload = {
+                "type": "page",
+                "title": title,
+                "space": {"key": self.config.space_key},
+                "body": {"storage": {"value": body, "representation": "storage"}},
+                "metadata": {"labels": {"results": [{"name": "driftline-active"}]}},
+            }
+            if self.config.parent_page_id:
+                payload["ancestors"] = [{"id": self.config.parent_page_id}]
+            created = self._request("POST", "/rest/api/content", payload)
         return {
             "status": "created",
             "page_id": created.get("id"),
-            "page_url": created.get("_links", {}).get("webui"),
+            "page_url": self._page_url(created),
             "idempotent": False,
         }
 
     def reverse_page(self, page_id: str, action_id: str) -> dict[str, Any]:
-        self._request(
-            "POST",
-            f"/rest/api/content/{quote(page_id, safe='')}/label",
-            {"prefix": "global", "name": "driftline-reversed"},
-        )
+        if self._uses_v2_gateway:
+            current = self._request(
+                "GET",
+                f"/api/v2/pages/{quote(page_id, safe='')}",
+                query={"body-format": "storage"},
+            )
+            version = current.get("version", {}).get("number")
+            if not isinstance(version, int):
+                raise ConnectorError("confluence_page_version_missing")
+            storage = (current.get("body") or {}).get("storage") or {}
+            value = storage.get("value", "")
+            value += (
+                f"<p>Driftline action {html.escape(action_id)} was reversed by "
+                "a named human reviewer.</p>"
+            )
+            self._request(
+                "PUT",
+                f"/api/v2/pages/{quote(page_id, safe='')}",
+                {
+                    "id": page_id,
+                    "status": current.get("status", "current"),
+                    "title": current.get("title", "Driftline page"),
+                    "body": {"representation": "storage", "value": value},
+                    "version": {"number": version + 1, "message": "Driftline reversal"},
+                },
+            )
+        else:
+            self._request(
+                "POST",
+                f"/rest/api/content/{quote(page_id, safe='')}/label",
+                {"prefix": "global", "name": "driftline-reversed"},
+            )
         return {"status": "reversed", "page_id": page_id, "action_id": action_id}
 
 
