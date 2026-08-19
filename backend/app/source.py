@@ -6,6 +6,7 @@ import html
 import ipaddress
 import os
 import re
+import socket
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from urllib.error import HTTPError, URLError
@@ -25,8 +26,8 @@ _SYNTHETIC_STORE = InMemorySnapshotStore()
 _CUSTOM_SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {}
 _SOURCE_REGISTRY_COLLECTION = "driftline_source_registry"
 
-# The monitor intentionally has a tiny, reviewable source registry. Adding a
-# source means adding its pinned URL, bounded fallback text, and tests; it
+# The monitor starts with a tiny, reviewable pinned fixture registry. Operator
+# sources are added separately through the signed exact-URL path below; this
 # never becomes an arbitrary URL crawler.
 SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
     "public/pricing": {
@@ -232,6 +233,18 @@ class _NoRedirect(HTTPRedirectHandler):
 
 
 def _registered_body(definition: Mapping[str, str]) -> str:
+    hostname = urlparse(definition["url"]).hostname
+    if not hostname:
+        raise ValueError("source_url_host_missing")
+    try:
+        addresses = {
+            ipaddress.ip_address(item[4][0])
+            for item in socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
+        }
+    except OSError as exc:
+        raise ValueError("source_url_dns_failed") from exc
+    if not addresses or any(not address.is_global for address in addresses):
+        raise ValueError("source_url_resolved_address_rejected")
     request = Request(
         definition["url"],
         headers={"User-Agent": "Driftline-source-monitor/1.0"},

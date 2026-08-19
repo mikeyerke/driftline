@@ -294,6 +294,43 @@ hourly cap. These are spend guards, not production authentication.
   created GitHub issue `mikeyerke/driftline#8`; signed undo returned all four
   statuses to `reversed`.
 
+## 2026-08-19 bounded monitoring and verified operator release
+
+- Source commits: `edf5936` (bounded source onboarding and identity lane) and
+  `5273fcb` (deployment configuration fix). Both are pushed to
+  `https://github.com/mikeyerke/driftline`.
+- Cloud Build `0ef56fba-6067-4393-8076-062f11fcc654` — `SUCCESS`; Artifact
+  Registry image digest `sha256:7402e2116fa504b25e7308210be237a64887fa201db61668c6591f97668cd15b`.
+- Cloud Run revision `driftline-00065-6p2` serves 100% of traffic at the
+  existing public alias with `min=0`, `max=1`, `512MiB`, concurrency `20`, and
+  timeout `300s`. The active project was verified as
+  `driftline-hackathon-2026` before deployment.
+- The source registry still reports five healthy pinned fixtures. The new
+  signed `/api/operator/sources` path persists exact operator-registered HTTPS
+  HTML/text URLs in the isolated Firestore registry, with an 8-second fetch,
+  16KB body limit, redirect/query-credential/private-DNS-address rejection, and a
+  25-source scheduler cap. No competitor URL was invented or registered in
+  this release.
+- The operator lane accepted a Google OIDC identity token for the allowlisted
+  `mikeyerke@gmail.com` identity. Workflow
+  `23f86ee2-0881-4a30-a4aa-288e82853348` created and reversed Jira `KAN-16`,
+  Confluence page `720897`, Slack message `1787179128.138909`, and GitHub
+  issue `mikeyerke/driftline#9`; the audit record stored the verified subject
+  and email, not the token. A separate public demo workflow returned all four
+  connector statuses as `prepared_only` with `external_write=false`.
+- The live `/api/agent/run` path completed twice with
+  `model=gemini-3.5-flash`, `execution_mode=google_adk`, and tools limited to
+  `inspect_source_change` and `get_workflow_state`. Firestore-backed
+  `/api/ops/value-proof` observed 50 bounded workflow records, 8 source
+  observations, 37 approval-latency samples (p50 18.58s, p90 45.04s), and a
+  1.7% action-item completion rate. These are deployment observations only;
+  customer hours saved, revenue/win-rate lift, retention impact, and
+  willingness-to-pay remain unmeasured.
+- Salesforce remains `not_configured` / `prepared_only`; no Salesforce org,
+  Connected App, OAuth consent, or token was available to verify, so no CRM
+  authentication claim is made. The latest Cloud Run revision produced no
+  `ERROR` log entries during the smoke checks.
+
 ## Cleanup and disablement
 
 The following commands target only the Driftline project. Review the inventory
