@@ -49,7 +49,9 @@ account, API key, repository, or environment variable is reused.
 
 ## Verified live evidence
 
-The current public release was exercised on revision `driftline-00026-l67`:
+The current public release was built from runtime commit `a6c7c9a`
+(the follow-up inventory-only documentation commit is `52eab95`) and was
+exercised on revision `driftline-00026-l67`:
 
 - `GET /health` returned `{"status":"ok","service":"driftline-agent","persistence":"firestore","async_jobs":true}`.
 - A public deterministic competitor demo created workflow
