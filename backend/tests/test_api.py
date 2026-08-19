@@ -40,6 +40,33 @@ def test_demo_approval_and_undo_round_trip() -> None:
     assert undone.json()["status"] == "needs_approval"
 
 
+def test_competitor_source_builds_offering_impact_graph_and_handoffs() -> None:
+    started = client.post("/api/workflows/demo?source_id=competitor/pricing")
+    assert started.status_code == 200
+    payload = started.json()
+    assert payload["evidence"]["source_id"] == "competitor/pricing"
+    assert payload["impact_graph"]["summary"]["category"] == "Competitor pricing"
+    assert "Comparison map" in {item["name"] for item in payload["impacts"]}
+    assert {item["system"] for item in payload["integration_targets"]} >= {
+        "Jira",
+        "Confluence",
+        "Slack",
+    }
+    approved = client.post(
+        f"/api/workflows/{payload['workflow_id']}/approve",
+        json={
+            "approver": "Demo operator",
+            "decision": "approve_competitive_response",
+            "artifact_decisions": {
+                item["name"]: "packet" if item["risk"] == "high" else "owner_review"
+                for item in payload["impacts"]
+            },
+        },
+    )
+    assert approved.status_code == 200
+    assert approved.json()["approval"]["decision"] == "approve_competitive_response"
+
+
 def test_approved_action_item_can_be_claimed_and_completed_by_same_human() -> None:
     started = client.post("/api/workflows/demo")
     workflow_id = started.json()["workflow_id"]

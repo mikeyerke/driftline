@@ -82,6 +82,34 @@ def test_structured_output_rejects_wrong_evidence_hash() -> None:
         analysis.validate_analysis(payload, state.evidence.evidence_hash)
 
 
+def test_competitor_analysis_uses_competitor_profile_allowlist() -> None:
+    state = DriftlineWorkflow().start_demo(source_id="competitor/pricing")
+    allowed = analysis._allowed_artifacts_for_state(state)
+    evidence_hash = state.evidence.evidence_hash
+    payload = {
+        "evidence_hash": evidence_hash,
+        "summary": "Competitor pricing moved and changes comparison work.",
+        "rationale": "The observed price point affects current positioning.",
+        "artifacts": [
+            {
+                "name": name,
+                "owner": owner,
+                "action": "Review observed change",
+                "risk": "medium",
+                "detail": "Evidence-bound competitive review.",
+                "proposed": "Use the captured source and timestamp.",
+                "evidence_hash": evidence_hash,
+            }
+            for name, owner in allowed.items()
+        ],
+    }
+
+    result = analysis.validate_analysis(payload, evidence_hash, allowed)
+    analysis.apply_analysis(state, result, allowed)
+
+    assert {item.name for item in state.impacts} == set(allowed)
+
+
 @pytest.mark.asyncio
 async def test_analysis_turn_uses_model_payload_and_not_fixture(monkeypatch) -> None:
     state = DriftlineWorkflow().start_demo()

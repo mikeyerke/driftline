@@ -19,6 +19,7 @@ from google.genai import types
 from google.genai.types import GenerateContentConfig, ThinkingConfig
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from .impact import profile_for
 from .models import ArtifactImpact, WorkflowState
 
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3.5-flash")
@@ -95,12 +96,22 @@ analysis_agent = Agent(
 )
 
 
+def _allowed_artifacts_for_state(state: WorkflowState) -> dict[str, str]:
+    if state.evidence is None:
+        raise AnalysisUnavailable("Workflow has no source evidence")
+    return {
+        str(item["name"]): str(item["owner"])
+        for item in profile_for(state.evidence.source_id)["impacts"]
+    }
+
+
 def _analysis_prompt(state: WorkflowState) -> str:
     evidence = state.evidence
     if evidence is None:
         raise AnalysisUnavailable("Workflow has no source evidence")
+    allowed_artifacts = _allowed_artifacts_for_state(state)
     allowed = ", ".join(
-        f"{name} (owner: {owner})" for name, owner in ALLOWED_ARTIFACTS.items()
+        f"{name} (owner: {owner})" for name, owner in allowed_artifacts.items()
     )
     return (
         "Analyze this verified source change. Return the strict JSON output "
@@ -150,8 +161,13 @@ async def _run_analysis_events(prompt: str) -> list[str]:
     return text_parts
 
 
-def validate_analysis(payload: Any, expected_evidence_hash: str) -> StructuredAnalysis:
+def validate_analysis(
+    payload: Any,
+    expected_evidence_hash: str,
+    allowed_artifacts: dict[str, str] | None = None,
+) -> StructuredAnalysis:
     """Validate model output and enforce Driftline's artifact/evidence policy."""
+    allowed_artifacts = allowed_artifacts or ALLOWED_ARTIFACTS
     try:
         result = (
             payload
@@ -171,14 +187,14 @@ def validate_analysis(payload: Any, expected_evidence_hash: str) -> StructuredAn
 
     if result.evidence_hash != expected_evidence_hash:
         raise AnalysisUnavailable("Structured analysis used the wrong evidence hash")
-    if len(result.artifacts) != len(ALLOWED_ARTIFACTS):
+    if len(result.artifacts) != len(allowed_artifacts):
         raise AnalysisUnavailable("Structured analysis must cover all four artifacts")
 
     names = [item.name for item in result.artifacts]
-    if set(names) != set(ALLOWED_ARTIFACTS) or len(set(names)) != len(names):
+    if set(names) != set(allowed_artifacts) or len(set(names)) != len(names):
         raise AnalysisUnavailable("Structured analysis named an unapproved artifact")
     for item in result.artifacts:
-        if item.owner != ALLOWED_ARTIFACTS[item.name]:
+        if item.owner != allowed_artifacts[item.name]:
             raise AnalysisUnavailable("Structured analysis changed an artifact owner")
         if item.risk not in ALLOWED_RISKS:
             raise AnalysisUnavailable("Structured analysis used an unknown risk")
@@ -187,11 +203,19 @@ def validate_analysis(payload: Any, expected_evidence_hash: str) -> StructuredAn
     return result
 
 
-def apply_analysis(state: WorkflowState, result: StructuredAnalysis) -> None:
+def apply_analysis(
+    state: WorkflowState,
+    result: StructuredAnalysis,
+    allowed_artifacts: dict[str, str] | None = None,
+) -> None:
     """Replace deterministic draft tuples with validated model proposals."""
     if state.evidence is None:
         raise AnalysisUnavailable("Workflow has no source evidence")
-    validated = validate_analysis(result, state.evidence.evidence_hash)
+    validated = validate_analysis(
+        result,
+        state.evidence.evidence_hash,
+        allowed_artifacts,
+    )
     state.impacts = [
         ArtifactImpact(
             item.name,
@@ -216,8 +240,13 @@ async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
     for attempt in range(3):
         try:
             text_parts = await _run_analysis_events(prompt)
-            result = _parse_analysis(text_parts, state.evidence.evidence_hash)
-            apply_analysis(state, result)
+            allowed_artifacts = _allowed_artifacts_for_state(state)
+            result = _parse_analysis(
+                text_parts,
+                state.evidence.evidence_hash,
+                allowed_artifacts,
+            )
+            apply_analysis(state, result, allowed_artifacts)
             return result
         except AnalysisUnavailable as exc:
             last_error = exc
@@ -246,7 +275,9 @@ async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
 
 
 def _parse_analysis(
-    text_parts: list[str], expected_evidence_hash: str
+    text_parts: list[str],
+    expected_evidence_hash: str,
+    allowed_artifacts: dict[str, str] | None = None,
 ) -> StructuredAnalysis:
     """Parse and validate one bounded model response."""
     raw = "".join(text_parts).strip()
@@ -287,7 +318,7 @@ def _parse_analysis(
                 "Gemini returned non-JSON structured analysis"
             ) from exc
         payload = max(candidates, key=lambda candidate: len(json.dumps(candidate)))
-    result = validate_analysis(payload, expected_evidence_hash)
+    result = validate_analysis(payload, expected_evidence_hash, allowed_artifacts)
     return result
 
 

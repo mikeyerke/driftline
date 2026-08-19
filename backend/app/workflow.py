@@ -4,6 +4,7 @@ import hashlib
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from .impact import build_impact_graph, integration_targets, profile_for
 from .models import (
     ActionItemStatus,
     ArtifactImpact,
@@ -16,41 +17,6 @@ from .models import (
 DEMO_BEFORE = "Enterprise includes unlimited audit-log retention."
 DEMO_AFTER = "Enterprise includes 365-day audit-log retention."
 DEMO_SOURCE_URL = "https://raw.githubusercontent.com/mikeyerke/driftline/main/fixtures/public-pricing-after.txt"
-
-_DEFAULT_IMPACTS = (
-    (
-        "Pricing battlecard",
-        "Product Marketing",
-        "Replace claim",
-        "high",
-        "Claims and positioning",
-        "Enterprise: 365-day audit-log retention.",
-    ),
-    (
-        "Renewal playbook",
-        "Customer Success",
-        "Add exception path",
-        "high",
-        "Renewal motions",
-        "Grandfather existing customers through their next renewal; renewals after that use 365-day retention.",
-    ),
-    (
-        "Enterprise FAQ",
-        "Support",
-        "Revise retention answer",
-        "medium",
-        "Support answers",
-        "Enterprise audit logs are retained for 365 days.",
-    ),
-    (
-        "CRM guidance",
-        "RevOps",
-        "Update qualification note",
-        "low",
-        "Sales qualification",
-        "Confirm retention expectations before positioning Enterprise.",
-    ),
-)
 
 
 def _evidence_digest(before: str, after: str) -> str:
@@ -122,13 +88,10 @@ class DriftlineWorkflow:
         confidence: float = 0.99,
         retrieved_at: str | None = None,
     ) -> WorkflowState:
+        profile = profile_for(source_id)
         state = WorkflowState(
             workflow_id=str(uuid4()),
-            title=(
-                "Enterprise plan packaging changed"
-                if source_id == "public/pricing"
-                else "Enterprise contract terms changed"
-            ),
+            title=profile["title"],
             data_mode=data_mode,
         )
         self._runs[state.workflow_id] = state
@@ -153,21 +116,41 @@ class DriftlineWorkflow:
         state.stage = Stage.MAP_IMPACT
         state.impacts = [
             ArtifactImpact(
-                name,
-                owner,
-                action,
-                risk,
+                item["name"],
+                item["owner"],
+                item["action"],
+                item["risk"],
                 "draft_ready",
-                detail,
-                proposed,
+                item["detail"],
+                item["proposed"],
                 state.evidence.evidence_hash,
             )
-            for name, owner, action, risk, detail, proposed in _DEFAULT_IMPACTS
+            for item in profile["impacts"]
         ]
-        self._event(state, "impact_mapper", "4_artifacts_mapped")
+        state.impact_graph = build_impact_graph(
+            source_name,
+            source_id,
+            [
+                {
+                    **item,
+                    "evidence_hash": state.evidence.evidence_hash,
+                }
+                for item in profile["impacts"]
+            ],
+        )
+        state.integration_targets = integration_targets(profile["impacts"])
+        self._event(
+            state,
+            "impact_mapper",
+            f"{len(state.impacts)}_artifacts_mapped",
+        )
 
         state.stage = Stage.DRAFT
-        self._event(state, "content_orchestrator", "4_updates_drafted")
+        self._event(
+            state,
+            "content_orchestrator",
+            f"{len(state.impacts)}_updates_drafted",
+        )
 
         state.stage = Stage.AWAIT_APPROVAL
         state.status = WorkflowStatus.NEEDS_APPROVAL
@@ -195,15 +178,22 @@ class DriftlineWorkflow:
         ):
             raise PolicyViolation("Evidence hash no longer matches the source snapshot")
         cleaned_approver = _require_named_human(approver, "approver")
-        if decision != "grandfather_existing_customers":
+        if decision not in {
+            "grandfather_existing_customers",
+            "approve_competitive_response",
+        }:
             raise PolicyViolation("Decision is not in the allowlisted policy set")
 
         allowed_actions = {"packet", "owner_review", "queued"}
         requested_actions = artifact_decisions or {
-            "Pricing battlecard": "packet",
-            "Renewal playbook": "packet",
-            "Enterprise FAQ": "owner_review",
-            "CRM guidance": "queued",
+            item.name: (
+                "queued"
+                if item.name == "CRM guidance"
+                else "packet"
+                if item.risk == "high"
+                else "owner_review"
+            )
+            for item in state.impacts
         }
         unknown_names = set(requested_actions) - {item.name for item in state.impacts}
         if unknown_names:
@@ -274,6 +264,10 @@ class DriftlineWorkflow:
             "external_systems_changed": False,
             "reversible": True,
             "created_at": self._timestamp(),
+            "integration_targets": [
+                target["system"] for target in state.integration_targets
+            ],
+            "external_handoffs_prepared": len(state.integration_targets),
         }
         state.action_items = [
             {

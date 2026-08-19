@@ -1,20 +1,7 @@
-import { useEffect, useState } from "react";
 import { ExternalLink, Globe2, Hash, ShieldCheck } from "lucide-react";
-import { getSources } from "../api";
 
-export default function SourcePanel({ evidence, dataMode }) {
+export default function SourcePanel({ evidence, dataMode, sources = [], selectedSource, onSourceChange }) {
   const isPublic = dataMode === "public_source";
-  const [sources, setSources] = useState([]);
-
-  useEffect(() => {
-    let active = true;
-    getSources().then((payload) => {
-      if (active) setSources(payload.sources || []);
-    }).catch(() => {
-      if (active) setSources([]);
-    });
-    return () => { active = false; };
-  }, []);
 
   return (
     <section className="panel source-panel" id="sources-section">
@@ -30,12 +17,13 @@ export default function SourcePanel({ evidence, dataMode }) {
       </div>
       {evidence?.source_url && <a className="source-link" href={evidence.source_url} target="_blank" rel="noreferrer">Open the allowlisted source snapshot <ExternalLink size={14} /></a>}
       <div className="monitor-registry" aria-label="Historical monitor sources">
-        <div className="monitor-registry-heading"><strong>Historical monitors</strong><span>Bounded source registry</span></div>
+        <div className="monitor-registry-heading"><strong>Monitor any approved change surface</strong><span>Bounded source registry</span></div>
+        <label className="source-selector">Scenario for next scan<select value={selectedSource || evidence?.source_id || "public/pricing"} onChange={(event) => onSourceChange?.(event.target.value)}><optgroup label="Own surfaces">{sources.filter((source) => source.category?.startsWith("Own")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}</option>)}</optgroup><optgroup label="Competitor surfaces">{sources.filter((source) => source.category?.startsWith("Competitor")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}</option>)}</optgroup></select></label>
         <div className="monitor-source-list">
-          {sources.map((source) => <span className={source.source_id === evidence?.source_id ? "monitor-source active" : "monitor-source"} key={source.source_id}><b>{source.name}</b><small>{source.source_id} · hash ledger</small></span>)}
+          {sources.map((source) => <span className={source.source_id === (selectedSource || evidence?.source_id) ? "monitor-source active" : "monitor-source"} key={source.source_id}><b>{source.name}</b><small>{source.category} · {source.change_type}</small></span>)}
         </div>
       </div>
-      <p className="source-note">The adapter reads only these explicitly allowlisted public snapshots. It cannot discover arbitrary URLs or use private company data.</p>
+      <p className="source-note">The adapter reads only these explicitly allowlisted public snapshots. It cannot discover arbitrary URLs or use private company data. Competitor claims are observed signals, not verified product truth.</p>
     </section>
   );
 }

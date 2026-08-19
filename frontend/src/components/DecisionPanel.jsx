@@ -1,7 +1,7 @@
 import { AlertTriangle, Check, Download, FileText, RotateCcw } from "lucide-react";
 
-export default function DecisionPanel({ approved, approval, actionRecord, onApprove, onUndo, onEvidence, isLive, busy, packetHref }) {
-  const decisions = approval?.artifact_decisions || { "Pricing battlecard": "packet", "Renewal playbook": "packet", "Enterprise FAQ": "owner_review", "CRM guidance": "queued" };
+export default function DecisionPanel({ approved, approval, artifactDecisions, actionRecord, onApprove, onUndo, onEvidence, isLive, busy, packetHref, sourceCategory }) {
+  const decisions = approval?.artifact_decisions || artifactDecisions || { "Pricing battlecard": "packet", "Renewal playbook": "packet", "Enterprise FAQ": "owner_review", "CRM guidance": "queued" };
   const counts = Object.values(decisions).reduce((result, value) => ({ ...result, [value]: (result[value] || 0) + 1 }), {});
   const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
   if (approved) {
@@ -12,7 +12,7 @@ export default function DecisionPanel({ approved, approval, actionRecord, onAppr
       <aside className="decision-panel resolved">
         <div className="decision-title"><span className="success-icon"><Check size={17} /></span><h2>Action plan recorded</h2></div>
         <dl>
-          <dt>Decision</dt><dd>Grandfather existing enterprise customers through their next renewal.</dd>
+          <dt>Decision</dt><dd>{approval?.decision === "approve_competitive_response" ? "Approve the observed competitive response for owner handoff." : "Grandfather existing enterprise customers through their next renewal."}</dd>
           <dt>Approver</dt><dd className="approver"><span className="avatar">{initials}</span><span><strong>{approver}</strong><small>Named human decision</small></span></dd>
           <dt>Decided</dt><dd>{approval?.timestamp ? new Date(approval.timestamp).toLocaleString() : "Synthetic local fallback"}</dd>
         </dl>
@@ -35,8 +35,8 @@ export default function DecisionPanel({ approved, approval, actionRecord, onAppr
     <aside className="decision-panel pending">
       <AlertTriangle className="warning-icon" size={27} />
       <h2>Human approval required</h2>
-      <p className="decision-question">Should existing enterprise customers retain unlimited history through renewal?</p>
-      <div className="decision-rationale"><strong>Why this needs a decision</strong><p>This change affects contractual expectations and may require an exception path for existing customers.</p></div>
+      <p className="decision-question">{sourceCategory?.startsWith("Competitor") ? "Should Product Marketing approve this competitive response for owner handoff?" : "Should existing enterprise customers retain unlimited history through renewal?"}</p>
+      <div className="decision-rationale"><strong>Why this needs a decision</strong><p>{sourceCategory?.startsWith("Competitor") ? "This signal can change comparison claims and deal guidance; Driftline keeps the observed source attached before anyone acts." : "This change affects contractual expectations and may require an exception path for existing customers."}</p></div>
       <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>High-risk artifacts remain behind this deterministic human gate.</small></div>
       <button className="primary full" onClick={onApprove} disabled={!isLive || busy}><Check size={18} />{busy ? "Recording decision…" : "Approve action plan"}</button>
       <button className="secondary full" onClick={onEvidence}><FileText size={17} />Open evidence</button>

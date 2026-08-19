@@ -23,6 +23,8 @@ _SYNTHETIC_STORE = InMemorySnapshotStore()
 SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
     "public/pricing": {
         "name": "Public pricing snapshot",
+        "category": "Own pricing",
+        "change_type": "Pricing and packaging",
         "url_env": "DRIFTLINE_PUBLIC_SOURCE_URL",
         "url": DEMO_SOURCE_URL,
         "before": DEMO_BEFORE,
@@ -31,11 +33,43 @@ SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
     },
     "public/terms": {
         "name": "Public terms snapshot",
+        "category": "Own terms",
+        "change_type": "Contractual promise",
         "url_env": "DRIFTLINE_TERMS_SOURCE_URL",
         "url": "https://raw.githubusercontent.com/mikeyerke/driftline/main/fixtures/public-terms-after.txt",
         "before": "Enterprise contracts renew annually with unlimited audit history.",
         "after": "Enterprise contracts renew annually with 365-day audit history.",
         "fixture": "public-terms-after.txt",
+    },
+    "competitor/pricing": {
+        "name": "Competitor pricing snapshot",
+        "category": "Competitor pricing",
+        "change_type": "Competitive pricing move",
+        "url_env": "DRIFTLINE_COMPETITOR_PRICING_SOURCE_URL",
+        "url": "https://raw.githubusercontent.com/mikeyerke/driftline/main/fixtures/competitor-pricing-after.txt",
+        "before": "Competitor Pro starts at $49 per seat per month.",
+        "after": "Competitor Pro starts at $59 per seat per month.",
+        "fixture": "competitor-pricing-after.txt",
+    },
+    "competitor/offerings": {
+        "name": "Competitor offering snapshot",
+        "category": "Competitor offering",
+        "change_type": "Product capability change",
+        "url_env": "DRIFTLINE_COMPETITOR_OFFERING_SOURCE_URL",
+        "url": "https://raw.githubusercontent.com/mikeyerke/driftline/main/fixtures/competitor-offering-after.txt",
+        "before": "SAML SSO is available on the Competitor Business plan.",
+        "after": "SAML SSO is available on the Competitor Pro plan.",
+        "fixture": "competitor-offering-after.txt",
+    },
+    "competitor/blog": {
+        "name": "Competitor product blog snapshot",
+        "category": "Competitor narrative",
+        "change_type": "Market narrative change",
+        "url_env": "DRIFTLINE_COMPETITOR_BLOG_SOURCE_URL",
+        "url": "https://raw.githubusercontent.com/mikeyerke/driftline/main/fixtures/competitor-blog-after.txt",
+        "before": "Native data residency is on the competitor roadmap.",
+        "after": "Native data residency is now available.",
+        "fixture": "competitor-blog-after.txt",
     },
 }
 
@@ -177,6 +211,8 @@ def list_allowlisted_sources() -> list[dict[str, str]]:
         {
             "source_id": source_id,
             "name": definition["name"],
+            "category": definition["category"],
+            "change_type": definition["change_type"],
             "fixture": definition["fixture"],
             "mode": "public_or_synthetic",
         }

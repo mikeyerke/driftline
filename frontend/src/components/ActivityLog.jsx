@@ -26,7 +26,11 @@ export default function ActivityLog({ events = [] }) {
       {events.length === 0 && <p className="empty-state">Run the scan while the API is connected to create audit events.</p>}
       {events.map((event) => {
         const outcome = event.outcome || "recorded";
-        const completed = completedOutcomes.has(outcome);
+        const completed = completedOutcomes.has(outcome)
+          || /^(\d+)_artifacts_mapped$/.test(outcome)
+          || /^(\d+)_updates_drafted$/.test(outcome)
+          || outcome.endsWith(":claimed")
+          || outcome.endsWith(":completed");
         return (
           <div className="activity-grid" key={event.event_id || (event.timestamp + "-" + event.action)}>
             <span><ChevronRight size={14} />{formatTime(event.timestamp)}</span>

@@ -1,26 +1,29 @@
 # Driftline
 
-Driftline is a change-to-action agent for operational teams. It monitors one
-explicitly allowlisted public source, verifies a material change, maps the
-downstream artifacts that could become stale, drafts evidence-linked updates,
-and pauses when a consequential human decision is required. The hosted demo
-uses a bounded asynchronous job and a durable Firestore workflow; it produces
-an auditable sandbox packet rather than pretending to write to a customer's
-systems.
+Driftline is a change-to-action agent for Product Marketing and adjacent
+operators. It monitors explicitly allowlisted public signals — own pricing and
+terms plus competitor pricing, offerings, and product narratives — verifies a
+material change, maps the affected offering and downstream work surfaces, and
+pauses when a consequential human decision is required. The hosted demo uses a
+bounded asynchronous job and a durable Firestore workflow; it produces
+target-specific Jira, Confluence, Slack, and GitHub handoff packets rather than
+pretending to write to a customer's systems.
 
 The demonstration models a pricing-page change from unlimited audit-log
 retention to 365-day retention, then traces the impact into a pricing
-battlecard, renewal playbook, enterprise FAQ, and CRM guidance. The deployed
-source adapter fetches one of two explicitly registered public GitHub snapshots
-(`public/pricing` or `public/terms`) when reachable and falls back to the
-clearly labelled synthetic replay when it is not. It is not
-connected to a real company system.
+battlecard, renewal playbook, enterprise FAQ, and CRM guidance. The console can
+also run bounded scenarios for competitor pricing, competitor capabilities,
+and competitor product blogs. Each scenario shows an offering impact graph,
+business domains, owners, work surfaces, and prepared handoffs. The deployed
+source adapter fetches only explicitly registered public GitHub snapshots when
+reachable and falls back to the clearly labelled synthetic replay when it is
+not. It is not connected to a real company system.
 
 ## Why it is agentic
 
 Driftline is a complete resumable workflow rather than a chat interface:
 
-1. Monitor source snapshots and detect semantic changes.
+1. Monitor source snapshots and detect semantic changes across own and competitor surfaces.
 2. Verify the evidence and classify its operational risk.
 3. Map the change to downstream artifacts and owners.
 4. Draft bounded updates with evidence attached.
@@ -29,7 +32,9 @@ Driftline is a complete resumable workflow rather than a chat interface:
    or queued item for each artifact.
 7. Let a named human claim and complete each bounded owner action, with
    idempotency keys and evidence hashes carried through the lifecycle.
-8. Preserve an auditable event trail for every action.
+8. Prepare reversible, target-specific handoff packets for Product Marketing's
+   Jira, Confluence, Slack, or GitHub workflow without silently writing to them.
+9. Preserve an auditable event trail for every action.
 
 The Google ADK coordinator is configured for the Gemini 3.5 Flash model and a
 strictly allowlisted read/inspect tool set for reasoning. A second ADK task

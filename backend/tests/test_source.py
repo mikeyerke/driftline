@@ -82,6 +82,15 @@ def test_terms_source_is_a_separate_allowlisted_snapshot(monkeypatch) -> None:
     assert result["data_mode"] == "public_source"
 
 
+def test_competitor_sources_are_allowlisted_and_synthetic_by_default() -> None:
+    result = source.inspect_allowlisted_source("competitor/blog")
+
+    assert result["status"] == "changed"
+    assert result["source_id"] == "competitor/blog"
+    assert result["data_mode"] == "synthetic_demo"
+    assert "competitor/blog" in result["snapshot_label"]
+
+
 class _Response:
     def __init__(self, body: str) -> None:
         self.body = body

@@ -24,10 +24,12 @@ way to turn evidence into coordinated action.
 
 ## What it does
 
-Driftline runs a resumable change-to-action workflow from two allowlisted public
-source types (`public/pricing` and `public/terms`). Cloud Tasks starts the scan asynchronously; the ADK coordinator
-verifies evidence, maps operational impact, and drafts updates for each
-downstream artifact. When a change touches a contractual expectation,
+Driftline runs a resumable change-to-action workflow across five allowlisted
+public source types: own pricing, own terms, competitor pricing, competitor
+offerings, and competitor product narratives. Cloud Tasks starts the scan
+asynchronously; the ADK coordinator verifies evidence, maps the affected
+offering and business domains, and drafts updates for each downstream work
+surface. When a change touches a contractual expectation,
 deterministic policy pauses the workflow and requests a named human decision.
 After approval, Driftline creates an evidence-linked sandbox packet, an owner
 review item, or a queued item per artifact. Each artifact also receives a
@@ -37,7 +39,10 @@ The packet is persisted as a private,
 versioned Cloud Storage object; undo writes a separate rollback marker while
 preserving the original evidence. Every step receives an event ID and the
 evidence hash is carried into the approval record and packet. No external system
-is changed by the public demo.
+is changed by the public demo. Approval also prepares target-specific Jira,
+Confluence, Slack, and GitHub handoff manifests; each is explicitly marked as a
+draft and `external_write: false` until a separately configured connector is
+enabled.
 
 The judge-ready workflow uses synthetic data: a public/pricing fixture changes
 Enterprise audit-log retention from unlimited to 365 days. The UI labels this
@@ -92,6 +97,10 @@ created during the contest.
 - Full asynchronous change-to-action workflow with resumable human approval.
 - SHA-256 evidence attached to the approval decision.
 - Four independently owned downstream artifacts mapped from one source change.
+- Offering impact graph that routes own and competitor changes into Product
+  Marketing, enablement, support, customer lifecycle, and planning surfaces.
+- Approval-gated Jira, Confluence, Slack, and GitHub handoff manifests with
+  explicit no-write status.
 - A synthetic, reproducible demonstration that requires no private company data.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
@@ -107,12 +116,13 @@ created during the contest.
 
 ## Limitations and next steps
 
-The current build intentionally stops at approved public or synthetic sources.
-It does not connect to Salesforce, Slack, CPQ, customer records, or private
-knowledge bases; the four artifact updates are bounded demonstration actions.
-Future connectors would need source-level permissions, rate limits, retries,
-idempotency keys, and organization-specific approval policies before production
-use.
+The current public build intentionally stops at approved public or synthetic
+sources and does not perform live writes to Jira, Confluence, Slack, GitHub,
+Salesforce, CPQ, customer records, or private knowledge bases. The integration
+layer produces bounded, target-specific handoff manifests and tracks their
+prepared state. Future live connectors would need source-level permissions,
+rate limits, retries, idempotency keys, signed operator identity, and
+organization-specific approval policies before production use.
 
 ## Official links
 

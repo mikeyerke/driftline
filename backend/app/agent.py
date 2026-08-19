@@ -8,7 +8,7 @@ from google.adk.agents import Agent
 from google.genai.types import GenerateContentConfig, ThinkingConfig
 
 from .persistence import load_workflow, persist_workflow
-from .source import inspect_allowlisted_source
+from .source import SOURCE_DEFINITIONS, inspect_allowlisted_source
 from .workflow import workflow_store
 
 load_dotenv()
@@ -39,10 +39,8 @@ def inspect_source_change(source_id: str) -> dict:
         return snapshot
     state = workflow_store.start_demo(
         source_id=str(snapshot.get("source_id", source_id)),
-        source_name=(
-            "Public terms snapshot"
-            if source_id == "public/terms"
-            else "Public pricing snapshot"
+        source_name=SOURCE_DEFINITIONS.get(source_id, {}).get(
+            "name", "Allowlisted public snapshot"
         ),
         data_mode=snapshot["data_mode"],
         source_url=snapshot["source_url"],
@@ -88,11 +86,14 @@ an action. Use tools rather than narrating actions. Never claim an artifact was
 updated unless the workflow state records a bounded packet. High-risk changes
 must pause for a named human decision. Approval is owned by the separate human
 approval endpoint; you cannot approve, resume, or publish a workflow yourself.
-You may not manufacture or infer that approval. For the judge-ready demo
-request, call inspect_source_change with the exact allowlisted source_id
-"public/pricing" before responding, then ground the response in the returned
-workflow state. Call get_workflow_state with the returned workflow_id before
-the final response so the state read is independently verified. For a monitor
+You may not manufacture or infer that approval. For a judge-ready request,
+read the requested source_id in the user message and call
+inspect_source_change with that exact allowlisted value. The approved values
+are public/pricing, public/terms, competitor/pricing, competitor/offerings,
+and competitor/blog. Never invent another source ID. Ground the response in
+the returned workflow state. Call get_workflow_state with the returned
+workflow_id before the final response so the state read is independently
+verified. For a monitor
 run, if the source tool returns baseline_established or unchanged, do not
 invent a workflow or approval; report that no material change was found. Name
 whether the source was a public snapshot or synthetic replay.

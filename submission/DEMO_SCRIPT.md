@@ -13,9 +13,11 @@ who approved the risky part is the actual work.”
 Show the deployed Driftline console at
 https://driftline-xvxczqg62a-uc.a.run.app/ and the “Synthetic demo data” label.
 
-## 0:25–0:55 — Start the workflow
+## 0:25–0:55 — Choose the change surface and start the workflow
 
-Click **Run scan**. Explain that this creates a durable asynchronous job: the
+Choose **Competitor pricing snapshot** in the scenario selector, then click
+**Run scan**. Explain that Driftline is bounded to allowlisted source types,
+not arbitrary URLs, and that this creates a durable asynchronous job: the
 browser queues work, Cloud Tasks invokes the worker, and Firestore stores the
 job and workflow. The public snapshot badge shows whether the allowlisted
 GitHub fixture was fetched; synthetic replay is explicitly labelled if the
@@ -25,9 +27,11 @@ fetch is unavailable. Keep the agent trace panel visible.
 
 Open **Evidence diff** and then **Open evidence**. Show the exact removed and
 added language, the synthetic source ID, the full SHA-256 hash, and the
-confidence value. Trace the impact map into the battlecard, renewal playbook,
-FAQ, and CRM guidance. Select an artifact row to show its owner, bounded action,
-and risk.
+confidence value. Trace the impact map from the observed competitor move into
+the affected offering, business domains, Comparison map, Pricing battlecard,
+Deal desk guidance, and Executive weekly brief. Show the target-specific Jira,
+Confluence, and Slack handoff cards. Select an artifact row to show its owner,
+bounded action, and risk.
 
 ## 1:35–2:10 — The autonomy boundary
 
@@ -38,6 +42,9 @@ not given an approval tool and cannot manufacture a human decision.
 ## 2:10–2:45 — Approve, resume, and undo
 
 Choose a different action for one artifact, then click **Approve action plan**.
+For the competitor scenario, call out the separate deterministic decision
+label: **Approve competitive response**. This approval is still a human gate;
+it is not a model-generated permission.
 Show the packet-ready, owner-review, and queued rows, the named Demo operator,
 the evidence hash, and the real audit event ID. Open the generated packet and
 show its explicit “External systems changed: No” line. Click **Reopen decision**

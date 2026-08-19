@@ -41,7 +41,7 @@ from .persistence import (
     persist_workflow,
     update_jobs_for_workflow,
 )
-from .source import list_allowlisted_sources
+from .source import SOURCE_DEFINITIONS, list_allowlisted_sources
 from .workflow import PolicyViolation, packet_markdown, workflow_store
 
 logger = logging.getLogger("driftline.api")
@@ -116,6 +116,7 @@ class JobStartRequest(BaseModel):
     )
     user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
     run_mode: Literal["demo", "monitor"] = "demo"
+    source_id: str = Field(default="public/pricing", min_length=1, max_length=80)
 
 
 def _positive_int(name: str, default: int) -> int:
@@ -482,14 +483,25 @@ def get_sources() -> dict[str, object]:
 
 
 @app.post("/api/workflows/demo")
-def start_demo() -> dict:
+def start_demo(source_id: str = "public/pricing") -> dict:
     """Legacy deterministic fixture endpoint retained for reproducible tests."""
     if not _reserve_demo_mutation():
         raise HTTPException(
             status_code=429,
             detail="Demo workflow rate limit reached; retry later.",
         )
-    state = workflow_store.start_demo()
+    if source_id not in SOURCE_DEFINITIONS:
+        raise HTTPException(status_code=422, detail="Source is not allowlisted")
+    definition = SOURCE_DEFINITIONS[source_id]
+    state = workflow_store.start_demo(
+        source_id=source_id,
+        source_name=definition["name"],
+        source_url=definition["url"],
+        before_text=definition["before"],
+        after_text=definition["after"],
+        snapshot_label=f"Synthetic replay fixture · {source_id}",
+        data_mode="synthetic_demo",
+    )
     persist_workflow(state)
     return state.to_dict()
 
@@ -504,8 +516,14 @@ async def start_demo_job(
             status_code=429,
             detail="Live agent demo rate limit reached; retry later.",
         )
+    if request.source_id not in SOURCE_DEFINITIONS:
+        raise HTTPException(status_code=422, detail="Source is not allowlisted")
+    query = (
+        f"{request.query.strip()} Use the exact allowlisted source_id "
+        f'"{request.source_id}". Do not choose a different source.'
+    )
     job = _start_job(
-        query=request.query,
+        query=query,
         user_id=request.user_id,
         run_mode=request.run_mode,
         background_tasks=background_tasks,

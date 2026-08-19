@@ -36,7 +36,7 @@ export default function ArtifactTable({ items, onSelect, selected }) {
           </tbody>
         </table>
       </div>
-      <footer className="table-footer"><span>Showing 4 of 4 artifacts</span><span>Risk: <i className="risk-dot high-dot" /> High <i className="risk-dot medium-dot" /> Medium <i className="risk-dot low-dot" /> Low</span></footer>
+      <footer className="table-footer"><span>Showing {items.length} of {items.length} mapped surfaces</span><span>Risk: <i className="risk-dot high-dot" /> High <i className="risk-dot medium-dot" /> Medium <i className="risk-dot low-dot" /> Low</span></footer>
     </section>
   );
 }

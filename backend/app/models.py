@@ -77,6 +77,8 @@ class WorkflowState:
     artifact_packets: list[dict[str, Any]] = field(default_factory=list)
     action_record: dict[str, Any] | None = None
     action_items: list[dict[str, Any]] = field(default_factory=list)
+    impact_graph: dict[str, Any] = field(default_factory=dict)
+    integration_targets: list[dict[str, Any]] = field(default_factory=list)
     agent_trace: dict[str, Any] | None = None
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)

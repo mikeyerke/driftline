@@ -56,6 +56,10 @@ def _state_from_dict(payload: dict[str, Any]) -> WorkflowState:
         artifact_packets=[dict(item) for item in payload.get("artifact_packets", [])],
         action_record=payload.get("action_record"),
         action_items=[dict(item) for item in payload.get("action_items", [])],
+        impact_graph=dict(payload.get("impact_graph") or {}),
+        integration_targets=[
+            dict(item) for item in payload.get("integration_targets", [])
+        ],
         agent_trace=payload.get("agent_trace"),
         created_at=payload.get("created_at") or utc_now(),
         updated_at=payload.get("updated_at") or utc_now(),
