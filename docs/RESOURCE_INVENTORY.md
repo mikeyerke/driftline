@@ -24,13 +24,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00017-bz9`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, effective service max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s |
+| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00019-clq`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, deploy flag max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Serving image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:969eab45-6120-4144-9e93-8b38d75e70ea`; digest `sha256:116b853420c1e5b14646118d79e236152c2c68d7d0d0c36207780fd57e47190f` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Serving image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:3b7ff993-79dd-4249-bdc5-b7345431361c`; digest `sha256:52218905418bdc6cc11b16f5667befe1d92e972ba260be0892826b190b488a20` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -38,10 +38,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Cloud Build compatibility bucket | `gs://driftline-hackathon-2026_cloudbuild` | Created by Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | GitHub repository | `https://github.com/mikeyerke/driftline` | Public, source matches deployed revision | Separate repository under existing user account; no organization created |
 
-Cloud Build ID `969eab45-6120-4144-9e93-8b38d75e70ea` completed successfully
-in `global` and deployed revision `driftline-00017-bz9`. The exact image
+Cloud Build ID `3b7ff993-79dd-4249-bdc5-b7345431361c` completed successfully
+in `global` and deployed revision `driftline-00019-clq`. The exact image
 digest serving Cloud Run is
-`sha256:116b853420c1e5b14646118d79e236152c2c68d7d0d0c36207780fd57e47190f`.
+`sha256:52218905418bdc6cc11b16f5667befe1d92e972ba260be0892826b190b488a20`.
 Cloud Build and Cloud Run may enable Google-managed dependency APIs in addition
 to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
@@ -49,22 +49,24 @@ account, API key, repository, or environment variable is reused.
 
 ## Verified live evidence
 
-The current public release was exercised on revision `driftline-00017-bz9`:
+The current public release was exercised on revision `driftline-00019-clq`:
 
 - `GET /health` returned `{"status":"ok","service":"driftline-agent","persistence":"firestore","async_jobs":true}`.
 - A logged-out browser run completed the async scan at desktop width and at a
   true 390px device viewport; both had `bodyScrollWidth === innerWidth` and no
   horizontal overflow.
-- Demo job `job-b18a4ec4ebfe` reached `needs_approval` and created workflow
-  `96b39124-656b-4de1-84d7-c2b79e40a51a` from the public pricing snapshot.
+- Demo job `job-c416c74f10f0` reached `needs_approval` and created workflow
+  `7463c545-e66c-4e72-aff7-7f2e9bdde8ca` from the public pricing snapshot.
   The persisted job recorded `model=gemini-3.5-flash`,
   `execution_mode=google_adk`, and only the allowlisted tools
   `inspect_source_change` and `get_workflow_state`; the source mode was
   `public_source` with a pinned snapshot URL and hash. The trace recorded
   `analysis.mode=gemini_structured`, a model summary/rationale, the matching
   evidence hash, and four artifacts. Approval created Firestore action record
-  `action-c20fd36afe28` (`active`), wrote a versioned packet object, and undo
-  changed that same record to `reversed` while writing a rollback marker.
+  `action-795e7d2dfb0b` (`active`), wrote a versioned packet object, and undo
+  changed that same record to `reversed` while writing a rollback marker. The
+  first action item was claimed and completed by the named human demo actor;
+  its idempotency key and evidence hash remained attached through the lifecycle.
 - The browser flow covered source-evidence modal, artifact selection, the
   deterministic human approval gate, per-artifact outcomes (`packet_ready`,
   `owner_review`, and `queued`), the evidence-bound sandbox packet, activity
