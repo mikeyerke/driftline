@@ -64,7 +64,7 @@ never sent to the browser or committed to this repository.
 
 After a named human approves the first packet, the adapter searches the current
 project for a Driftline action marker before creating one `Task`. The verified
-live run created `KAN-2` (`jira_status=created`, `external_write=true`). Undo is
+the latest live run created `KAN-3` (`jira_status=created`, `external_write=true`). Undo is
 reversible: it keeps the issue, removes only the Driftline active label, adds
 `driftline-reversed`, and appends an audit comment. The same run verified
 `jira_status=reversed` against Jira through the gateway. Jira/Confluence/Slack

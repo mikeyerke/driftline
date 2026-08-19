@@ -43,7 +43,7 @@ approval record and packet. The hosted build has one real, least-privilege Jira
 connector for the isolated free `KAN` / `Driftline` project: after approval it
 creates at most one marker-idempotent Jira Task, and undo keeps that issue,
 changes only Driftline-owned labels, and appends a reversal comment. The live
-deployment verified Jira Task `KAN-2` create (`jira_status=created`) and undo
+deployment verified Jira Task `KAN-3` create (`jira_status=created`) and undo
 (`jira_status=reversed`) through Atlassian's scoped-token API gateway. Approval
 also prepares target-specific Confluence, Slack, and GitHub handoff manifests;
 those remain drafts with `external_write: false` until separately configured.

@@ -68,7 +68,7 @@ the runtime calls Atlassian's `api.atlassian.com/ex/jira/<cloudId>` gateway, and
 the adapter is restricted to the free `KAN` / `Driftline` project. It creates
 one marker-idempotent Task for the first approved packet, then undo changes only
 Driftline-owned labels and appends an audit comment; it never deletes the Jira
-issue. The live deployment verified `KAN-2` create and reversal while keeping
+issue. The live deployment verified `KAN-3` create and reversal while keeping
 the token out of the browser and repository. Other target manifests remain
 drafts until their own connectors are configured.
 The public demo has no identity provider, so the displayed “Demo operator” is
