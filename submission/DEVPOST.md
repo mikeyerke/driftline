@@ -99,8 +99,8 @@ created during the contest.
 - Direct Vertex AI execution evidence is claimed only in the release inventory
   after the deployed endpoint returned `gemini-3.5-flash`, `google_adk`, and both
   allowlisted tool calls. The final verified demo job was
-  `job-c416c74f10f0` / workflow `7463c545-e66c-4e72-aff7-7f2e9bdde8ca`;
-  approval created `action-795e7d2dfb0b`, a private packet object, and undo
+  `job-c2b3cbf52da7` / workflow `b3fea38e-2f47-4cfb-af4c-b95ca518becf`;
+  approval created `action-e9d4c4d90442`, a private packet object, and undo
   created its rollback marker. One of the four owner action items was claimed
   and completed by the named human demo actor. A signed monitor run
   (`job-59ef418b4531`) completed unchanged without inventing a workflow.
