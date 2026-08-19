@@ -24,13 +24,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00038-tbj`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; `cloudbuild.yaml` is authoritative for the revision-level `--max=1` setting; Jira gateway env and Secret Manager binding are in the deploy manifest |
+| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00040-jr6`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; `cloudbuild.yaml` is authoritative for both caps; Jira gateway env and Secret Manager binding are in the deploy manifest |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Verified build image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:8c339b36-d137-4c8a-b4d6-2039a0ce31d5`; digest `sha256:5149de8e4b9804938c358b7edb58f8aade301350bb803d5de8e2b2dbd566f3b1` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Verified build image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:2b1ec22e-34c4-44ee-b67f-ceb8e866060f`; digest `sha256:23a5f9f276c1b0f76c2b178c1c6e3a7e1ef653f1e29125900c098ab3442ca058` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -40,13 +40,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Jira site / project | `https://mikeyerke.atlassian.net` / `KAN` (`Driftline`) | Free Team-managed software project; no billing added | Atlassian API gateway cloud ID `7ed26020-ee58-470a-8fbb-3340925348ce`; connector is restricted to this project |
 | Secret Manager | `driftline-jira-token` | Active, automatic replication; version 6 enabled and versions 1–5 disabled; runtime reads `latest` | Dedicated runtime accessor only; latest credential is the user-created Jira gateway token, expires 2027-02-19; no token value is stored in Git or docs |
 
-Cloud Build ID `8c339b36-d137-4c8a-b4d6-2039a0ce31d5` completed successfully
-in `global` and deployed revision `driftline-00037-6nd` with the Jira gateway
-environment and `driftline-jira-token:latest` Secret Manager binding from the
-checked-in `cloudbuild.yaml`. Credential rotation then created revision
-`driftline-00038-tbj` with the six-month token version active. The exact
-verified image digest is
-`sha256:5149de8e4b9804938c358b7edb58f8aade301350bb803d5de8e2b2dbd566f3b1`.
+Cloud Build ID `2b1ec22e-34c4-44ee-b67f-ceb8e866060f` completed successfully
+in `global` and deployed revision `driftline-00040-jr6` from runtime commit
+`0a0cd57`. It includes the Jira gateway environment, the
+`driftline-jira-token:latest` Secret Manager binding, and an explicit
+service/revision max-instance cap of one from the checked-in
+`cloudbuild.yaml`. The exact verified image digest is
+`sha256:23a5f9f276c1b0f76c2b178c1c6e3a7e1ef653f1e29125900c098ab3442ca058`.
 Cloud Build and Cloud Run may enable Google-managed dependency APIs in addition
 to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
@@ -54,10 +54,18 @@ account, API key, repository, or environment variable is reused.
 
 ## Verified live evidence
 
-The current public release was built from runtime commit `edc28cf` and was
-exercised on revision `driftline-00028-7wt`:
+The current public release was built from runtime commit `0a0cd57` and is
+exercised on revision `driftline-00040-jr6`:
 
 - `GET /health` returned `{"status":"ok","service":"driftline-agent","persistence":"firestore","async_jobs":true}`.
+- On the current revision, live job `job-f19289d4021b` reached
+  `needs_approval` with `model=gemini-3.5-flash`, `execution_mode=google_adk`,
+  and only `inspect_source_change` plus `get_workflow_state`. Approval created
+  action `action-114761b1bb8d`, four durable owner items, a private packet, and
+  Jira issue `KAN-4` (`jira_status=created`, `external_write=true`). The first
+  owner item was claimed and completed by the named human actor. Undo returned
+  the workflow to `needs_approval`, kept `KAN-4`, and recorded
+  `jira_status=reversed` plus a versioned rollback marker.
 - Two public deterministic competitor demos created workflows
   `42ef1bf4-f1bf-4808-8d8d-2c6bef87efdd` and
   `48969538-53b9-4994-aafc-c04e440e67de`; both reached `await_approval`, were
