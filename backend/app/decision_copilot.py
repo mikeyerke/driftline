@@ -372,7 +372,7 @@ def validate_approval_choice(
     if not isinstance(payload, dict):
         raise TypeError("Decision copilot is unavailable; rerun the scan")
     copilot = DecisionCopilot.model_validate(
-        {key: value for key, value in payload.items() if key != "policy_review"}
+        {key: payload[key] for key in DecisionCopilot.model_fields if key in payload}
     )
     policy_payload = payload.get("policy_review")
     if not isinstance(policy_payload, dict) or policy_payload.get("status") != "pass":

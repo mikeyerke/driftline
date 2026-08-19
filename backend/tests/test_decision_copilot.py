@@ -38,6 +38,8 @@ def test_selected_option_must_match_approval_actions() -> None:
     state.agent_trace = {
         "decision_copilot": {
             **copilot.model_dump(),
+            "mode": "gemini_structured",
+            "model": "gemini-3.5-flash",
             "policy_review": red_team_review(copilot, state).model_dump(),
         }
     }
