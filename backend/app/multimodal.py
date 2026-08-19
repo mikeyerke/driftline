@@ -283,7 +283,7 @@ def _run_vision_model(evidence: VisualEvidence) -> VisionAnalysis:
     prompt = (
         "Compare the before and after visual evidence. Return only the JSON "
         "schema. Describe observable operational differences, do not infer "
-        "hidden pixels, and copy the exact evidence_hash."
+        f"hidden pixels, and set evidence_hash exactly to {evidence.evidence_hash}."
     )
     contents = [
         types.Part.from_text(text=prompt),
@@ -308,6 +308,16 @@ def _run_vision_model(evidence: VisualEvidence) -> VisionAnalysis:
             config=config,
         )
         raw = getattr(response, "text", "") or ""
+        if not raw:
+            # Some Vertex responses expose structured JSON only through the
+            # candidate parts even when the convenience `.text` property is
+            # empty. Read those parts without accepting prose or hidden state.
+            for candidate in getattr(response, "candidates", []) or []:
+                content = getattr(candidate, "content", None)
+                for part in getattr(content, "parts", []) or []:
+                    part_text = getattr(part, "text", None)
+                    if part_text:
+                        raw += part_text
         return validate_vision_analysis(_parse_model_json(raw), evidence.evidence_hash)
     except MultimodalUnavailable:
         raise
