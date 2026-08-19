@@ -80,6 +80,12 @@ export default function App() {
   const events = workflowState?.events || [];
   const scanFailed = scanMessage.startsWith("Unable");
   const packetHref = workflowId ? packetUrl(workflowId) : null;
+  const structuredAnalysis = job?.workflow?.agent_trace?.structured_analysis;
+  const actionRecord = workflowState?.action_record;
+  const jiraWriteOccurred = ["created", "reused", "reversed"].includes(actionRecord?.jira_status);
+  const runHint = jiraWriteOccurred
+    ? "Jira handoff recorded · other destinations remain prepared-only"
+    : "Live allowlisted monitor · handoffs staged, no external writes";
 
   const refreshHistory = async () => {
     try {
@@ -206,7 +212,7 @@ export default function App() {
           <div className="topbar-actions">
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
             <span className="workspace-button">Evaluation sandbox<ChevronDown size={15} /></span>
-            <span className="run-hint">Live allowlisted monitor · handoffs staged, no external writes</span>
+            <span className="run-hint">{runHint}</span>
             <button className="primary" onClick={runScan} disabled={scanning} type="button" aria-label="Run the live allowlisted monitor">
               <Play size={17} />{scanning ? "Running…" : "Run scan"}
             </button>
@@ -231,9 +237,17 @@ export default function App() {
 
             <section className="change-brief" aria-label="Change decision brief">
               <div><span>Why this matters</span><strong>One source change can create conflicting promises across the business.</strong><p>Driftline turns the verified sentence-level change into owner-ready work, with evidence attached before anything can be approved.</p></div>
-              <div><span>Decision scope</span><strong>{workflowState?.impact_graph?.summary?.artifact_count || 4} downstream surfaces</strong><p>Products, pricing, comparison maps, enablement, and customer guidance stay coordinated.</p></div>
+              <div><span>Decision scope</span><strong>{workflowState?.impact_graph?.summary?.artifact_count || 4} downstream surfaces</strong><p>Review each mapped owner surface before approving the bounded outputs.</p></div>
               <div><span>Guardrail</span><strong>Human approval required</strong><p>High-risk changes stop here. The agent cannot approve its own action.</p></div>
             </section>
+
+            {structuredAnalysis && (
+              <section className={`analysis-brief ${structuredAnalysis.mode === "gemini_structured" ? "verified" : "fallback"}`} aria-label="Structured impact analysis">
+                <div className="analysis-brief-heading"><div><span className="analysis-kicker">Agent conclusion</span><strong>{structuredAnalysis.mode === "gemini_structured" ? "Gemini impact analysis" : "Deterministic demo fallback"}</strong></div><span className="live-label">{structuredAnalysis.artifact_count || 0} evidence-bound surfaces</span></div>
+                {structuredAnalysis.summary && <p>{structuredAnalysis.summary}</p>}
+                {structuredAnalysis.rationale && <small>{structuredAnalysis.rationale}</small>}
+              </section>
+            )}
 
             <div className="dashboard-grid">
               <div className="main-column">
@@ -249,7 +263,7 @@ export default function App() {
               </aside>
             </div>
             {approved && <ActionItems workflowId={workflowId} items={workflowState.action_items} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}
-            <IntegrationPanel targets={workflowState?.integration_targets} approved={approved} />
+            <IntegrationPanel targets={workflowState?.integration_targets} approved={approved} actionRecord={actionRecord} />
             <ChangeTimeline state={workflowState} />
             <WorkflowTimeline state={workflowState} />
           </section>
@@ -258,8 +272,8 @@ export default function App() {
           <RunHistory jobs={recentJobs} loading={historyLoading} />
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
-          <TrustPanel />
-          <footer className="demo-footer"><span>ⓘ Synthetic replay remains available when the public source cannot be fetched.</span><span>Approval gating is deterministic; external writes stay disabled until a connector is configured.</span></footer>
+          <TrustPanel actionRecord={actionRecord} />
+          <footer className="demo-footer"><span>ⓘ Synthetic replay remains available when the public source cannot be fetched.</span><span>Approval gating is deterministic; customer-system writes require the explicit connector path.</span></footer>
         </div>
       </main>
 
