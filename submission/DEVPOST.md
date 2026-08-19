@@ -4,7 +4,7 @@
 
 - Hosted application: https://driftline-xvxczqg62a-uc.a.run.app/
 - Source repository: https://github.com/mikeyerke/driftline
-- Demonstration video: private draft while the product is being pressure-tested
+- Demonstration video: https://youtu.be/r9z-GNQasBc (public, caption-led, 44 seconds)
 - Architecture diagram: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
 
 ## Category
@@ -24,15 +24,17 @@ way to turn evidence into coordinated action.
 
 ## What it does
 
-Driftline runs a resumable change-to-action workflow from one allowlisted public
-source. Cloud Tasks starts the scan asynchronously; the ADK coordinator
+Driftline runs a resumable change-to-action workflow from two allowlisted public
+source types (`public/pricing` and `public/terms`). Cloud Tasks starts the scan asynchronously; the ADK coordinator
 verifies evidence, maps operational impact, and drafts updates for each
 downstream artifact. When a change touches a contractual expectation,
 deterministic policy pauses the workflow and requests a named human decision.
 After approval, Driftline creates an evidence-linked sandbox packet, an owner
-review item, or a queued item per artifact. Every step receives an event ID and
-the evidence hash is carried into the approval record and packet. No external
-system is changed by the public demo.
+review item, or a queued item per artifact. The packet is persisted as a private,
+versioned Cloud Storage object; undo writes a separate rollback marker while
+preserving the original evidence. Every step receives an event ID and the
+evidence hash is carried into the approval record and packet. No external system
+is changed by the public demo.
 
 The judge-ready workflow uses synthetic data: a public/pricing fixture changes
 Enterprise audit-log retention from unlimited to 365 days. The UI labels this
@@ -51,6 +53,7 @@ system.
 - Cloud Run for the public API and operational console with scale-to-zero.
 - Firestore for workflow documents, the source snapshot ledger, and
   audit_events subcollections.
+- Cloud Storage for private, versioned action packets and rollback markers.
 - Artifact Registry and Cloud Build for the isolated deployment.
 
 The model can inspect an allowlisted source and read workflow state. It cannot
@@ -91,9 +94,12 @@ created during the contest.
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
 - Direct Vertex AI execution evidence is claimed only in the release inventory
-  after the deployed endpoint returns `gemini-3.5-flash`, `google_adk`, and both
-  allowlisted tool calls; Firestore must receive the job, workflow, and audit
-  events.
+  after the deployed endpoint returned `gemini-3.5-flash`, `google_adk`, and both
+  allowlisted tool calls. The final verified demo job was
+  `job-b18a4ec4ebfe` / workflow `96b39124-656b-4de1-84d7-c2b79e40a51a`;
+  approval created `action-c20fd36afe28`, a private packet object, and undo
+  created its rollback marker. A signed monitor run
+  (`job-59ef418b4531`) completed unchanged without inventing a workflow.
 
 ## Limitations and next steps
 

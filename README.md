@@ -105,7 +105,7 @@ API key is embedded in the client.
 
 - Live demo: https://driftline-xvxczqg62a-uc.a.run.app/
 - GitHub: https://github.com/mikeyerke/driftline
-- Demo video: to be added after the four-minute public video is uploaded
+- Demo video: https://youtu.be/r9z-GNQasBc (public, caption-led, 44 seconds)
 - Architecture: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
 - Verified rules: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
 - Cloud inventory: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
