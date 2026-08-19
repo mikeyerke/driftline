@@ -75,6 +75,12 @@ public URL in the isolated Firestore registry, then the bounded scheduler can
 monitor it alongside the fixtures. It is an allowlist of sources, not an
 arbitrary web crawler.
 
+The deployed registry includes three verified public examples: Crayon's pricing
+inquiry page, Kompyte's competitive-intelligence article, and Visualping's
+monitoring guide. Each was fetched through the bounded adapter and has an
+append-only baseline; Driftline does not claim that a vendor page change is
+ground truth for a customer's product.
+
 ### Verified Jira connector
 
 The isolated deployment includes one real, bounded Jira connector for the free

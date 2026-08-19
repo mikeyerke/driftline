@@ -334,6 +334,34 @@ hourly cap. These are spend guards, not production authentication.
   authentication claim is made. The latest Cloud Run revision produced no
   `ERROR` log entries during the smoke checks.
 
+## 2026-08-19 verified competitor sources and outcome-collection release
+
+- Source commit: `8a41077` (`Add verified sources and outcome measurement lane`).
+  Cloud Build `f6945a83-0384-4ef3-a73e-de3f080c760a` — `SUCCESS`; image digest
+  `sha256:3d99ffdbeab6d194725d915880b5dd6e8f8d1b22a8b2a47be3e081e04f5f5bb1`;
+  Cloud Run revision `driftline-00067-kfs` serves 100% of traffic.
+- Three operator-registered public competitor sources were added through the
+  Google OIDC lane and persisted in isolated Firestore:
+  `custom/crayon-pricing` → `https://www.crayon.co/pricing-inquiry`,
+  `custom/kompyte-intel` →
+  `https://www.kompyte.com/blog/real-time-competitive-intelligence`, and
+  `custom/visualping-monitoring` →
+  `https://help.visualping.io/en/articles/4438913`.
+- All three completed live Google ADK monitor jobs and established public
+  baselines. The Crayon source was fetched twice afterward with the same
+  append-only snapshot hash; registry health is now 8/8 healthy sources.
+  These are public pages from the vendors' own domains, not synthetic fixtures
+  or invented competitors.
+- Manual monitor execution for registered sources now requires a signed or
+  Google-verified operator identity; an unauthenticated request returned 401.
+- Added signed `POST /api/ops/outcomes` and redacted `GET /api/ops/outcomes`.
+  The live ledger currently contains zero records and truthfully reports hours
+  saved, revenue/win-rate lift, retention impact, and willingness-to-pay as
+  `not_measured`; no customer result was fabricated.
+- Salesforce remains `not_configured` because there is still no Salesforce
+  org, Connected App, OAuth consent, or token available in the isolated
+  project. The read-only contract and readiness reporting remain in place.
+
 ## Cleanup and disablement
 
 The following commands target only the Driftline project. Review the inventory
