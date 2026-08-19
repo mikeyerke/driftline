@@ -24,13 +24,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00025-nsj`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s |
+| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00026-l67`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Serving image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:22f43db2-6e9f-42af-9367-7ab073d6f504`; digest `sha256:58eb34d2aa2896075af11cbaa5130877cf7db5a6b9b1fa0a546b3bd6e4f2d8e8` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Serving image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:6253effa-bbb1-4636-837d-00563e47a75d`; digest `sha256:87ea01ebd198317731e1e509675e552ea71b251ea826e3f3e1b663b5a043ad5b` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -38,10 +38,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Cloud Build compatibility bucket | `gs://driftline-hackathon-2026_cloudbuild` | Created by Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | GitHub repository | `https://github.com/mikeyerke/driftline` | Public, source matches deployed revision | Separate repository under existing user account; no organization created |
 
-Cloud Build ID `22f43db2-6e9f-42af-9367-7ab073d6f504` completed successfully
-in `global` and deployed revision `driftline-00025-nsj`. The exact image
+Cloud Build ID `6253effa-bbb1-4636-837d-00563e47a75d` completed successfully
+in `global` and deployed revision `driftline-00026-l67`. The exact image
 digest serving Cloud Run is
-`sha256:58eb34d2aa2896075af11cbaa5130877cf7db5a6b9b1fa0a546b3bd6e4f2d8e8`.
+`sha256:87ea01ebd198317731e1e509675e552ea71b251ea826e3f3e1b663b5a043ad5b`.
 Cloud Build and Cloud Run may enable Google-managed dependency APIs in addition
 to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
@@ -49,9 +49,16 @@ account, API key, repository, or environment variable is reused.
 
 ## Verified live evidence
 
-The current public release was exercised on revision `driftline-00025-nsj`:
+The current public release was exercised on revision `driftline-00026-l67`:
 
 - `GET /health` returned `{"status":"ok","service":"driftline-agent","persistence":"firestore","async_jobs":true}`.
+- A public deterministic competitor demo created workflow
+  `2e1c57b8-a397-4654-959f-13bef8b69c0a`, reached `await_approval`, and was
+  approved then undone. The approval action `action-4a76de39b08c` persisted in
+  Firestore with `jira_status=not_configured` and `external_write=false`; undo
+  persisted the separate rollback marker and returned the workflow to
+  `needs_approval`. This proves the new connector boundary is observable and
+  does not pretend to have performed an external write.
 - A logged-out browser run completed the async scan at desktop width and at a
   true 390px device viewport; both had `bodyScrollWidth === innerWidth` and no
   horizontal overflow.
@@ -119,6 +126,16 @@ The current public release was exercised on revision `driftline-00025-nsj`:
 - The artifact bucket is isolated from Cloud Build buckets and has no public
   IAM members. A successful approval writes a packet object; undo writes a
   separate rollback marker so the original object remains versioned evidence.
+- The deployed Jira adapter is intentionally disabled by default
+  (`DRIFTLINE_JIRA_ENABLED=false`). It is scoped to one configured Atlassian
+  project, performs marker-based idempotent create/reuse, and reverses by
+  appending a comment plus `driftline-reversed` label rather than deleting
+  customer work. The public approval/undo smoke test on revision
+  `driftline-00026-l67` recorded `jira_status=not_configured` and
+  `external_write=false`. An Atlassian connector probe returned
+  `USER_NOT_LOGGED_IN`; no Atlassian credential or external Jira issue was
+  created. The remaining live gate is connecting a least-privilege Jira
+  identity and storing its secret outside the repository.
 - Historical release notes: the first post-deploy live run exposed and fixed an
   ADK mode incompatibility;
   one subsequent enqueue returned a transient queue-not-found while the
