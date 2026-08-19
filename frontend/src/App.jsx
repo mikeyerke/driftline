@@ -83,8 +83,10 @@ export default function App() {
   const structuredAnalysis = job?.workflow?.agent_trace?.structured_analysis;
   const actionRecord = workflowState?.action_record;
   const jiraWriteOccurred = ["created", "reused", "reversed"].includes(actionRecord?.jira_status);
-  const runHint = jiraWriteOccurred
-    ? "Jira handoff recorded · other destinations remain prepared-only"
+  const runHint = actionRecord?.jira_status === "reversed"
+    ? "Jira handoff reversed · other destinations remain prepared-only"
+    : jiraWriteOccurred
+      ? "Jira handoff recorded · other destinations remain prepared-only"
     : "Live allowlisted monitor · handoffs staged, no external writes";
 
   const refreshHistory = async () => {

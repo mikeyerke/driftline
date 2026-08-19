@@ -172,8 +172,8 @@ endpoint is the fallback for evaluation.
 ## Cost and isolation
 
 The deployment is isolated in the new `driftline-hackathon-2026` Google Cloud
-project. Cloud Run is configured with zero minimum instances and a maximum of
-three instances. Cloud Tasks is limited to one concurrent dispatch and 0.2
+project. Cloud Run is configured with zero minimum instances and a revision
+maximum of one instance. Cloud Tasks is limited to one concurrent dispatch and 0.2
 dispatches per second. A $10 monthly billing budget is filtered to this project with
 25%, 50%, 75%, 90%, and 100% current-spend thresholds. The Google Cloud free
 trial started 2026-08-18 and ends 2026-11-17; the full paid-account activation

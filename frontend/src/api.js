@@ -74,6 +74,20 @@ export function completeAction(workflowId, itemId) {
   });
 }
 
+export function failAction(workflowId, itemId, reason = "Owner action needs a retry") {
+  return request(`/api/workflows/${workflowId}/actions/${itemId}/fail`, {
+    method: "POST",
+    body: JSON.stringify({ actor: "Demo operator", reason }),
+  });
+}
+
+export function retryAction(workflowId, itemId) {
+  return request(`/api/workflows/${workflowId}/actions/${itemId}/retry`, {
+    method: "POST",
+    body: JSON.stringify({ actor: "Demo operator" }),
+  });
+}
+
 export function packetUrl(workflowId) {
   return `${API_BASE}/api/workflows/${workflowId}/packet`;
 }

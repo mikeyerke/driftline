@@ -19,7 +19,7 @@ export default function DecisionPanel({ approved, approval, artifactDecisions, a
         <button className="secondary full" onClick={onUndo} disabled={busy}><RotateCcw size={17} />Reopen decision</button>
         <p className="decision-note">
           {approval?.timestamp
-            ? "One approved operational output is published inside the isolated Driftline project; no external customer system was changed."
+            ? `One approved operational output is versioned inside the isolated Driftline project${actionRecord?.jira_status === "created" || actionRecord?.jira_status === "reused" ? "; one bounded Jira issue was recorded" : ""}; no customer-facing system was changed.`
             : "No server decision was recorded."}
         </p>
         <div className="audit-id"><strong>Audit event</strong><span>{auditEvent}</span></div>
