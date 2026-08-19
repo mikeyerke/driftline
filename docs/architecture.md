@@ -17,7 +17,7 @@ flowchart TD
     P --> F
     P --> GCS[(Versioned Cloud Storage action artifacts)]
     P --> X[Target-specific handoff packets]
-    X --> J[Jira draft]
+    X --> J[Jira adapter: KAN only]
     X --> C[Confluence draft]
     X --> SL[Slack notification]
     X --> GH[GitHub draft PR]
@@ -61,13 +61,15 @@ objects are private and are referenced by `gs://` URI in the action record.
 Source observations use an append-only `observations` subcollection plus a
 current pointer for comparison.
 Reopening a decision restores the approval gate and is not an external undo.
-Connector manifests are deliberately marked `external_write: false`; real
-writes require a separately configured least-privilege connector, signed
-operator identity, retries, idempotency, and an organization-specific policy.
-The repository includes a disabled-by-default Jira v3 adapter that scopes one
-issue create to a configured project, uses a Driftline action marker for
-idempotency, and reverses only Driftline-owned labels plus an audit comment.
-The hosted project has no Atlassian credential connected, so its live status is
-truthfully `not_configured`.
+Connector manifests are deliberately marked `external_write: false` until a
+human approves the action. The hosted project now has one separately configured
+least-privilege Jira connector: a Jira-scoped token is held in Secret Manager,
+the runtime calls Atlassian's `api.atlassian.com/ex/jira/<cloudId>` gateway, and
+the adapter is restricted to the free `KAN` / `Driftline` project. It creates
+one marker-idempotent Task for the first approved packet, then undo changes only
+Driftline-owned labels and appends an audit comment; it never deletes the Jira
+issue. The live deployment verified `KAN-2` create and reversal while keeping
+the token out of the browser and repository. Other target manifests remain
+drafts until their own connectors are configured.
 The public demo has no identity provider, so the displayed “Demo operator” is
 a named demo actor, not production authentication.

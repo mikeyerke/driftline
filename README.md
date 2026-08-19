@@ -53,16 +53,22 @@ synthetic replay remains available for predictable judging. Both live and
 identity-free preview mutations are query-capped and rate-limited to bound
 demo spend.
 
-### Optional Jira connector
+### Verified Jira connector
 
-The repository includes a disabled-by-default Jira v3 adapter. When explicitly
-enabled with `DRIFTLINE_JIRA_ENABLED=true`, it creates at most one issue in the
-configured project for the first approved packet, searches by its Driftline
-action marker before creating, and reverses only Driftline-owned labels plus an
-audit comment. Configure the email/token through Secret Manager bindings, not
-checked-in environment files. The public deployment currently reports this
-connector as `not_configured` because no Atlassian credential is connected;
-Jira/Confluence/Slack writes are never implied by a prepared handoff manifest.
+The public deployment includes one real, bounded Jira connector for the free
+`Driftline` Team-managed project (`KAN`). It is restricted to the Atlassian
+Jira gateway for this site and uses a Jira-scoped token with the classic
+`read:jira-work`, `read:jira-user`, and `write:jira-work` scopes. The token is
+mounted from the isolated `driftline-jira-token` Secret Manager secret; it is
+never sent to the browser or committed to this repository.
+
+After a named human approves the first packet, the adapter searches the current
+project for a Driftline action marker before creating one `Task`. The verified
+live run created `KAN-2` (`jira_status=created`, `external_write=true`). Undo is
+reversible: it keeps the issue, removes only the Driftline active label, adds
+`driftline-reversed`, and appends an audit comment. The same run verified
+`jira_status=reversed` against Jira through the gateway. Jira/Confluence/Slack
+handoff manifests remain drafts unless their own connector is configured.
 
 ## Repository layout
 
@@ -153,11 +159,12 @@ endpoint is the fallback for evaluation.
 - Tools are allowlisted and the demonstration state transitions are bounded.
 - The model proposes actions; deterministic policy code decides whether a
   bounded packet may be created.
-- Generated packets explicitly state that no external customer systems changed.
+- Generated packets explicitly state that no customer-facing system changed;
+  the one verified Jira connector is limited to the isolated Driftline project.
 - Approval publishes one low-risk, evidence-bound operational output into the
-  isolated Driftline Cloud Storage lane. It is a real Google Cloud side effect,
-  not a claimed Jira/Confluence/Slack write; undo preserves the original object
-  and writes a durable reversal marker.
+  isolated Driftline Cloud Storage lane. Approval may also create one
+  project-scoped Jira Task after the deterministic gate; undo preserves the
+  original object, reverses the Jira-owned labels, and writes durable markers.
 - The public demonstration names a demo operator but does not provide
   production identity authentication.
 - No real Salesforce, CRM, billing, customer, or private company data is used.
@@ -166,7 +173,7 @@ endpoint is the fallback for evaluation.
 
 The deployment is isolated in the new `driftline-hackathon-2026` Google Cloud
 project. Cloud Run is configured with zero minimum instances and a maximum of
-one instance. Cloud Tasks is limited to one concurrent dispatch and 0.2
+three instances. Cloud Tasks is limited to one concurrent dispatch and 0.2
 dispatches per second. A $10 monthly billing budget is filtered to this project with
 25%, 50%, 75%, 90%, and 100% current-spend thresholds. The Google Cloud free
 trial started 2026-08-18 and ends 2026-11-17; the full paid-account activation

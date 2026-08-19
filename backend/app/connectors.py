@@ -48,7 +48,9 @@ class JiraConfig:
     def validate(self) -> None:
         if not self.enabled:
             return
-        if not self.base_url.startswith("https://") or "atlassian.net" not in self.base_url:
+        is_site_url = "atlassian.net" in self.base_url
+        is_scoped_gateway = self.base_url.startswith("https://api.atlassian.com/ex/jira/")
+        if not self.base_url.startswith("https://") or not (is_site_url or is_scoped_gateway):
             raise ConnectorError("jira_base_url_must_be_atlassian_https")
         if not self.email or not self.token or not self.project_key:
             raise ConnectorError("jira_credentials_or_project_missing")
@@ -129,7 +131,9 @@ class JiraConnector:
         marker = f"Driftline action {action_id}"
         search = self._request(
             "POST",
-            "/rest/api/3/search",
+            # Jira Cloud removed the legacy /search operation; /search/jql is
+            # the current v3 endpoint and keeps the marker lookup bounded.
+            "/rest/api/3/search/jql",
             {
                 "jql": f'project = "{self.config.project_key}" AND text ~ "{marker}"',
                 "maxResults": 1,

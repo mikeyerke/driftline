@@ -24,24 +24,27 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00028-7wt`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s |
+| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00037-6nd`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service max 3, 1 CPU, 512 MiB, concurrency 20, timeout 300s; Jira gateway env and Secret Manager binding are in the deploy manifest |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Serving image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:635c0d5f-0c62-4275-aca9-17425240e123`; digest `sha256:3308b8c3d453eb3e37c04f5b48edd2ad737ea92e8b3415ace8bb02bad07fe664` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Verified build image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:8c339b36-d137-4c8a-b4d6-2039a0ce31d5`; digest `sha256:5149de8e4b9804938c358b7edb58f8aade301350bb803d5de8e2b2dbd566f3b1` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | Cloud Build source bucket | `gs://driftline-hackathon-2026_us-central1_cloudbuild` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | Cloud Build compatibility bucket | `gs://driftline-hackathon-2026_cloudbuild` | Created by Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | GitHub repository | `https://github.com/mikeyerke/driftline` | Public, source matches deployed revision | Separate repository under existing user account; no organization created |
+| Jira site / project | `https://mikeyerke.atlassian.net` / `KAN` (`Driftline`) | Free Team-managed software project; no billing added | Atlassian API gateway cloud ID `7ed26020-ee58-470a-8fbb-3340925348ce`; connector is restricted to this project |
+| Secret Manager | `driftline-jira-token` | Active, automatic replication, versions 1–5; runtime reads `latest` | Dedicated runtime accessor only; latest credential is the user-created Jira gateway token, expires 2026-08-26; no token value is stored in Git or docs |
 
-Cloud Build ID `635c0d5f-0c62-4275-aca9-17425240e123` completed successfully
-in `global` and deployed revision `driftline-00028-7wt`. The exact image
-digest serving Cloud Run is
-`sha256:3308b8c3d453eb3e37c04f5b48edd2ad737ea92e8b3415ace8bb02bad07fe664`.
+Cloud Build ID `8c339b36-d137-4c8a-b4d6-2039a0ce31d5` completed successfully
+in `global` and deployed revision `driftline-00037-6nd` with the Jira gateway
+environment and `driftline-jira-token:latest` Secret Manager binding from the
+checked-in `cloudbuild.yaml`. The exact verified image digest is
+`sha256:5149de8e4b9804938c358b7edb58f8aade301350bb803d5de8e2b2dbd566f3b1`.
 Cloud Build and Cloud Run may enable Google-managed dependency APIs in addition
 to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
@@ -128,16 +131,21 @@ exercised on revision `driftline-00028-7wt`:
 - The artifact bucket is isolated from Cloud Build buckets and has no public
   IAM members. A successful approval writes a packet object; undo writes a
   separate rollback marker so the original object remains versioned evidence.
-- The deployed Jira adapter is intentionally disabled by default
-  (`DRIFTLINE_JIRA_ENABLED=false`). It is scoped to one configured Atlassian
-  project, performs marker-based idempotent create/reuse, and reverses by
+- The deployed Jira adapter is enabled only in the isolated Driftline runtime
+  and is scoped to the free `KAN` / `Driftline` project. It uses a Jira-scoped
+  Atlassian token through the required `api.atlassian.com/ex/jira/<cloudId>`
+  gateway, performs marker-based idempotent create/reuse, and reverses by
   appending a comment plus `driftline-reversed` label rather than deleting
-  customer work. The public approval/undo smoke test on revision
-  `driftline-00028-7wt` recorded `jira_status=not_configured` and
-  `external_write=false`. An Atlassian connector probe returned
-  `USER_NOT_LOGGED_IN`; no Atlassian credential or external Jira issue was
-  created. The remaining live gate is connecting a least-privilege Jira
-  identity and storing its secret outside the repository.
+  customer work. The live approval smoke test on revision
+  `driftline-00036-vnm` created `KAN-1` with
+  `jira_status=created` and `external_write=true`; the live undo returned
+  `jira_status=reversed`, left the issue intact, changed labels to
+  `driftline-reversed`, and appended one reversal comment. The token value is
+  not present in the repository, browser frontend, or documentation.
+  The reproducibility deploy then repeated the complete round trip on
+  `driftline-00037-6nd`: workflow
+  `aae85f15-a9f1-47a6-814f-3ebb82767ab9` created `KAN-2` and undo returned
+  `jira_status=reversed` with `external_write=true`.
 - Historical release notes: the first post-deploy live run exposed and fixed an
   ADK mode incompatibility;
   one subsequent enqueue returned a transient queue-not-found while the

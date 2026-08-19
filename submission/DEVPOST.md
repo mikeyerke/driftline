@@ -38,12 +38,15 @@ named reviewer can claim and complete it without giving the model write access.
 The packet and one approved low-risk operational output are persisted as
 private, versioned Cloud Storage objects inside the isolated Driftline project;
 undo writes separate reversal markers while preserving the original evidence.
-Every step receives an event ID and the
-evidence hash is carried into the approval record and packet. No external system
-is changed by the public demo. Approval also prepares target-specific Jira,
-Confluence, Slack, and GitHub handoff manifests; each is explicitly marked as a
-draft and `external_write: false` until a separately configured connector is
-enabled.
+Every step receives an event ID and the evidence hash is carried into the
+approval record and packet. The hosted build has one real, least-privilege Jira
+connector for the isolated free `KAN` / `Driftline` project: after approval it
+creates at most one marker-idempotent Jira Task, and undo keeps that issue,
+changes only Driftline-owned labels, and appends a reversal comment. The live
+deployment verified Jira Task `KAN-2` create (`jira_status=created`) and undo
+(`jira_status=reversed`) through Atlassian's scoped-token API gateway. Approval
+also prepares target-specific Confluence, Slack, and GitHub handoff manifests;
+those remain drafts with `external_write: false` until separately configured.
 
 The judge-ready workflow uses synthetic data: a public/pricing fixture changes
 Enterprise audit-log retention from unlimited to 365 days. The UI labels this
@@ -100,8 +103,8 @@ created during the contest.
 - Four independently owned downstream artifacts mapped from one source change.
 - Offering impact graph that routes own and competitor changes into Product
   Marketing, enablement, support, customer lifecycle, and planning surfaces.
-- Approval-gated Jira, Confluence, Slack, and GitHub handoff manifests with
-  explicit no-write status.
+- Approval-gated handoff manifests plus one verified, reversible Jira Task
+  connector with explicit project and token scope boundaries.
 - A synthetic, reproducible demonstration that requires no private company data.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
@@ -118,18 +121,16 @@ created during the contest.
 ## Limitations and next steps
 
 The current public build intentionally stops at approved public or synthetic
-sources and does not perform live writes to Jira, Confluence, Slack, GitHub,
+sources and does not perform live writes to Confluence, Slack, GitHub,
 Salesforce, CPQ, customer records, or private knowledge bases. The integration
 layer produces bounded, target-specific handoff manifests and tracks their
-prepared state. Future live connectors would need source-level permissions,
-rate limits, retries, idempotency keys, signed operator identity, and
-organization-specific approval policies before production use. The one real
-downstream side effect is deliberately scoped to an approved operational
-artifact in the isolated Driftline Cloud Storage lane; it is reversible and
-does not touch a customer system. The repository also includes a
-disabled-by-default, project-scoped Jira v3 adapter with marker idempotency and
-reversal labels; the hosted submission has no Atlassian credential connected,
-so it truthfully reports `not_configured` rather than claiming a Jira write.
+prepared state. The one live external connector is deliberately limited to the
+free Driftline Jira project, uses a Jira-scoped token held only in Secret
+Manager, and never deletes Jira work. Future connectors would need
+source-level permissions, rate limits, retries, idempotency keys, signed
+operator identity, and organization-specific approval policies before
+production use. The isolated Cloud Storage output remains a separate reversible
+Driftline-owned side effect.
 
 ## Official links
 

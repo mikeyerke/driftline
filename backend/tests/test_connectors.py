@@ -88,3 +88,18 @@ def test_jira_reverse_toggles_only_driftline_owned_labels() -> None:
         {"add": "driftline-reversed"},
     ]
     assert requests[1].method == "POST"
+
+
+def test_jira_scoped_gateway_url_is_allowed() -> None:
+    connector = JiraConnector(
+        JiraConfig(
+            enabled=True,
+            base_url="https://api.atlassian.com/ex/jira/cloud-id/",
+            email="operator@example.com",
+            token="test-token",
+            project_key="DRIFT",
+        ),
+        opener=lambda request, timeout: _Response({"issues": []}),
+    )
+
+    assert connector.config.base_url.endswith("/jira/cloud-id/")
