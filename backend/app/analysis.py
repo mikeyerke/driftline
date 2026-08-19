@@ -138,12 +138,12 @@ async def _run_analysis_events(prompt: str) -> list[str]:
         session_id=session.id,
         new_message=message,
     ):
-        if (
-            not event.is_final_response()
-            or not event.content
-            or not event.content.parts
-        ):
+        if not event.content or not event.content.parts:
             continue
+        # Some ADK versions mark a JSON response as a non-final content event
+        # before emitting the final wrapper. Keep every textual candidate and
+        # let the strict parser select the JSON object; never persist these
+        # raw parts in the workflow trace.
         text_parts.extend(
             part.text for part in event.content.parts if getattr(part, "text", None)
         )
@@ -213,7 +213,7 @@ async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
         raise AnalysisUnavailable("Workflow has no source evidence")
     prompt = _analysis_prompt(state)
     last_error: AnalysisUnavailable | None = None
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             text_parts = await _run_analysis_events(prompt)
             result = _parse_analysis(text_parts, state.evidence.evidence_hash)
@@ -232,14 +232,14 @@ async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
                     "analysis request failed",
                 )
             )
-            if attempt == 0 and retryable:
-                await asyncio.sleep(0.25)
+            if attempt < 2 and retryable:
+                await asyncio.sleep(0.25 * (attempt + 1))
                 continue
             raise
         except Exception as exc:
             last_error = AnalysisUnavailable("Gemini analysis request failed")
-            if attempt == 0:
-                await asyncio.sleep(0.25)
+            if attempt < 2:
+                await asyncio.sleep(0.25 * (attempt + 1))
                 continue
             raise last_error from exc
     raise last_error or AnalysisUnavailable("Gemini analysis unavailable")
@@ -268,9 +268,25 @@ def _parse_analysis(
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise AnalysisUnavailable(
-            "Gemini returned non-JSON structured analysis"
-        ) from exc
+        # ADK can expose a response wrapper and its final JSON object as two
+        # text events. Recover the longest valid object, then run the exact
+        # same schema/evidence validator. This does not relax the contract.
+        decoder = json.JSONDecoder()
+        candidates: list[dict[str, Any]] = []
+        for index, character in enumerate(raw):
+            if character != "{":
+                continue
+            try:
+                candidate, _ = decoder.raw_decode(raw[index:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict):
+                candidates.append(candidate)
+        if not candidates:
+            raise AnalysisUnavailable(
+                "Gemini returned non-JSON structured analysis"
+            ) from exc
+        payload = max(candidates, key=lambda candidate: len(json.dumps(candidate)))
     result = validate_analysis(payload, expected_evidence_hash)
     return result
 

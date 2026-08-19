@@ -136,3 +136,17 @@ async def test_analysis_turn_retries_transient_empty_response(monkeypatch) -> No
 
     assert calls == 2
     assert result.artifacts[-1].name == "CRM guidance"
+
+
+@pytest.mark.asyncio
+async def test_analysis_turn_handles_split_adk_text_events(monkeypatch) -> None:
+    state = DriftlineWorkflow().start_demo()
+    payload = __import__("json").dumps(_payload(state))
+
+    async def split_events(prompt: str) -> list[str]:
+        return ["analysis wrapper ", payload, payload]
+
+    monkeypatch.setattr(analysis, "_run_analysis_events", split_events)
+    result = await analysis.analyze_workflow(state)
+
+    assert result.evidence_hash == state.evidence.evidence_hash
