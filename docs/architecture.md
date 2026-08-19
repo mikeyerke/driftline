@@ -64,5 +64,10 @@ Reopening a decision restores the approval gate and is not an external undo.
 Connector manifests are deliberately marked `external_write: false`; real
 writes require a separately configured least-privilege connector, signed
 operator identity, retries, idempotency, and an organization-specific policy.
+The repository includes a disabled-by-default Jira v3 adapter that scopes one
+issue create to a configured project, uses a Driftline action marker for
+idempotency, and reverses only Driftline-owned labels plus an audit comment.
+The hosted project has no Atlassian credential connected, so its live status is
+truthfully `not_configured`.
 The public demo has no identity provider, so the displayed “Demo operator” is
 a named demo actor, not production authentication.

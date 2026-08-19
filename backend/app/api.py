@@ -30,6 +30,11 @@ except ImportError:  # pragma: no cover - exercised only in a minimal local env.
 
 from .adk_runtime import run_agent_task
 from .artifacts import persist_action_artifact, persist_operational_output
+from .connectors import (
+    ConnectorError,
+    execute_jira_handoff,
+    reverse_jira_handoff,
+)
 from .models import ActionItemStatus, JobState, WorkflowState, utc_now
 from .persistence import (
     claim_job,
@@ -783,10 +788,16 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         )
         storage_info = persist_action_artifact(state, kind="active")
         operational_info = persist_operational_output(state, kind="active")
+        try:
+            jira_info = execute_jira_handoff(state)
+        except ConnectorError as exc:
+            logger.warning("Jira handoff failed: %s", exc)
+            jira_info = {"jira_status": "failed", "external_write": False}
         state.action_record = {
             **(state.action_record or {}),
             **storage_info,
             **operational_info,
+            **jira_info,
             "operational_side_effect": operational_info.get(
                 "operational_status", "not_configured"
             ),
@@ -829,10 +840,16 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         )
         storage_info = persist_action_artifact(state, kind="rollback")
         operational_info = persist_operational_output(state, kind="rollback")
+        try:
+            jira_info = reverse_jira_handoff(state)
+        except ConnectorError as exc:
+            logger.warning("Jira reversal failed: %s", exc)
+            jira_info = {"jira_status": "failed", "external_write": False}
         state.action_record = {
             **(state.action_record or {}),
             **storage_info,
             **operational_info,
+            **jira_info,
             "operational_side_effect": operational_info.get(
                 "operational_status", "not_configured"
             ),

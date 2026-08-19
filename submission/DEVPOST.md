@@ -126,7 +126,10 @@ rate limits, retries, idempotency keys, signed operator identity, and
 organization-specific approval policies before production use. The one real
 downstream side effect is deliberately scoped to an approved operational
 artifact in the isolated Driftline Cloud Storage lane; it is reversible and
-does not touch a customer system.
+does not touch a customer system. The repository also includes a
+disabled-by-default, project-scoped Jira v3 adapter with marker idempotency and
+reversal labels; the hosted submission has no Atlassian credential connected,
+so it truthfully reports `not_configured` rather than claiming a Jira write.
 
 ## Official links
 

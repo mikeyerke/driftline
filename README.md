@@ -53,6 +53,17 @@ synthetic replay remains available for predictable judging. Both live and
 identity-free preview mutations are query-capped and rate-limited to bound
 demo spend.
 
+### Optional Jira connector
+
+The repository includes a disabled-by-default Jira v3 adapter. When explicitly
+enabled with `DRIFTLINE_JIRA_ENABLED=true`, it creates at most one issue in the
+configured project for the first approved packet, searches by its Driftline
+action marker before creating, and reverses only Driftline-owned labels plus an
+audit comment. Configure the email/token through Secret Manager bindings, not
+checked-in environment files. The public deployment currently reports this
+connector as `not_configured` because no Atlassian credential is connected;
+Jira/Confluence/Slack writes are never implied by a prepared handoff manifest.
+
 ## Repository layout
 
 ~~~text

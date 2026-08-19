@@ -32,6 +32,7 @@ def test_demo_approval_and_undo_round_trip() -> None:
     assert approved.status_code == 200
     assert approved.json()["status"] == "complete"
     assert approved.json()["action_record"]["operational_status"] == "not_configured"
+    assert approved.json()["action_record"]["jira_status"] == "not_configured"
 
     undone = client.post(
         f"/api/workflows/{workflow_id}/undo",
@@ -40,6 +41,7 @@ def test_demo_approval_and_undo_round_trip() -> None:
     assert undone.status_code == 200
     assert undone.json()["status"] == "needs_approval"
     assert undone.json()["action_record"]["operational_status"] == "not_configured"
+    assert undone.json()["action_record"]["jira_status"] == "not_configured"
 
 
 def test_source_history_endpoint_is_explicitly_append_only() -> None:
