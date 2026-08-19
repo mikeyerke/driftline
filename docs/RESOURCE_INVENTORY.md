@@ -24,13 +24,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision from checked-in Confluence + Slack config | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; Jira, GitHub, Confluence, and Slack are enabled through isolated Secret Manager bindings |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00061-lnj` from commit `8267a32` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; Jira, GitHub, Confluence, and Slack are enabled through isolated Secret Manager bindings |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:cd9a8ce5-d4ee-42a8-bfca-44e3bbe6a330`; digest `sha256:9c9d0348d1511264d270a75da2614ae4a5b19d7ed9735c9bf0b01b167174b86d` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:c222b0de-9feb-4fa2-a9d7-906c99bff117`; digest `sha256:697e59f57bc417ba3fc5fb15e0e94f4e124def57c6edc8c907060459c2ed08b9` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -59,6 +59,38 @@ unrelated managed services. No existing project, bucket, database, service
 account, API key, repository, or environment variable is reused.
 
 ## Current connector release evidence
+
+Cloud Build `c222b0de-9feb-4fa2-a9d7-906c99bff117` completed successfully from
+commit `8267a32` and deployed revision `driftline-00061-lnj`. The active
+project was verified as `driftline-hackathon-2026` before the build. This
+release also corrected the scheduler OIDC audience to the exact public service
+hostname.
+
+- A signed `driftline-monitor` run fanned out five bounded monitor jobs. Jobs
+  `job-f6d17dd46bd3`, `job-e5b2b8d9236a`, `job-1f4395e94328`,
+  `job-dda8827a5706`, and `job-7a6a7f416178` each completed with
+  `model=gemini-3.5-flash`, `execution_mode=google_adk`, and
+  `inspect_source_change`; Firestore now reports one or more public-source
+  observations for all five registry entries and `/api/monitor/registry`
+  reports `healthy=5`, `stale=0`, and `synthetic_only=0`.
+- Release workflow `8b93182e-97ad-49f8-85f0-d1680e44277e` reached the human
+  approval gate through the live async path, then approval created Jira `KAN-13`,
+  reused Confluence page `524289`, posted Slack message
+  `1787174535.367529`, and created GitHub issue `#6`. Undo returned the workflow
+  to `needs_approval`, reversed the four connector markers, and wrote the
+  private packet/rollback objects. Direct API checks found Jira label
+  `driftline-reversed`, Confluence page version `4` with the named-human
+  reversal note, the Slack reversal message, and GitHub issue `#6` open with
+  `driftline-reversed`.
+- `GET /api/ops/summary` returned project `driftline-hackathon-2026`, Firestore
+  persistence, five-source guardrails, and all four isolated connectors enabled.
+  Browser QA at 1280px loaded the new freshness panel with zero console errors;
+  the existing 390px responsive gate remains documented below.
+
+The research and product decision memo is tracked at
+`docs/PM_OPERATIONAL_UTILITY_RESEARCH.md`; it records 20+ cited sources,
+recurring PMM pain patterns, the competitive wedge, explicit non-goals, and the
+ranked architecture backlog.
 
 Cloud Build `cd9a8ce5-d4ee-42a8-bfca-44e3bbe6a330` completed successfully from
 commit `16c53ba` and deployed Cloud Run revision `driftline-00059-jvr`. The
