@@ -244,6 +244,37 @@ The public live-agent endpoint is configured for at most 10 calls per hour and a
 2,000-character query. Demo starts and approval/undo writes share a 30-mutation
 hourly cap. These are spend guards, not production authentication.
 
+## 2026-08-19 signed-write boundary release
+
+- Source commit: `5c4f449` (`enforce signed connector writes and add value proof`).
+- Cloud Build: `7a89863a-d149-4bb8-a09c-eb4a1f879a65` — `SUCCESS`.
+- Artifact image digest: `sha256:e69e2b0f5ea635693bc6cf4b1d7c5b9c380bab5e86534177ffca8ec7c1dc78fe`.
+- Cloud Run revision: `driftline-00063-fr9`; public alias remains
+  `https://driftline-xvxczqg62a-uc.a.run.app`; `min=0`, `max=1`, `512MiB`,
+  concurrency `20`, timeout `300s`.
+- A dedicated `driftline-approval-signing-secret` was created in this project;
+  version 2 is newline-free and is readable only by the isolated runtime
+  service account. The value is never committed, logged, or returned.
+- Public ADK workflow `job-b664393e9a28` / workflow
+  `032a403d-4ea9-43da-909d-0b2453dea284` reached approval with
+  `model=gemini-3.5-flash`, `execution_mode=google_adk`, and tools
+  `inspect_source_change`, `get_workflow_state`. Public approve and undo both
+  returned `jira_status=prepared_only`, `confluence_status=prepared_only`,
+  `slack_status=prepared_only`, `github_status=prepared_only`, and
+  `external_write=false`.
+- Signed operator smoke test workflow `7bfdac73-71e0-4431-9661-1c354c863356`
+  used the secret-backed HMAC lane. Approval created isolated Jira `KAN-14`,
+  Confluence page `720897`, Slack message `1787175918.332129`, and GitHub
+  issue `mikeyerke/driftline#7`; signed undo returned all four statuses to
+  `reversed`. No public actor was used for this write.
+- `/health` returned `status=ok`, Firestore persistence, and async jobs enabled.
+  `/api/ops/summary` reported project `driftline-hackathon-2026`, public demo
+  packet-only, signed approvals enabled, and Salesforce `prepared_only`.
+  `/api/ops/value-proof` reported observed records and explicitly listed hours
+  saved, revenue lift, retention impact, and willingness-to-pay as unmeasured.
+- Cloud Run error-log query for revision `driftline-00063-fr9` returned no
+  `ERROR` entries after deployment and both approval-lane smoke tests.
+
 ## Cleanup and disablement
 
 The following commands target only the Driftline project. Review the inventory
