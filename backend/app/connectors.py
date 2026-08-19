@@ -10,8 +10,10 @@ labels rather than deleting or rewriting customer work.
 from __future__ import annotations
 
 import base64
+import html
 import json
 import os
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -22,6 +24,43 @@ from urllib.request import Request, urlopen
 
 class ConnectorError(RuntimeError):
     """A configured connector could not complete its bounded operation."""
+
+
+def _secret_or_env(env_name: str) -> str:
+    """Read a credential from an env value or a Secret Manager version.
+
+    Secret references are optional and are resolved only when a connector is
+    explicitly enabled.  The value is never included in a returned status or
+    error message.
+    """
+    value = os.getenv(env_name, "")
+    if value:
+        return value
+    reference = os.getenv(f"{env_name}_SECRET", "").strip()
+    if not reference:
+        return ""
+    project = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+    if reference.startswith("projects/"):
+        name = reference
+    elif project:
+        name = f"projects/{project}/secrets/{reference}/versions/latest"
+    else:
+        raise ConnectorError(f"{env_name.lower()}_secret_project_missing")
+    try:
+        from google.cloud import secretmanager
+
+        client = secretmanager.SecretManagerServiceClient()
+        response = client.access_secret_version(name=name)
+        return response.payload.data.decode("utf-8")
+    except Exception as exc:
+        raise ConnectorError(f"{env_name.lower()}_secret_read_failed") from exc
+
+
+def _require_https_service_url(value: str, marker: str) -> str:
+    url = value.rstrip("/") + "/"
+    if not url.startswith("https://"):
+        raise ConnectorError(f"{marker}_base_url_must_be_https")
+    return url
 
 
 @dataclass(frozen=True)
@@ -40,7 +79,7 @@ class JiraConfig:
             enabled=enabled,
             base_url=os.getenv("DRIFTLINE_JIRA_BASE_URL", "").rstrip("/") + "/",
             email=os.getenv("DRIFTLINE_JIRA_EMAIL", ""),
-            token=os.getenv("DRIFTLINE_JIRA_TOKEN", ""),
+            token=_secret_or_env("DRIFTLINE_JIRA_TOKEN") if enabled else "",
             project_key=os.getenv("DRIFTLINE_JIRA_PROJECT_KEY", ""),
             issue_type=os.getenv("DRIFTLINE_JIRA_ISSUE_TYPE", "Task"),
         )
@@ -250,3 +289,428 @@ def reverse_jira_handoff(state: Any) -> dict[str, Any]:
         "jira_issue_key": issue_key,
         "external_write": True,
     }
+
+
+@dataclass(frozen=True)
+class ConfluenceConfig:
+    enabled: bool
+    base_url: str = ""
+    email: str = ""
+    token: str = ""
+    space_key: str = ""
+    parent_page_id: str = ""
+
+    @classmethod
+    def from_env(cls) -> ConfluenceConfig:
+        enabled = os.getenv("DRIFTLINE_CONFLUENCE_ENABLED", "false").casefold() == "true"
+        return cls(
+            enabled=enabled,
+            base_url=os.getenv("DRIFTLINE_CONFLUENCE_BASE_URL", ""),
+            email=os.getenv("DRIFTLINE_CONFLUENCE_EMAIL", ""),
+            token=_secret_or_env("DRIFTLINE_CONFLUENCE_TOKEN") if enabled else "",
+            space_key=os.getenv("DRIFTLINE_CONFLUENCE_SPACE_KEY", ""),
+            parent_page_id=os.getenv("DRIFTLINE_CONFLUENCE_PARENT_PAGE_ID", ""),
+        )
+
+    def validate(self) -> None:
+        if not self.enabled:
+            return
+        if "atlassian.net" not in self.base_url:
+            raise ConnectorError("confluence_base_url_must_be_atlassian")
+        _require_https_service_url(self.base_url, "confluence")
+        if not self.email or not self.token or not self.space_key:
+            raise ConnectorError("confluence_credentials_or_space_missing")
+
+
+class ConfluenceConnector:
+    """Scoped Confluence page handoff with marker-based idempotency."""
+
+    def __init__(self, config: ConfluenceConfig, *, opener: Callable[..., Any] = urlopen):
+        config.validate()
+        self.config = config
+        self._opener = opener
+        credentials = f"{config.email}:{config.token}".encode()
+        self._authorization = "Basic " + base64.b64encode(credentials).decode()
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        query: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        url = urljoin(self.config.base_url, path.lstrip("/"))
+        if query:
+            url = f"{url}?{urlencode(query)}"
+        request = Request(
+            url,
+            data=json.dumps(payload).encode() if payload is not None else None,
+            headers={
+                "Accept": "application/json",
+                "Authorization": self._authorization,
+                "Content-Type": "application/json",
+                "User-Agent": "Driftline-Confluence-Connector/1.0",
+            },
+            method=method,
+        )
+        try:
+            with self._opener(request, timeout=8) as response:
+                raw = response.read().decode("utf-8")
+        except (HTTPError, URLError, TimeoutError) as exc:
+            raise ConnectorError(f"confluence_request_failed:{method}:{path}") from exc
+        try:
+            return json.loads(raw) if raw else {}
+        except json.JSONDecodeError as exc:
+            raise ConnectorError("confluence_response_not_json") from exc
+
+    def create_or_reuse_page(
+        self,
+        *,
+        action_id: str,
+        workflow_id: str,
+        source_name: str,
+        evidence_hash: str,
+        artifact: str,
+        owner: str,
+        proposed: str,
+    ) -> dict[str, Any]:
+        marker = f"Driftline action {action_id}"
+        title = f"[Driftline] {artifact} - {source_name}"
+        result = self._request(
+            "GET",
+            "/rest/api/content",
+            query={"spaceKey": self.config.space_key, "title": title, "limit": "1"},
+        )
+        existing = (result.get("results") or [None])[0]
+        if existing:
+            return {
+                "status": "reused",
+                "page_id": existing.get("id"),
+                "page_url": existing.get("_links", {}).get("webui"),
+                "idempotent": True,
+            }
+        body = (
+            f"<h1>{artifact}</h1><p>{marker}</p>"
+            f"<p>Workflow: {workflow_id}<br/>Source: {source_name}<br/>"
+            f"Evidence hash: {evidence_hash}<br/>Owner: {owner}</p>"
+            f"<h2>Proposed update</h2><p>{html.escape(proposed)}</p>"
+        )
+        payload: dict[str, Any] = {
+            "type": "page",
+            "title": title,
+            "space": {"key": self.config.space_key},
+            "body": {"storage": {"value": body, "representation": "storage"}},
+            "metadata": {"labels": {"results": [{"name": "driftline-active"}]}},
+        }
+        if self.config.parent_page_id:
+            payload["ancestors"] = [{"id": self.config.parent_page_id}]
+        created = self._request("POST", "/rest/api/content", payload)
+        return {
+            "status": "created",
+            "page_id": created.get("id"),
+            "page_url": created.get("_links", {}).get("webui"),
+            "idempotent": False,
+        }
+
+    def reverse_page(self, page_id: str, action_id: str) -> dict[str, Any]:
+        self._request(
+            "POST",
+            f"/rest/api/content/{quote(page_id, safe='')}/label",
+            {"prefix": "global", "name": "driftline-reversed"},
+        )
+        return {"status": "reversed", "page_id": page_id, "action_id": action_id}
+
+
+def execute_confluence_handoff(state: Any) -> dict[str, Any]:
+    config = ConfluenceConfig.from_env()
+    if not config.enabled:
+        return {
+            "confluence_status": "not_configured",
+            "confluence_prepared_only": True,
+            "external_write": False,
+        }
+    packet = next(
+        (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
+        None,
+    )
+    if packet is None:
+        return {"confluence_status": "not_eligible", "external_write": False}
+    evidence = state.evidence
+    result = ConfluenceConnector(config).create_or_reuse_page(
+        action_id=str((state.action_record or {}).get("action_id", "unknown")),
+        workflow_id=state.workflow_id,
+        source_name=evidence.source_name if evidence else "Unknown",
+        evidence_hash=evidence.evidence_hash if evidence else "none",
+        artifact=str(packet["artifact"]),
+        owner=str(packet["owner"]),
+        proposed=str(packet["content"]),
+    )
+    return {
+        "confluence_status": result["status"],
+        "confluence_page_id": result.get("page_id"),
+        "confluence_page_url": result.get("page_url"),
+        "confluence_idempotent": result.get("idempotent", False),
+        "external_write": True,
+    }
+
+
+def reverse_confluence_handoff(state: Any) -> dict[str, Any]:
+    action = state.action_record or {}
+    page_id = action.get("confluence_page_id")
+    config = ConfluenceConfig.from_env()
+    if not page_id or not config.enabled:
+        return {
+            "confluence_status": "not_configured",
+            "confluence_prepared_only": True,
+            "external_write": False,
+        }
+    result = ConfluenceConnector(config).reverse_page(
+        str(page_id), str(action.get("action_id", "unknown"))
+    )
+    return {"confluence_status": result["status"], "confluence_page_id": page_id, "external_write": True}
+
+
+@dataclass(frozen=True)
+class SlackConfig:
+    enabled: bool
+    token: str = ""
+    channel_id: str = ""
+    base_url: str = "https://slack.com/api/"
+
+    @classmethod
+    def from_env(cls) -> SlackConfig:
+        enabled = os.getenv("DRIFTLINE_SLACK_ENABLED", "false").casefold() == "true"
+        return cls(
+            enabled=enabled,
+            token=_secret_or_env("DRIFTLINE_SLACK_TOKEN") if enabled else "",
+            channel_id=os.getenv("DRIFTLINE_SLACK_CHANNEL_ID", ""),
+        )
+
+    def validate(self) -> None:
+        if self.enabled and (not self.token or not self.channel_id):
+            raise ConnectorError("slack_token_or_channel_missing")
+
+
+class SlackConnector:
+    """Scoped Slack bot handoff; no arbitrary channel or webhook input."""
+
+    def __init__(self, config: SlackConfig, *, opener: Callable[..., Any] = urlopen):
+        config.validate()
+        self.config = config
+        self._opener = opener
+
+    def _request(self, method: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        request = Request(
+            urljoin(self.config.base_url, endpoint),
+            data=json.dumps(payload).encode(),
+            headers={
+                "Authorization": f"Bearer {self.config.token}",
+                "Content-Type": "application/json; charset=utf-8",
+                "User-Agent": "Driftline-Slack-Connector/1.0",
+            },
+            method=method,
+        )
+        try:
+            with self._opener(request, timeout=8) as response:
+                raw = response.read().decode("utf-8")
+            result = json.loads(raw) if raw else {}
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+            raise ConnectorError(f"slack_request_failed:{endpoint}") from exc
+        if not result.get("ok", False):
+            raise ConnectorError(f"slack_api_error:{result.get('error', 'unknown')}")
+        return result
+
+    def create_or_reuse_message(
+        self, *, action_id: str, workflow_id: str, artifact: str, owner: str, proposed: str
+    ) -> dict[str, Any]:
+        marker = f"Driftline action {action_id}"
+        history = self._request(
+            "POST", "conversations.history", {"channel": self.config.channel_id, "limit": 100}
+        )
+        existing = next(
+            (message for message in history.get("messages", []) if marker in message.get("text", "")),
+            None,
+        )
+        if existing:
+            return {"status": "reused", "message_ts": existing.get("ts"), "idempotent": True}
+        result = self._request(
+            "POST",
+            "chat.postMessage",
+            {
+                "channel": self.config.channel_id,
+                "text": f"{marker}\nWorkflow: {workflow_id}\nOwner: {owner}\n*{artifact}*\n{proposed}",
+                "client_msg_id": action_id,
+            },
+        )
+        return {"status": "created", "message_ts": result.get("ts"), "idempotent": False}
+
+    def reverse_message(self, action_id: str) -> dict[str, Any]:
+        result = self._request(
+            "POST",
+            "chat.postMessage",
+            {
+                "channel": self.config.channel_id,
+                "text": f"Driftline action {action_id} was reversed by a named human reviewer.",
+                "client_msg_id": f"{action_id}:reverse",
+            },
+        )
+        return {"status": "reversed", "message_ts": result.get("ts")}
+
+
+def execute_slack_handoff(state: Any) -> dict[str, Any]:
+    config = SlackConfig.from_env()
+    if not config.enabled:
+        return {"slack_status": "not_configured", "slack_prepared_only": True, "external_write": False}
+    packet = next(
+        (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
+        None,
+    )
+    if packet is None:
+        return {"slack_status": "not_eligible", "external_write": False}
+    result = SlackConnector(config).create_or_reuse_message(
+        action_id=str((state.action_record or {}).get("action_id", "unknown")),
+        workflow_id=state.workflow_id,
+        artifact=str(packet["artifact"]),
+        owner=str(packet["owner"]),
+        proposed=str(packet["content"]),
+    )
+    return {
+        "slack_status": result["status"],
+        "slack_message_ts": result.get("message_ts"),
+        "slack_idempotent": result.get("idempotent", False),
+        "external_write": True,
+    }
+
+
+def reverse_slack_handoff(state: Any) -> dict[str, Any]:
+    config = SlackConfig.from_env()
+    action_id = str((state.action_record or {}).get("action_id", "unknown"))
+    if not config.enabled:
+        return {"slack_status": "not_configured", "slack_prepared_only": True, "external_write": False}
+    result = SlackConnector(config).reverse_message(action_id)
+    return {"slack_status": result["status"], "slack_message_ts": result.get("message_ts"), "external_write": True}
+
+
+@dataclass(frozen=True)
+class GitHubConfig:
+    enabled: bool
+    token: str = ""
+    owner: str = ""
+    repo: str = ""
+    api_url: str = "https://api.github.com/"
+
+    @classmethod
+    def from_env(cls) -> GitHubConfig:
+        enabled = os.getenv("DRIFTLINE_GITHUB_ENABLED", "false").casefold() == "true"
+        return cls(
+            enabled=enabled,
+            token=_secret_or_env("DRIFTLINE_GITHUB_TOKEN") if enabled else "",
+            owner=os.getenv("DRIFTLINE_GITHUB_OWNER", ""),
+            repo=os.getenv("DRIFTLINE_GITHUB_REPO", ""),
+            api_url=os.getenv("DRIFTLINE_GITHUB_API_URL", "https://api.github.com/"),
+        )
+
+    def validate(self) -> None:
+        if not self.enabled:
+            return
+        _require_https_service_url(self.api_url, "github")
+        if not self.token or not re.fullmatch(r"[A-Za-z0-9_.-]+", self.owner) or not re.fullmatch(r"[A-Za-z0-9_.-]+", self.repo):
+            raise ConnectorError("github_token_or_repository_missing")
+
+
+class GitHubConnector:
+    """Repository-scoped GitHub issue handoff with marker idempotency."""
+
+    def __init__(self, config: GitHubConfig, *, opener: Callable[..., Any] = urlopen):
+        config.validate()
+        self.config = config
+        self._opener = opener
+
+    def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> Any:
+        request = Request(
+            urljoin(self.config.api_url, path.lstrip("/")),
+            data=json.dumps(payload).encode() if payload is not None else None,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {self.config.token}",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "Content-Type": "application/json",
+                "User-Agent": "Driftline-GitHub-Connector/1.0",
+            },
+            method=method,
+        )
+        try:
+            with self._opener(request, timeout=8) as response:
+                raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+            raise ConnectorError(f"github_request_failed:{method}:{path}") from exc
+
+    def create_or_reuse_issue(
+        self, *, action_id: str, workflow_id: str, artifact: str, owner: str, proposed: str, evidence_hash: str
+    ) -> dict[str, Any]:
+        marker = f"Driftline action {action_id}"
+        base = f"/repos/{quote(self.config.owner)}/{quote(self.config.repo)}"
+        issues = self._request("GET", f"{base}/issues?state=all&per_page=100")
+        existing = next(
+            (issue for issue in issues if marker in f"{issue.get('title', '')}\n{issue.get('body', '')}"),
+            None,
+        )
+        if existing:
+            return {"status": "reused", "issue_number": existing.get("number"), "issue_url": existing.get("html_url"), "idempotent": True}
+        created = self._request(
+            "POST",
+            f"{base}/issues",
+            {
+                "title": f"[Driftline] {artifact}",
+                "body": f"{marker}\nWorkflow: {workflow_id}\nOwner: {owner}\nEvidence hash: {evidence_hash}\n\n{proposed}",
+                "labels": ["driftline-active", "driftline-approval-gated"],
+            },
+        )
+        return {"status": "created", "issue_number": created.get("number"), "issue_url": created.get("html_url"), "idempotent": False}
+
+    def reverse_issue(self, issue_number: int, action_id: str) -> dict[str, Any]:
+        base = f"/repos/{quote(self.config.owner)}/{quote(self.config.repo)}"
+        self._request("POST", f"{base}/issues/{issue_number}/labels", {"labels": ["driftline-reversed"]})
+        self._request("POST", f"{base}/issues/{issue_number}/comments", {"body": f"Driftline action {action_id} was reversed by a named human reviewer."})
+        return {"status": "reversed", "issue_number": issue_number}
+
+
+def execute_github_handoff(state: Any) -> dict[str, Any]:
+    config = GitHubConfig.from_env()
+    if not config.enabled:
+        return {"github_status": "not_configured", "github_prepared_only": True, "external_write": False}
+    packet = next(
+        (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
+        None,
+    )
+    if packet is None:
+        return {"github_status": "not_eligible", "external_write": False}
+    result = GitHubConnector(config).create_or_reuse_issue(
+        action_id=str((state.action_record or {}).get("action_id", "unknown")),
+        workflow_id=state.workflow_id,
+        artifact=str(packet["artifact"]),
+        owner=str(packet["owner"]),
+        proposed=str(packet["content"]),
+        evidence_hash=str(packet.get("evidence_hash", "none")),
+    )
+    return {
+        "github_status": result["status"],
+        "github_issue_number": result.get("issue_number"),
+        "github_issue_url": result.get("issue_url"),
+        "github_idempotent": result.get("idempotent", False),
+        "external_write": True,
+    }
+
+
+def reverse_github_handoff(state: Any) -> dict[str, Any]:
+    config = GitHubConfig.from_env()
+    action = state.action_record or {}
+    issue_number = action.get("github_issue_number")
+    if not config.enabled or issue_number is None:
+        return {"github_status": "not_configured", "github_prepared_only": True, "external_write": False}
+    result = GitHubConnector(config).reverse_issue(
+        int(issue_number), str(action.get("action_id", "unknown"))
+    )
+    return {"github_status": result["status"], "github_issue_number": issue_number, "external_write": True}

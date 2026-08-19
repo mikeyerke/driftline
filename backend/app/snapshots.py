@@ -121,6 +121,7 @@ class InMemorySnapshotStore:
     def clear(self) -> None:
         with self._lock:
             self._records.clear()
+            self._history_records.clear()
 
 
 def _firestore_document_key(source_id: str) -> str:

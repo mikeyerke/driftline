@@ -157,6 +157,23 @@ def load_workflow(workflow_id: str) -> WorkflowState | None:
     return _state_from_dict(snapshot.to_dict() or {})
 
 
+def list_workflows(limit: int = 50) -> list[WorkflowState]:
+    """Return a bounded durable workflow window for change-memory summaries."""
+    if not _enabled():
+        return []
+    bounded_limit = max(1, min(limit, 100))
+    query = (
+        _client()
+        .collection(COLLECTION)
+        .order_by("updated_at", direction=firestore.Query.DESCENDING)
+        .limit(bounded_limit)
+    )
+    return [
+        _state_from_dict(snapshot.to_dict() or {})
+        for snapshot in query.stream()
+    ]
+
+
 def persist_job(job: JobState) -> None:
     if not _enabled():
         return
