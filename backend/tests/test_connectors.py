@@ -50,6 +50,11 @@ def test_jira_create_is_project_scoped_and_marker_idempotent() -> None:
 
     assert result["status"] == "created"
     assert len(requests) == 2
+    assert requests[0][0].method == "POST"
+    search = json.loads(requests[0][0].data)
+    assert search["jql"] == 'project = "DRIFT" AND text ~ "Driftline action action-1"'
+    assert search["maxResults"] == 1
+    assert search["fields"] == ["key", "summary", "labels"]
     body = json.loads(requests[1][0].data)
     assert body["fields"]["project"] == {"key": "DRIFT"}
     assert body["fields"]["labels"] == ["driftline-active", "driftline-approval-gated"]

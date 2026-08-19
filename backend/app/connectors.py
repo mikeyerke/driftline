@@ -128,12 +128,12 @@ class JiraConnector:
     ) -> dict[str, Any]:
         marker = f"Driftline action {action_id}"
         search = self._request(
-            "GET",
+            "POST",
             "/rest/api/3/search",
-            query={
+            {
                 "jql": f'project = "{self.config.project_key}" AND text ~ "{marker}"',
-                "maxResults": "1",
-                "fields": "key,self,summary,labels",
+                "maxResults": 1,
+                "fields": ["key", "summary", "labels"],
             },
         )
         existing = (search.get("issues") or [None])[0]
