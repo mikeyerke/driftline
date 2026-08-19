@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Globe2, Hash, History, ShieldCheck } from "lucide-react";
+import { AlertCircle, CheckCircle2, ExternalLink, Globe2, Hash, History, ShieldCheck } from "lucide-react";
 import { getSourceHistory } from "../api";
 import MultimodalEvidencePanel from "./MultimodalEvidencePanel";
 
-export default function SourcePanel({ evidence, dataMode, sources = [], selectedSource, onSourceChange }) {
+export default function SourcePanel({ evidence, dataMode, sources = [], sourceHealth = [], selectedSource, onSourceChange }) {
   const isPublic = dataMode === "public_source";
   const [history, setHistory] = useState([]);
+  const healthById = Object.fromEntries(sourceHealth.map((item) => [item.source_id, item]));
 
   useEffect(() => {
     let active = true;
@@ -30,6 +31,17 @@ export default function SourcePanel({ evidence, dataMode, sources = [], selected
       {evidence?.source_url && <a className="source-link" href={evidence.source_url} target="_blank" rel="noreferrer">Open the allowlisted source snapshot <ExternalLink size={14} /></a>}
       <div className="monitor-registry" aria-label="Historical monitor sources">
         <div className="monitor-registry-heading"><strong>Monitor any approved change surface</strong><span>Bounded source registry</span></div>
+        <div className="registry-health" aria-label="Source freshness health">
+          <div className="registry-health-heading"><span>Always-on readiness</span><small>Freshness is derived from the append-only ledger</small></div>
+          <div className="registry-health-grid">
+            {sources.map((source) => {
+              const health = healthById[source.source_id];
+              const status = health?.status || "needs_baseline";
+              const statusLabel = status.replaceAll("_", " ");
+              return <div className={`registry-health-card ${status}`} key={source.source_id}><span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span><strong>{source.name}</strong><small>{health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation"}</small></div>;
+            })}
+          </div>
+        </div>
         <label className="source-selector">Scenario for next scan<select value={selectedSource || evidence?.source_id || "public/pricing"} onChange={(event) => onSourceChange?.(event.target.value)}><optgroup label="Own surfaces">{sources.filter((source) => source.category?.startsWith("Own")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}</option>)}</optgroup><optgroup label="Competitor surfaces">{sources.filter((source) => source.category?.startsWith("Competitor")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}</option>)}</optgroup></select></label>
         <div className="monitor-source-list">
           {sources.map((source) => <span className={source.source_id === (selectedSource || evidence?.source_id) ? "monitor-source active" : "monitor-source"} key={source.source_id}><b>{source.name}</b><small>{source.category} · {source.change_type}</small></span>)}

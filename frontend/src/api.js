@@ -38,6 +38,14 @@ export function getSources() {
   return request("/api/sources");
 }
 
+export function getMonitorRegistry() {
+  return request("/api/monitor/registry");
+}
+
+export function getOpsSummary() {
+  return request("/api/ops/summary");
+}
+
 export function getSourceHistory(sourceId, limit = 8) {
   return request(`/api/sources/${encodeURIComponent(sourceId)}/history?limit=${limit}`);
 }

@@ -66,6 +66,7 @@ from .source import (
     SOURCE_DEFINITIONS,
     list_allowlisted_sources,
     list_source_history,
+    source_registry_health,
 )
 from .workflow import PolicyViolation, packet_markdown, workflow_store
 
@@ -529,6 +530,78 @@ def get_sources() -> dict[str, object]:
     return {"sources": list_allowlisted_sources()}
 
 
+@app.get("/api/monitor/registry")
+def get_monitor_registry() -> dict[str, object]:
+    """Return source freshness and allowlist health without fetching sources."""
+    sources = source_registry_health()
+    return {
+        "append_only": True,
+        "generated_at": utc_now(),
+        "sources": sources,
+        "summary": {
+            "total": len(sources),
+            "healthy": sum(item["status"] == "healthy" for item in sources),
+            "stale": sum(item["status"] == "stale" for item in sources),
+            "needs_baseline": sum(
+                item["status"] == "needs_baseline" for item in sources
+            ),
+            "synthetic_only": sum(
+                item["status"] == "synthetic_only" for item in sources
+            ),
+        },
+    }
+
+
+@app.get("/api/ops/summary")
+def get_ops_summary() -> dict[str, object]:
+    """Expose bounded operator health, never secrets or raw credentials."""
+    with _jobs_lock:
+        jobs = list(_jobs.values())
+    if not jobs and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
+        jobs = list_jobs(20)
+    workflows = list(workflow_store._runs.values())
+    if (
+        not workflows
+        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+    ):
+        workflows = list_workflows(20)
+    source_health = source_registry_health()
+    connector_names = ("jira", "confluence", "slack", "github")
+    return {
+        "generated_at": utc_now(),
+        "project_id": os.getenv("GOOGLE_CLOUD_PROJECT", "local"),
+        "persistence": os.getenv("DRIFTLINE_PERSISTENCE", "memory"),
+        "async_jobs": _tasks_enabled(),
+        "model": os.getenv("MODEL_NAME", "gemini-3.5-flash"),
+        "guardrails": {
+            "agent_max_calls": AGENT_MAX_CALLS,
+            "agent_window_seconds": AGENT_WINDOW_SECONDS,
+            "demo_max_mutations": DEMO_MAX_MUTATIONS,
+            "monitor_max_sources": _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5),
+        },
+        "jobs": {
+            "total": len(jobs),
+            "by_status": {
+                status: sum(job.status == status for job in jobs)
+                for status in {job.status for job in jobs}
+            },
+        },
+        "workflows": {
+            "total": len(workflows),
+            "by_status": {
+                status: sum(state.status.value == status for state in workflows)
+                for status in {state.status.value for state in workflows}
+            },
+        },
+        "connectors": {
+            name: os.getenv(f"DRIFTLINE_{name.upper()}_ENABLED", "false").casefold()
+            == "true"
+            for name in connector_names
+        },
+        "source_health": source_health,
+    }
+
+
 @app.get("/api/sources/{source_id:path}/history")
 def get_source_history(source_id: str, limit: int = 12) -> dict[str, object]:
     if source_id not in SOURCE_DEFINITIONS:
@@ -682,24 +755,65 @@ def get_jobs(limit: int = 8) -> dict[str, object]:
 
 
 @app.post("/api/scheduler/tick")
-async def scheduler_tick(request: Request, background_tasks: BackgroundTasks) -> dict:
-    """Start one historical source-monitor run from Cloud Scheduler."""
+async def scheduler_tick(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    source_id: str | None = None,
+) -> dict:
+    """Fan out one bounded historical monitor run per approved source.
+
+    A signed scheduler can pass ``source_id`` for a single canary. With no
+    query parameter, the explicit production registry is used. The fan-out is
+    intentionally capped before any model call so a bad scheduler configuration
+    cannot turn into an unbounded crawler or spend spike.
+    """
     _verify_scheduler_request(request)
-    if not _reserve_agent_call():
+    configured_value = os.getenv("DRIFTLINE_MONITOR_SOURCES", "all").strip()
+    configured = (
+        list(SOURCE_DEFINITIONS)
+        if configured_value.casefold() in {"", "all"}
+        else [item.strip() for item in configured_value.split(",") if item.strip()]
+    )
+    source_ids = [source_id.strip()] if source_id else configured
+    max_sources = _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5)
+    source_ids = source_ids[:max_sources]
+    invalid = [item for item in source_ids if item not in SOURCE_DEFINITIONS]
+    if invalid:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "Source is not allowlisted", "source_ids": invalid},
+        )
+    jobs: list[JobState] = []
+    queued_source_ids: list[str] = []
+    skipped: list[str] = []
+    for current_source_id in source_ids:
+        if not _reserve_agent_call():
+            skipped.append(current_source_id)
+            continue
+        job = _start_job(
+            query=(
+                f"Monitor the historical allowlisted {current_source_id} snapshot. "
+                "Report baseline_established, unchanged, or a verified material "
+                "change; never invent an approval."
+            ),
+            user_id="driftline-scheduler",
+            run_mode="monitor",
+            background_tasks=background_tasks,
+        )
+        jobs.append(job)
+        queued_source_ids.append(current_source_id)
+    if not jobs and skipped:
         raise HTTPException(
             status_code=429, detail="Monitor rate limit reached; retry later."
         )
-    job = _start_job(
-        query=(
-            "Monitor the historical allowlisted public/pricing snapshot. "
-            "Report baseline_established, unchanged, or a verified material "
-            "change; never invent an approval."
-        ),
-        user_id="driftline-scheduler",
-        run_mode="monitor",
-        background_tasks=background_tasks,
-    )
-    return job.to_dict()
+    return {
+        "status": "queued",
+        "source_ids": queued_source_ids,
+        "jobs": [job.to_dict() for job in jobs],
+        "skipped_source_ids": skipped,
+        # Preserve the one-job response shape for a canary invocation.
+        "job_id": jobs[0].job_id if len(jobs) == 1 else None,
+    }
 
 
 @app.get("/api/jobs/{job_id}")

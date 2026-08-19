@@ -17,6 +17,46 @@ def test_health() -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> None:
+    registry = client.get("/api/monitor/registry")
+    assert registry.status_code == 200
+    registry_payload = registry.json()
+    assert registry_payload["append_only"] is True
+    assert registry_payload["summary"]["total"] == 5
+    assert all("token" not in str(item).casefold() for item in registry_payload["sources"])
+
+    ops = client.get("/api/ops/summary")
+    assert ops.status_code == 200
+    ops_payload = ops.json()
+    assert ops_payload["project_id"]
+    assert set(ops_payload["connectors"]) == {"jira", "confluence", "slack", "github"}
+    assert "guardrails" in ops_payload
+
+
+def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_verify_scheduler_request", lambda request: None)
+    monkeypatch.setattr(
+        api,
+        "_start_job",
+        lambda **kwargs: JobState(job_id=f"job-{kwargs['query'].split()[-2]}"),
+    )
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+
+    response = client.post("/api/scheduler/tick")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source_ids"] == [
+        "public/pricing",
+        "public/terms",
+        "competitor/pricing",
+        "competitor/offerings",
+        "competitor/blog",
+    ]
+    assert len(payload["jobs"]) == 5
+
+
 def test_demo_approval_and_undo_round_trip() -> None:
     started = client.post("/api/workflows/demo")
     assert started.status_code == 200

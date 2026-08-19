@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from app import source
 from app.snapshots import InMemorySnapshotStore
 
@@ -89,6 +91,14 @@ def test_competitor_sources_are_allowlisted_and_synthetic_by_default() -> None:
     assert result["source_id"] == "competitor/blog"
     assert result["data_mode"] == "synthetic_demo"
     assert "competitor/blog" in result["snapshot_label"]
+
+
+def test_source_registry_health_is_bounded_and_labels_synthetic_data() -> None:
+    health = source.source_registry_health(now=datetime(2026, 1, 1, tzinfo=UTC))
+
+    assert {item["source_id"] for item in health} == set(source.SOURCE_DEFINITIONS)
+    assert all(item["allowlist"] == "pinned raw GitHub fixture only" for item in health)
+    assert all(item["status"] in {"needs_baseline", "synthetic_only", "healthy", "stale"} for item in health)
 
 
 class _Response:

@@ -37,7 +37,9 @@ explicitly registered public snapshots (`public/pricing`, `public/terms`,
 with a bounded timeout and snapshot size; failed fetches become an explicitly
 labelled synthetic replay. Cloud Scheduler runs monitor
 mode every six hours, and a Firestore snapshot ledger distinguishes a baseline,
-unchanged source, and a verified change. The deterministic workflow engine—not
+unchanged source, and a verified change. Cloud Scheduler fans out one job per
+explicitly registered source with a bounded five-source cap; a signed canary
+can target one source. The deterministic workflow engine—not
 the model—creates the evidence, maps explicit offering impact profiles to
 downstream work surfaces, applies the
 approval policy, and records state transitions. Cloud Run hosts the API and
@@ -59,7 +61,11 @@ sandbox packet and the approved operational output are written to the isolated,
 versioned Cloud Storage bucket; undo writes separate rollback markers. These
 objects are private and are referenced by `gs://` URI in the action record.
 Source observations use an append-only `observations` subcollection plus a
-current pointer for comparison.
+current pointer for comparison. `/api/monitor/registry` derives source
+freshness, baseline, stale, and synthetic-only states from that ledger without
+fetching or mutating a source. `/api/ops/summary` exposes bounded
+job/workflow counts, connector enablement, model and call guardrails, and
+source health for production operations; it never returns secret values.
 Reopening a decision restores the approval gate and is not an external undo.
 Connector manifests are deliberately marked `external_write: false` until a
 human approves the action. The hosted project has separately configured,

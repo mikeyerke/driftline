@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from urllib.error import URLError
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
@@ -31,6 +31,10 @@ SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
         "before": DEMO_BEFORE,
         "after": DEMO_AFTER,
         "fixture": "public-pricing-after.txt",
+        "owner": "Product Marketing",
+        "cadence": "6h",
+        "freshness_sla_hours": "12",
+        "source_kind": "owned_public",
     },
     "public/terms": {
         "name": "Public terms snapshot",
@@ -41,6 +45,10 @@ SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
         "before": "Enterprise contracts renew annually with unlimited audit history.",
         "after": "Enterprise contracts renew annually with 365-day audit history.",
         "fixture": "public-terms-after.txt",
+        "owner": "Legal + Product Marketing",
+        "cadence": "12h",
+        "freshness_sla_hours": "24",
+        "source_kind": "owned_public",
     },
     "competitor/pricing": {
         "name": "Competitor pricing snapshot",
@@ -51,6 +59,10 @@ SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
         "before": "Competitor Pro starts at $49 per seat per month.",
         "after": "Competitor Pro starts at $59 per seat per month.",
         "fixture": "competitor-pricing-after.txt",
+        "owner": "Product Marketing",
+        "cadence": "6h",
+        "freshness_sla_hours": "12",
+        "source_kind": "competitor_public",
     },
     "competitor/offerings": {
         "name": "Competitor offering snapshot",
@@ -61,6 +73,10 @@ SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
         "before": "SAML SSO is available on the Competitor Business plan.",
         "after": "SAML SSO is available on the Competitor Pro plan.",
         "fixture": "competitor-offering-after.txt",
+        "owner": "Product Marketing",
+        "cadence": "12h",
+        "freshness_sla_hours": "24",
+        "source_kind": "competitor_public",
     },
     "competitor/blog": {
         "name": "Competitor product blog snapshot",
@@ -71,6 +87,10 @@ SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
         "before": "Native data residency is on the competitor roadmap.",
         "after": "Native data residency is now available.",
         "fixture": "competitor-blog-after.txt",
+        "owner": "Product Marketing",
+        "cadence": "24h",
+        "freshness_sla_hours": "48",
+        "source_kind": "competitor_public",
     },
 }
 
@@ -216,6 +236,11 @@ def list_allowlisted_sources() -> list[dict[str, str]]:
             "change_type": definition["change_type"],
             "fixture": definition["fixture"],
             "mode": "public_or_synthetic",
+            "owner": definition["owner"],
+            "cadence": definition["cadence"],
+            "freshness_sla_hours": definition["freshness_sla_hours"],
+            "source_kind": definition["source_kind"],
+            "allowlist": "pinned raw GitHub fixture only",
         }
         for source_id, definition in SOURCE_DEFINITIONS.items()
     ]
@@ -227,3 +252,60 @@ def list_source_history(source_id: str, limit: int = 20) -> list[dict[str, str]]
     if source_id not in SOURCE_DEFINITIONS:
         return []
     return snapshot_history(source_id, store=_default_public_store(), limit=limit)
+
+
+def _parse_iso(value: object) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def source_registry_health(*, now: datetime | None = None) -> list[dict[str, object]]:
+    """Return bounded freshness/readiness state for every approved source.
+
+    This is deliberately derived from the append-only ledger. It never fetches
+    a URL, invents a baseline, or exposes connector credentials, making it safe
+    for the public operator console and for an authenticated scheduler probe.
+    """
+    current = now or datetime.now(UTC)
+    health: list[dict[str, object]] = []
+    for source_id, definition in SOURCE_DEFINITIONS.items():
+        observations = list_source_history(source_id, limit=20)
+        latest = observations[0] if observations else None
+        retrieved = _parse_iso(latest.get("retrieved_at") if latest else None)
+        sla_hours = int(definition["freshness_sla_hours"])
+        age_seconds = max(0, int((current - retrieved).total_seconds())) if retrieved else None
+        if latest is None:
+            status = "needs_baseline"
+        elif latest.get("data_mode") == "synthetic_demo":
+            status = "synthetic_only"
+        elif age_seconds is not None and age_seconds > sla_hours * 3600:
+            status = "stale"
+        else:
+            status = "healthy"
+        next_due = (retrieved + timedelta(hours=sla_hours)).isoformat() if retrieved else None
+        health.append(
+            {
+                "source_id": source_id,
+                "name": definition["name"],
+                "category": definition["category"],
+                "owner": definition["owner"],
+                "cadence": definition["cadence"],
+                "freshness_sla_hours": sla_hours,
+                "source_kind": definition["source_kind"],
+                "status": status,
+                "observation_count": len(observations),
+                "last_observed_at": latest.get("retrieved_at") if latest else None,
+                "last_data_mode": latest.get("data_mode") if latest else None,
+                "last_snapshot_hash": latest.get("snapshot_hash") if latest else None,
+                "age_seconds": age_seconds,
+                "next_due_at": next_due,
+                "source_url": definition["url"],
+                "allowlist": "pinned raw GitHub fixture only",
+            }
+        )
+    return health

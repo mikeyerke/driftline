@@ -12,7 +12,7 @@ import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence } from "./data";
-import { apiEnabled, approveWorkflow, getJob, getSources, listJobs, packetUrl, startDemoJob, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, getJob, getMonitorRegistry, getSources, listJobs, packetUrl, startDemoJob, undoWorkflow } from "./api";
 import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
 import IntegrationPanel from "./components/IntegrationPanel";
@@ -57,6 +57,7 @@ export default function App() {
   const [recentJobs, setRecentJobs] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [sources, setSources] = useState([]);
+  const [sourceHealth, setSourceHealth] = useState([]);
   const [selectedSource, setSelectedSource] = useState("public/pricing");
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
@@ -105,6 +106,7 @@ export default function App() {
   useEffect(() => {
     refreshHistory();
     getSources().then((payload) => setSources(payload.sources || [])).catch(() => setSources([]));
+    getMonitorRegistry().then((payload) => setSourceHealth(payload.sources || [])).catch(() => setSourceHealth([]));
   }, []);
 
   const selectNav = (label) => {
@@ -274,7 +276,7 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} selectedSource={selectedSource} onSourceChange={setSelectedSource} />
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} sourceHealth={sourceHealth} selectedSource={selectedSource} onSourceChange={setSelectedSource} />
           <ChangeGenomePanel />
           <RunHistory jobs={recentJobs} loading={historyLoading} />
           <AgentTrace job={job} />

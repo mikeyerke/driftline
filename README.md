@@ -58,7 +58,12 @@ container, with Firestore as the durable workflow, job, source-history, and
 audit store. Approved sandbox packets, one approved operational output, and
 undo markers are also persisted as private, versioned Cloud Storage objects in
 the isolated project. The
-synthetic replay remains available for predictable judging. Both live and
+synthetic replay remains available for predictable judging. Cloud Scheduler
+fans out one bounded monitor job per registered source (or a single canary when
+`source_id` is supplied), capped by `DRIFTLINE_MONITOR_MAX_SOURCES`; each source
+is still constrained by the same allowlist and ADK tool policy. The operator
+console exposes `/api/monitor/registry` freshness state and `/api/ops/summary`
+runtime/connector guardrails without exposing credentials. Both live and
 identity-free preview mutations are query-capped and rate-limited to bound
 demo spend.
 
