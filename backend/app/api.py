@@ -1036,6 +1036,10 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
                 info.get("external_write", False)
                 for info in (jira_info, confluence_info, slack_info, github_info)
             ),
+            "external_systems_changed": any(
+                info.get("external_write", False)
+                for info in (jira_info, confluence_info, slack_info, github_info)
+            ),
         }
         if storage_info.get("storage_status") != "not_configured":
             compare_and_set_workflow(state, "complete")
@@ -1093,6 +1097,10 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
                 "operational_status", "not_configured"
             ),
             "external_write": any(
+                info.get("external_write", False)
+                for info in (jira_info, confluence_info, slack_info, github_info)
+            ),
+            "external_systems_changed": any(
                 info.get("external_write", False)
                 for info in (jira_info, confluence_info, slack_info, github_info)
             ),
