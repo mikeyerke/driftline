@@ -281,6 +281,7 @@ def validate_vision_analysis(payload: Any, evidence_hash: str) -> VisionAnalysis
 def _run_vision_model(evidence: VisualEvidence) -> VisionAnalysis:
     from google import genai
     from google.genai import types
+    from google.genai.types import ThinkingConfig
 
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
     location = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
@@ -310,7 +311,8 @@ def _run_vision_model(evidence: VisualEvidence) -> VisionAnalysis:
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         response_json_schema=VisionAnalysis.model_json_schema(),
-        max_output_tokens=700,
+        max_output_tokens=1200,
+        thinking_config=ThinkingConfig(thinking_level="LOW"),
     )
     try:
         response = client.models.generate_content(
