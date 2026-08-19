@@ -79,8 +79,8 @@ The current public release was exercised on revision `driftline-00020-6nd`:
 - A signed Cloud Scheduler run created monitor job `job-9668cbe22717`, which
   completed `baseline_established` with no workflow or approval invented. The
   Firestore snapshot ledger contains one `public/pricing` baseline document.
-- A later signed Scheduler run on the final revision created monitor job
-  `job-59ef418b4531`, completed `unchanged`, and created no workflow.
+- A signed Scheduler run on the current revision created monitor job
+  `job-acc5973e452d`, completed `unchanged`, and created no workflow.
 - A controlled ledger replay created monitor job `job-2813b664a871`, which
   detected `changed` with the exact before/after sentences and
   `confidence=0.99`, then reached the same deterministic approval gate. Its
