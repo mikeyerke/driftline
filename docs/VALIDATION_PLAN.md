@@ -34,6 +34,14 @@ Treat these as hypotheses to test, not results:
 
 Use aggregate counters only: scan count, source freshness, time from detected change to approval, action-item completion, connector success/failure, and reversal count. Driftline exposes approval-latency p50/p90 from its own audit timestamps, not a customer productivity claim. Never log source credentials, customer text, or raw CRM records. Keep browser analytics optional and privacy-preserving.
 
+When a real pilot exists, a signed operator can submit one aggregate record to
+`POST /api/ops/outcomes` with a source type, cohort label, before/after minutes,
+and an evidence reference. The API rejects raw customer text and marks every
+record `operator_reported_unverified` until a human reconciles it to the
+referenced interview, pilot log, win/loss record, or billing artifact. The
+public console exposes only the redacted outcome ledger through
+`GET /api/ops/outcomes`.
+
 ## Open proof gaps
 
 - No customer interviews or willingness-to-pay results are represented in the repository.

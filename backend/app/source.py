@@ -25,6 +25,7 @@ from .workflow import DEMO_AFTER, DEMO_BEFORE, DEMO_SOURCE_URL
 _SYNTHETIC_STORE = InMemorySnapshotStore()
 _CUSTOM_SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {}
 _SOURCE_REGISTRY_COLLECTION = "driftline_source_registry"
+_MAX_REGISTERED_BODY_BYTES = 128 * 1024
 
 # The monitor starts with a tiny, reviewable pinned fixture registry. Operator
 # sources are added separately through the signed exact-URL path below; this
@@ -251,8 +252,10 @@ def _registered_body(definition: Mapping[str, str]) -> str:
         method="GET",
     )
     with build_opener(_NoRedirect()).open(request, timeout=8) as response:
-        body = response.read(16385).decode("utf-8", errors="strict")
-    if not body or len(body) > 16384:
+        body = response.read(_MAX_REGISTERED_BODY_BYTES + 1).decode(
+            "utf-8", errors="strict"
+        )
+    if not body or len(body) > _MAX_REGISTERED_BODY_BYTES:
         raise ValueError("source_snapshot_out_of_bounds")
     if definition.get("source_parser") == "html":
         body = re.sub(
@@ -272,7 +275,7 @@ def _registered_body(definition: Mapping[str, str]) -> str:
     body = re.sub(r"\s+", " ", body).strip()
     if not body:
         raise ValueError("source_snapshot_empty")
-    return body[:16384]
+    return body[:_MAX_REGISTERED_BODY_BYTES]
 
 
 def _public_url_is_allowlisted(url: str, fixture: str) -> bool:

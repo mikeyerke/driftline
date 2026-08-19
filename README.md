@@ -18,7 +18,7 @@ business domains, owners, work surfaces, and prepared handoffs. The deployed
 source adapter fetches explicitly registered public snapshots. Judge fixtures
 remain pinned and deterministic; a signed operator can onboard additional
 exact HTTPS HTML/text URLs through `/api/operator/sources`, with redirects,
-query credentials, private DNS-resolved addresses, and oversized bodies rejected. It is not
+query credentials, private DNS-resolved addresses, and bodies over 128KB rejected. It is not
 connected to a real company system.
 
 ## Why it is agentic

@@ -38,6 +38,27 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert value_proof.status_code == 200
     assert value_proof.json()["scope"] == "observed_driftline_sandbox_records"
     assert "willingness_to_pay" in value_proof.json()["not_measured"]
+    outcomes = client.get("/api/ops/outcomes")
+    assert outcomes.status_code == 200
+    assert outcomes.json()["status"] == "not_measured"
+
+
+def test_outcome_measurements_require_signed_operator(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    response = client.post(
+        "/api/ops/outcomes",
+        json={
+            "operator": "Anonymous",
+            "source_type": "pilot_log",
+            "cohort_label": "pilot-a",
+            "changes_observed": 1,
+            "baseline_minutes": 60,
+            "driftline_minutes": 20,
+            "evidence_ref": "artifact://pilot-a",
+        },
+    )
+    assert response.status_code == 401
 
 
 def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:
@@ -95,6 +116,37 @@ def test_signed_operator_can_onboard_an_exact_public_source(monkeypatch) -> None
     assert response.status_code == 200
     assert response.json()["status"] == "registered"
     assert response.json()["source"]["allowlist"] == "exact operator-registered HTTPS URL"
+
+
+def test_manual_monitor_job_requires_signed_operator(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "test-only-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setattr(
+        api,
+        "_start_job",
+        lambda **kwargs: JobState(job_id="job-monitor-test"),
+    )
+    denied = client.post(
+        "/api/jobs/demo",
+        json={"run_mode": "monitor", "source_id": "public/pricing"},
+    )
+    assert denied.status_code == 401
+
+    operator = "Signed operator"
+    message = f"monitor:public/pricing:{operator}".encode()
+    token = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
+    allowed = client.post(
+        "/api/jobs/demo",
+        json={
+            "run_mode": "monitor",
+            "source_id": "public/pricing",
+            "operator": operator,
+            "approval_token": token,
+        },
+    )
+    assert allowed.status_code == 200
 
 
 def test_demo_approval_and_undo_round_trip() -> None:

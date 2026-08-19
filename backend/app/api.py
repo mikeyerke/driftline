@@ -56,10 +56,12 @@ from .persistence import (
     claim_job,
     compare_and_set_workflow,
     list_jobs,
+    list_outcome_measurements,
     list_workflows,
     load_job,
     load_workflow,
     persist_job,
+    persist_outcome_measurement,
     persist_workflow,
     update_jobs_for_workflow,
 )
@@ -154,6 +156,9 @@ class JobStartRequest(BaseModel):
     user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
     run_mode: Literal["demo", "monitor"] = "demo"
     source_id: str = Field(default="public/pricing", min_length=1, max_length=80)
+    operator: str = Field(default="demo-operator", min_length=1, max_length=120)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
 
 
 class MultimodalAnalysisRequest(BaseModel):
@@ -172,6 +177,25 @@ class SourceOnboardingRequest(BaseModel):
     freshness_sla_hours: int = Field(default=48, ge=1, le=168)
     parser: Literal["html", "text"] = "html"
     registered_by: str = Field(min_length=1, max_length=120)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class OutcomeMeasurementRequest(BaseModel):
+    """Aggregate pilot evidence; raw customer text and identifiers are excluded."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    source_type: Literal[
+        "customer_interview", "pilot_log", "win_loss", "billing_record"
+    ]
+    cohort_label: str = Field(min_length=1, max_length=80)
+    changes_observed: int = Field(ge=1, le=10000)
+    baseline_minutes: float = Field(ge=0, le=1_000_000)
+    driftline_minutes: float = Field(ge=0, le=1_000_000)
+    revenue_lift_usd: float | None = Field(default=None, ge=-1_000_000_000, le=1_000_000_000)
+    retention_lift_pct: float | None = Field(default=None, ge=-100, le=100)
+    willingness_to_pay_usd: float | None = Field(default=None, ge=0, le=1_000_000)
+    evidence_ref: str = Field(min_length=1, max_length=300)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
 
@@ -848,6 +872,73 @@ def get_value_proof() -> dict[str, object]:
     }
 
 
+@app.get("/api/ops/outcomes")
+def get_outcome_measurements() -> dict[str, object]:
+    """Return operator-reported aggregate outcomes without exposing raw customer data."""
+    records = list_outcome_measurements(50)
+    return {
+        "scope": "operator_reported_outcome_ledger",
+        "records": records,
+        "count": len(records),
+        "status": "measured_records_available" if records else "not_measured",
+        "not_measured": []
+        if records
+        else [
+            "hours_saved_per_change",
+            "revenue_or_win_rate_lift",
+            "customer_retention_impact",
+            "willingness_to_pay",
+        ],
+        "disclosure": "Records are operator-reported aggregate evidence and remain unverified until reviewed against the referenced source.",
+    }
+
+
+@app.post("/api/ops/outcomes")
+def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, object]:
+    """Ingest one aggregate pilot measurement through the signed operator lane."""
+    approval_identity = _verify_approval_mode(
+        f"outcome:{request.cohort_label}",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+    )
+    if not request.evidence_ref.startswith(("https://", "gs://", "artifact://")):
+        raise HTTPException(
+            status_code=422,
+            detail="evidence_ref_must_point_to_audit_artifact_or_https_source",
+        )
+    measurement_id = f"measurement-{uuid4().hex[:16]}"
+    payload = {
+        "measurement_id": measurement_id,
+        "source_type": request.source_type,
+        "cohort_label": request.cohort_label,
+        "changes_observed": request.changes_observed,
+        "baseline_minutes": request.baseline_minutes,
+        "driftline_minutes": request.driftline_minutes,
+        "time_saved_minutes_per_change": round(
+            request.baseline_minutes - request.driftline_minutes, 2
+        ),
+        "revenue_lift_usd": request.revenue_lift_usd,
+        "retention_lift_pct": request.retention_lift_pct,
+        "willingness_to_pay_usd": request.willingness_to_pay_usd,
+        "evidence_ref": request.evidence_ref,
+        "status": "operator_reported_unverified",
+        "approval_identity": approval_identity.get("identity", "signed_operator"),
+        "captured_at": utc_now(),
+    }
+    try:
+        persist_outcome_measurement(payload)
+    except Exception as exc:  # pragma: no cover - Firestore-only failure path.
+        logger.exception("Outcome measurement persistence failed")
+        raise HTTPException(status_code=503, detail="Outcome ledger unavailable") from exc
+    return {
+        "status": "recorded",
+        "measurement": payload,
+        "disclosure": "This is operator-reported aggregate evidence, not an independently verified customer claim.",
+    }
+
+
 @app.get("/api/sources/{source_id:path}/history")
 def get_source_history(source_id: str, limit: int = 12) -> dict[str, object]:
     if source_definition(source_id) is None:
@@ -969,18 +1060,26 @@ async def start_demo_job(
     request: JobStartRequest,
     background_tasks: BackgroundTasks,
 ) -> dict:
-    if not _reserve_agent_call():
-        raise HTTPException(
-            status_code=429,
-            detail="Live agent demo rate limit reached; retry later.",
-        )
     definition = source_definition(request.source_id)
     if definition is None:
         raise HTTPException(status_code=422, detail="Source is not allowlisted")
+    if request.run_mode == "monitor":
+        _verify_approval_mode(
+            f"monitor:{request.source_id}",
+            request.operator,
+            "signed",
+            request.approval_token,
+            request.identity_token,
+        )
     if definition.get("dynamic") == "true" and request.run_mode != "monitor":
         raise HTTPException(
             status_code=422,
             detail="Operator-registered sources require run_mode=monitor",
+        )
+    if not _reserve_agent_call():
+        raise HTTPException(
+            status_code=429,
+            detail="Live agent demo rate limit reached; retry later.",
         )
     query = (
         f"{request.query.strip()} Use the exact allowlisted source_id "

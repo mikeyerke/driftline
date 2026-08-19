@@ -308,7 +308,7 @@ hourly cap. These are spend guards, not production authentication.
 - The source registry still reports five healthy pinned fixtures. The new
   signed `/api/operator/sources` path persists exact operator-registered HTTPS
   HTML/text URLs in the isolated Firestore registry, with an 8-second fetch,
-  16KB body limit, redirect/query-credential/private-DNS-address rejection, and a
+  128KB body limit, redirect/query-credential/private-DNS-address rejection, and a
   25-source scheduler cap. No competitor URL was invented or registered in
   this release.
 - The operator lane accepted a Google OIDC identity token for the allowlisted

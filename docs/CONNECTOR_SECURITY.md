@@ -19,7 +19,7 @@ Undo follows the same boundary. A demo packet can be reopened without contacting
 - GitHub: one configured repository; marker-based idempotency; reversal adds a label/comment.
 - Salesforce: read-only context contract for `Product2`, `PricebookEntry`, and `Opportunity`; no write path and no live customer authorization in this deployment.
 
-The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 16KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
+The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
 
 ## Operational checks
 

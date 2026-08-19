@@ -34,7 +34,7 @@ asynchronous job; the task carries an OIDC identity and the worker verifies
 that identity before running. The source adapter starts with five pinned judge
 fixtures and can also read exact public HTTPS HTML/text URLs added by a signed
 operator through `/api/operator/sources`. Those operator sources are bounded
-to an 8-second fetch, 16KB body, no redirects, no query credentials, and no
+to an 8-second fetch, 128KB body, no redirects, no query credentials, and no
 private or reserved DNS-resolved addresses; this is an allowlist, not arbitrary competitor
 crawling. Failed fixture fetches become an explicitly labelled synthetic
 replay, while a failed operator source is reported unavailable rather than

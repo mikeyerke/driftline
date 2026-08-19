@@ -21,6 +21,7 @@ from .models import (
 
 COLLECTION = "driftline_workflows"
 JOBS_COLLECTION = "driftline_jobs"
+OUTCOMES_COLLECTION = "driftline_outcome_measurements"
 
 
 def _enabled() -> bool:
@@ -246,6 +247,36 @@ def list_jobs(limit: int = 8) -> list[JobState]:
             )
         )
     return jobs
+
+
+def persist_outcome_measurement(payload: dict[str, Any]) -> None:
+    """Persist an aggregate operator-reported outcome without raw customer data."""
+    if not _enabled():
+        return
+    _client().collection(OUTCOMES_COLLECTION).document(
+        str(payload["measurement_id"])
+    ).create(dict(payload))
+
+
+def list_outcome_measurements(limit: int = 50) -> list[dict[str, Any]]:
+    """Return a bounded, redacted outcome ledger for the operator console."""
+    if not _enabled():
+        return []
+    bounded_limit = max(1, min(limit, 100))
+    query = (
+        _client()
+        .collection(OUTCOMES_COLLECTION)
+        .order_by("captured_at", direction=firestore.Query.DESCENDING)
+        .limit(bounded_limit)
+    )
+    return [
+        {
+            key: value
+            for key, value in (snapshot.to_dict() or {}).items()
+            if key not in {"operator_email", "identity_subject"}
+        }
+        for snapshot in query.stream()
+    ]
 
 
 def claim_job(job_id: str, claim_id: str) -> bool:
