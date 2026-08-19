@@ -30,7 +30,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Verified build image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:51c869d8-e134-4664-8120-3ed1004001ea`; digest `sha256:1cf154d40da540d68319404e4e10ba57d5bc271f58328b9d578d0a5348dd0b17` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:a6203e50-4456-4a88-9b55-6fd5f62b2b58`; digest `sha256:01c7b474596b4ac4296021db314ed6f83ff27b7441722af6fff64ceeb21d92d6` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -51,12 +51,34 @@ in `global` and deployed revision `driftline-00049-q48` from runtime commit
 `d016372`. It includes the Jira gateway environment, the
 `driftline-jira-token:latest` Secret Manager binding, and an explicit
 service/revision max-instance cap of one from the checked-in
-`cloudbuild.yaml`. The exact verified image digest is
+`cloudbuild.yaml`. Historical image digest:
 `sha256:1cf154d40da540d68319404e4e10ba57d5bc271f58328b9d578d0a5348dd0b17`.
 Cloud Build and Cloud Run may enable Google-managed dependency APIs in addition
 to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
 account, API key, repository, or environment variable is reused.
+
+## Current connector release evidence
+
+Cloud Build `a6203e50-4456-4a88-9b55-6fd5f62b2b58` completed successfully from
+commit `6ae410d` and deployed Cloud Run revision `driftline-00058-86j`. The
+active project was verified as `driftline-hackathon-2026` before the build.
+
+- Workflow `d1c90381-a2a4-489e-89c7-dfd565289389` reached `needs_approval`, was
+  approved by the named human `Mike Yerke`, and created Confluence page `524289`
+  in space `DRIFT` (`confluence_status=created`, `external_write=true`), Slack
+  message `1787172434.198249` in channel `C0BRGFUSADA`, Jira `KAN-11`, and
+  GitHub issue `#4`.
+- Undo by `Mike Yerke` returned the workflow to `needs_approval`, persisted the
+  rollback object, returned `confluence_status=reversed` and
+  `slack_status=reversed`, and left the external records intact.
+- Direct Confluence REST v2 inspection returned page `524289`, version `2`, and
+  a body containing the named-human reversal note. Direct Slack API history
+  returned both the original action marker and the reversal message.
+- The earlier probe on revision `driftline-00057-fbt` correctly failed closed
+  with `401 Unauthorized; scope does not match` when it attempted the legacy
+  v1 route. That failure led to the v2-only gateway fix; no failed write was
+  claimed as successful.
 
 ## Verified live evidence
 
