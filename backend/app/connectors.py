@@ -305,7 +305,7 @@ class ConfluenceConfig:
         enabled = os.getenv("DRIFTLINE_CONFLUENCE_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
-            base_url=os.getenv("DRIFTLINE_CONFLUENCE_BASE_URL", ""),
+            base_url=os.getenv("DRIFTLINE_CONFLUENCE_BASE_URL", "").rstrip("/") + "/",
             email=os.getenv("DRIFTLINE_CONFLUENCE_EMAIL", ""),
             token=_secret_or_env("DRIFTLINE_CONFLUENCE_TOKEN") if enabled else "",
             space_key=os.getenv("DRIFTLINE_CONFLUENCE_SPACE_KEY", ""),
@@ -315,7 +315,9 @@ class ConfluenceConfig:
     def validate(self) -> None:
         if not self.enabled:
             return
-        if "atlassian.net" not in self.base_url:
+        is_site_url = "atlassian.net" in self.base_url
+        is_scoped_gateway = self.base_url.startswith("https://api.atlassian.com/ex/confluence/")
+        if not (is_site_url or is_scoped_gateway):
             raise ConnectorError("confluence_base_url_must_be_atlassian")
         _require_https_service_url(self.base_url, "confluence")
         if not self.email or not self.token or not self.space_key:
@@ -332,6 +334,13 @@ class ConfluenceConnector:
         credentials = f"{config.email}:{config.token}".encode()
         self._authorization = "Basic " + base64.b64encode(credentials).decode()
 
+    def _api_path(self, path: str) -> str:
+        """Prefix Confluence Cloud REST paths when using Atlassian's API gateway."""
+        normalized = path.lstrip("/")
+        if self.config.base_url.startswith("https://api.atlassian.com/ex/confluence/"):
+            return f"wiki/{normalized}"
+        return normalized
+
     def _request(
         self,
         method: str,
@@ -340,7 +349,7 @@ class ConfluenceConnector:
         *,
         query: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        url = urljoin(self.config.base_url, path.lstrip("/"))
+        url = urljoin(self.config.base_url, self._api_path(path))
         if query:
             url = f"{url}?{urlencode(query)}"
         request = Request(
