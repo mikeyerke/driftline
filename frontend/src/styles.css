@@ -262,6 +262,52 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
  .monitor-source.active { border-color: #9dbff6; background: var(--blue-soft); }
  .monitor-source small { color: var(--muted); overflow-wrap: anywhere; }
  .source-note { margin: 0; padding: 10px 16px 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+ .multimodal-panel, .scenario-panel { margin: 14px 16px 0; background: var(--surface); }
+ .genome-panel { margin: 14px 16px 0; background: var(--surface); }
+ .genome-panel .panel-header h2 { display: inline-flex; align-items: center; gap: 7px; }
+ .genome-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 14px 16px 12px; }
+ .genome-summary span { display: grid; gap: 2px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); font-size: 10px; }
+ .genome-summary strong { color: var(--ink); font-size: 16px; }
+ .genome-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0 16px 12px; }
+ .genome-grid > div { min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+ .genome-grid h3 { display: flex; align-items: center; gap: 5px; margin: 0 0 8px; font-size: 11px; }
+ .genome-grid ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+ .genome-grid li { display: flex; justify-content: space-between; gap: 8px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 10px; }
+ .genome-grid li span { color: var(--muted); text-align: right; }
+ .genome-grid code { color: var(--blue); }
+ .genome-note { display: flex; align-items: center; gap: 5px; margin: 0; padding: 0 16px 14px; color: var(--muted); font-size: 10px; }
+ .multimodal-panel .panel-header h2, .scenario-panel .panel-header h2 { display: inline-flex; align-items: center; gap: 7px; }
+ .multimodal-empty { display: flex; align-items: center; gap: 7px; margin: 0; padding: 16px; color: var(--muted); font-size: 12px; }
+ .spin { animation: driftline-spin 1s linear infinite; }
+ @keyframes driftline-spin { to { transform: rotate(360deg); } }
+ .multimodal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px 16px 10px; }
+ .multimodal-card { min-width: 0; margin: 0; padding: 8px; border: 1px solid var(--line); border-radius: 5px; background: #fff; }
+ .multimodal-card figcaption { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; margin-bottom: 7px; font-size: 12px; }
+ .multimodal-card figcaption small { color: var(--muted); font-size: 10px; }
+ .multimodal-card img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border: 1px solid var(--line); border-radius: 3px; background: #f4f7fb; }
+ .multimodal-card code, .multimodal-proof code { display: block; margin-top: 7px; color: var(--blue); font-size: 10px; overflow-wrap: anywhere; }
+ .multimodal-proof { display: flex; gap: 8px; align-items: baseline; padding: 3px 16px 12px; color: var(--muted); font-size: 11px; }
+ .multimodal-proof span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+ .multimodal-proof code { margin: 0; }
+ .multimodal-panel > .full { margin: 0 16px 12px; width: calc(100% - 32px); }
+ .multimodal-analysis { display: grid; gap: 5px; margin: 0 16px 14px; padding: 10px 11px; border: 1px solid #b9dfc9; border-radius: 4px; background: #f1faf5; color: var(--ink); font-size: 11px; }
+ .multimodal-analysis span { display: flex; align-items: center; gap: 5px; color: var(--green); font-weight: 700; }
+ .multimodal-analysis small { color: var(--muted); line-height: 1.45; }
+ .scenario-tabs { display: flex; gap: 6px; padding: 14px 16px 8px; overflow-x: auto; }
+ .scenario-tab { flex: 1 0 auto; min-height: 34px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--muted); cursor: pointer; font: inherit; font-size: 11px; }
+ .scenario-tab.active { border-color: #8cb4f1; background: var(--blue-soft); color: var(--blue); font-weight: 700; }
+ .scenario-description { margin: 0 16px 10px; color: var(--muted); font-size: 12px; }
+ .scenario-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 0 16px 11px; }
+ .scenario-summary span { display: grid; gap: 2px; padding: 7px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); font-size: 10px; }
+ .scenario-summary strong { color: var(--ink); font-size: 15px; }
+ .scenario-list { display: grid; gap: 6px; padding: 0 16px 10px; }
+ .scenario-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 9px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+ .scenario-row > span { min-width: 0; display: grid; gap: 3px; }
+ .scenario-row small { color: var(--muted); font-size: 10px; }
+ .scenario-outcome { justify-items: end; color: var(--blue); font-size: 11px; text-transform: capitalize; }
+ .scenario-outcome svg { display: inline; margin: 0 3px; vertical-align: middle; }
+ .scenario-note { display: block; padding: 0 16px 14px; color: var(--muted); line-height: 1.4; }
+ @media (max-width: 720px) { .multimodal-grid { grid-template-columns: 1fr; } .scenario-summary, .genome-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .scenario-row { align-items: flex-start; flex-direction: column; } .scenario-outcome { justify-items: start; } .genome-grid { grid-template-columns: 1fr; } .genome-grid li { align-items: flex-start; flex-direction: column; } .genome-grid li span { text-align: left; } }
  .trace-body { padding: 16px; }
  .trace-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
  .trace-summary span { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 11px; color: var(--muted); }

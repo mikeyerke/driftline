@@ -61,6 +61,10 @@ export function getWorkflowScenarios(workflowId) {
   return request(`/api/workflows/${encodeURIComponent(workflowId)}/scenarios`);
 }
 
+export function getMemorySummary(limit = 50) {
+  return request(`/api/memory/summary?limit=${limit}`);
+}
+
 export function approveWorkflow(workflowId, artifactDecisions, decision = "grandfather_existing_customers", copilotOptionId = null) {
   return request(`/api/workflows/${workflowId}/approve`, {
     method: "POST",

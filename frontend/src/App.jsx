@@ -17,6 +17,8 @@ import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
 import IntegrationPanel from "./components/IntegrationPanel";
 import ChangeTimeline from "./components/ChangeTimeline";
+import ScenarioSimulator from "./components/ScenarioSimulator";
+import ChangeGenomePanel from "./components/ChangeGenomePanel";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -267,11 +269,13 @@ export default function App() {
             </div>
             {approved && <ActionItems workflowId={workflowId} items={workflowState.action_items} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}
             <IntegrationPanel targets={workflowState?.integration_targets} approved={approved} actionRecord={actionRecord} />
+            {workflowId && <ScenarioSimulator workflowId={workflowId} />}
             <ChangeTimeline state={workflowState} />
             <WorkflowTimeline state={workflowState} />
           </section>
 
           <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} selectedSource={selectedSource} onSourceChange={setSelectedSource} />
+          <ChangeGenomePanel />
           <RunHistory jobs={recentJobs} loading={historyLoading} />
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>

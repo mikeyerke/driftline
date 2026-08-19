@@ -48,6 +48,22 @@ def test_source_history_endpoint_is_explicitly_append_only() -> None:
     response = client.get("/api/sources/public/pricing/history")
     assert response.status_code == 200
     assert response.json()["append_only"] is True
+    assert "memory" in response.json()
+
+
+def test_memory_summary_is_ui_ready_and_bounded() -> None:
+    response = client.get("/api/memory/summary?limit=5")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["append_only"] is True
+    assert "change_genomes" in payload
+    assert set(payload["work_summary"]) >= {
+        "unresolved",
+        "reversed",
+        "unresolved_count",
+        "reversed_count",
+    }
 
 
 def test_competitor_source_builds_offering_impact_graph_and_handoffs() -> None:

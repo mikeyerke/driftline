@@ -17,7 +17,7 @@ from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -32,22 +32,36 @@ from .adk_runtime import run_agent_task
 from .artifacts import persist_action_artifact, persist_operational_output
 from .connectors import (
     ConnectorError,
+    execute_confluence_handoff,
+    execute_github_handoff,
     execute_jira_handoff,
+    execute_slack_handoff,
+    reverse_confluence_handoff,
+    reverse_github_handoff,
     reverse_jira_handoff,
+    reverse_slack_handoff,
 )
 from .decision_copilot import validate_approval_choice
 from .memory import build_memory_summary
 from .models import ActionItemStatus, JobState, WorkflowState, utc_now
+from .multimodal import (
+    MultimodalUnavailable,
+    analyze_visual_evidence,
+    get_visual_evidence,
+    visual_asset_bytes,
+)
 from .persistence import (
     claim_job,
     compare_and_set_workflow,
     list_jobs,
+    list_workflows,
     load_job,
     load_workflow,
     persist_job,
     persist_workflow,
     update_jobs_for_workflow,
 )
+from .simulator import simulate_scenarios
 from .source import (
     SOURCE_DEFINITIONS,
     list_allowlisted_sources,
@@ -133,6 +147,11 @@ class JobStartRequest(BaseModel):
     user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
     run_mode: Literal["demo", "monitor"] = "demo"
     source_id: str = Field(default="public/pricing", min_length=1, max_length=80)
+
+
+class MultimodalAnalysisRequest(BaseModel):
+    asset_id: str = Field(default="promise-card", min_length=1, max_length=80)
+    mode: Literal["live", "demo"] = "live"
 
 
 def _positive_int(name: str, default: int) -> int:
@@ -257,6 +276,18 @@ def _sync_jobs_for_workflow(workflow_id: str, status: str) -> None:
         job.status = status
         _set_job(job)
     update_jobs_for_workflow(workflow_id, status)
+
+
+def _safe_connector_call(
+    operation: Callable[[WorkflowState], dict[str, object]],
+    status_key: str,
+    state: WorkflowState,
+) -> dict[str, object]:
+    try:
+        return operation(state)
+    except ConnectorError as exc:
+        logger.warning("%s connector failed: %s", status_key, exc)
+        return {f"{status_key}_status": "failed", "external_write": False}
 
 
 def _enqueue_cloud_task(job: JobState) -> None:
@@ -503,11 +534,86 @@ def get_source_history(source_id: str, limit: int = 12) -> dict[str, object]:
     if source_id not in SOURCE_DEFINITIONS:
         raise HTTPException(status_code=404, detail="Source is not allowlisted")
     bounded_limit = max(1, min(limit, 50))
+    observations = list_source_history(source_id, bounded_limit)
     return {
         "source_id": source_id,
         "append_only": True,
-        "observations": list_source_history(source_id, bounded_limit),
+        "observations": observations,
+        "memory": build_memory_summary({source_id: observations}, [])[
+            "sources"
+        ][0],
     }
+
+
+@app.get("/api/memory/summary")
+def get_memory_summary(limit: int = 50) -> dict[str, object]:
+    """Return append-only change memory plus recurring and unresolved work."""
+    bounded_limit = max(1, min(limit, 100))
+    source_observations = {
+        source_id: list_source_history(source_id, bounded_limit)
+        for source_id in SOURCE_DEFINITIONS
+    }
+    with _jobs_lock:
+        workflows = [state.to_dict() for state in workflow_store._runs.values()]
+    if (
+        not workflows
+        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+    ):
+        workflows = [state.to_dict() for state in list_workflows(bounded_limit)]
+    return build_memory_summary(source_observations, workflows)
+
+
+@app.get("/api/multimodal/assets/{asset_id}/{side}")
+def get_multimodal_asset(
+    asset_id: str, side: str, mode: Literal["live", "demo"] = "live"
+) -> Response:
+    """Serve only bytes from the visual registry through the same origin."""
+    try:
+        asset = visual_asset_bytes(asset_id, side, mode)
+    except MultimodalUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(content=asset.body, media_type=asset.mime_type)
+
+
+@app.get("/api/multimodal/evidence/{asset_id}")
+def get_multimodal_evidence(
+    asset_id: str, mode: Literal["live", "demo"] = "live"
+) -> dict[str, object]:
+    """Return before/after visual metadata and the combined evidence hash."""
+    try:
+        evidence = get_visual_evidence(asset_id, mode)
+    except MultimodalUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    payload = evidence.to_dict()
+    payload["before_url"] = f"/api/multimodal/assets/{asset_id}/before?mode={mode}"
+    payload["after_url"] = f"/api/multimodal/assets/{asset_id}/after?mode={mode}"
+    return payload
+
+
+@app.post("/api/multimodal/analyze")
+async def analyze_multimodal(request: MultimodalAnalysisRequest) -> dict[str, object]:
+    """Run Gemini vision only on the bounded allowlisted visual pair."""
+    try:
+        return await asyncio.to_thread(
+            analyze_visual_evidence, request.asset_id, request.mode
+        )
+    except MultimodalUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/workflows/{workflow_id}/scenarios")
+def get_workflow_scenarios(workflow_id: str) -> dict[str, object]:
+    """Preview approve/grandfather/defer outcomes without making any writes."""
+    try:
+        state = _resolve_workflow(workflow_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    impacts = [item.__dict__ for item in state.impacts]
+    return simulate_scenarios(
+        impacts,
+        state.evidence.evidence_hash if state.evidence else None,
+        state.integration_targets,
+    )
 
 
 @app.post("/api/workflows/demo")
@@ -909,16 +1015,20 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         )
         storage_info = persist_action_artifact(state, kind="active")
         operational_info = persist_operational_output(state, kind="active")
-        try:
-            jira_info = execute_jira_handoff(state)
-        except ConnectorError as exc:
-            logger.warning("Jira handoff failed: %s", exc)
-            jira_info = {"jira_status": "failed", "external_write": False}
+        jira_info = _safe_connector_call(execute_jira_handoff, "jira", state)
+        confluence_info = _safe_connector_call(
+            execute_confluence_handoff, "confluence", state
+        )
+        slack_info = _safe_connector_call(execute_slack_handoff, "slack", state)
+        github_info = _safe_connector_call(execute_github_handoff, "github", state)
         state.action_record = {
             **(state.action_record or {}),
             **storage_info,
             **operational_info,
             **jira_info,
+            **confluence_info,
+            **slack_info,
+            **github_info,
             "operational_side_effect": operational_info.get(
                 "operational_status", "not_configured"
             ),
@@ -961,16 +1071,20 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         )
         storage_info = persist_action_artifact(state, kind="rollback")
         operational_info = persist_operational_output(state, kind="rollback")
-        try:
-            jira_info = reverse_jira_handoff(state)
-        except ConnectorError as exc:
-            logger.warning("Jira reversal failed: %s", exc)
-            jira_info = {"jira_status": "failed", "external_write": False}
+        jira_info = _safe_connector_call(reverse_jira_handoff, "jira", state)
+        confluence_info = _safe_connector_call(
+            reverse_confluence_handoff, "confluence", state
+        )
+        slack_info = _safe_connector_call(reverse_slack_handoff, "slack", state)
+        github_info = _safe_connector_call(reverse_github_handoff, "github", state)
         state.action_record = {
             **(state.action_record or {}),
             **storage_info,
             **operational_info,
             **jira_info,
+            **confluence_info,
+            **slack_info,
+            **github_info,
             "operational_side_effect": operational_info.get(
                 "operational_status", "not_configured"
             ),

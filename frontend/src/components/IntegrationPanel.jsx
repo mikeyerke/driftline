@@ -4,16 +4,19 @@ const icons = { Jira: TicketCheck, Confluence: FileText, Slack: MessageSquare, G
 
 export default function IntegrationPanel({ targets = [], approved, actionRecord }) {
   if (!targets.length) return null;
-  const jiraStatus = actionRecord?.jira_status;
-  const jiraWasWritten = jiraStatus === "created" || jiraStatus === "reused" || jiraStatus === "reversed";
+  const statusKeys = { Jira: "jira_status", Confluence: "confluence_status", Slack: "slack_status", GitHub: "github_status" };
+  const connectorStatuses = new Set(["created", "reused", "reversed"]);
   const statusFor = (target) => {
     if (!approved) return { label: "Prepared", written: false };
-    if (target.system !== "Jira") return { label: "Packet ready", written: false };
-    if (jiraStatus === "created") return { label: "Issue created", written: true };
-    if (jiraStatus === "reused") return { label: "Issue reused", written: true };
-    if (jiraStatus === "reversed") return { label: "Reversed", written: true };
+    const connectorStatus = actionRecord?.[statusKeys[target.system]];
+    if (connectorStatus === "created") return { label: "Created", written: true };
+    if (connectorStatus === "reused") return { label: "Reused", written: true };
+    if (connectorStatus === "reversed") return { label: "Reversed", written: true };
+    if (connectorStatus === "failed") return { label: "Failed", written: false };
+    if (connectorStatus === "not_eligible") return { label: "Not eligible", written: false };
     return { label: "Prepared only", written: false };
   };
+  const writes = Object.entries(statusKeys).filter(([, key]) => connectorStatuses.has(actionRecord?.[key])).map(([system, key]) => `${system}: ${actionRecord[key]}`);
   return (
     <section className="panel integration-panel" aria-labelledby="integration-title">
       <header className="panel-header">
@@ -36,9 +39,9 @@ export default function IntegrationPanel({ targets = [], approved, actionRecord 
         })}
       </div>
       <footer className="integration-footer">
-        {jiraWasWritten
-          ? <>Jira write: <strong>{jiraStatus === "created" ? "Issue created" : jiraStatus === "reused" ? "Existing issue reused" : "Reversed"}</strong> · Other destinations: <strong>prepared only</strong>.</>
-          : <>External writes: <strong>No</strong> · Jira and other destinations are prepared-only until a connector is explicitly configured.</>}
+        {writes.length
+          ? <>Connector writes: <strong>{writes.join(" · ")}</strong>. Each status is idempotent and reversible.</>
+          : <>External writes: <strong>No</strong> · Connectors are prepared-only until explicitly configured.</>}
       </footer>
     </section>
   );
