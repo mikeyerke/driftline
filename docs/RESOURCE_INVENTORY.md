@@ -38,7 +38,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Cloud Build compatibility bucket | `gs://driftline-hackathon-2026_cloudbuild` | Created by Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | GitHub repository | `https://github.com/mikeyerke/driftline` | Public, source matches deployed revision | Separate repository under existing user account; no organization created |
 | Jira site / project | `https://mikeyerke.atlassian.net` / `KAN` (`Driftline`) | Free Team-managed software project; no billing added | Atlassian API gateway cloud ID `7ed26020-ee58-470a-8fbb-3340925348ce`; connector is restricted to this project |
-| Secret Manager | `driftline-jira-token` | Active, automatic replication, versions 1–5; runtime reads `latest` | Dedicated runtime accessor only; latest credential is the user-created Jira gateway token, expires 2026-08-26; no token value is stored in Git or docs |
+| Secret Manager | `driftline-jira-token` | Active, automatic replication; version 5 enabled and versions 1–4 disabled; runtime reads `latest` | Dedicated runtime accessor only; latest credential is the user-created Jira gateway token, expires 2026-08-26; no token value is stored in Git or docs |
 
 Cloud Build ID `8c339b36-d137-4c8a-b4d6-2039a0ce31d5` completed successfully
 in `global` and deployed revision `driftline-00037-6nd` with the Jira gateway
