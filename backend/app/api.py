@@ -9,6 +9,7 @@ import logging
 import os
 from collections import deque
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from time import monotonic
@@ -64,9 +65,11 @@ from .persistence import (
 )
 from .simulator import simulate_scenarios
 from .source import (
-    SOURCE_DEFINITIONS,
     list_allowlisted_sources,
     list_source_history,
+    register_operator_source,
+    source_definition,
+    source_definitions,
     source_registry_health,
 )
 from .workflow import PolicyViolation, packet_markdown, workflow_store
@@ -116,12 +119,14 @@ class ApprovalRequest(BaseModel):
     copilot_option_id: str | None = Field(default=None, min_length=3, max_length=64)
     approval_mode: Literal["demo", "signed"] = "demo"
     approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
 
 
 class UndoRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
     approval_mode: Literal["demo", "signed"] = "demo"
     approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
 
 
 class ActionItemRequest(BaseModel):
@@ -154,6 +159,21 @@ class JobStartRequest(BaseModel):
 class MultimodalAnalysisRequest(BaseModel):
     asset_id: str = Field(default="promise-card", min_length=1, max_length=80)
     mode: Literal["live", "demo"] = "live"
+
+
+class SourceOnboardingRequest(BaseModel):
+    source_id: str = Field(min_length=8, max_length=80)
+    name: str = Field(min_length=1, max_length=120)
+    category: str = Field(min_length=1, max_length=80)
+    change_type: str = Field(min_length=1, max_length=100)
+    url: str = Field(min_length=12, max_length=500)
+    owner: str = Field(min_length=1, max_length=100)
+    cadence: str = Field(default="24h", max_length=4)
+    freshness_sla_hours: int = Field(default=48, ge=1, le=168)
+    parser: Literal["html", "text"] = "html"
+    registered_by: str = Field(min_length=1, max_length=120)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
 
 
 def _positive_int(name: str, default: int) -> int:
@@ -381,14 +401,15 @@ def _verify_approval_mode(
     actor: str,
     mode: str,
     token: str | None,
+    identity_token: str | None = None,
 ) -> dict[str, str]:
     """Bound public decisions to an explicit demo or signed approval mode.
 
     The public judge console intentionally runs in ``demo`` mode and creates
-    sandbox packets only.  A deployment that wants real operator identity can
-    set ``DRIFTLINE_APPROVAL_MODE=signed`` and provide an HMAC token generated
-    from the dedicated approval secret; unsigned public names are then
-    rejected before the workflow policy engine runs.
+    sandbox packets only. A configured operator lane can use a Google OIDC
+    identity for the allowlisted operator email, or an HMAC token generated
+    from the dedicated approval secret as an isolated break-glass path;
+    unsigned public names are rejected before the workflow policy engine runs.
     """
     configured = os.getenv("DRIFTLINE_APPROVAL_MODE", "demo").casefold()
     signed_enabled = (
@@ -410,6 +431,36 @@ def _verify_approval_mode(
             "mode": "demo",
             "identity": "named_demo_actor",
             "scope": "sandbox_packet_only",
+        }
+    if identity_token:
+        audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
+        if not audience:
+            raise HTTPException(status_code=403, detail="Google operator identity is not enabled")
+        try:
+            from google.auth.transport.requests import Request as GoogleRequest
+            from google.oauth2 import id_token
+
+            claims = id_token.verify_oauth2_token(
+                identity_token.removeprefix("Bearer ").strip(),
+                GoogleRequest(),
+                audience=audience,
+            )
+        except Exception as exc:  # pragma: no cover - Google-only runtime path.
+            raise HTTPException(status_code=401, detail="Invalid Google operator identity") from exc
+        email = str(claims.get("email", "")).casefold()
+        allowed = {
+            item.strip().casefold()
+            for item in os.getenv("DRIFTLINE_OPERATOR_EMAILS", "").split(",")
+            if item.strip()
+        }
+        if allowed and email not in allowed:
+            raise HTTPException(status_code=403, detail="Google operator is not allowlisted")
+        return {
+            "mode": "signed",
+            "identity": "google_oidc_operator",
+            "scope": "configured",
+            "subject": str(claims.get("sub", "")),
+            "email": email,
         }
     secret = os.getenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "")
     if not secret or not token:
@@ -581,6 +632,43 @@ def get_sources() -> dict[str, object]:
     return {"sources": list_allowlisted_sources()}
 
 
+@app.post("/api/operator/sources")
+def onboard_operator_source(request: SourceOnboardingRequest) -> dict[str, object]:
+    """Add one exact public source through an authenticated operator lane."""
+    approval_identity = _verify_approval_mode(
+        f"source-onboarding:{request.source_id}",
+        request.registered_by,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+    )
+    try:
+        definition = register_operator_source(
+            source_id=request.source_id,
+            name=request.name,
+            category=request.category,
+            change_type=request.change_type,
+            url=request.url,
+            owner=request.owner,
+            cadence=request.cadence,
+            freshness_sla_hours=request.freshness_sla_hours,
+            parser=request.parser,
+            registered_by=request.registered_by,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "status": "registered",
+        "source": {
+            key: value
+            for key, value in definition.items()
+            if key not in {"registered_by", "registered_at"}
+        },
+        "approval_identity": approval_identity,
+        "next_step": "Run a signed monitor tick for this source to establish its baseline.",
+    }
+
+
 @app.get("/api/monitor/registry")
 def get_monitor_registry() -> dict[str, object]:
     """Return source freshness and allowlist health without fetching sources."""
@@ -637,6 +725,9 @@ def get_ops_summary() -> dict[str, object]:
                 "DRIFTLINE_SIGNED_APPROVALS_ENABLED", "false"
             ).casefold()
             == "true",
+            "google_oidc_operator_enabled": bool(
+                os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
+            ),
             "external_writes_require_signed": True,
         },
         "jobs": {
@@ -685,6 +776,31 @@ def get_value_proof() -> dict[str, object]:
         any(event.get("detail") == "decision_reopened" for event in state.events)
         for state in workflows
     )
+    approval_latencies: list[float] = []
+    for state in workflows:
+        approval_event = next(
+            (event for event in state.events if event.get("outcome") == "approval_recorded"),
+            None,
+        )
+        if not approval_event:
+            continue
+        try:
+            created = datetime.fromisoformat(state.created_at)
+            approved = datetime.fromisoformat(str(approval_event["timestamp"]))
+            approval_latencies.append(max(0.0, (approved - created).total_seconds()))
+        except (KeyError, TypeError, ValueError):
+            continue
+    approval_latencies.sort()
+    p50_latency = (
+        approval_latencies[len(approval_latencies) // 2]
+        if approval_latencies
+        else None
+    )
+    p90_latency = (
+        approval_latencies[min(len(approval_latencies) - 1, int(len(approval_latencies) * 0.9))]
+        if approval_latencies
+        else None
+    )
     return {
         "generated_at": utc_now(),
         "scope": "observed_driftline_sandbox_records",
@@ -704,6 +820,20 @@ def get_value_proof() -> dict[str, object]:
             "source_observations": sum(
                 int(item.get("observation_count", 0)) for item in source_health
             ),
+            "approval_latency_seconds": {
+                "sample_count": len(approval_latencies),
+                "p50": p50_latency,
+                "p90": p90_latency,
+            },
+            "action_item_completion_rate": (
+                round(
+                    sum(item.get("status") == ActionItemStatus.COMPLETED.value for item in action_items)
+                    / len(action_items),
+                    3,
+                )
+                if action_items
+                else None
+            ),
         },
         "not_measured": [
             "hours_saved_per_change",
@@ -720,7 +850,7 @@ def get_value_proof() -> dict[str, object]:
 
 @app.get("/api/sources/{source_id:path}/history")
 def get_source_history(source_id: str, limit: int = 12) -> dict[str, object]:
-    if source_id not in SOURCE_DEFINITIONS:
+    if source_definition(source_id) is None:
         raise HTTPException(status_code=404, detail="Source is not allowlisted")
     bounded_limit = max(1, min(limit, 50))
     observations = list_source_history(source_id, bounded_limit)
@@ -740,7 +870,7 @@ def get_memory_summary(limit: int = 50) -> dict[str, object]:
     bounded_limit = max(1, min(limit, 100))
     source_observations = {
         source_id: list_source_history(source_id, bounded_limit)
-        for source_id in SOURCE_DEFINITIONS
+        for source_id in source_definitions()
     }
     with _jobs_lock:
         workflows = [state.to_dict() for state in workflow_store._runs.values()]
@@ -813,9 +943,14 @@ def start_demo(source_id: str = "public/pricing") -> dict:
             status_code=429,
             detail="Demo workflow rate limit reached; retry later.",
         )
-    if source_id not in SOURCE_DEFINITIONS:
+    definition = source_definition(source_id)
+    if definition is None:
         raise HTTPException(status_code=422, detail="Source is not allowlisted")
-    definition = SOURCE_DEFINITIONS[source_id]
+    if definition.get("dynamic") == "true":
+        raise HTTPException(
+            status_code=422,
+            detail="Operator-registered sources require a public monitor run",
+        )
     state = workflow_store.start_demo(
         source_id=source_id,
         source_name=definition["name"],
@@ -839,8 +974,14 @@ async def start_demo_job(
             status_code=429,
             detail="Live agent demo rate limit reached; retry later.",
         )
-    if request.source_id not in SOURCE_DEFINITIONS:
+    definition = source_definition(request.source_id)
+    if definition is None:
         raise HTTPException(status_code=422, detail="Source is not allowlisted")
+    if definition.get("dynamic") == "true" and request.run_mode != "monitor":
+        raise HTTPException(
+            status_code=422,
+            detail="Operator-registered sources require run_mode=monitor",
+        )
     query = (
         f"{request.query.strip()} Use the exact allowlisted source_id "
         f'"{request.source_id}". Do not choose a different source.'
@@ -886,14 +1027,14 @@ async def scheduler_tick(
     _verify_scheduler_request(request)
     configured_value = os.getenv("DRIFTLINE_MONITOR_SOURCES", "all").strip()
     configured = (
-        list(SOURCE_DEFINITIONS)
+        list(source_definitions())
         if configured_value.casefold() in {"", "all"}
         else [item.strip() for item in configured_value.split(",") if item.strip()]
     )
     source_ids = [source_id.strip()] if source_id else configured
     max_sources = _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5)
     source_ids = source_ids[:max_sources]
-    invalid = [item for item in source_ids if item not in SOURCE_DEFINITIONS]
+    invalid = [item for item in source_ids if source_definition(item) is None]
     if invalid:
         raise HTTPException(
             status_code=422,
@@ -1215,6 +1356,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         request.approver,
         request.approval_mode,
         request.approval_token,
+        request.identity_token,
     )
     try:
 
@@ -1289,6 +1431,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         request.actor,
         request.approval_mode,
         request.approval_token,
+        request.identity_token,
     )
     try:
 

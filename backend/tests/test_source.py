@@ -101,6 +101,59 @@ def test_source_registry_health_is_bounded_and_labels_synthetic_data() -> None:
     assert all(item["status"] in {"needs_baseline", "synthetic_only", "healthy", "stale"} for item in health)
 
 
+def test_operator_registered_source_is_exact_url_and_append_only(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    source.register_operator_source(
+        source_id="custom/example-pricing",
+        name="Example pricing page",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://example.com/pricing",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        parser="html",
+        registered_by="Signed operator",
+    )
+    monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+
+    class _Opener:
+        def open(self, request, timeout):
+            assert request.full_url == "https://example.com/pricing"
+            assert timeout == 8
+            return _Response("<html><body>Pro is now $59</body></html>")
+
+    monkeypatch.setattr(source, "build_opener", lambda _handler: _Opener())
+    store = InMemorySnapshotStore()
+    first = source.inspect_allowlisted_source("custom/example-pricing", store=store)
+    second = source.inspect_allowlisted_source("custom/example-pricing", store=store)
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert first["status"] == "baseline_established"
+    assert second["status"] == "unchanged"
+    assert second["data_mode"] == "operator_registered_public"
+    assert second["after"] == "Pro is now $59"
+
+
+def test_operator_registered_source_rejects_query_and_private_urls() -> None:
+    for url in ("https://example.com/pricing?token=secret", "https://127.0.0.1/pricing"):
+        try:
+            source.register_operator_source(
+                source_id="custom/rejected",
+                name="Rejected",
+                category="Competitor pricing",
+                change_type="Pricing move",
+                url=url,
+                owner="Product Marketing",
+                cadence="24h",
+                freshness_sla_hours=48,
+            )
+        except ValueError as exc:
+            assert "source_url" in str(exc)
+        else:  # pragma: no cover - security boundary assertion.
+            raise AssertionError("unsafe source URL was accepted")
+
+
 class _Response:
     def __init__(self, body: str) -> None:
         self.body = body

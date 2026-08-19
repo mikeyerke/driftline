@@ -4,7 +4,7 @@ import hmac
 import pytest
 from fastapi.testclient import TestClient
 
-from app import api
+from app import api, source
 from app.api import app
 from app.models import JobState
 
@@ -62,6 +62,39 @@ def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:
         "competitor/blog",
     ]
     assert len(payload["jobs"]) == 5
+
+
+def test_signed_operator_can_onboard_an_exact_public_source(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "test-only-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    source_id = "custom/example-pricing"
+    message = f"source-onboarding:{source_id}:Signed operator".encode()
+    token = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
+
+    response = client.post(
+        "/api/operator/sources",
+        json={
+            "source_id": source_id,
+            "name": "Example pricing",
+            "category": "Competitor pricing",
+            "change_type": "Pricing move",
+            "url": "https://example.com/pricing",
+            "owner": "Product Marketing",
+            "cadence": "24h",
+            "freshness_sla_hours": 48,
+            "parser": "html",
+            "registered_by": "Signed operator",
+            "approval_token": token,
+        },
+    )
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "registered"
+    assert response.json()["source"]["allowlist"] == "exact operator-registered HTTPS URL"
 
 
 def test_demo_approval_and_undo_round_trip() -> None:

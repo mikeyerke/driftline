@@ -8,7 +8,7 @@ from google.adk.agents import Agent
 from google.genai.types import GenerateContentConfig, ThinkingConfig
 
 from .persistence import load_workflow, persist_workflow
-from .source import SOURCE_DEFINITIONS, inspect_allowlisted_source
+from .source import inspect_allowlisted_source, source_definition
 from .workflow import workflow_store
 
 load_dotenv()
@@ -39,7 +39,7 @@ def inspect_source_change(source_id: str) -> dict:
         return snapshot
     state = workflow_store.start_demo(
         source_id=str(snapshot.get("source_id", source_id)),
-        source_name=SOURCE_DEFINITIONS.get(source_id, {}).get(
+        source_name=(source_definition(source_id) or {}).get(
             "name", "Allowlisted public snapshot"
         ),
         data_mode=snapshot["data_mode"],
@@ -88,10 +88,10 @@ must pause for a named human decision. Approval is owned by the separate human
 approval endpoint; you cannot approve, resume, or publish a workflow yourself.
 You may not manufacture or infer that approval. For a judge-ready request,
 read the requested source_id in the user message and call
-inspect_source_change with that exact allowlisted value. The approved values
-are public/pricing, public/terms, competitor/pricing, competitor/offerings,
-and competitor/blog. Never invent another source ID. Ground the response in
-the returned workflow state. Call get_workflow_state with the returned
+inspect_source_change with that exact registered value. Never invent another
+source ID. Operator-registered sources are exact public URLs with bounded
+fetches; they are not a crawler. Ground the response in the returned workflow
+state. Call get_workflow_state with the returned
 workflow_id before the final response so the state read is independently
 verified. For a monitor
 run, if the source tool returns baseline_established or unchanged, do not

@@ -15,9 +15,11 @@ battlecard, renewal playbook, enterprise FAQ, and CRM guidance. The console can
 also run bounded scenarios for competitor pricing, competitor capabilities,
 and competitor product blogs. Each scenario shows an offering impact graph,
 business domains, owners, work surfaces, and prepared handoffs. The deployed
-source adapter fetches only explicitly registered public GitHub snapshots when
-reachable and falls back to the clearly labelled synthetic replay when it is
-not. It is not connected to a real company system.
+source adapter fetches explicitly registered public snapshots. Judge fixtures
+remain pinned and deterministic; a signed operator can onboard additional
+exact HTTPS HTML/text URLs through `/api/operator/sources`, with redirects,
+query credentials, private addresses, and oversized bodies rejected. It is not
+connected to a real company system.
 
 ## Why it is agentic
 
@@ -67,6 +69,11 @@ console exposes `/api/monitor/registry` freshness state and `/api/ops/summary`
 runtime/connector guardrails without exposing credentials. Both live and
 identity-free preview mutations are query-capped and rate-limited to bound
 demo spend.
+
+Operator source onboarding is a separate signed lane: it persists one exact
+public URL in the isolated Firestore registry, then the bounded scheduler can
+monitor it alongside the fixtures. It is an allowlist of sources, not an
+arbitrary web crawler.
 
 ### Verified Jira connector
 
@@ -204,8 +211,9 @@ endpoint is the fallback for evaluation.
   isolated Driftline Cloud Storage lane. Approval may also create one
   project-scoped Jira Task after the deterministic gate; undo preserves the
   original object, reverses the Jira-owned labels, and writes durable markers.
-- The public demonstration names a demo operator but does not provide
-  production identity authentication.
+- The public console remains identity-free for judging. The signed operator
+  lane additionally accepts a Google OIDC token for the allowlisted operator
+  email, so configured writes and source onboarding have verifiable identity.
 - No real Salesforce, CRM, billing, customer, or private company data is used.
 
 ## Cost and isolation

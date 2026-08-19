@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import base64
 import hashlib
+import html
+import ipaddress
 import os
+import re
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from .snapshots import (
     FirestoreSnapshotStore,
@@ -17,6 +22,8 @@ from .snapshots import (
 from .workflow import DEMO_AFTER, DEMO_BEFORE, DEMO_SOURCE_URL
 
 _SYNTHETIC_STORE = InMemorySnapshotStore()
+_CUSTOM_SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {}
+_SOURCE_REGISTRY_COLLECTION = "driftline_source_registry"
 
 # The monitor intentionally has a tiny, reviewable source registry. Adding a
 # source means adding its pinned URL, bounded fallback text, and tests; it
@@ -95,6 +102,166 @@ SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {
 }
 
 
+def _firestore_enabled() -> bool:
+    return os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+
+
+def _registry_client():
+    from google.cloud import firestore
+
+    kwargs: dict[str, object] = {
+        "database": os.getenv("FIRESTORE_DATABASE", "(default)")
+    }
+    project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if project:
+        kwargs["project"] = project
+    return firestore.Client(**kwargs)
+
+
+def _registry_document_id(source_id: str) -> str:
+    return base64.urlsafe_b64encode(source_id.encode()).decode().rstrip("=")
+
+
+def source_definitions() -> dict[str, dict[str, str]]:
+    """Return static fixtures plus explicitly operator-registered sources."""
+    definitions = {**SOURCE_DEFINITIONS, **_CUSTOM_SOURCE_DEFINITIONS}
+    if not _firestore_enabled():
+        return definitions
+    try:
+        for snapshot in _registry_client().collection(_SOURCE_REGISTRY_COLLECTION).stream():
+            payload = snapshot.to_dict() or {}
+            if payload.get("enabled", True) and payload.get("source_id"):
+                definitions[str(payload["source_id"])] = {
+                    str(key): str(value)
+                    for key, value in payload.items()
+                    if value is not None
+                }
+    except Exception:  # noqa: BLE001 - registry outage must not hide fixtures.
+        # A registry outage must not hide the deterministic judge fixtures.
+        return definitions
+    return definitions
+
+
+def source_definition(source_id: str) -> dict[str, str] | None:
+    return source_definitions().get(source_id)
+
+
+def _validate_public_source_url(value: str) -> str:
+    parsed = urlparse(value.strip())
+    if (
+        parsed.scheme != "https"
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.port not in (None, 443)
+        or not parsed.hostname
+    ):
+        raise ValueError("source_url_must_be_https_without_credentials_or_query")
+    hostname = parsed.hostname.casefold()
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        address = None
+    if address is not None and (
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_reserved
+    ):
+        raise ValueError("source_url_private_address_rejected")
+    return value.strip().rstrip("/")
+
+
+def register_operator_source(
+    *,
+    source_id: str,
+    name: str,
+    category: str,
+    change_type: str,
+    url: str,
+    owner: str,
+    cadence: str,
+    freshness_sla_hours: int,
+    parser: str = "html",
+    registered_by: str = "signed_operator",
+) -> dict[str, str]:
+    """Register one exact public URL; no crawler or arbitrary query surface."""
+    if not re.fullmatch(r"custom/[a-z0-9][a-z0-9._/-]{0,72}", source_id):
+        raise ValueError("source_id_must_use_custom_namespace")
+    if source_id in SOURCE_DEFINITIONS:
+        raise ValueError("source_id_reserved")
+    if parser not in {"html", "text"}:
+        raise ValueError("source_parser_not_allowlisted")
+    if cadence not in {"1h", "6h", "12h", "24h", "7d"}:
+        raise ValueError("source_cadence_not_allowlisted")
+    if not 1 <= freshness_sla_hours <= 168:
+        raise ValueError("source_freshness_sla_out_of_bounds")
+    normalized = {
+        "source_id": source_id,
+        "name": name.strip()[:120],
+        "category": category.strip()[:80],
+        "change_type": change_type.strip()[:100],
+        "url": _validate_public_source_url(url),
+        "owner": owner.strip()[:100],
+        "cadence": cadence,
+        "freshness_sla_hours": str(freshness_sla_hours),
+        "source_kind": "operator_registered_public",
+        "source_parser": parser,
+        "allowlist": "exact operator-registered HTTPS URL",
+        "dynamic": "true",
+        "enabled": "true",
+        "registered_by": registered_by.strip()[:120],
+        "registered_at": datetime.now(UTC).isoformat(),
+    }
+    if not normalized["name"] or not normalized["category"] or not normalized["owner"]:
+        raise ValueError("source_metadata_required")
+    _CUSTOM_SOURCE_DEFINITIONS[source_id] = normalized
+    if _firestore_enabled():
+        payload: dict[str, object] = dict(normalized)
+        payload["enabled"] = True
+        _registry_client().collection(_SOURCE_REGISTRY_COLLECTION).document(
+            _registry_document_id(source_id)
+        ).set(payload)
+    return normalized
+
+
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise HTTPError(req.full_url, code, "redirect_not_allowed", headers, None)
+
+
+def _registered_body(definition: Mapping[str, str]) -> str:
+    request = Request(
+        definition["url"],
+        headers={"User-Agent": "Driftline-source-monitor/1.0"},
+        method="GET",
+    )
+    with build_opener(_NoRedirect()).open(request, timeout=8) as response:
+        body = response.read(16385).decode("utf-8", errors="strict")
+    if not body or len(body) > 16384:
+        raise ValueError("source_snapshot_out_of_bounds")
+    if definition.get("source_parser") == "html":
+        body = re.sub(
+            r"<script\b[^>]*>.*?</script>",
+            " ",
+            body,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        body = re.sub(
+            r"<style\b[^>]*>.*?</style>",
+            " ",
+            body,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        body = re.sub(r"<[^>]+>", " ", body)
+        body = html.unescape(body)
+    body = re.sub(r"\s+", " ", body).strip()
+    if not body:
+        raise ValueError("source_snapshot_empty")
+    return body[:16384]
+
+
 def _public_url_is_allowlisted(url: str, fixture: str) -> bool:
     """Allow only Driftline's pinned raw GitHub fixture, without redirects."""
     parsed = urlparse(url)
@@ -125,7 +292,29 @@ def _public_snapshot(
     cannot reach GitHub, the deterministic fixture remains available, but the
     returned mode makes that fallback visible instead of pretending it was live.
     """
-    definition = SOURCE_DEFINITIONS[source_id]
+    definition = source_definition(source_id)
+    if definition is None:
+        raise KeyError(source_id)
+    if definition.get("dynamic") == "true":
+        try:
+            body = _registered_body(definition)
+            return compare_and_record(
+                source_id=source_id,
+                body=body,
+                source_url=definition["url"],
+                snapshot_label=f"Operator-registered public URL · {source_id}",
+                data_mode="operator_registered_public",
+                store=store or _default_public_store(),
+            )
+        except (HTTPError, OSError, UnicodeDecodeError, URLError, ValueError):
+            return {
+                "status": "source_fetch_failed",
+                "change_detected": False,
+                "reason": "operator_registered_source_unavailable",
+                "source_id": source_id,
+                "source_url": definition["url"],
+                "data_mode": "operator_registered_public",
+            }
     url = os.getenv(str(definition["url_env"]), definition["url"])
     if not _public_url_is_allowlisted(url, definition["fixture"]):
         return {
@@ -196,10 +385,16 @@ def _public_snapshot(
 def inspect_allowlisted_source(
     source_id: str, *, store: SnapshotStore | None = None, force_replay: bool = False
 ) -> dict[str, object]:
-    definition = SOURCE_DEFINITIONS.get(source_id)
+    definition = source_definition(source_id)
     if definition is None:
         return {"status": "rejected", "reason": "source_not_allowlisted"}
     if os.getenv("DRIFTLINE_SOURCE_MODE", "synthetic").casefold() != "public":
+        if definition.get("dynamic") == "true":
+            return {
+                "status": "rejected",
+                "reason": "operator_registered_source_requires_public_mode",
+                "source_id": source_id,
+            }
         return {
             "status": "changed",
             "change_detected": True,
@@ -234,22 +429,22 @@ def list_allowlisted_sources() -> list[dict[str, str]]:
             "name": definition["name"],
             "category": definition["category"],
             "change_type": definition["change_type"],
-            "fixture": definition["fixture"],
-            "mode": "public_or_synthetic",
+            "fixture": definition.get("fixture", ""),
+            "mode": "public_only" if definition.get("dynamic") == "true" else "public_or_synthetic",
             "owner": definition["owner"],
             "cadence": definition["cadence"],
             "freshness_sla_hours": definition["freshness_sla_hours"],
             "source_kind": definition["source_kind"],
-            "allowlist": "pinned raw GitHub fixture only",
+            "allowlist": definition.get("allowlist", "pinned raw GitHub fixture only"),
         }
-        for source_id, definition in SOURCE_DEFINITIONS.items()
+        for source_id, definition in source_definitions().items()
     ]
 
 
 def list_source_history(source_id: str, limit: int = 20) -> list[dict[str, str]]:
     """Return append-only observations for one allowlisted source."""
 
-    if source_id not in SOURCE_DEFINITIONS:
+    if source_definition(source_id) is None:
         return []
     return snapshot_history(source_id, store=_default_public_store(), limit=limit)
 
@@ -273,7 +468,7 @@ def source_registry_health(*, now: datetime | None = None) -> list[dict[str, obj
     """
     current = now or datetime.now(UTC)
     health: list[dict[str, object]] = []
-    for source_id, definition in SOURCE_DEFINITIONS.items():
+    for source_id, definition in source_definitions().items():
         observations = list_source_history(source_id, limit=20)
         latest = observations[0] if observations else None
         retrieved = _parse_iso(latest.get("retrieved_at") if latest else None)
@@ -305,7 +500,7 @@ def source_registry_health(*, now: datetime | None = None) -> list[dict[str, obj
                 "age_seconds": age_seconds,
                 "next_due_at": next_due,
                 "source_url": definition["url"],
-                "allowlist": "pinned raw GitHub fixture only",
+                "allowlist": definition.get("allowlist", "pinned raw GitHub fixture only"),
             }
         )
     return health

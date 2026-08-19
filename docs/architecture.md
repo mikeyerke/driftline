@@ -31,15 +31,17 @@ analyst's artifact names, owners, risk values, and evidence hash before using
 the proposals; invalid output fails closed, with a deterministic fallback kept
 only for the explicitly labelled synthetic demo path. Cloud Tasks turns the scan into a durable
 asynchronous job; the task carries an OIDC identity and the worker verifies
-that identity before running. The source adapter can read only the two
-explicitly registered public snapshots (`public/pricing`, `public/terms`,
-`competitor/pricing`, `competitor/offerings`, and `competitor/blog`),
-with a bounded timeout and snapshot size; failed fetches become an explicitly
-labelled synthetic replay. Cloud Scheduler runs monitor
-mode every six hours, and a Firestore snapshot ledger distinguishes a baseline,
-unchanged source, and a verified change. Cloud Scheduler fans out one job per
-explicitly registered source with a bounded five-source cap; a signed canary
-can target one source. The deterministic workflow engine—not
+that identity before running. The source adapter starts with five pinned judge
+fixtures and can also read exact public HTTPS HTML/text URLs added by a signed
+operator through `/api/operator/sources`. Those operator sources are bounded
+to an 8-second fetch, 16KB body, no redirects, no query credentials, and no
+private or reserved addresses; this is an allowlist, not arbitrary competitor
+crawling. Failed fixture fetches become an explicitly labelled synthetic
+replay, while a failed operator source is reported unavailable rather than
+fabricated. Cloud Scheduler runs monitor mode every six hours, and a Firestore
+snapshot ledger distinguishes a baseline, unchanged source, and a verified
+change. Scheduler fan-out is capped at 25 sources; a signed canary can target
+one source. The deterministic workflow engine—not
 the model—creates the evidence, maps explicit offering impact profiles to
 downstream work surfaces, applies the
 approval policy, and records state transitions. Cloud Run hosts the API and
@@ -83,9 +85,13 @@ Driftline-owned labels and adds a comment, Confluence appends a named-human
 reversal note through a page version, Slack posts a reversal message, and GitHub
 adds a reversal label/comment. The signed operator lane directly verifies
 connector create/reversal while keeping tokens out of the browser and
-repository. The public demo has no identity provider, so the displayed “Demo
-operator” is a named demo actor, not production authentication; its connector
-statuses remain `prepared_only`. Salesforce is represented by a read-only,
-prepared-only context contract and is not authenticated in this isolated
-deployment. `/api/ops/value-proof` reports observed deployment counts and
-explicitly separates them from unmeasured customer ROI.
+repository. The public demo remains identity-free for judging, so the
+displayed “Demo operator” is a named demo actor, not production authentication;
+its connector statuses remain `prepared_only`. The signed operator lane
+verifies a Google OIDC identity for the configured operator email (with an
+isolated HMAC break-glass path) before any external write. Salesforce is
+represented by a read-only, prepared-only context contract and is not
+authenticated in this isolated deployment. `/api/ops/value-proof` reports
+observed deployment counts, approval latency, and action-item completion while
+explicitly separating those observations from unmeasured customer ROI, time
+saved, revenue lift, and willingness-to-pay.

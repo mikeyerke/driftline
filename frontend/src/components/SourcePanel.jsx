@@ -54,7 +54,7 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
         </div>
       </div>
       <MultimodalEvidencePanel assetId="promise-card" mode="live" />
-      <p className="source-note">The adapter reads only these explicitly allowlisted public snapshots. It cannot discover arbitrary URLs or use private company data. Competitor claims are observed signals, not verified product truth.</p>
+      <p className="source-note">The adapter reads pinned fixtures and exact operator-registered public URLs. It never follows redirects, accepts query credentials, private addresses, or unbounded bodies, and it cannot crawl the open web or use private company data. Competitor claims are observed signals, not verified product truth.</p>
     </section>
   );
 }
