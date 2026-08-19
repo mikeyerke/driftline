@@ -296,12 +296,12 @@ hourly cap. These are spend guards, not production authentication.
 
 ## 2026-08-19 bounded monitoring and verified operator release
 
-- Source commits: `edf5936` (bounded source onboarding and identity lane) and
-  `5273fcb` (deployment configuration fix). Both are pushed to
+- Source commit: `f2cc09f` (bounded source onboarding, verified operator lane,
+  and DNS-resolved source hardening), pushed to
   `https://github.com/mikeyerke/driftline`.
-- Cloud Build `0ef56fba-6067-4393-8076-062f11fcc654` — `SUCCESS`; Artifact
-  Registry image digest `sha256:7402e2116fa504b25e7308210be237a64887fa201db61668c6591f97668cd15b`.
-- Cloud Run revision `driftline-00065-6p2` serves 100% of traffic at the
+- Cloud Build `e2bef427-51b5-47d9-baa4-ab7b7de773ac` — `SUCCESS`; Artifact
+  Registry image digest `sha256:7e45a251d154c93b3d7d281fef53295112b15ddb641a240114f07a6c93c1b658`.
+- Cloud Run revision `driftline-00066-vhw` serves 100% of traffic at the
   existing public alias with `min=0`, `max=1`, `512MiB`, concurrency `20`, and
   timeout `300s`. The active project was verified as
   `driftline-hackathon-2026` before deployment.
@@ -313,17 +313,20 @@ hourly cap. These are spend guards, not production authentication.
   this release.
 - The operator lane accepted a Google OIDC identity token for the allowlisted
   `mikeyerke@gmail.com` identity. Workflow
-  `23f86ee2-0881-4a30-a4aa-288e82853348` created and reversed Jira `KAN-16`,
-  Confluence page `720897`, Slack message `1787179128.138909`, and GitHub
-  issue `mikeyerke/driftline#9`; the audit record stored the verified subject
-  and email, not the token. A separate public demo workflow returned all four
-  connector statuses as `prepared_only` with `external_write=false`.
-- The live `/api/agent/run` path completed twice with
+  `f30a4766-6293-4ea5-a11d-0e4ec886c8ce` created and reversed Jira `KAN-17`,
+  reused the dedicated Confluence page `720897`, created and reversed Slack
+  message `1787179614.144379` and GitHub issue `mikeyerke/driftline#10`; the
+  audit record stored the verified subject and email, not the token. A separate
+  public demo workflow
+  `c24a90ed-8f47-44f9-912e-614ea1c079fe` returned all four connector statuses
+  as `prepared_only` with `external_write=false`.
+- The live `/api/agent/run` path completed on the final revision with
   `model=gemini-3.5-flash`, `execution_mode=google_adk`, and tools limited to
-  `inspect_source_change` and `get_workflow_state`. Firestore-backed
-  `/api/ops/value-proof` observed 50 bounded workflow records, 8 source
-  observations, 37 approval-latency samples (p50 18.58s, p90 45.04s), and a
-  1.7% action-item completion rate. These are deployment observations only;
+  `inspect_source_change` and `get_workflow_state` (workflow
+  `73f8648c-3410-49fc-953d-becf26f2c2f1`). Firestore-backed
+  `/api/ops/value-proof` observed 3 workflows, 8 source observations, 2
+  approval-latency samples (p50/p90 0.50s), and 0% action-item completion in
+  the final smoke window. These are deployment observations only;
   customer hours saved, revenue/win-rate lift, retention impact, and
   willingness-to-pay remain unmeasured.
 - Salesforce remains `not_configured` / `prepared_only`; no Salesforce org,
