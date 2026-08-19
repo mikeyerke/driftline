@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, Globe2, Hash, History, ShieldCheck } from "lucide-react";
 import { getSourceHistory } from "../api";
+import MultimodalEvidencePanel from "./MultimodalEvidencePanel";
 
 export default function SourcePanel({ evidence, dataMode, sources = [], selectedSource, onSourceChange }) {
   const isPublic = dataMode === "public_source";
@@ -40,6 +41,7 @@ export default function SourcePanel({ evidence, dataMode, sources = [], selected
             : <ol>{history.map((observation) => <li key={`${observation.retrieved_at}-${observation.snapshot_hash}`}><span><b>{new Date(observation.retrieved_at).toLocaleString()}</b><small>{observation.snapshot_hash.slice(0, 12)}… · {observation.data_mode.replaceAll("_", " ")}</small></span><code>{observation.body}</code></li>)}</ol>}
         </div>
       </div>
+      <MultimodalEvidencePanel assetId="promise-card" mode="live" />
       <p className="source-note">The adapter reads only these explicitly allowlisted public snapshots. It cannot discover arbitrary URLs or use private company data. Competitor claims are observed signals, not verified product truth.</p>
     </section>
   );
