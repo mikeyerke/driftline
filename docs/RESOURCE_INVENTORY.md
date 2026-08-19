@@ -113,7 +113,9 @@ The current public release was exercised on revision `driftline-00025-nsj`:
 - A signed Scheduler run on the current revision created monitor job
   `job-19b95cca8363`, completed `unchanged`, and the append-only history API
   returned its Firestore observation at
-  `/api/sources/public/pricing/history`.
+  `/api/sources/public/pricing/history`. A second signed run,
+  `job-19e3895ac2f7`, also completed `unchanged`; the history endpoint now
+  returns two distinct immutable observations for the same source hash.
 - The artifact bucket is isolated from Cloud Build buckets and has no public
   IAM members. A successful approval writes a packet object; undo writes a
   separate rollback marker so the original object remains versioned evidence.
