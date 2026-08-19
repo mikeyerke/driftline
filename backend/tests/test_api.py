@@ -126,6 +126,103 @@ def test_approved_action_item_can_be_claimed_and_completed_by_same_human() -> No
         == "completed"
     )
 
+    duplicate_complete = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/complete",
+        json={"actor": "Alex Kim"},
+    )
+    assert duplicate_complete.status_code == 200
+
+
+def test_action_claim_is_idempotent_for_the_same_human() -> None:
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Demo operator"},
+    )
+    item_id = approved.json()["action_items"][0]["item_id"]
+
+    first = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/claim",
+        json={"actor": "Alex Kim"},
+    )
+    event_count = len(first.json()["events"])
+    duplicate = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/claim",
+        json={"actor": "Alex Kim"},
+    )
+
+    assert first.status_code == 200
+    assert duplicate.status_code == 200
+    assert len(duplicate.json()["events"]) == event_count
+    assert duplicate.json()["action_items"][0]["attempts"] == 1
+
+
+def test_failed_action_can_be_retried_and_repeated_retry_is_idempotent() -> None:
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Demo operator"},
+    )
+    item_id = approved.json()["action_items"][0]["item_id"]
+    claimed = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/claim",
+        json={"actor": "Alex Kim"},
+    )
+    assert claimed.status_code == 200
+
+    failed = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/fail",
+        json={"actor": "Alex Kim", "reason": "Owner review timed out"},
+    )
+    assert failed.status_code == 200
+    retried = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/retry",
+        json={"actor": "Alex Kim"},
+    )
+    duplicate_retry = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/retry",
+        json={"actor": "Alex Kim"},
+    )
+
+    assert retried.status_code == 200
+    assert duplicate_retry.status_code == 200
+    item = duplicate_retry.json()["action_items"][0]
+    assert item["status"] == "queued"
+    assert item["retry_count"] == 1
+
+
+def test_completed_action_can_be_reversed_idempotently() -> None:
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Demo operator"},
+    )
+    item_id = approved.json()["action_items"][0]["item_id"]
+    client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/claim",
+        json={"actor": "Alex Kim"},
+    )
+    client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/complete",
+        json={"actor": "Alex Kim"},
+    )
+
+    reversed_once = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/reverse",
+        json={"actor": "Alex Kim"},
+    )
+    reversed_twice = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/reverse",
+        json={"actor": "Alex Kim"},
+    )
+
+    assert reversed_once.status_code == 200
+    assert reversed_twice.status_code == 200
+    assert reversed_twice.json()["action_items"][0]["status"] == "reversed"
+
 
 def test_live_agent_query_is_bounded_before_execution() -> None:
     response = client.post("/api/agent/run", json={"query": "x" * 2001})

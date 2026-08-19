@@ -109,6 +109,10 @@ class ActionItemRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
 
 
+class ActionFailureRequest(ActionItemRequest):
+    reason: str = Field(min_length=1, max_length=240)
+
+
 class AgentRunRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
     user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
@@ -644,7 +648,10 @@ def get_workflow(workflow_id: str) -> dict:
 
 def _require_action_actor(actor: str) -> str:
     cleaned = actor.strip()
-    if not cleaned or cleaned.casefold() in {"agent", "system", "gemini"}:
+    if not cleaned or any(
+        token in {"agent", "system", "gemini", "assistant"}
+        for token in cleaned.casefold().split()
+    ):
         raise HTTPException(status_code=400, detail="A named human actor is required")
     return cleaned
 
@@ -658,43 +665,70 @@ def get_actions(workflow_id: str) -> dict[str, object]:
     return {"actions": state.action_items}
 
 
-@app.post("/api/workflows/{workflow_id}/actions/{item_id}/claim")
-def claim_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
-    actor = _require_action_actor(request.actor)
+def _action_item(state: WorkflowState, item_id: str) -> dict[str, object]:
+    item = next(
+        (entry for entry in state.action_items if entry["item_id"] == item_id), None
+    )
+    if item is None:
+        raise KeyError(f"Unknown action item: {item_id}")
+    return item
+
+
+def _action_event(
+    state: WorkflowState, item_id: str, outcome: str, actor: str
+) -> None:
+    state.events.append(
+        {
+            "event_id": f"event-{uuid4().hex[:12]}",
+            "actor": "action_lifecycle",
+            "outcome": f"{item_id}:{outcome}",
+            "timestamp": utc_now(),
+            "action_item_id": item_id,
+            "human_actor": actor,
+        }
+    )
+    state.updated_at = utc_now()
+
+
+def _action_transition(
+    workflow_id: str,
+    item_id: str,
+    actor: str,
+    transition: Callable[[WorkflowState, dict[str, object], str], None],
+) -> dict:
+    """Apply one idempotent action-item transition through workflow CAS."""
+    cleaned_actor = _require_action_actor(actor)
 
     def apply(state: WorkflowState) -> WorkflowState:
         if state.status.value != "complete":
             raise PolicyViolation("Actions are available after approval")
-        item = next(
-            (entry for entry in state.action_items if entry["item_id"] == item_id), None
-        )
-        if item is None:
-            raise KeyError(f"Unknown action item: {item_id}")
-        if item.get("status") != ActionItemStatus.QUEUED.value:
-            raise PolicyViolation("Action item is not queued")
-        item.update(
-            {
-                "status": ActionItemStatus.CLAIMED.value,
-                "claimed_by": actor,
-                "claimed_at": utc_now(),
-                "attempts": int(item.get("attempts", 0)) + 1,
-            }
-        )
-        state.events.append(
-            {
-                "event_id": f"event-{uuid4().hex[:12]}",
-                "actor": "action_lifecycle",
-                "outcome": f"{item_id}:claimed",
-                "timestamp": utc_now(),
-                "action_item_id": item_id,
-                "human_actor": actor,
-            }
-        )
-        state.updated_at = utc_now()
+        transition(state, _action_item(state, item_id), cleaned_actor)
         return state
 
+    return _transition_workflow(workflow_id, "complete", apply).to_dict()
+
+
+@app.post("/api/workflows/{workflow_id}/actions/{item_id}/claim")
+def claim_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
     try:
-        return _transition_workflow(workflow_id, "complete", apply).to_dict()
+        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+            if item.get("status") == ActionItemStatus.CLAIMED.value:
+                if item.get("claimed_by") == actor:
+                    return
+                raise PolicyViolation("Action item is already claimed")
+            if item.get("status") != ActionItemStatus.QUEUED.value:
+                raise PolicyViolation("Action item is not queued")
+            item.update(
+                {
+                    "status": ActionItemStatus.CLAIMED.value,
+                    "claimed_by": actor,
+                    "claimed_at": utc_now(),
+                    "attempts": int(item.get("attempts", 0)) + 1,
+                }
+            )
+            _action_event(state, item_id, "claimed", actor)
+
+        return _action_transition(workflow_id, item_id, request.actor, transition)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
@@ -703,43 +737,118 @@ def claim_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> 
 
 @app.post("/api/workflows/{workflow_id}/actions/{item_id}/complete")
 def complete_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
-    actor = _require_action_actor(request.actor)
-
-    def apply(state: WorkflowState) -> WorkflowState:
-        if state.status.value != "complete":
-            raise PolicyViolation("Actions are available after approval")
-        item = next(
-            (entry for entry in state.action_items if entry["item_id"] == item_id), None
-        )
-        if item is None:
-            raise KeyError(f"Unknown action item: {item_id}")
-        if (
-            item.get("status") != ActionItemStatus.CLAIMED.value
-            or item.get("claimed_by") != actor
-        ):
-            raise PolicyViolation("Only the claiming actor can complete this action")
-        item.update(
-            {
-                "status": ActionItemStatus.COMPLETED.value,
-                "completed_by": actor,
-                "completed_at": utc_now(),
-            }
-        )
-        state.events.append(
-            {
-                "event_id": f"event-{uuid4().hex[:12]}",
-                "actor": "action_lifecycle",
-                "outcome": f"{item_id}:completed",
-                "timestamp": utc_now(),
-                "action_item_id": item_id,
-                "human_actor": actor,
-            }
-        )
-        state.updated_at = utc_now()
-        return state
-
     try:
-        return _transition_workflow(workflow_id, "complete", apply).to_dict()
+        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+            if item.get("status") == ActionItemStatus.COMPLETED.value:
+                if item.get("completed_by") == actor or item.get("claimed_by") == actor:
+                    return
+                raise PolicyViolation("Only the claiming actor can complete this action")
+            if (
+                item.get("status") != ActionItemStatus.CLAIMED.value
+                or item.get("claimed_by") != actor
+            ):
+                raise PolicyViolation("Only the claiming actor can complete this action")
+            item.update(
+                {
+                    "status": ActionItemStatus.COMPLETED.value,
+                    "completed_by": actor,
+                    "completed_at": utc_now(),
+                }
+            )
+            _action_event(state, item_id, "completed", actor)
+
+        return _action_transition(workflow_id, item_id, request.actor, transition)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PolicyViolation as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/workflows/{workflow_id}/actions/{item_id}/fail")
+def fail_action(
+    workflow_id: str, item_id: str, request: ActionFailureRequest
+) -> dict:
+    """Record a bounded human-visible failure so a queued retry is possible."""
+    try:
+        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+            if item.get("status") == ActionItemStatus.FAILED.value:
+                if item.get("failed_by") == actor and item.get("failure_reason") == request.reason:
+                    return
+                raise PolicyViolation("Action item is already failed")
+            if (
+                item.get("status") != ActionItemStatus.CLAIMED.value
+                or item.get("claimed_by") != actor
+            ):
+                raise PolicyViolation("Only the claiming actor can fail this action")
+            item.update(
+                {
+                    "status": ActionItemStatus.FAILED.value,
+                    "failed_by": actor,
+                    "failed_at": utc_now(),
+                    "failure_reason": request.reason,
+                }
+            )
+            _action_event(state, item_id, "failed", actor)
+
+        return _action_transition(workflow_id, item_id, request.actor, transition)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PolicyViolation as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/workflows/{workflow_id}/actions/{item_id}/retry")
+def retry_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
+    """Requeue a failed item; repeat retries by the same actor are idempotent."""
+    try:
+        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+            if item.get("status") == ActionItemStatus.QUEUED.value:
+                if item.get("retried_by") in (None, actor):
+                    return
+                raise PolicyViolation("Action item is already queued")
+            if item.get("status") != ActionItemStatus.FAILED.value:
+                raise PolicyViolation("Only a failed action can be retried")
+            item.update(
+                {
+                    "status": ActionItemStatus.QUEUED.value,
+                    "retried_by": actor,
+                    "retried_at": utc_now(),
+                    "retry_count": int(item.get("retry_count", 0)) + 1,
+                }
+            )
+            _action_event(state, item_id, "retried", actor)
+
+        return _action_transition(workflow_id, item_id, request.actor, transition)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PolicyViolation as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/workflows/{workflow_id}/actions/{item_id}/reverse")
+def reverse_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
+    """Reversibly close an individual action item without deleting its audit."""
+    try:
+        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+            if item.get("status") == ActionItemStatus.REVERSED.value:
+                return
+            if item.get("status") not in {
+                ActionItemStatus.QUEUED.value,
+                ActionItemStatus.CLAIMED.value,
+                ActionItemStatus.COMPLETED.value,
+                ActionItemStatus.FAILED.value,
+            }:
+                raise PolicyViolation("Action item cannot be reversed")
+            item.update(
+                {
+                    "status": ActionItemStatus.REVERSED.value,
+                    "reversed_by": actor,
+                    "reversed_at": utc_now(),
+                }
+            )
+            _action_event(state, item_id, "reversed", actor)
+
+        return _action_transition(workflow_id, item_id, request.actor, transition)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
