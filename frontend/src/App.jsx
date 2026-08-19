@@ -282,7 +282,7 @@ export default function App() {
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
           <TrustPanel actionRecord={actionRecord} />
-          <footer className="demo-footer"><span>ⓘ Synthetic replay remains available when the public source cannot be fetched.</span><span>Approval gating is deterministic; customer-system writes require the explicit connector path.</span></footer>
+          <footer className="demo-footer"><span>ⓘ Synthetic replay remains available when the public source cannot be fetched.</span><span>Approval gating is deterministic; the public demo is packet-only and configured writes require signed operator approval.</span></footer>
         </div>
       </main>
 

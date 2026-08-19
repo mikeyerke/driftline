@@ -23,7 +23,7 @@ export default function IntegrationPanel({ targets = [], approved, actionRecord 
         <div><h2 id="integration-title">PMM handoff destinations</h2><span className="live-label">Approval-gated</span></div>
         <span className="muted">No silent writes</span>
       </header>
-      <p className="integration-intro">Driftline turns the impact map into target-specific packets. Only an explicitly configured connector may write after approval; every other destination remains prepared-only.</p>
+      <p className="integration-intro">Driftline turns the impact map into target-specific packets. The public demo is prepared-only; configured connectors can write only after a separately authenticated signed-operator approval.</p>
       <div className="integration-list">
         {targets.map((target) => {
           const Icon = icons[target.system] || Hash;
@@ -41,7 +41,7 @@ export default function IntegrationPanel({ targets = [], approved, actionRecord 
       <footer className="integration-footer">
         {writes.length
           ? <>Connector writes: <strong>{writes.join(" · ")}</strong>. Each status is idempotent and reversible.</>
-          : <>External writes: <strong>No</strong> · Connectors are prepared-only until explicitly configured.</>}
+          : <>External writes: <strong>No</strong> · Public demo packets stay prepared-only; signed operator approval is required for configured connectors.</>}
       </footer>
     </section>
   );
