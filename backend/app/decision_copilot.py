@@ -174,6 +174,18 @@ def _parse(text_parts: list[str], state: WorkflowState) -> DecisionCopilot:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise AnalysisUnavailable("Gemini returned non-JSON decision copilot output") from exc
+    # Gemini occasionally emits a semantically valid option set with a
+    # recommendation label that is not one of its generated IDs. Preserve the
+    # model's bounded options, but deterministically bind the recommendation to
+    # the first option before the strict evidence/policy validation below.
+    if isinstance(payload, dict) and payload.get("options"):
+        option_ids = {
+            item.get("option_id")
+            for item in payload["options"]
+            if isinstance(item, dict)
+        }
+        if payload.get("recommendation_id") not in option_ids:
+            payload["recommendation_id"] = payload["options"][0].get("option_id")
     return validate_copilot(payload, state)
 
 
