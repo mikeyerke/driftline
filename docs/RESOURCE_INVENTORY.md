@@ -30,7 +30,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:a6203e50-4456-4a88-9b55-6fd5f62b2b58`; digest `sha256:01c7b474596b4ac4296021db314ed6f83ff27b7441722af6fff64ceeb21d92d6` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:cd9a8ce5-d4ee-42a8-bfca-44e3bbe6a330`; digest `sha256:9c9d0348d1511264d270a75da2614ae4a5b19d7ed9735c9bf0b01b167174b86d` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -60,8 +60,8 @@ account, API key, repository, or environment variable is reused.
 
 ## Current connector release evidence
 
-Cloud Build `a6203e50-4456-4a88-9b55-6fd5f62b2b58` completed successfully from
-commit `6ae410d` and deployed Cloud Run revision `driftline-00058-86j`. The
+Cloud Build `cd9a8ce5-d4ee-42a8-bfca-44e3bbe6a330` completed successfully from
+commit `16c53ba` and deployed Cloud Run revision `driftline-00059-jvr`. The
 active project was verified as `driftline-hackathon-2026` before the build.
 
 - Workflow `d1c90381-a2a4-489e-89c7-dfd565289389` reached `needs_approval`, was
@@ -79,6 +79,10 @@ active project was verified as `driftline-hackathon-2026` before the build.
   with `401 Unauthorized; scope does not match` when it attempted the legacy
   v1 route. That failure led to the v2-only gateway fix; no failed write was
   claimed as successful.
+- The final idempotency/aggregate audit run reused Confluence page `524289`,
+  reported `external_write=true` and `external_systems_changed=true`, then
+  created and reversed new marker-scoped Slack/Jira/GitHub records. The final
+  workflow state is again `needs_approval` with the external records retained.
 
 ## Verified live evidence
 
