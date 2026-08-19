@@ -24,7 +24,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00052-7bw`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; Jira and GitHub are enabled through isolated Secret Manager bindings; Confluence/Slack remain explicitly disabled |
+| Cloud Run service | `driftline` in `us-central1` | Ready, next revision from checked-in Slack config | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; Jira, GitHub, and Slack are enabled through isolated Secret Manager bindings; Confluence remains explicitly disabled pending its token scope |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
@@ -41,6 +41,8 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | GitHub connector target | `mikeyerke/driftline` | Authenticated and directly verified | Dedicated `driftline-github-token` Secret Manager secret; connector created and reversed issue `#1`; repository scope is fixed in runtime config |
 | Secret Manager | `driftline-jira-token` | Active, automatic replication; version 6 enabled and versions 1–5 disabled; runtime reads `latest` | Dedicated runtime accessor only; latest credential is the user-created Jira gateway token, expires 2027-02-19; no token value is stored in Git or docs |
 | Secret Manager | `driftline-github-token` | Active, automatic replication; version 2 is current | Dedicated runtime accessor only; token comes from the already-authenticated GitHub CLI session; no token value is stored in Git or docs |
+| Secret Manager | `driftline-slack-token` | Active, automatic replication; current bot token version | Dedicated runtime accessor only; token is scoped to the isolated Driftline Slack workspace and app; no token value is stored in Git or docs |
+| Slack workspace / app | `Driftline` / `Driftline` app | Free plan; app installed and added only to `#new-channel` (`C0BRGFUSADA`) | Bot scopes: `channels:history`, `chat:write`; no paid plan or billing added |
 
 Cloud Build ID `51c869d8-e134-4664-8120-3ed1004001ea` completed successfully
 in `global` and deployed revision `driftline-00049-q48` from runtime commit

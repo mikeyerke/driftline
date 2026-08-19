@@ -77,15 +77,17 @@ the latest live run created `KAN-3` (`jira_status=created`, `external_write=true
 reversible: it keeps the issue, removes only the Driftline active label, adds
 `driftline-reversed`, and appends an audit comment. The same run verified
 `jira_status=reversed` against Jira through the gateway. Confluence, Slack, and
-GitHub have real API adapters in the same code path, with Secret Manager-or-
-environment credential resolution, HTTPS and scope validation, marker-based
-idempotency, and reversible markers. GitHub is authenticated for the isolated
-`mikeyerke/driftline` repository and was directly verified by creating and
-reversing issue #1. Confluence and Slack remain explicit `not_configured` /
-prepared-only states because this Atlassian site has no reachable Confluence API
-surface and no Slack credential is present. Each can be enabled independently
-with its own project, space, channel, or repository scope; a failed connector is
-recorded as `failed` and never turns into a successful claim.
+GitHub, Confluence, and Slack have real API adapters in the same code path, with
+Secret Manager-or-environment credential resolution, HTTPS and scope validation,
+marker-based idempotency, and reversible markers. GitHub is authenticated for the
+isolated `mikeyerke/driftline` repository and was directly verified by creating
+and reversing issue #1. Slack is authenticated for the isolated free `Driftline`
+workspace and `#new-channel`; the bot has only `channels:history` and
+`chat:write` and is added only to that channel. Confluence is provisioned on the
+free plan, but its API credential still needs the Atlassian identity step-up and
+an account token with Confluence scope. Each connector can be enabled
+independently with its own project, space, channel, or repository scope; a failed
+connector is recorded as `failed` and never turns into a successful claim.
 
 | Connector | Enable flag | Required scope |
 | --- | --- | --- |

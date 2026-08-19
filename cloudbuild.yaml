@@ -37,6 +37,10 @@ steps:
       # the app resolves the token through Secret Manager at runtime.
       - --update-env-vars=DRIFTLINE_GITHUB_ENABLED=true,DRIFTLINE_GITHUB_OWNER=mikeyerke,DRIFTLINE_GITHUB_REPO=driftline,DRIFTLINE_GITHUB_TOKEN_SECRET=driftline-github-token
       - --remove-env-vars=DRIFTLINE_GITHUB_TOKEN
+      # Slack is authenticated only for the isolated Driftline workspace/channel;
+      # the app resolves the bot token through Secret Manager at runtime.
+      - --update-env-vars=DRIFTLINE_SLACK_ENABLED=true,DRIFTLINE_SLACK_CHANNEL_ID=C0BRGFUSADA,DRIFTLINE_SLACK_BASE_URL=https://slack.com/api/,DRIFTLINE_SLACK_TOKEN_SECRET=driftline-slack-token
+      - --update-secrets=DRIFTLINE_SLACK_TOKEN=driftline-slack-token:latest
 substitutions:
   _REGION: us-central1
   _REPOSITORY: driftline

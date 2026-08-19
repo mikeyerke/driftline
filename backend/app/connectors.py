@@ -485,6 +485,7 @@ class SlackConfig:
             enabled=enabled,
             token=_secret_or_env("DRIFTLINE_SLACK_TOKEN") if enabled else "",
             channel_id=os.getenv("DRIFTLINE_SLACK_CHANNEL_ID", ""),
+            base_url=os.getenv("DRIFTLINE_SLACK_BASE_URL", "https://slack.com/api/").rstrip("/") + "/",
         )
 
     def validate(self) -> None:
