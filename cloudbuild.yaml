@@ -21,7 +21,10 @@ steps:
       - --allow-unauthenticated
       - --service-account=${_RUN_SERVICE_ACCOUNT}
       - --min=0
-      - --max=3
+      # Keep the isolated hackathon service bounded to one instance. Cloud
+      # Run applies this at the revision level, so it must stay explicit here
+      # even if the service-level annotation is already present.
+      - --max=1
       - --cpu=1
       - --memory=512Mi
       - --timeout=300

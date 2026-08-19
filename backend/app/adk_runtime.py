@@ -15,6 +15,21 @@ from .workflow import workflow_store
 APP_NAME = "driftline"
 
 
+def _analysis_failure_result(
+    *, run_mode: str, reason: str, artifact_count: int | None = None
+) -> dict[str, object]:
+    """Keep deterministic drafts demo-only; live runs fail closed."""
+    if run_mode != "demo":
+        raise AnalysisUnavailable(reason)
+    result: dict[str, object] = {
+        "mode": "deterministic_demo_fallback",
+        "reason": reason,
+    }
+    if artifact_count is not None:
+        result["artifact_count"] = artifact_count
+    return result
+
+
 async def run_agent_task(
     query: str, user_id: str = "demo-operator", run_mode: str = "demo"
 ) -> dict:
@@ -83,27 +98,21 @@ async def run_agent_task(
         except KeyError:
             state = load_workflow(workflow_id)
         if state is None:
-            if run_mode != "demo":
-                raise AnalysisUnavailable(
-                    "Workflow state unavailable for structured analysis"
-                )
-            analysis_info = {
-                "mode": "deterministic_demo_fallback",
-                "reason": "workflow state unavailable for structured analysis",
-            }
+            analysis_info = _analysis_failure_result(
+                run_mode=run_mode,
+                reason="Workflow state unavailable for structured analysis",
+            )
         else:
             try:
                 structured = await analyze_workflow(state)
                 analysis_info = analysis_trace(structured)
                 persist_workflow(state)
             except AnalysisUnavailable as exc:
-                if run_mode != "demo":
-                    raise
-                analysis_info = {
-                    "mode": "deterministic_demo_fallback",
-                    "reason": str(exc),
-                    "artifact_count": len(state.impacts),
-                }
+                analysis_info = _analysis_failure_result(
+                    run_mode=run_mode,
+                    reason=str(exc),
+                    artifact_count=len(state.impacts),
+                )
     else:
         analysis_info = {
             "mode": "deterministic_demo_fallback",
