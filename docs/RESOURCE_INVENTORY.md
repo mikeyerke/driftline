@@ -24,13 +24,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00040-jr6`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; `cloudbuild.yaml` is authoritative for both caps; Jira gateway env and Secret Manager binding are in the deploy manifest |
+| Cloud Run service | `driftline` in `us-central1` | Ready, revision `driftline-00049-q48`, 100% traffic | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; `cloudbuild.yaml` is authoritative for both caps; Jira gateway env and Secret Manager binding are in the deploy manifest; Confluence/Slack/GitHub explicitly disabled until separately scoped credentials exist |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Verified build image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:2b1ec22e-34c4-44ee-b67f-ceb8e866060f`; digest `sha256:23a5f9f276c1b0f76c2b178c1c6e3a7e1ef653f1e29125900c098ab3442ca058` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Verified build image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:51c869d8-e134-4664-8120-3ed1004001ea`; digest `sha256:1cf154d40da540d68319404e4e10ba57d5bc271f58328b9d578d0a5348dd0b17` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -40,13 +40,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Jira site / project | `https://mikeyerke.atlassian.net` / `KAN` (`Driftline`) | Free Team-managed software project; no billing added | Atlassian API gateway cloud ID `7ed26020-ee58-470a-8fbb-3340925348ce`; connector is restricted to this project |
 | Secret Manager | `driftline-jira-token` | Active, automatic replication; version 6 enabled and versions 1–5 disabled; runtime reads `latest` | Dedicated runtime accessor only; latest credential is the user-created Jira gateway token, expires 2027-02-19; no token value is stored in Git or docs |
 
-Cloud Build ID `2b1ec22e-34c4-44ee-b67f-ceb8e866060f` completed successfully
-in `global` and deployed revision `driftline-00040-jr6` from runtime commit
-`0a0cd57`. It includes the Jira gateway environment, the
+Cloud Build ID `51c869d8-e134-4664-8120-3ed1004001ea` completed successfully
+in `global` and deployed revision `driftline-00049-q48` from runtime commit
+`d016372`. It includes the Jira gateway environment, the
 `driftline-jira-token:latest` Secret Manager binding, and an explicit
 service/revision max-instance cap of one from the checked-in
 `cloudbuild.yaml`. The exact verified image digest is
-`sha256:23a5f9f276c1b0f76c2b178c1c6e3a7e1ef653f1e29125900c098ab3442ca058`.
+`sha256:1cf154d40da540d68319404e4e10ba57d5bc271f58328b9d578d0a5348dd0b17`.
 Cloud Build and Cloud Run may enable Google-managed dependency APIs in addition
 to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
@@ -161,6 +161,18 @@ exercised on revision `driftline-00040-jr6`:
   one subsequent enqueue returned a transient queue-not-found while the
   service was warming. The final run succeeded; treat Cloud Run error logs as
   a release gate before submission.
+
+The final capability release (revision `driftline-00049-q48`) directly verified
+the new seams: `/api/memory/summary` returned append-only source/workflow
+aggregates; the live visual registry returned a pair evidence hash and the
+Gemini vision endpoint returned `mode=gemini_vision`, model
+`gemini-3.5-flash`, `material_change=true`, and the matching hash; a live ADK
+run reached `needs_approval` with a two-option Gemini decision brief and a
+passing deterministic red-team review. A final approval/undo round trip created
+and reversed Jira `KAN-6`; the same action record reported
+`confluence_status=not_configured`, `slack_status=not_configured`, and
+`github_status=not_configured`, with no false external-write claim for those
+prepared-only connectors.
 
 The public live-agent endpoint is configured for at most 10 calls per hour and a
 2,000-character query. Demo starts and approval/undo writes share a 30-mutation
