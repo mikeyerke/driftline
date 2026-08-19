@@ -1,6 +1,9 @@
 import { AlertTriangle, Check, Download, FileText, RotateCcw } from "lucide-react";
 
 export default function DecisionPanel({ approved, approval, actionRecord, onApprove, onUndo, onEvidence, isLive, busy, packetHref }) {
+  const decisions = approval?.artifact_decisions || { "Pricing battlecard": "packet", "Renewal playbook": "packet", "Enterprise FAQ": "owner_review", "CRM guidance": "queued" };
+  const counts = Object.values(decisions).reduce((result, value) => ({ ...result, [value]: (result[value] || 0) + 1 }), {});
+  const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
   if (approved) {
     const approver = approval?.approver || "Demo operator";
     const initials = approver.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -16,7 +19,7 @@ export default function DecisionPanel({ approved, approval, actionRecord, onAppr
         <button className="secondary full" onClick={onUndo} disabled={busy}><RotateCcw size={17} />Reopen decision</button>
         <p className="decision-note">
           {approval?.timestamp
-            ? "The sandbox packet is recorded; no external system was changed."
+            ? "Bounded outputs are recorded; no external system was changed."
             : "No server decision was recorded."}
         </p>
         <div className="audit-id"><strong>Audit event</strong><span>{auditEvent}</span></div>
@@ -34,6 +37,7 @@ export default function DecisionPanel({ approved, approval, actionRecord, onAppr
       <h2>Human approval required</h2>
       <p className="decision-question">Should existing enterprise customers retain unlimited history through renewal?</p>
       <div className="decision-rationale"><strong>Why this needs a decision</strong><p>This change affects contractual expectations and may require an exception path for existing customers.</p></div>
+      <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>High-risk artifacts remain behind this deterministic human gate.</small></div>
       <button className="primary full" onClick={onApprove} disabled={!isLive || busy}><Check size={18} />{busy ? "Recording decision…" : "Approve action plan"}</button>
       <button className="secondary full" onClick={onEvidence}><FileText size={17} />Open evidence</button>
       <p className="decision-note">Approval creates a reversible, evidence-linked sandbox packet. The agent cannot approve itself.</p>

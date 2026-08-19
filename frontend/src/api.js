@@ -29,6 +29,10 @@ export function getJob(jobId) {
   return request(`/api/jobs/${jobId}`);
 }
 
+export function listJobs(limit = 8) {
+  return request(`/api/jobs?limit=${limit}`);
+}
+
 export function getSources() {
   return request("/api/sources");
 }
@@ -46,6 +50,20 @@ export function approveWorkflow(workflowId, artifactDecisions) {
 
 export function undoWorkflow(workflowId) {
   return request(`/api/workflows/${workflowId}/undo`, {
+    method: "POST",
+    body: JSON.stringify({ actor: "Demo operator" }),
+  });
+}
+
+export function claimAction(workflowId, itemId) {
+  return request(`/api/workflows/${workflowId}/actions/${itemId}/claim`, {
+    method: "POST",
+    body: JSON.stringify({ actor: "Demo operator" }),
+  });
+}
+
+export function completeAction(workflowId, itemId) {
+  return request(`/api/workflows/${workflowId}/actions/${itemId}/complete`, {
     method: "POST",
     body: JSON.stringify({ actor: "Demo operator" }),
   });

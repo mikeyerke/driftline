@@ -40,6 +40,56 @@ def test_demo_approval_and_undo_round_trip() -> None:
     assert undone.json()["status"] == "needs_approval"
 
 
+def test_approved_action_item_can_be_claimed_and_completed_by_same_human() -> None:
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={
+            "approver": "Demo operator",
+            "decision": "grandfather_existing_customers",
+        },
+    )
+    assert approved.status_code == 200
+    actions = approved.json()["action_items"]
+    assert len(actions) == 4
+    item_id = actions[0]["item_id"]
+
+    claimed = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/claim",
+        json={"actor": "Alex Kim"},
+    )
+    assert claimed.status_code == 200
+    assert (
+        next(
+            item
+            for item in claimed.json()["action_items"]
+            if item["item_id"] == item_id
+        )["status"]
+        == "claimed"
+    )
+
+    wrong_actor = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/complete",
+        json={"actor": "Taylor Lee"},
+    )
+    assert wrong_actor.status_code == 409
+
+    completed = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/complete",
+        json={"actor": "Alex Kim"},
+    )
+    assert completed.status_code == 200
+    assert (
+        next(
+            item
+            for item in completed.json()["action_items"]
+            if item["item_id"] == item_id
+        )["status"]
+        == "completed"
+    )
+
+
 def test_live_agent_query_is_bounded_before_execution() -> None:
     response = client.post("/api/agent/run", json={"query": "x" * 2001})
     assert response.status_code == 422

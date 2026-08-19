@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from .models import (
+    ActionItemStatus,
     ArtifactImpact,
     SourceEvidence,
     Stage,
@@ -262,8 +263,9 @@ class DriftlineWorkflow:
             )
         state.impacts = updated_impacts
         state.artifact_packets = packets
+        action_id = f"action-{uuid4().hex[:12]}"
         state.action_record = {
-            "action_id": f"action-{uuid4().hex[:12]}",
+            "action_id": action_id,
             "kind": "firestore_sandbox_packet",
             "status": "active",
             "workflow_id": state.workflow_id,
@@ -273,6 +275,22 @@ class DriftlineWorkflow:
             "reversible": True,
             "created_at": self._timestamp(),
         }
+        state.action_items = [
+            {
+                "item_id": f"item-{uuid4().hex[:12]}",
+                "action_id": action_id,
+                "workflow_id": state.workflow_id,
+                "artifact": packet["artifact"],
+                "owner": packet["owner"],
+                "status": ActionItemStatus.QUEUED.value,
+                "attempts": 0,
+                "evidence_hash": packet["evidence_hash"],
+                "idempotency_key": f"{state.workflow_id}:{packet['artifact']}",
+                "created_at": self._timestamp(),
+            }
+            for packet in packets
+        ]
+        state.action_record["action_item_count"] = len(state.action_items)
         packet_count = sum(
             1 for value in requested_actions.values() if value == "packet"
         )
@@ -306,6 +324,14 @@ class DriftlineWorkflow:
                 "status": "reversed",
                 "reversed_at": self._timestamp(),
             }
+        state.action_items = [
+            {
+                **item,
+                "status": ActionItemStatus.REVERSED.value,
+                "reversed_at": self._timestamp(),
+            }
+            for item in state.action_items
+        ]
         state.impacts = [
             ArtifactImpact(
                 i.name,

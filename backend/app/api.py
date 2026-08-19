@@ -30,10 +30,11 @@ except ImportError:  # pragma: no cover - exercised only in a minimal local env.
 
 from .adk_runtime import run_agent_task
 from .artifacts import persist_action_artifact
-from .models import JobState, WorkflowState
+from .models import ActionItemStatus, JobState, WorkflowState, utc_now
 from .persistence import (
     claim_job,
     compare_and_set_workflow,
+    list_jobs,
     load_job,
     load_workflow,
     persist_job,
@@ -93,6 +94,10 @@ class UndoRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
     approval_mode: Literal["demo", "signed"] = "demo"
     approval_token: str | None = Field(default=None, max_length=256)
+
+
+class ActionItemRequest(BaseModel):
+    actor: str = Field(min_length=1, max_length=120)
 
 
 class AgentRunRequest(BaseModel):
@@ -508,6 +513,22 @@ async def start_demo_job(
     return job.to_dict()
 
 
+@app.get("/api/jobs")
+def get_jobs(limit: int = 8) -> dict[str, object]:
+    """Expose bounded operator history without exposing arbitrary data."""
+    bounded_limit = max(1, min(limit, 20))
+    with _jobs_lock:
+        jobs = sorted(
+            _jobs.values(), key=lambda item: item.created_at or "", reverse=True
+        )[:bounded_limit]
+    if (
+        not jobs
+        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+    ):
+        jobs = list_jobs(bounded_limit)
+    return {"jobs": [job.to_dict() for job in jobs]}
+
+
 @app.post("/api/scheduler/tick")
 async def scheduler_tick(request: Request, background_tasks: BackgroundTasks) -> dict:
     """Start one historical source-monitor run from Cloud Scheduler."""
@@ -580,6 +601,110 @@ def get_workflow(workflow_id: str) -> dict:
         return _resolve_workflow(workflow_id).to_dict()
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _require_action_actor(actor: str) -> str:
+    cleaned = actor.strip()
+    if not cleaned or cleaned.casefold() in {"agent", "system", "gemini"}:
+        raise HTTPException(status_code=400, detail="A named human actor is required")
+    return cleaned
+
+
+@app.get("/api/workflows/{workflow_id}/actions")
+def get_actions(workflow_id: str) -> dict[str, object]:
+    try:
+        state = _resolve_workflow(workflow_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"actions": state.action_items}
+
+
+@app.post("/api/workflows/{workflow_id}/actions/{item_id}/claim")
+def claim_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
+    actor = _require_action_actor(request.actor)
+
+    def apply(state: WorkflowState) -> WorkflowState:
+        if state.status.value != "complete":
+            raise PolicyViolation("Actions are available after approval")
+        item = next(
+            (entry for entry in state.action_items if entry["item_id"] == item_id), None
+        )
+        if item is None:
+            raise KeyError(f"Unknown action item: {item_id}")
+        if item.get("status") != ActionItemStatus.QUEUED.value:
+            raise PolicyViolation("Action item is not queued")
+        item.update(
+            {
+                "status": ActionItemStatus.CLAIMED.value,
+                "claimed_by": actor,
+                "claimed_at": utc_now(),
+                "attempts": int(item.get("attempts", 0)) + 1,
+            }
+        )
+        state.events.append(
+            {
+                "event_id": f"event-{uuid4().hex[:12]}",
+                "actor": "action_lifecycle",
+                "outcome": f"{item_id}:claimed",
+                "timestamp": utc_now(),
+                "action_item_id": item_id,
+                "human_actor": actor,
+            }
+        )
+        state.updated_at = utc_now()
+        return state
+
+    try:
+        return _transition_workflow(workflow_id, "complete", apply).to_dict()
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PolicyViolation as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/workflows/{workflow_id}/actions/{item_id}/complete")
+def complete_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
+    actor = _require_action_actor(request.actor)
+
+    def apply(state: WorkflowState) -> WorkflowState:
+        if state.status.value != "complete":
+            raise PolicyViolation("Actions are available after approval")
+        item = next(
+            (entry for entry in state.action_items if entry["item_id"] == item_id), None
+        )
+        if item is None:
+            raise KeyError(f"Unknown action item: {item_id}")
+        if (
+            item.get("status") != ActionItemStatus.CLAIMED.value
+            or item.get("claimed_by") != actor
+        ):
+            raise PolicyViolation("Only the claiming actor can complete this action")
+        item.update(
+            {
+                "status": ActionItemStatus.COMPLETED.value,
+                "completed_by": actor,
+                "completed_at": utc_now(),
+            }
+        )
+        state.events.append(
+            {
+                "event_id": f"event-{uuid4().hex[:12]}",
+                "actor": "action_lifecycle",
+                "outcome": f"{item_id}:completed",
+                "timestamp": utc_now(),
+                "action_item_id": item_id,
+                "human_actor": actor,
+            }
+        )
+        state.updated_at = utc_now()
+        return state
+
+    try:
+        return _transition_workflow(workflow_id, "complete", apply).to_dict()
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PolicyViolation as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/api/workflows/{workflow_id}/packet", response_class=PlainTextResponse)

@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 
-const steps = ["Monitor", "Verify", "Map impact", "Draft updates", "Await approval", "Publish"];
+const steps = ["Monitor", "Verify", "Map impact", "Draft updates", "Await approval", "Create outputs"];
 
 export default function WorkflowTimeline({ state }) {
   const stageIndex = {

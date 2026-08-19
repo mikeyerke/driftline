@@ -12,7 +12,9 @@ import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence } from "./data";
-import { apiEnabled, approveWorkflow, getJob, packetUrl, startDemoJob, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, getJob, listJobs, packetUrl, startDemoJob, undoWorkflow } from "./api";
+import ActionItems from "./components/ActionItems";
+import RunHistory from "./components/RunHistory";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -39,6 +41,8 @@ export default function App() {
   const [scanMessage, setScanMessage] = useState("");
   const [workflowId, setWorkflowId] = useState(null);
   const [job, setJob] = useState(null);
+  const [recentJobs, setRecentJobs] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
 
@@ -63,6 +67,21 @@ export default function App() {
   const events = workflowState?.events || [];
   const scanFailed = scanMessage.startsWith("Unable");
   const packetHref = workflowId ? packetUrl(workflowId) : null;
+
+  const refreshHistory = async () => {
+    try {
+      const payload = await listJobs();
+      setRecentJobs(payload.jobs || []);
+    } catch {
+      setRecentJobs([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshHistory();
+  }, []);
 
   const selectNav = (label) => {
     setSelectedNav(label);
@@ -98,6 +117,7 @@ export default function App() {
       if (!apiEnabled) throw new Error("API disabled");
       const queued = await startDemoJob();
       setJob(queued);
+      refreshHistory();
       setScanMessage("Agent queued · waiting for a durable run");
       for (let attempt = 0; attempt < 80; attempt += 1) {
         await delay(700);
@@ -109,6 +129,7 @@ export default function App() {
           setWorkflowId(current.workflow.workflow_id);
           setArtifactDecisions(current.workflow.approval?.artifact_decisions || initialDecisions);
           setScanMessage("Scan complete · evidence verified · approval gate active");
+          refreshHistory();
           return;
         }
         setScanMessage(current.status === "running" ? "Agent running · verifying source and mapping impact" : "Agent queued · waiting for a durable run");
@@ -130,6 +151,7 @@ export default function App() {
       setWorkflowState(state);
       setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
       setScanMessage("Action plan recorded · sandbox packet created");
+      refreshHistory();
     } catch (error) {
       setScanMessage(`Unable to record the decision · ${error.message || "retry the request"}`);
     } finally {
@@ -145,6 +167,7 @@ export default function App() {
       setWorkflowState(state);
       setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
       setScanMessage("Decision reopened · no external systems were changed");
+      refreshHistory();
     } catch (error) {
       setScanMessage(`Unable to reopen the decision · ${error.message || "retry the request"}`);
     } finally {
@@ -166,7 +189,8 @@ export default function App() {
           <div className="topbar-actions">
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
             <span className="workspace-button">Evaluation sandbox<ChevronDown size={15} /></span>
-            <button className="primary" onClick={runScan} disabled={scanning} type="button">
+            <span className="run-hint">Live allowlisted monitor · no external writes</span>
+            <button className="primary" onClick={runScan} disabled={scanning} type="button" aria-label="Run the live allowlisted monitor">
               <Play size={17} />{scanning ? "Running…" : "Run scan"}
             </button>
           </div>
@@ -175,6 +199,7 @@ export default function App() {
         <div className="content">
           <div className="workspace-banner"><strong>Evaluation sandbox</strong><span>Public source snapshot · Firestore state · deterministic human gate</span><span className="banner-status">{liveWorkflow ? "Live workflow" : "Preview only"}</span></div>
           <section id="overview-section" className="overview-section">
+            <p className="product-orientation">Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval.</p>
             <section className="incident-header">
               <span className="incident-icon"><AlertTriangle size={30} /></span>
               <div className="incident-title">
@@ -185,6 +210,12 @@ export default function App() {
                 </div>
               </div>
               <button className="secondary incident-details" onClick={() => setShowEvidence(true)} type="button">View source evidence<ChevronDown size={16} /></button>
+            </section>
+
+            <section className="change-brief" aria-label="Change decision brief">
+              <div><span>Why this matters</span><strong>One source change can create conflicting promises across the business.</strong><p>Driftline turns the verified sentence-level change into owner-ready work, with evidence attached before anything can be approved.</p></div>
+              <div><span>Decision scope</span><strong>4 downstream artifacts</strong><p>Pricing, renewals, support guidance, and CRM instructions stay coordinated.</p></div>
+              <div><span>Guardrail</span><strong>Human approval required</strong><p>High-risk changes stop here. The agent cannot approve its own action.</p></div>
             </section>
 
             <div className="dashboard-grid">
@@ -200,10 +231,12 @@ export default function App() {
                 <DecisionPanel approved={approved} approval={approval} actionRecord={workflowState?.action_record} onApprove={approve} onUndo={reopen} onEvidence={() => setShowEvidence(true)} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} />
               </aside>
             </div>
+            {approved && <ActionItems workflowId={workflowId} items={workflowState.action_items} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}
             <WorkflowTimeline state={workflowState} />
           </section>
 
           <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} />
+          <RunHistory jobs={recentJobs} loading={historyLoading} />
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
           <TrustPanel />

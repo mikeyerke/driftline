@@ -55,6 +55,7 @@ def _state_from_dict(payload: dict[str, Any]) -> WorkflowState:
         data_mode=payload.get("data_mode", "synthetic_demo"),
         artifact_packets=[dict(item) for item in payload.get("artifact_packets", [])],
         action_record=payload.get("action_record"),
+        action_items=[dict(item) for item in payload.get("action_items", [])],
         agent_trace=payload.get("agent_trace"),
         created_at=payload.get("created_at") or utc_now(),
         updated_at=payload.get("updated_at") or utc_now(),
@@ -176,6 +177,44 @@ def load_job(job_id: str) -> JobState | None:
         created_at=payload.get("created_at") or "",
         updated_at=payload.get("updated_at") or "",
     )
+
+
+def list_jobs(limit: int = 8) -> list[JobState]:
+    """Return the newest durable jobs for the operator run history."""
+    bounded_limit = max(1, min(limit, 50))
+    if not _enabled():
+        return []
+    query = (
+        _client()
+        .collection(JOBS_COLLECTION)
+        .order_by("created_at", direction=firestore.Query.DESCENDING)
+        .limit(bounded_limit)
+    )
+    jobs: list[JobState] = []
+    for snapshot in query.stream():
+        payload = snapshot.to_dict() or {}
+        jobs.append(
+            JobState(
+                job_id=payload["job_id"],
+                kind=payload.get("kind", "change_scan"),
+                status=payload.get("status", "queued"),
+                query=payload.get("query", ""),
+                user_id=payload.get("user_id", "demo-operator"),
+                run_mode=payload.get("run_mode", "demo"),
+                workflow_id=payload.get("workflow_id"),
+                model=payload.get("model"),
+                execution_mode=payload.get("execution_mode"),
+                tool_calls=list(payload.get("tool_calls", [])),
+                event_count=int(payload.get("event_count", 0)),
+                response=payload.get("response", ""),
+                error=payload.get("error"),
+                claim_id=payload.get("claim_id"),
+                run_attempts=int(payload.get("run_attempts", 0)),
+                created_at=payload.get("created_at") or "",
+                updated_at=payload.get("updated_at") or "",
+            )
+        )
+    return jobs
 
 
 def claim_job(job_id: str, claim_id: str) -> bool:

@@ -83,6 +83,10 @@ async def run_agent_task(
         except KeyError:
             state = load_workflow(workflow_id)
         if state is None:
+            if run_mode != "demo":
+                raise AnalysisUnavailable(
+                    "Workflow state unavailable for structured analysis"
+                )
             analysis_info = {
                 "mode": "deterministic_demo_fallback",
                 "reason": "workflow state unavailable for structured analysis",
@@ -93,6 +97,8 @@ async def run_agent_task(
                 analysis_info = analysis_trace(structured)
                 persist_workflow(state)
             except AnalysisUnavailable as exc:
+                if run_mode != "demo":
+                    raise
                 analysis_info = {
                     "mode": "deterministic_demo_fallback",
                     "reason": str(exc),
