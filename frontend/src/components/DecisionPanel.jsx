@@ -1,9 +1,17 @@
+import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Download, FileText, RotateCcw } from "lucide-react";
+import DecisionCopilot from "./DecisionCopilot";
 
-export default function DecisionPanel({ approved, approval, artifactDecisions, actionRecord, onApprove, onUndo, onEvidence, isLive, busy, packetHref, sourceCategory }) {
+export default function DecisionPanel({ approved, approval, artifactDecisions, actionRecord, copilot, onApprove, onOptionSelect, onUndo, onEvidence, isLive, busy, packetHref, sourceCategory }) {
   const decisions = approval?.artifact_decisions || artifactDecisions || { "Pricing battlecard": "packet", "Renewal playbook": "packet", "Enterprise FAQ": "owner_review", "CRM guidance": "queued" };
   const counts = Object.values(decisions).reduce((result, value) => ({ ...result, [value]: (result[value] || 0) + 1 }), {});
   const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
+  const [selectedOptionId, setSelectedOptionId] = useState(copilot?.recommendation_id || "");
+  useEffect(() => {
+    setSelectedOptionId(copilot?.recommendation_id || "");
+  }, [copilot?.recommendation_id]);
+  const selectedOption = copilot?.options?.find((option) => option.option_id === selectedOptionId);
+  const policyBlocked = copilot?.policy_review?.status === "blocked";
   if (approved) {
     const approver = approval?.approver || "Demo operator";
     const initials = approver.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -39,8 +47,9 @@ export default function DecisionPanel({ approved, approval, artifactDecisions, a
       <h2>Human approval required</h2>
       <p className="decision-question">{sourceCategory?.startsWith("Competitor") ? "Should Product Marketing approve this competitive response for owner handoff?" : "Should existing enterprise customers retain unlimited history through renewal?"}</p>
       <div className="decision-rationale"><strong>Why this needs a decision</strong><p>{sourceCategory?.startsWith("Competitor") ? "This signal can change comparison claims and deal guidance; Driftline keeps the observed source attached before anyone acts." : "This change affects contractual expectations and may require an exception path for existing customers."}</p></div>
+      <DecisionCopilot copilot={copilot} selectedId={selectedOptionId} onSelect={(option) => { setSelectedOptionId(option.option_id); onOptionSelect?.(option); }} />
       <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>High-risk artifacts remain behind this deterministic human gate.</small></div>
-      <button className="primary full" onClick={onApprove} disabled={!isLive || busy}><Check size={18} />{busy ? "Recording decision…" : "Approve action plan"}</button>
+      <button className="primary full" onClick={() => onApprove(selectedOption)} disabled={!isLive || busy || policyBlocked || (copilot && !selectedOption)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : "Approve action plan"}</button>
       <button className="secondary full" onClick={onEvidence}><FileText size={17} />Open evidence</button>
       <p className="decision-note">Approval creates a reversible, evidence-linked packet and one isolated Google Cloud operational output. The agent cannot approve itself.</p>
       {!isLive && <p className="decision-note decision-warning">Run the scan to create a live Firestore workflow before deciding.</p>}

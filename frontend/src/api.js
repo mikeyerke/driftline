@@ -42,13 +42,33 @@ export function getSourceHistory(sourceId, limit = 8) {
   return request(`/api/sources/${encodeURIComponent(sourceId)}/history?limit=${limit}`);
 }
 
-export function approveWorkflow(workflowId, artifactDecisions, decision = "grandfather_existing_customers") {
+export function getMultimodalEvidence(assetId = "promise-card", mode = "live") {
+  return request(`/api/multimodal/evidence/${encodeURIComponent(assetId)}?mode=${mode}`);
+}
+
+export function analyzeMultimodalEvidence(assetId = "promise-card", mode = "live") {
+  return request("/api/multimodal/analyze", {
+    method: "POST",
+    body: JSON.stringify({ asset_id: assetId, mode }),
+  });
+}
+
+export function multimodalAssetUrl(assetId, side, mode = "live") {
+  return `${API_BASE}/api/multimodal/assets/${encodeURIComponent(assetId)}/${side}?mode=${mode}`;
+}
+
+export function getWorkflowScenarios(workflowId) {
+  return request(`/api/workflows/${encodeURIComponent(workflowId)}/scenarios`);
+}
+
+export function approveWorkflow(workflowId, artifactDecisions, decision = "grandfather_existing_customers", copilotOptionId = null) {
   return request(`/api/workflows/${workflowId}/approve`, {
     method: "POST",
     body: JSON.stringify({
       approver: "Demo operator",
       decision,
       artifact_decisions: artifactDecisions,
+      copilot_option_id: copilotOptionId,
     }),
   });
 }

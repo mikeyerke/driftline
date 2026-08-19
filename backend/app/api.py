@@ -35,6 +35,8 @@ from .connectors import (
     execute_jira_handoff,
     reverse_jira_handoff,
 )
+from .decision_copilot import validate_approval_choice
+from .memory import build_memory_summary
 from .models import ActionItemStatus, JobState, WorkflowState, utc_now
 from .persistence import (
     claim_job,
@@ -95,6 +97,7 @@ class ApprovalRequest(BaseModel):
     approver: str = Field(min_length=1, max_length=120)
     decision: str = Field(default="grandfather_existing_customers", max_length=64)
     artifact_decisions: dict[str, str] | None = None
+    copilot_option_id: str | None = Field(default=None, min_length=3, max_length=64)
     approval_mode: Literal["demo", "signed"] = "demo"
     approval_token: str | None = Field(default=None, max_length=256)
 
@@ -880,6 +883,15 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
     try:
 
         def apply(current: WorkflowState) -> WorkflowState:
+            try:
+                validate_approval_choice(
+                    current,
+                    request.copilot_option_id,
+                    request.decision,
+                    request.artifact_decisions,
+                )
+            except (ValueError, TypeError) as exc:
+                raise PolicyViolation(str(exc)) from exc
             state = workflow_store.approve(
                 current.workflow_id,
                 request.approver,

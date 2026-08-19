@@ -149,7 +149,8 @@ export default function App() {
         if (["needs_approval", "complete"].includes(current.status) && current.workflow) {
           setWorkflowState(current.workflow);
           setWorkflowId(current.workflow.workflow_id);
-          setArtifactDecisions(current.workflow.approval?.artifact_decisions || defaultDecisionsFor(current.workflow));
+          const recommendedOption = current.workflow.agent_trace?.decision_copilot?.options?.find((option) => option.option_id === current.workflow.agent_trace?.decision_copilot?.recommendation_id);
+          setArtifactDecisions(current.workflow.approval?.artifact_decisions || recommendedOption?.artifact_decisions || defaultDecisionsFor(current.workflow));
           setScanMessage("Scan complete · evidence verified · approval gate active");
           refreshHistory();
           return;
@@ -165,14 +166,14 @@ export default function App() {
     }
   };
 
-  const approve = async () => {
+  const approve = async (selectedOption) => {
     if (!workflowId || !liveWorkflow || decisionBusy) return;
     setDecisionBusy(true);
     try {
-      const decision = workflowState?.impact_graph?.summary?.category?.startsWith("Competitor")
+      const decision = selectedOption?.workflow_decision || (workflowState?.impact_graph?.summary?.category?.startsWith("Competitor")
         ? "approve_competitive_response"
-        : "grandfather_existing_customers";
-      const state = await approveWorkflow(workflowId, artifactDecisions, decision);
+        : "grandfather_existing_customers");
+      const state = await approveWorkflow(workflowId, artifactDecisions, decision, selectedOption?.option_id);
       setWorkflowState(state);
       setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
       setScanMessage("Action plan recorded · sandbox packet created");
@@ -261,7 +262,7 @@ export default function App() {
                 <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} />
               </div>
               <aside id="approvals-section">
-                <DecisionPanel approved={approved} approval={approval} artifactDecisions={artifactDecisions} actionRecord={workflowState?.action_record} onApprove={approve} onUndo={reopen} onEvidence={() => setShowEvidence(true)} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category} />
+              <DecisionPanel approved={approved} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onEvidence={() => setShowEvidence(true)} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category} />
               </aside>
             </div>
             {approved && <ActionItems workflowId={workflowId} items={workflowState.action_items} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}

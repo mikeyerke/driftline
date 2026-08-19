@@ -9,6 +9,12 @@ from google.genai import types
 
 from .agent import reset_run_mode, root_agent, set_run_mode
 from .analysis import AnalysisUnavailable, analysis_trace, analyze_workflow
+from .decision_copilot import (
+    analyze_decision,
+    decision_trace,
+    fallback_copilot,
+    red_team_review,
+)
 from .persistence import load_workflow, persist_workflow
 from .workflow import workflow_store
 
@@ -102,6 +108,10 @@ async def run_agent_task(
                 run_mode=run_mode,
                 reason="Workflow state unavailable for structured analysis",
             )
+            decision_info = {
+                "mode": "unavailable",
+                "reason": "Workflow state unavailable for decision copilot",
+            }
         else:
             try:
                 structured = await analyze_workflow(state)
@@ -113,11 +123,29 @@ async def run_agent_task(
                     reason=str(exc),
                     artifact_count=len(state.impacts),
                 )
+            try:
+                copilot, policy = await analyze_decision(state)
+                decision_info = decision_trace(copilot, policy)
+            except AnalysisUnavailable as exc:
+                if run_mode != "demo":
+                    raise
+                fallback = fallback_copilot(state)
+                decision_info = decision_trace(
+                    fallback,
+                    red_team_review(fallback, state),
+                    mode="deterministic_demo_fallback",
+                    reason=str(exc),
+                )
+            persist_workflow(state)
     else:
         analysis_info = {
             "mode": "deterministic_demo_fallback",
             "reason": "coordinator did not produce a workflow",
             "source_status": source_status,
+        }
+        decision_info = {
+            "mode": "unavailable",
+            "reason": "coordinator did not produce a workflow",
         }
 
     return {
@@ -138,5 +166,6 @@ async def run_agent_task(
             "tool_calls": trace,
             "event_count": event_count,
             "structured_analysis": analysis_info,
+            "decision_copilot": decision_info,
         },
     }

@@ -1,0 +1,70 @@
+import pytest
+
+from app.decision_copilot import (
+    AnalysisUnavailable,
+    fallback_copilot,
+    red_team_review,
+    validate_approval_choice,
+    validate_copilot,
+)
+from app.workflow import DriftlineWorkflow
+
+
+def test_fallback_copilot_has_three_evidence_bound_options() -> None:
+    state = DriftlineWorkflow().start_demo()
+    copilot = fallback_copilot(state)
+
+    validated = validate_copilot(copilot, state)
+    review = red_team_review(validated, state)
+
+    assert len(validated.options) == 3
+    assert validated.recommendation_id == "preserve_commitments"
+    assert review.status == "pass"
+    assert any(item.code == "high_risk_human_gate" for item in review.findings)
+
+
+def test_red_team_requires_exact_evidence_citations() -> None:
+    state = DriftlineWorkflow().start_demo()
+    payload = fallback_copilot(state).model_dump()
+    payload["options"][0]["citations"][0]["quote"] = "Unverified claim"
+
+    with pytest.raises(AnalysisUnavailable, match="not copied from the source"):
+        validate_copilot(payload, state)
+
+
+def test_selected_option_must_match_approval_actions() -> None:
+    state = DriftlineWorkflow().start_demo()
+    copilot = fallback_copilot(state)
+    state.agent_trace = {
+        "decision_copilot": {
+            **copilot.model_dump(),
+            "policy_review": red_team_review(copilot, state).model_dump(),
+        }
+    }
+    option = copilot.options[0]
+
+    validate_approval_choice(
+        state,
+        option.option_id,
+        option.workflow_decision,
+        option.artifact_decisions,
+    )
+    mismatched = dict(option.artifact_decisions)
+    mismatched[next(iter(mismatched))] = "queued"
+    with pytest.raises(ValueError, match="do not match"):
+        validate_approval_choice(
+            state,
+            option.option_id,
+            option.workflow_decision,
+            mismatched,
+        )
+
+
+def test_approval_without_copilot_option_remains_compatible() -> None:
+    state = DriftlineWorkflow().start_demo()
+    validate_approval_choice(
+        state,
+        None,
+        "grandfather_existing_customers",
+        None,
+    )
