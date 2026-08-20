@@ -115,6 +115,8 @@ the provider version out of band, the owner completes the session at
 runtime verifies the secret, pins its version, activates the binding, and marks
 the enrollment complete. Expired sessions fail closed, and both lifecycle
 events are append-only metadata with no token values.
+If an older binding omits `allowed_operations`, resolution also fails closed to
+`read_context`; it never silently authorizes a downstream write.
 Tenant and role metadata is durable in the isolated Firestore control plane;
 signed `GET /api/tenants` exposes only the caller's tenant, while the
 owner-only `GET /api/tenants/members` route exposes role metadata without

@@ -249,6 +249,8 @@ operations, and lifecycle metadata. New sessions default to the concrete
 secret is added out of band, then the signed completion route verifies the
 tenant's exact secret, pins the concrete version, activates the canonical
 binding, and closes the session. Expired or cross-tenant sessions fail closed.
+Bindings that predate the operation-scope field are treated as read-only at
+lease time until an owner rotates them; omission never widens authority.
 This makes onboarding self-service-ready without ever accepting a raw token in
 the browser, API body, Firestore control plane, or audit ledger.
 
