@@ -147,7 +147,10 @@ export default function App() {
       setJob(queued);
       refreshHistory();
       setScanMessage("Agent queued · waiting for a durable run");
-      for (let attempt = 0; attempt < 80; attempt += 1) {
+      // ADK + Gemini can legitimately take over a minute on a cold Cloud Run
+      // instance. Keep polling well inside the server's 300-second job budget
+      // instead of turning a slow-but-successful run into a false UI failure.
+      for (let attempt = 0; attempt < 180; attempt += 1) {
         await delay(700);
         const current = await getJob(queued.job_id);
         setJob(current);
@@ -161,7 +164,11 @@ export default function App() {
           refreshHistory();
           return;
         }
-        setScanMessage(current.status === "running" ? "Agent running · verifying source and mapping impact" : "Agent queued · waiting for a durable run");
+        setScanMessage(current.status === "running"
+          ? (attempt > 80
+            ? "Agent still running · Gemini is completing the evidence-bound impact pass"
+            : "Agent running · verifying source and mapping impact")
+          : "Agent queued · waiting for a durable run");
       }
       throw new Error("The agent job timed out");
     } catch (error) {
