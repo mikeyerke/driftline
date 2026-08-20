@@ -17,6 +17,34 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Canonical tenant credential control plane (live)
+
+- Source commit `3ba7554` is the checked-in tenant-boundary release. Connector
+  profiles and bindings are validated against `driftline_tenants/{tenant_id}`;
+  each binding resolves only through its tenant namespace, pinned Secret
+  Manager version, explicit connector operation scope, and impersonated
+  tenant identity. Raw credential values are never returned or written to
+  Firestore. The old flat binding collection is a migration artifact and is
+  read-only unless the explicit compatibility flag
+  `DRIFTLINE_WRITE_LEGACY_CONNECTOR_MIRROR=true` is enabled.
+- The live Cloud Run revision is `driftline-00005-qh6`, serving 100% of traffic
+  in `driftline-hackathon-2026`. It uses image digest
+  `sha256:34f2610659511e1b957d49a2ec16cb715be2818dd934ae6fe83879a998c755e0`
+  from Cloud Build `31dc6793-0240-4698-b569-db2e1de0cea6` (`SUCCESS`). The
+  active env confirms `DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE=true`,
+  `DRIFTLINE_WRITE_LEGACY_CONNECTOR_MIRROR=false`, and task, scheduler, and
+  Salesforce callback URLs use the exact public `...xvxczqg62a-uc.a.run.app`
+  host.
+- `/health` returned `200` after deploy. Cloud Tasks queue `driftline-jobs` is
+  `RUNNING`, max concurrent dispatches `1`, max attempts `3`; a fresh browser
+  workflow dispatched through `POST /api/jobs/{id}/run` and persisted a
+  `needs_approval` job. The public URL remains
+  `https://driftline-xvxczqg62a-uc.a.run.app/`.
+- This is a production tenant-scoped credential data-plane foundation, not a
+  claim of complete self-serve SaaS: enterprise SSO, customer-managed keys,
+  per-tenant billing, automated provider consent, and an independently
+  measured customer pilot are still separate gates.
+
 ## 2026-08-20 Tenant quota and privacy policy release (current)
 
 - Source commit `fcae79c` adds durable, owner-managed tenant policy for
