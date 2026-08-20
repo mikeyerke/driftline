@@ -55,6 +55,11 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   correct fail-closed state until a real participant supplies independently
   verifiable before/after records; synthetic workflow telemetry is not used as
   a customer-pilot substitute.
+- The current revision's signed Salesforce start route returned
+  `status=authorization_required` with a ten-minute state and
+  `code_challenge_method=S256`; no client secret was exposed in the URL. The
+  browser handoff remains at Salesforce login, so no OAuth callback or CRM
+  record read is claimed.
 
 ## 2026-08-20 Durable connector-read quota fix (live)
 
