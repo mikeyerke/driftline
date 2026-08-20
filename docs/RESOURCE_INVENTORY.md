@@ -37,7 +37,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `sha256:a99080e158b8dc9e3bdd47ab71f3b97375887f284953c7c2ee72a70f4f42fdfd`.
   Cloud Run revision `driftline-00168-rjm` serves 100% of traffic in the
   isolated project and `/health` reports Firestore persistence and async jobs.
-- Full backend suite: `185 passed`; Ruff, frontend production build, and
+- Full backend suite: `186 passed`; Ruff, frontend production build, and
   `git diff --check` are clean. Desktop/mobile browser QA and the complete
   scan → evidence → artifact → approval → completion → reopen journey passed
   with no console errors or failed requests. Latest verified job is
