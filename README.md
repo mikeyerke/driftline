@@ -112,6 +112,11 @@ real Salesforce org authorizes the isolated tenant. See
 `docs/SALESFORCE_RUNBOOK.md` and `docs/CONNECTOR_SECURITY.md` for setup and
 lane boundaries.
 
+Pilot measurement is deliberately separate from synthetic demo telemetry. See
+`docs/PILOT_PLAN.md`; until real teams contribute aggregate evidence, Driftline
+continues to report ROI, revenue, retention, and willingness-to-pay as
+`not_measured`.
+
 | Connector | Enable flag | Required scope |
 | --- | --- | --- |
 | Jira | `DRIFTLINE_JIRA_ENABLED=true` | one Atlassian site/project |
