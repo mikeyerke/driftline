@@ -100,6 +100,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 - The project-scoped budget remains `Driftline $10 Guardrail` on project
   number `724959673622`; no billing resource outside the isolated project was
   selected by the check.
+- IAM recheck found the runtime service account's project roles limited to
+  Vertex AI user, Cloud Tasks enqueuer, Firestore user, and Secret Manager
+  version-adder; connector secret access is granted only on the exact
+  tenant-specific secrets to the derived tenant data-plane identity. The
+  build identity has only Cloud Build builder, Run admin, and Service Usage
+  consumer roles. The public invoker is intentional for the identity-free
+  judging surface; tenant reads/writes still require signed identity.
 
 ## 2026-08-20 Durable connector-read quota fix (live)
 
