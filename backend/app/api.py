@@ -598,7 +598,10 @@ def _verify_approval_mode(
     expected = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(token, expected):
         raise HTTPException(status_code=401, detail="Invalid signed approval")
-    principal = principal_for_hmac(requested_tenant_id)
+    try:
+        principal = principal_for_hmac(requested_tenant_id)
+    except (ValueError, PermissionError) as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     return {
         "mode": "signed",
         "identity": "signed_operator",

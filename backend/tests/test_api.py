@@ -118,6 +118,28 @@ def test_connector_context_summary_rejects_unsigned_public_request(monkeypatch) 
     assert response.status_code == 401
 
 
+def test_hmac_tenant_allowlist_rejects_unknown_tenant(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "allowlist-secret")
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "driftline-demo")
+    token = hmac.new(
+        b"allowlist-secret",
+        b"connector-context-summary:Tenant context",
+        hashlib.sha256,
+    ).hexdigest()
+    response = client.post(
+        "/api/connectors/context/summary",
+        json={
+            "operator": "Tenant context",
+            "tenant_id": "other-tenant",
+            "approval_token": token,
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "tenant_not_allowlisted"
+
+
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
