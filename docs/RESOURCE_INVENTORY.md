@@ -66,6 +66,21 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   the platform bootstrap route and rotation route; the newest revision has
   zero `severity>=ERROR` log entries. Local regression remains `152 passed`.
 
+## 2026-08-20 Tenant binding health release
+
+- Source commit `e97b5ce` adds the signed, read-only
+  `GET /api/connectors/bindings/health` reconciliation probe. It enumerates
+  all five connector namespaces, checks active bindings against the exact
+  deterministic Secret Manager secret, and reports metadata-only
+  `healthy`, `attention`, or `not_configured` states.
+- Cloud Build `75d90549-7868-4b65-809c-afae7f92f1db` completed `SUCCESS`; image
+  digest `sha256:a55226fc54c42e7a993c915dd1fd9a818bbe2e740ca8d7a9d26a678851aec6a9`;
+  Cloud Run revision `driftline-00138-zdr` serves 100% of traffic.
+- Live proof: `/health` returned `ok`; unauthenticated binding-health access
+  returned `401 Signed approval is required`; the live OpenAPI contract exposes
+  the route; the newest revision has zero `severity>=ERROR` log entries. Local
+  regression is `153 passed`.
+
 ## 2026-08-20 Tenant signer isolation release
 
 - Source commit `6dfd885` adds deterministic tenant-specific break-glass
