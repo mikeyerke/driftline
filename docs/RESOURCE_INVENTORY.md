@@ -19,7 +19,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 
 ## 2026-08-20 Tenant quota and privacy policy release (current)
 
-- Source commit `149f0d7` adds durable, owner-managed tenant policy for
+- Source commit `4e84551` adds durable, owner-managed tenant policy for
   `agent_calls_per_window`, `workflow_mutations_per_window`, and bounded
   `retention_days` (`1..3650`). Quota values are used by both local and
   Firestore reservations; tenant workflow/job, failure, outcome, and
@@ -32,16 +32,16 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   calls, `30` workflow mutations, `30` retention days), `billing_enabled=false`,
   and `credential_values_exposed=false`. The public Value proof remains
   `observed_driftline_sandbox_records` with `0` tenant-scoped workflows.
-- Cloud Build `8bf7f660-b1d5-4a00-8a24-c1a8af6ba0bc` completed `SUCCESS`; image
+- Cloud Build `017945b6-fc6e-4783-9c24-452c9d7e955a` completed `SUCCESS`; image
   digest is
-  `sha256:a99080e158b8dc9e3bdd47ab71f3b97375887f284953c7c2ee72a70f4f42fdfd`.
-  Cloud Run revision `driftline-00168-rjm` serves 100% of traffic in the
+  `sha256:4a2f893b5af485faadb9a6e6044ea4bb1cd558a3f61524feb39801ba5b78d77e`.
+  Cloud Run revision `driftline-00169-8cw` serves 100% of traffic in the
   isolated project and `/health` reports Firestore persistence and async jobs.
 - Full backend suite: `186 passed`; Ruff, frontend production build, and
   `git diff --check` are clean. Desktop/mobile browser QA and the complete
   scan → evidence → artifact → approval → completion → reopen journey passed
   with no console errors or failed requests. Latest verified job is
-  `job-75dfb9a8ac41`, workflow `b999c117-8fe7-46e4-b8b6-1a0566ada581`, recorded
+  `job-b5650db09934`, workflow `907c39d8-e869-4332-87b8-e86823fca116`, recorded
   with Gemini 3.5 Flash and Google ADK.
 
 ## 2026-08-20 Exact tenant evidence scope release (superseded snapshot)
