@@ -101,6 +101,30 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `tenant_id=driftline-demo` with `status=needs_approval`.
 - Final local regression: `140 passed`; Ruff and `git diff --check` are clean.
 
+## 2026-08-20 Platform tenant bootstrap release
+
+- Source commit `e7d4f8c` adds the OIDC-only `POST /api/platform/tenants`
+  control-plane route. It can create or reactivate tenant and owner-membership
+  metadata, returns only deterministic Secret Manager references, and accepts
+  no provider credential. The separate
+  `DRIFTLINE_PLATFORM_OPERATOR_EMAILS` allowlist is configured for the signed-in
+  platform operator; normal tenant operators remain a separate boundary.
+- Cloud Build `3342b43b-5a22-41ed-be67-9a53ca058eea` completed `SUCCESS`; image
+  digest `sha256:6d1b7c70be9aee82a3319e85c970913ef31e0b43b8aaf438b9167b4cd2226208`;
+  Cloud Run revision `driftline-00125-zjw` serves 100% of traffic.
+- Live checks after public-invoker reconciliation: `/health` returned `ok`;
+  the platform route returned `401 Platform identity is required` without an
+  identity; no HMAC allowlist env binding exists; the revision produced zero
+  `ERROR` log entries.
+- Existing tenant regression passed: all four signed connector context reads
+  returned `status=ok`, and a Gemini 3.5 Flash / Google ADK run used only
+  `inspect_source_change` and `get_workflow_state`. Firestore stored workflow
+  `f9f44b48-2219-46d7-9e37-5bd5bfa91f0a` with `tenant_id=driftline-demo` and
+  `status=needs_approval`.
+- Full local suite: `142 passed`; Ruff, frontend production build, and
+  `git diff --check` are clean. A real platform OIDC success has not been
+  claimed because no browser identity token was used in this smoke window.
+
 ## 2026-08-20 Tenant identity and read-isolation releases
 
 - Source commits `b783a74` (tenant identity propagation through signed monitor
@@ -695,7 +719,7 @@ not invoked by that public path.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00124-m4x` from commit `32b1b45` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, tenant-specific break-glass signing, durable Firestore tenant admission, no active deployment-wide signer or HMAC allowlist binding, and strict fail-closed unknown-tenant behavior; both legacy global connector credential and hosted deployment-target fallbacks disabled |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00125-zjw` from commit `e7d4f8c` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, tenant-specific break-glass signing, durable Firestore tenant admission, OIDC-only platform tenant bootstrap metadata route, no active deployment-wide signer or HMAC allowlist binding, and strict fail-closed unknown-tenant behavior; both legacy global connector credential and hosted deployment-target fallbacks disabled |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
