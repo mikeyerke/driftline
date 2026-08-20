@@ -160,6 +160,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 - Commit `26c1f03` refreshed the action runtimes to current Node 24-compatible
   majors; final-HEAD run `32411863662` passed both jobs without the prior
   Node 20 deprecation annotation.
+- Commit `aed8020` aligns the backend job with the production resolver by
+  installing `uv==0.8.17` and running `uv sync --locked`; run `32412237907`
+  passed the frozen-lock backend suite and frontend build on the resulting
+  source tree.
 
 ## 2026-08-20 Public repository hygiene (external)
 
