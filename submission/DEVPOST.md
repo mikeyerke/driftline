@@ -49,6 +49,16 @@ Approval also prepares target-specific Confluence, Slack, GitHub, and
 Salesforce-context manifests. The Salesforce contract is read-only and
 prepared-only; it is not authenticated in this deployment.
 
+## Other data sources used
+
+The public judge flow uses only five bounded source definitions: two Driftline
+own-product fixtures (pricing and terms) and three explicitly labelled
+synthetic competitor fixtures (pricing, offering, and product narrative). The
+live public pricing fixture is a pinned raw GitHub text file. No private company
+data, customer records, CRM objects, credentials, or arbitrary web crawl are
+used by the anonymous demo. Authenticated connector lanes are present only for
+separately provisioned tenant identities and are not part of the public demo.
+
 The agent entry point has the same explicit two-lane boundary: the public judge
 request is tenantless and packet-safe, while a signed operator request carries
 the verified tenant through the ADK turn, quota reservation, and Firestore
@@ -118,18 +128,37 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- Direct Vertex AI execution evidence is claimed only in the release inventory
-  after the deployed endpoint returned `gemini-3.5-flash`, `google_adk`, and both
-  allowlisted tool calls. The final verified demo job was
-  `job-c2b3cbf52da7` / workflow `b3fea38e-2f47-4cfb-af4c-b95ca518becf`;
-  approval created `action-e9d4c4d90442`, a private packet object, and undo
-  created its rollback marker. One of the four owner action items was claimed
-  and completed by the named human demo actor. A signed monitor run
-  (`job-acc5973e452d`) completed unchanged without inventing a workflow.
-- The latest direct ADK release (`driftline-00117-lp7`) was verified in both
-  lanes: public workflow `cad9bc28-9256-4c72-a367-e73a64d99523` remained
-  tenantless, while signed workflow `896c891f-5d35-4f01-b9eb-e73b01b8bcc7`
-  was confirmed in Firestore with `tenant_id=driftline-demo`.
+- The current public verification job is `job-8ac5cf45f80e`, with workflow
+  `051817f9-a65e-4c35-ab60-029dab0c2869`. Its persisted audit trail contains
+  verified evidence, four mapped artifacts, four drafted updates, a human
+  approval, packet creation, and `decision_reopened`; the final state is back
+  at the deterministic approval gate.
+- The deployed public path returned `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, and both allowlisted tool calls. Cloud Run revision
+  `driftline-00155-82w` serves 100% of traffic in the isolated project. The
+  latest browser proof passed desktop and 390px mobile scan, evidence, artifact
+  selection, approval, completion, and reopen/undo with no console errors or
+  failed requests.
+- The tenant credential data plane is now canonical and fail-closed: durable
+  tenant memberships, per-tenant Secret Manager namespaces, impersonated
+  service identities, pinned versions, rotation/revocation, operation scopes,
+  and metadata-only access auditing. The public lane never receives those
+  credentials.
+
+## Findings and learnings
+
+- The highest-value unit is not an alert; it is a source-hash-bound Change Card
+  that names the affected offering, owners, risk, proposed update, and rollback
+  path before anything is published.
+- Deterministic policy is more trustworthy than a model-generated approval:
+  Gemini interprets and drafts, while the policy engine owns the approval gate,
+  idempotency, and reversal state.
+- A reliable agent must make its limitations visible. Driftline labels
+  synthetic data, reports unavailable connectors, preserves raw evidence, and
+  separates observed workflow telemetry from unmeasured customer ROI.
+- The current evidence proves operational execution and safety boundaries, not
+  customer revenue lift, hours saved, willingness-to-pay, or a multi-customer
+  pilot. Those remain validation work rather than claims in this entry.
 
 ## Limitations and next steps
 
