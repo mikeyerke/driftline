@@ -97,7 +97,8 @@ explicit infrastructure steps.
 The current hackathon deployment has one live tenant (driftline-demo). This
 runbook establishes the repeatable multi-tenant boundary; a second customer
 tenant and self-serve billing have not been claimed or live-verified. In the
-hosted configuration, once infrastructure has created the tenant's signer and
-the tenant control-plane metadata has been provisioned, subsequent signed
-requests use that durable directory entry without a Cloud Run redeployment. A
-real OIDC identity is still preferred for the bootstrap step.
+hosted configuration, the Firestore membership directory is the OIDC source of
+truth: once infrastructure has created the tenant's signer and provisioned the
+tenant control-plane metadata, subsequent signed requests use that durable
+directory entry without a Cloud Run redeployment or a deployment-wide email
+allowlist. A real OIDC identity is still preferred for the bootstrap step.

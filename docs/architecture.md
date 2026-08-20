@@ -114,8 +114,10 @@ connector create/reversal while keeping tokens out of the browser and
 repository. The public demo remains identity-free for judging, so the
 displayed “Demo operator” is a named demo actor, not production authentication;
 its connector statuses remain `prepared_only`. The signed operator lane
-verifies a Google OIDC identity for the configured operator email (with an
-isolated HMAC break-glass path) before any external write. Salesforce has a
+verifies a Google OIDC identity against the durable tenant membership directory
+(with an isolated HMAC break-glass path) before any external write. The hosted
+deployment does not carry a deployment-wide operator email allowlist, so adding
+an active tenant membership does not require a Cloud Run redeploy. Salesforce has a
 tenant-scoped OAuth callback and read-only REST query allowlist, but remains
 disabled until a real org authorizes it. `/api/ops/value-proof` reports
 observed deployment counts, approval latency, and action-item completion while

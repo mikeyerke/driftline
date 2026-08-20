@@ -1576,7 +1576,23 @@ def get_ops_summary(
                 "membership_collection": "driftline_tenant_memberships",
             },
             "tenant_auth": {
-                "configured": bool(os.getenv("DRIFTLINE_TENANT_MEMBERS", "").strip()),
+                # Hosted Firestore membership records are authoritative.  A
+                # static environment mapping is only a local/bootstrap
+                # compatibility path and must not be required for new tenants.
+                "configured": (
+                    os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold()
+                    == "firestore"
+                    or bool(os.getenv("DRIFTLINE_TENANT_MEMBERS", "").strip())
+                ),
+                "membership_source": (
+                    "firestore"
+                    if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold()
+                    == "firestore"
+                    else "environment_bootstrap"
+                ),
+                "static_operator_allowlist": bool(
+                    os.getenv("DRIFTLINE_OPERATOR_EMAILS", "").strip()
+                ),
                 "durable_memberships": True,
                 "default_tenant": os.getenv(
                     "DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo"
