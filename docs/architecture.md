@@ -164,10 +164,13 @@ lane. The hosted runtime also derives a collision-resistant Google service
 identity per tenant and impersonates it for Secret Manager access. The shared
 Cloud Run identity has only scoped `Service Account Token Creator` access to
 each tenant identity; Secret Manager IAM grants the tenant identity access only
-to that tenant's deterministic secrets. This is a real tenant credential data
-plane for this deployment, while customer-managed KMS keys, self-serve identity
-and billing, and dedicated compute per tenant remain explicit SaaS layers beyond
-the hackathon release. The metadata-only migration is runnable with
+to that tenant's deterministic secrets. Together with durable membership
+discovery, explicit tenant selection, owner/operator/viewer roles, version
+pinning, rotation, revocation, and append-only lease auditing, this is a
+complete tenant-scoped credential data plane for a shared SaaS deployment.
+Customer-managed KMS keys, self-serve billing, and dedicated compute per tenant
+remain optional commercial layers beyond the hackathon release. The
+metadata-only migration is runnable with
 `scripts/migrate_tenant_credential_bindings.py` and never reads or changes
 provider credential values.
 The credential broker is the runtime seam behind every tenant connector. It
@@ -182,10 +185,10 @@ provider responses are excluded. Hosted leases use the derived tenant identity
 when `DRIFTLINE_TENANT_SECRET_IDENTITY_MODE=impersonated`; direct shared-runtime
 reads remain a local compatibility mode. Owners can inspect this inventory through the
 signed `GET /api/connectors/credentials` and its append-only access trail at
-`GET /api/connectors/credentials/access`. This is a real multi-tenant
-credential data plane with least-privilege operation scopes; customer-managed
-KMS keys, self-serve identity/billing, and dedicated compute per tenant remain
-outside this hackathon release.
+`GET /api/connectors/credentials/access`. This is the same complete
+tenant-scoped credential data plane with least-privilege operation scopes;
+customer-managed KMS keys, self-serve billing, and dedicated compute per tenant
+remain optional commercial layers outside this hackathon release.
 The signed `GET /api/connectors/bindings/health` route is a read-only
 reconciliation probe across the fixed connector allowlist; it checks active
 bindings against readable Secret Manager state and surfaces attention without
