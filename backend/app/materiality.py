@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import UTC, datetime
+from hashlib import sha256
 from typing import Any
 
 _PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
@@ -84,6 +85,16 @@ def _field(item: Any, key: str, default: Any = "") -> Any:
     if isinstance(item, dict):
         return item.get(key, default)
     return getattr(item, key, default)
+
+
+def change_card_id(source_id: str, evidence_hash: str) -> str:
+    """Return the stable identity for one source snapshot transition.
+
+    A workflow run is ephemeral; the same verified source transition must not
+    become a second downstream action merely because a scheduler retried it.
+    """
+    digest = sha256(f"{source_id.strip()}:{evidence_hash.strip()}".encode()).hexdigest()
+    return f"card-{digest[:20]}"
 
 
 def _closure(
@@ -217,6 +228,7 @@ def build_change_card(
     }
     return {
         "version": "1.0",
+        "change_card_id": change_card_id(evidence.source_id, evidence.evidence_hash),
         "workflow_id": workflow_id,
         "source": {
             "id": evidence.source_id,

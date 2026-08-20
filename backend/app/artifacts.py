@@ -13,7 +13,7 @@ from .workflow import packet_markdown
 def persist_action_artifact(state: WorkflowState, *, kind: str) -> dict[str, Any]:
     """Write one immutable packet or rollback marker when storage is configured.
 
-    The object path is deterministic for a workflow/action pair. Cloud Storage
+    The object path is deterministic for a Change Card/action pair. Cloud Storage
     object versioning is enabled on the dedicated bucket, so a later correction
     never destroys the original evidence. No signed URL is returned to callers.
     """
@@ -29,7 +29,8 @@ def persist_action_artifact(state: WorkflowState, *, kind: str) -> dict[str, Any
         client = storage.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT"))
         bucket = client.bucket(bucket_name)
         suffix = "packet.md" if kind == "active" else "rollback.json"
-        name = f"actions/{state.workflow_id}/{action_id}/{suffix}"
+        card_id = str((state.change_card or {}).get("change_card_id", "unknown"))
+        name = f"actions/{card_id}/{action_id}/{suffix}"
         blob = bucket.blob(name)
         if kind == "active":
             body = packet_markdown(state).encode("utf-8")
@@ -38,6 +39,7 @@ def persist_action_artifact(state: WorkflowState, *, kind: str) -> dict[str, Any
             body = json.dumps(
                 {
                     "workflow_id": state.workflow_id,
+                    "change_card_id": (state.change_card or {}).get("change_card_id"),
                     "action_id": action_id,
                     "status": "reversed",
                     "evidence_hash": (
@@ -91,11 +93,13 @@ def persist_operational_output(state: WorkflowState, *, kind: str) -> dict[str, 
         client = storage.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT"))
         bucket = client.bucket(bucket_name)
         if kind == "active":
-            name = f"operational-outputs/{state.workflow_id}/{action_id}/approved.md"
+            card_id = str((state.change_card or {}).get("change_card_id", "unknown"))
+            name = f"operational-outputs/{card_id}/{action_id}/approved.md"
             evidence = state.evidence
             body = (
                 "# Approved Driftline operational output\n\n"
                 f"- Workflow: `{state.workflow_id}`\n"
+                f"- Change Card: `{(state.change_card or {}).get('change_card_id', 'none')}`\n"
                 f"- Action: `{action_id}`\n"
                 f"- Source: {evidence.source_name if evidence else 'Unknown'}\n"
                 f"- Evidence hash: `{evidence.evidence_hash if evidence else 'none'}`\n"
@@ -108,10 +112,12 @@ def persist_operational_output(state: WorkflowState, *, kind: str) -> dict[str, 
             ).encode()
             content_type = "text/markdown; charset=utf-8"
         else:
-            name = f"operational-outputs/{state.workflow_id}/{action_id}/reversed.json"
+            card_id = str((state.change_card or {}).get("change_card_id", "unknown"))
+            name = f"operational-outputs/{card_id}/{action_id}/reversed.json"
             body = json.dumps(
                 {
                     "workflow_id": state.workflow_id,
+                    "change_card_id": (state.change_card or {}).get("change_card_id"),
                     "action_id": action_id,
                     "status": "reversed",
                     "evidence_hash": (

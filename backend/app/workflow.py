@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from .impact import build_impact_graph, integration_targets, profile_for
-from .materiality import build_change_card
+from .materiality import build_change_card, change_card_id
 from .models import (
     ActionItemStatus,
     ArtifactImpact,
@@ -270,9 +270,14 @@ class DriftlineWorkflow:
             )
         state.impacts = updated_impacts
         state.artifact_packets = packets
-        action_id = f"action-{uuid4().hex[:12]}"
+        card_id = change_card_id(
+            state.evidence.source_id if state.evidence else "unknown",
+            state.evidence.evidence_hash if state.evidence else "none",
+        )
+        action_id = f"action-{card_id.removeprefix('card-')}"
         state.action_record = {
             "action_id": action_id,
+            "change_card_id": card_id,
             "kind": "firestore_sandbox_packet",
             "status": "active",
             "workflow_id": state.workflow_id,
@@ -296,7 +301,7 @@ class DriftlineWorkflow:
                 "status": ActionItemStatus.QUEUED.value,
                 "attempts": 0,
                 "evidence_hash": packet["evidence_hash"],
-                "idempotency_key": f"{state.workflow_id}:{packet['artifact']}",
+                "idempotency_key": f"{card_id}:{packet['artifact']}",
                 "created_at": self._timestamp(),
                 "due_at": (
                     datetime.now(UTC)
@@ -403,6 +408,7 @@ def packet_markdown(state: WorkflowState) -> str:
         "# Driftline change packet",
         "",
         f"- Workflow: `{state.workflow_id}`",
+        f"- Change Card: `{(state.change_card or {}).get('change_card_id', 'none')}`",
         f"- Source: {evidence.source_name if evidence else 'Unknown'}",
         f"- Source ID: `{evidence.source_id if evidence else 'unknown'}`",
         f"- Evidence hash: `{evidence.evidence_hash if evidence else 'none'}`",

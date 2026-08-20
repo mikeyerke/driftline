@@ -108,6 +108,10 @@ saved, revenue lift, and willingness-to-pay.
 
 The Change Card is the product's decision unit. It is assembled from verified
 source evidence, the deterministic impact graph, and action lifecycle state.
+Its `change_card_id` is deterministic for an allowlisted source plus evidence
+hash. That identity is carried into action records, owner-item idempotency keys,
+private artifact paths, and connector markers so scheduler retries and repeated
+observations converge on one reversible action rather than duplicating work.
 Its internal-exposure block is deliberately capability-aware: synthetic runs
 say “not CRM data” and show unavailable opportunity/renewal counts; only a
 verified, permissioned Salesforce read lane may populate those fields. Role

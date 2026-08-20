@@ -210,6 +210,19 @@ def test_demo_dismissal_records_reason_without_creating_work() -> None:
     assert "Decision reason: Not material for the current segment" in packet.text
 
 
+def test_same_demo_snapshot_exposes_stable_change_card_identity() -> None:
+    first = client.post("/api/workflows/demo").json()
+    second = client.post("/api/workflows/demo").json()
+    assert first["change_card"]["change_card_id"] == second["change_card"]["change_card_id"]
+
+    approved = client.post(
+        f"/api/workflows/{first['workflow_id']}/approve",
+        json={"approver": "Demo operator"},
+    )
+    assert approved.status_code == 200
+    assert approved.json()["action_record"]["change_card_id"] == first["change_card"]["change_card_id"]
+
+
 def test_demo_approval_never_calls_configured_connectors(monkeypatch) -> None:
     """Public named actors receive a packet even if connector env is present."""
     calls: list[str] = []

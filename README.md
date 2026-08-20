@@ -62,6 +62,10 @@ stopping at “packet created.” In the synthetic demo, CRM opportunity and ren
 counts are intentionally shown as unavailable; once a permissioned Salesforce
 read-only connection is verified, those fields can be populated without
 changing the policy gate or exposing raw records to the public console.
+Each verified source transition also receives a stable Change Card identity
+derived from its allowlisted source and evidence hash. Re-running the same
+snapshot therefore reuses the same action/idempotency identity instead of
+creating duplicate downstream work.
 
 The product deliberately measures operational proof rather than inventing ROI:
 workflow throughput, approval latency, source observations, owner-action
