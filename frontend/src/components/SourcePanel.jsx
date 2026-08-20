@@ -7,6 +7,15 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
   const isPublic = dataMode === "public_source";
   const [history, setHistory] = useState([]);
   const healthById = Object.fromEntries(sourceHealth.map((item) => [item.source_id, item]));
+  const selectedDefinition = sources.find((source) => source.source_id === (selectedSource || evidence?.source_id));
+  const isSyntheticCompetitorFixture = selectedDefinition?.source_kind === "competitor_public";
+  const sourceBadge = isSyntheticCompetitorFixture
+    ? "Synthetic competitor fixture"
+    : dataMode === "synthetic_demo"
+      ? "Synthetic replay"
+      : isPublic
+        ? "Public pinned snapshot"
+        : "Awaiting capture";
 
   useEffect(() => {
     let active = true;
@@ -19,7 +28,7 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
   return (
     <section className="panel source-panel" id="sources-section">
       <header className="panel-header">
-        <div><h2>Allowlisted source</h2><span className={`live-label ${isPublic ? "public" : "synthetic"}`}>{isPublic ? "Public snapshot" : "Synthetic replay"}</span></div>
+        <div><h2>Allowlisted source</h2><span className={`live-label ${isSyntheticCompetitorFixture || dataMode !== "public_source" ? "synthetic" : "public"}`}>{sourceBadge}</span></div>
         <span className="muted">Source-level access only</span>
       </header>
       <div className="source-grid">
@@ -42,9 +51,9 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
             })}
           </div>
         </div>
-        <label className="source-selector">Scenario for next scan<select value={selectedSource || evidence?.source_id || "public/pricing"} onChange={(event) => onSourceChange?.(event.target.value)}><optgroup label="Own surfaces">{sources.filter((source) => source.category?.startsWith("Own")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}</option>)}</optgroup><optgroup label="Competitor surfaces">{sources.filter((source) => source.category?.startsWith("Competitor")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}</option>)}</optgroup></select></label>
+        <label className="source-selector">Scenario for next scan<select value={selectedSource || evidence?.source_id || "public/pricing"} onChange={(event) => onSourceChange?.(event.target.value)}><optgroup label="Own surfaces">{sources.filter((source) => source.category?.startsWith("Own")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}</option>)}</optgroup><optgroup label="Competitor surfaces">{sources.filter((source) => source.category?.startsWith("Competitor")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name} · synthetic fixture</option>)}</optgroup></select></label>
         <div className="monitor-source-list">
-          {sources.map((source) => <span className={source.source_id === (selectedSource || evidence?.source_id) ? "monitor-source active" : "monitor-source"} key={source.source_id}><b>{source.name}</b><small>{source.category} · {source.change_type}</small></span>)}
+          {sources.map((source) => <span className={source.source_id === (selectedSource || evidence?.source_id) ? "monitor-source active" : "monitor-source"} key={source.source_id}><b>{source.name}{source.source_kind === "competitor_public" ? " · synthetic fixture" : ""}</b><small>{source.category} · {source.change_type}</small></span>)}
         </div>
         <div className="source-history" aria-label="Append-only source history">
           <div className="source-history-heading"><span><History size={14} />Historical observations</span><small>Append-only ledger</small></div>
