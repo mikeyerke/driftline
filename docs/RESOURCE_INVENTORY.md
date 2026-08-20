@@ -87,6 +87,20 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `inspect_source_change` and `get_workflow_state`, and null query/user fields.
   The active revision has no severity `ERROR` logs.
 
+## 2026-08-20 Infrastructure closeout recheck (live)
+
+- Cloud Run remains labelled `app=driftline`, `environment=production`, and
+  `hackathon=all-things-agentic`, with the dedicated
+  `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com`, one
+  maximum instance, one vCPU, and 512 MiB.
+- Cloud Tasks queue `driftline-jobs` is `RUNNING` with one concurrent dispatch,
+  0.2 dispatches/second, three attempts, and bounded 5–60 second backoff.
+- Firestore TTL fields are present for jobs, failures, workflows, snapshots,
+  outcome measurements, Salesforce OAuth state, and credential-access events.
+- The project-scoped budget remains `Driftline $10 Guardrail` on project
+  number `724959673622`; no billing resource outside the isolated project was
+  selected by the check.
+
 ## 2026-08-20 Durable connector-read quota fix (live)
 
 - Source commit `2aaca67` registers `connector_calls` in the shared usage and
