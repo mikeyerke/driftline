@@ -3913,7 +3913,7 @@ def get_jobs(
         for job in candidates
         if _visible_tenant_record(job, identity)
     ][:bounded_limit]
-    return {"jobs": [job.to_dict() for job in jobs]}
+    return {"jobs": [_job_payload(job) for job in jobs]}
 
 
 @app.post("/api/scheduler/tick")
@@ -3993,6 +3993,26 @@ async def scheduler_tick(
 
 def _job_payload(job: JobState) -> dict[str, object]:
     payload = job.to_dict()
+    if job.tenant_id is None:
+        # Anonymous demo jobs are useful for judging, but callers can submit
+        # arbitrary text. Never echo that text, raw model output, failure
+        # details, or the opaque Cloud Tasks claim into public history.
+        payload.pop("query", None)
+        payload.pop("user_id", None)
+        payload.pop("response", None)
+        payload.pop("error", None)
+        payload.pop("claim_id", None)
+        if job.status == "failed":
+            summary = "Public demo run failed; internal details are withheld."
+        elif job.status == "complete":
+            summary = "Run complete; evidence-bound workflow is available."
+        elif job.status == "needs_approval":
+            summary = "Evidence verified; waiting for human approval."
+        elif job.status == "running":
+            summary = "Agent run in progress."
+        else:
+            summary = "Awaiting durable agent execution."
+        payload["public_summary"] = summary
     if job.workflow_id:
         try:
             payload["workflow"] = _resolve_workflow(job.workflow_id).to_dict()

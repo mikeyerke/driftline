@@ -28,7 +28,7 @@ export default function RunHistory({ jobs, loading }) {
                 <span className={`run-status ${status}`}><StatusIcon status={status} />{statusLabel(status)}</span>
                 <span className="run-kind">{job.run_mode === "monitor" ? "Historical monitor" : "Change scan"}</span>
                 <span className="run-time">{job.created_at ? new Date(job.created_at).toLocaleString() : "—"}</span>
-                <span className="run-result">{job.response || (job.workflow_id ? "Workflow created · awaiting decision" : "Awaiting result")}</span>
+                <span className="run-result">{job.public_summary || job.response || (job.workflow_id ? "Workflow created · awaiting decision" : "Awaiting result")}</span>
                 {job.workflow_id && <span className="run-workflow"><RotateCcw size={13} /> workflow linked</span>}
               </div>
             );

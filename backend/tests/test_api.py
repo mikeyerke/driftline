@@ -21,6 +21,39 @@ def test_health() -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_public_job_payload_redacts_caller_text_and_internal_claims() -> None:
+    public_job = JobState(
+        job_id="job-public-redaction",
+        status="failed",
+        query="private customer note that must not be echoed",
+        user_id="untrusted-public-user",
+        response="raw model response",
+        error="provider exception detail",
+        claim_id="opaque-claim",
+    )
+
+    payload = api._job_payload(public_job)
+
+    assert "query" not in payload
+    assert "user_id" not in payload
+    assert "response" not in payload
+    assert "error" not in payload
+    assert "claim_id" not in payload
+    assert payload["public_summary"] == "Public demo run failed; internal details are withheld."
+
+    tenant_job = JobState(
+        job_id="job-tenant-full",
+        tenant_id="driftline-demo",
+        query="signed tenant query",
+        response="signed tenant response",
+        claim_id="tenant-claim",
+    )
+    tenant_payload = api._job_payload(tenant_job)
+    assert tenant_payload["query"] == "signed tenant query"
+    assert tenant_payload["response"] == "signed tenant response"
+    assert tenant_payload["claim_id"] == "tenant-claim"
+
+
 def test_tenant_metrics_exclude_tenantless_and_other_tenant_records() -> None:
     tenantless = SimpleNamespace(tenant_id=None)
     own = SimpleNamespace(tenant_id="acme")
