@@ -223,3 +223,12 @@ Tenant bootstrap writes the tenant record and initial owner membership in one
 Firestore transaction, so concurrent platform requests cannot claim the same
 tenant identifier for different owners. The local development fallback uses a
 process lock with the same single-winner contract.
+
+The identity-only `GET /api/tenants/available` route completes the operator
+tenant-selection boundary. It verifies the Google OIDC audience, issuer,
+expiry, subject, and verified email, then returns only that email's active
+tenant memberships and roles. A single active membership may be selected
+implicitly by signed routes; multiple memberships require an explicit
+`tenant_id`, and an unknown or disabled identity fails closed. The route never
+accepts an operator-supplied email, HMAC token, credential, or arbitrary tenant
+selector, so a user cannot discover or claim another tenant's namespace.

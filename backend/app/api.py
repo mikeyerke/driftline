@@ -90,6 +90,7 @@ from .persistence import (
     list_outcome_measurements,
     list_tenant_audit_events,
     list_tenant_memberships,
+    list_tenant_memberships_for_email,
     list_workflows,
     load_connector_binding,
     load_connector_profile,
@@ -794,14 +795,7 @@ def _verify_approval_mode(
                 status_code=403, detail="Google operator identity is not enabled"
             )
         try:
-            from google.auth.transport.requests import Request as GoogleRequest
-            from google.oauth2 import id_token
-
-            claims = id_token.verify_oauth2_token(
-                identity_token.removeprefix("Bearer ").strip(),
-                GoogleRequest(),
-                audience=audience,
-            )
+            claims = _verify_google_identity_claims(identity_token, audience)
         except Exception as exc:  # pragma: no cover - Google-only runtime path.
             raise HTTPException(
                 status_code=401, detail="Invalid Google operator identity"
@@ -896,14 +890,7 @@ def _verify_platform_operator(identity_token: str | None) -> dict[str, str]:
     if not identity_token or not audience:
         raise HTTPException(status_code=401, detail="Platform identity is required")
     try:
-        from google.auth.transport.requests import Request as GoogleRequest
-        from google.oauth2 import id_token
-
-        claims = id_token.verify_oauth2_token(
-            identity_token.removeprefix("Bearer ").strip(),
-            GoogleRequest(),
-            audience=audience,
-        )
+        claims = _verify_google_identity_claims(identity_token, audience)
     except Exception as exc:  # pragma: no cover - Google-only runtime path.
         raise HTTPException(status_code=401, detail="Invalid platform identity") from exc
     email = str(claims.get("email", "")).strip().casefold()
@@ -919,6 +906,36 @@ def _verify_platform_operator(identity_token: str | None) -> dict[str, str]:
         "subject": str(claims.get("sub", "")),
         "email": email,
     }
+
+
+def _verify_google_identity_claims(
+    identity_token: str | None, audience: str
+) -> dict[str, object]:
+    """Verify a Google OIDC identity once, including the tenant-safe claims.
+
+    This helper is shared by the tenant selector and signed operator routes so
+    both use the same audience, issuer, expiry, and verified-email checks. It
+    intentionally returns claims only in memory; no token is persisted.
+    """
+    if not identity_token or not audience:
+        raise ValueError("google_identity_required")
+    from google.auth.transport.requests import Request as GoogleRequest
+    from google.oauth2 import id_token
+
+    claims = id_token.verify_oauth2_token(
+        identity_token.removeprefix("Bearer ").strip(),
+        GoogleRequest(),
+        audience=audience,
+    )
+    issuer = str(claims.get("iss", ""))
+    if issuer not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise ValueError("google_identity_issuer_invalid")
+    email = str(claims.get("email", "")).strip().casefold()
+    if not email or claims.get("email_verified") is False:
+        raise ValueError("google_identity_email_unverified")
+    if not str(claims.get("sub", "")).strip():
+        raise ValueError("google_identity_subject_missing")
+    return claims
 
 
 _CONNECTOR_HANDOFFS: tuple[
@@ -2132,6 +2149,57 @@ def get_tenant_metadata(
         "connector_binding_count": len(bindings),
         "connector_profile_count": len(profiles),
         "membership_count": len(memberships),
+        "credential_values_exposed": False,
+    }
+
+
+@app.get("/api/tenants/available")
+def get_available_tenants(identity_token: str | None = None) -> dict[str, object]:
+    """List the caller's active tenant memberships for a tenant switcher.
+
+    This is the only identity-only tenant discovery route. It does not accept a
+    tenant selector, HMAC token, or operator-supplied email, and it returns
+    membership metadata only. A user with one active membership can omit a
+    tenant selector on subsequent signed requests; a user with several must
+    explicitly choose one so an identity can never silently fall into the
+    deployment's demo tenant.
+    """
+    audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
+    try:
+        claims = _verify_google_identity_claims(identity_token, audience)
+        email = str(claims.get("email", "")).strip().casefold()
+        memberships = list_tenant_memberships_for_email(email)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Invalid tenant identity") from exc
+
+    available: list[dict[str, object]] = []
+    for member in memberships:
+        if str(member.get("status", "active")).casefold() != "active":
+            continue
+        tenant_id = str(member.get("tenant_id", "")).strip().casefold()
+        try:
+            tenant_id = validate_tenant_id(tenant_id)
+        except ValueError:
+            continue
+        tenant = load_tenant(tenant_id)
+        if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore" and not tenant:
+            continue
+        if tenant and str(tenant.get("status", "active")).casefold() != "active":
+            continue
+        available.append(
+            {
+                "tenant_id": tenant_id,
+                "role": str(member.get("role", "viewer")).casefold(),
+                "membership_id": member.get("membership_id"),
+                "status": "active",
+            }
+        )
+    available.sort(key=lambda item: str(item["tenant_id"]))
+    return {
+        "status": "ok" if available else "no_active_memberships",
+        "email": email,
+        "tenants": available,
+        "selection_required": len(available) > 1,
         "credential_values_exposed": False,
     }
 

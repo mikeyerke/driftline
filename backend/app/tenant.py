@@ -179,6 +179,14 @@ def _tenant_is_disabled(tenant_id: str) -> bool:
             os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold()
             == "firestore"
         )
+    if (
+        os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+        and not tenant
+    ):
+        # A membership without its tenant control-plane record is not a valid
+        # hosted principal. Treat a partial/deleted bootstrap as disabled
+        # rather than authorizing against stale membership metadata.
+        return True
     return str((tenant or {}).get("status", "active")).casefold() in {
         "disabled",
         "deprovisioned",
@@ -216,6 +224,7 @@ def principal_for_claims(
     normalized_email = email.strip().casefold()
     configured = _configured_members()
     persisted = None
+    discovered: list[dict[str, object]] = []
     durable_persistence = (
         os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
     )
@@ -223,13 +232,30 @@ def principal_for_claims(
         # Lazy import avoids coupling the pure tenant parser to Firestore
         # during local synthetic runs while allowing durable memberships
         # to survive environment/configuration rollouts.
-        from .persistence import load_tenant_membership
-
-        persisted_tenant = validate_tenant_id(
-            requested_tenant_id
-            or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
+        from .persistence import (
+            list_tenant_memberships_for_email,
+            load_tenant_membership,
         )
-        persisted = load_tenant_membership(persisted_tenant, normalized_email)
+
+        if requested_tenant_id:
+            persisted_tenant = validate_tenant_id(requested_tenant_id)
+            persisted = load_tenant_membership(persisted_tenant, normalized_email)
+        else:
+            # A multi-tenant identity should not inherit the deployment's demo
+            # tenant. Discover only this email's durable memberships and allow
+            # implicit selection when there is exactly one active tenant.
+            discovered = list_tenant_memberships_for_email(normalized_email)
+            active = [
+                item
+                for item in discovered
+                if str(item.get("status", "active")).casefold() == "active"
+            ]
+            if len(active) == 1:
+                persisted = active[0]
+            elif len(active) > 1:
+                raise PermissionError("tenant_selection_required")
+    except PermissionError:
+        raise
     except Exception as exc:
         if durable_persistence:
             raise PermissionError("tenant_membership_unavailable") from exc

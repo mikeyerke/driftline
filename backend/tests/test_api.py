@@ -19,6 +19,54 @@ def test_health() -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_available_tenants_is_identity_only_and_filters_disabled_memberships(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "test-audience")
+    monkeypatch.setattr(
+        api,
+        "_verify_google_identity_claims",
+        lambda _token, _audience: {
+            "email": "member@example.com",
+            "sub": "subject-available",
+        },
+    )
+    api.persist_tenant({"tenant_id": "available-acme", "status": "active"})
+    api.persist_tenant({"tenant_id": "available-disabled", "status": "disabled"})
+    api.persist_tenant_membership(
+        {
+            "tenant_id": "available-acme",
+            "email": "member@example.com",
+            "role": "operator",
+            "status": "active",
+        }
+    )
+    api.persist_tenant_membership(
+        {
+            "tenant_id": "available-disabled",
+            "email": "member@example.com",
+            "role": "owner",
+            "status": "active",
+        }
+    )
+
+    response = client.get(
+        "/api/tenants/available", params={"identity_token": "opaque-token"}
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["email"] == "member@example.com"
+    assert payload["selection_required"] is False
+    assert payload["tenants"] == [
+        {
+            "tenant_id": "available-acme",
+            "role": "operator",
+            "membership_id": payload["tenants"][0]["membership_id"],
+            "status": "active",
+        }
+    ]
+    assert payload["credential_values_exposed"] is False
+
+
 def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> None:
     registry = client.get("/api/monitor/registry")
     assert registry.status_code == 200

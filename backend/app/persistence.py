@@ -1027,6 +1027,30 @@ def load_tenant_membership(tenant_id: str, email: str) -> dict[str, Any] | None:
     return dict(payload) if payload else None
 
 
+def list_tenant_memberships_for_email(email: str) -> list[dict[str, Any]]:
+    """Return bounded membership metadata for one authenticated email.
+
+    This is the control-plane lookup used when an OIDC caller has not selected
+    a tenant yet. It returns only tenant/role/status metadata; it never scans
+    connector bindings or returns credentials. The caller must still resolve a
+    single active membership (or provide an explicit tenant selector) before
+    any tenant-scoped operation is authorized.
+    """
+    normalized_email = email.strip().casefold()
+    if not normalized_email:
+        return []
+    if _enabled():
+        query = _client().collection(TENANT_MEMBERSHIPS_COLLECTION).where(
+            "email", "==", normalized_email
+        )
+        return [snapshot.to_dict() or {} for snapshot in query.stream()]
+    return [
+        dict(payload)
+        for (_, bound_email), payload in _tenant_memberships_memory.items()
+        if bound_email == normalized_email
+    ]
+
+
 def list_tenant_memberships(tenant_id: str) -> list[dict[str, Any]]:
     """Return bounded membership metadata for one authenticated tenant."""
     if _enabled():

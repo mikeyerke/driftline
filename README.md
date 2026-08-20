@@ -95,7 +95,11 @@ signed `GET /api/tenants` exposes only the caller's tenant, while the
 owner-only `GET /api/tenants/members` route exposes role metadata without
 tokens. Owners can provision or update role metadata with
 `POST /api/tenants/members`; unprovisioned OIDC identities fail closed instead
-of inheriting the default tenant. Tenant control-plane records are retained
+of inheriting the default tenant. `GET /api/tenants/available` is the
+identity-only tenant switcher contract: it lists only the authenticated Google
+identity's active memberships, implicitly selects a single tenant, and
+requires an explicit tenant selector when the identity belongs to more than
+one. Tenant control-plane records are retained
 until explicit deprovisioning rather than expiring with content records. An
 owner can soft-deprovision a tenant through `POST /api/tenants/deprovision`
 with an exact tenant-ID confirmation; this disables memberships and revokes

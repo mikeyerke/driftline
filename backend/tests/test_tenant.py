@@ -37,6 +37,48 @@ def test_persisted_membership_can_authorize_a_tenant_without_env_mapping(monkeyp
     assert principal.can("operator") is True
 
 
+def test_single_persisted_membership_is_discovered_without_default_tenant(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.delenv("DRIFTLINE_TENANT_MEMBERS", raising=False)
+    persistence.persist_tenant({"tenant_id": "discovered-acme", "status": "active"})
+    persistence.persist_tenant_membership(
+        {
+            "tenant_id": "discovered-acme",
+            "email": "discover@example.com",
+            "role": "operator",
+            "status": "active",
+        }
+    )
+
+    principal = principal_for_claims(
+        subject="subject-discovered",
+        email="discover@example.com",
+    )
+
+    assert principal.tenant_id == "discovered-acme"
+    assert principal.role == "operator"
+
+
+def test_multiple_persisted_memberships_require_explicit_tenant_selection(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.delenv("DRIFTLINE_TENANT_MEMBERS", raising=False)
+    for tenant_id in ("choice-acme", "choice-beta"):
+        persistence.persist_tenant({"tenant_id": tenant_id, "status": "active"})
+        persistence.persist_tenant_membership(
+            {
+                "tenant_id": tenant_id,
+                "email": "multi@example.com",
+                "role": "viewer",
+                "status": "active",
+            }
+        )
+
+    import pytest
+
+    with pytest.raises(PermissionError, match="tenant_selection_required"):
+        principal_for_claims(subject="subject-multi", email="multi@example.com")
+
+
 def test_unprovisioned_oidc_identity_fails_closed(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     monkeypatch.delenv("DRIFTLINE_TENANT_MEMBERS", raising=False)
