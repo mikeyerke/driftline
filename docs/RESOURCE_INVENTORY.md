@@ -17,6 +17,34 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Tenant credential enrollment release (current)
+
+- Source commits `19d7887` and `dec00ac` add the tenant-scoped credential
+  enrollment seam. Owners can start a 15-minute, secret-free session at
+  `POST /api/connectors/{connector}/credential-enrollment`; new sessions
+  default to `runtime` and `read_context`, and requested operations are
+  validated against the fixed connector allowlist. After a provider version is
+  added out of band, the signed completion route verifies the exact tenant
+  secret, pins its version, activates the canonical binding, and closes the
+  session. Enrollment records live below
+  `driftline_tenants/{tenant}/credential_enrollments/{id}` and never store raw
+  credential values.
+- Local release verification is `182 passed`; Ruff, frontend production build,
+  and `git diff --check` are clean. The focused enrollment test proves a
+  tenant cannot load another tenant's enrollment and that the completed binding
+  retains only the explicit read-only scope.
+- Cloud Build `58faca0d-f27b-4ba4-aedd-82b6e63901f4` completed `SUCCESS`; image
+  digest `sha256:1a9e1c580a08b392e7312a0fe829383e36d067fa5b9a142eda9155c177e4aea1`,
+  Cloud Run revision `driftline-00163-kl9` serves 100% of traffic. The build
+  emitted the known IAM warning while the live policy was rechecked and still
+  contains `allUsers` plus the scheduler identity.
+- Fresh live verification: `/health` returned Firestore persistence and async
+  jobs; an anonymous enrollment attempt returned `401 Signed approval is
+  required`; Cloud Run reported no `severity>=ERROR` entries since deploy.
+  The final desktop/mobile browser audit and the prior complete journey both
+  passed with no overflow, console errors, or failed requests. The public
+  console remains tenantless, synthetic, and packet-only.
+
 ## 2026-08-20 Durable value proof and history merge release (current)
 
 - Source commits `1d2196e` and `fdb086a` add the public Value proof panel and
