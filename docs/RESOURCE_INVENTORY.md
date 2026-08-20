@@ -39,6 +39,16 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `model=gemini-3.5-flash`, exactly the allowlisted tools
   `inspect_source_change` and `get_workflow_state`, and redacted anonymous
   query/user fields (`null`).
+- A signed live aggregate-context probe on the same revision returned HTTP 200
+  for Jira (`project:KAN`, 18 sampled open issues), Confluence (`space:DRIFT`,
+  5 pages), Slack (`channel:C0BRGFUSADA`, 27 recent messages), and GitHub
+  (`mikeyerke/driftline`, 0 open issues, 3 open pull requests). The response
+  explicitly reported `persisted=false` and `aggregate_metadata_only`; no
+  source bodies or message text were returned. Salesforce remains
+  `oauth_ready` pending the operator's Salesforce login/consent and a
+  post-callback aggregate health probe.
+- Cloud Logging returned no severity `ERROR` entries for revision
+  `driftline-00021-rlt` after rollout.
 
 ## 2026-08-20 Durable connector-read quota fix (live)
 
