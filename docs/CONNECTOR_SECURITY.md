@@ -171,7 +171,9 @@ the durable Firestore tenant directory. This removes the need to redeploy for
 every new tenant while preserving a fail-closed response when the directory is
 unavailable or a tenant is disabled. The legacy environment allowlist remains
 available only as a local/bootstrap compatibility path, not as the hosted
-source of SaaS tenant admission.
+source of SaaS tenant admission. When Firestore persistence is enabled, tenant,
+membership, binding, profile, and OAuth-state reads are authoritative: a
+missing durable document never falls back to a stale in-memory record.
 
 Platform tenant bootstrap is a separate OIDC-only route,
 `POST /api/platform/tenants`. It is allowlisted by
