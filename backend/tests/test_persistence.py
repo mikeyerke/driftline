@@ -161,6 +161,11 @@ def test_tenant_policy_is_bounded_and_keeps_defaults_for_missing_fields(monkeypa
     stored = persistence.load_tenant(tenant_id)
     assert stored["policy"] == policy
     assert "unexpected" not in stored["policy"]
+    updated = persistence.persist_tenant_policy(
+        tenant_id, {"agent_calls_per_window": 8}
+    )
+    assert updated["agent_calls_per_window"] == 8
+    assert updated["retention_days"] == 3650
 
 
 def test_tenant_retention_policy_controls_metadata_ttl(monkeypatch) -> None:

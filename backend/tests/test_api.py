@@ -256,6 +256,7 @@ def test_owner_can_update_and_read_tenant_quota_policy(monkeypatch) -> None:
     )
     assert read.status_code == 200
     assert read.json()["policy"]["agent_calls_per_window"] == 17
+    assert read.json()["policy"]["retention_days"] == 90
     assert read.json()["billing_enabled"] is False
 
 

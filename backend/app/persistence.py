@@ -1028,9 +1028,10 @@ def load_tenant_policy(
 
 
 def persist_tenant_policy(tenant_id: str, policy: dict[str, Any]) -> dict[str, int]:
-    """Persist only the allowlisted, bounded tenant quota policy."""
-    safe = _normalise_tenant_policy(policy)
+    """Patch the allowlisted, bounded tenant quota/privacy policy."""
     tenant = load_tenant(tenant_id) or {"tenant_id": tenant_id, "status": "active"}
+    existing_policy = tenant.get("policy") if isinstance(tenant, dict) else None
+    safe = _normalise_tenant_policy({**(existing_policy or {}), **policy})
     updated = dict(tenant)
     updated["policy"] = safe
     updated["updated_at"] = utc_now()

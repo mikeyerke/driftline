@@ -2719,14 +2719,16 @@ def update_tenant_policy(request: TenantPolicyRequest) -> dict[str, object]:
     )
     if identity.get("role") != "owner":
         raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    policy = persist_tenant_policy(
-        identity["tenant_id"],
-        {
-            "agent_calls_per_window": request.agent_calls_per_window,
-            "workflow_mutations_per_window": request.workflow_mutations_per_window,
-            "retention_days": request.retention_days,
-        },
-    )
+    requested_policy = {
+        field: getattr(request, field)
+        for field in (
+            "agent_calls_per_window",
+            "workflow_mutations_per_window",
+            "retention_days",
+        )
+        if field in request.model_fields_set
+    }
+    policy = persist_tenant_policy(identity["tenant_id"], requested_policy)
     audit_event = persist_tenant_audit_event(
         {
             "tenant_id": identity["tenant_id"],
