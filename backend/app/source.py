@@ -189,6 +189,46 @@ def source_definition(source_id: str, tenant_id: str | None = None) -> dict[str,
     return source_definitions(tenant_id).get(source_id)
 
 
+def scheduler_source_entries() -> list[tuple[str | None, str, dict[str, str]]]:
+    """Return static and tenant-owned sources for the bounded scheduler.
+
+    The scheduler is an internal service identity, so it may enumerate the
+    metadata needed to enqueue one tenant-bound job per source. Returned
+    definitions never include credentials or source bodies.
+    """
+    entries: list[tuple[str | None, str, dict[str, str]]] = [
+        (None, source_id, definition)
+        for source_id, definition in SOURCE_DEFINITIONS.items()
+    ]
+    if not _firestore_enabled():
+        entries.extend(
+            (bound_tenant, source_id, definition)
+            for (bound_tenant, source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items()
+        )
+        return entries
+    try:
+        for snapshot in _registry_client().collection(_SOURCE_REGISTRY_COLLECTION).stream():
+            payload = snapshot.to_dict() or {}
+            tenant_id = str(payload.get("tenant_id", "")).strip()
+            source_id = str(payload.get("source_id", "")).strip()
+            if not payload.get("enabled", True) or not tenant_id or not source_id:
+                continue
+            entries.append(
+                (
+                    tenant_id,
+                    source_id,
+                    {
+                        str(key): str(value)
+                        for key, value in payload.items()
+                        if value is not None
+                    },
+                )
+            )
+    except Exception:  # noqa: BLE001 - static scheduler fixtures remain available.
+        return entries
+    return entries
+
+
 def _validate_public_source_url(value: str) -> str:
     parsed = urlparse(value.strip())
     if (

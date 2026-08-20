@@ -248,6 +248,40 @@ def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:
     assert len(payload["jobs"]) == 5
 
 
+def test_scheduler_tick_carries_custom_source_tenant(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    source.register_operator_source(
+        source_id="custom/tenant-pricing",
+        name="Tenant pricing",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://example.com/pricing",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        tenant_id="acme",
+    )
+    monkeypatch.setattr(api, "_verify_scheduler_request", lambda request: None)
+    captured: list[dict[str, object]] = []
+
+    def fake_start_job(**kwargs):
+        captured.append(kwargs)
+        return JobState(job_id=f"job-{len(captured)}")
+
+    monkeypatch.setattr(api, "_start_job", fake_start_job)
+    monkeypatch.setenv("DRIFTLINE_MONITOR_MAX_SOURCES", "6")
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+        api._tenant_agent_call_times.clear()
+
+    response = client.post("/api/scheduler/tick")
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert response.status_code == 200
+    custom = next(item for item in captured if item.get("tenant_id") == "acme")
+    assert "custom/tenant-pricing" in str(custom["query"])
+
+
 def test_signed_operator_can_onboard_an_exact_public_source(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")

@@ -99,6 +99,7 @@ from .source import (
     list_allowlisted_sources,
     list_source_history,
     register_operator_source,
+    scheduler_source_entries,
     source_definition,
     source_definitions,
     source_registry_health,
@@ -2121,15 +2122,27 @@ async def scheduler_tick(
     """
     _verify_scheduler_request(request)
     configured_value = os.getenv("DRIFTLINE_MONITOR_SOURCES", "all").strip()
-    configured = (
-        list(source_definitions())
-        if configured_value.casefold() in {"", "all"}
-        else [item.strip() for item in configured_value.split(",") if item.strip()]
-    )
-    source_ids = [source_id.strip()] if source_id else configured
+    if configured_value.casefold() in {"", "all"}:
+        configured_entries = scheduler_source_entries()
+    else:
+        requested_ids = [
+            item.strip() for item in configured_value.split(",") if item.strip()
+        ]
+        configured_entries = [
+            (None, item, source_definition(item) or {}) for item in requested_ids
+        ]
+    if source_id:
+        configured_entries = [
+            entry for entry in configured_entries if entry[1] == source_id.strip()
+        ]
+    source_entries = configured_entries
     max_sources = _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5)
-    source_ids = source_ids[:max_sources]
-    invalid = [item for item in source_ids if source_definition(item) is None]
+    source_entries = source_entries[:max_sources]
+    invalid = [
+        item
+        for tenant_id, item, definition in source_entries
+        if not definition or source_definition(item, tenant_id) is None
+    ]
     if invalid:
         raise HTTPException(
             status_code=422,
@@ -2138,8 +2151,8 @@ async def scheduler_tick(
     jobs: list[JobState] = []
     queued_source_ids: list[str] = []
     skipped: list[str] = []
-    for current_source_id in source_ids:
-        if not _reserve_agent_call():
+    for current_tenant_id, current_source_id, _definition in source_entries:
+        if not _reserve_agent_call(current_tenant_id):
             skipped.append(current_source_id)
             continue
         job = _start_job(
@@ -2151,6 +2164,7 @@ async def scheduler_tick(
             user_id="driftline-scheduler",
             run_mode="monitor",
             background_tasks=background_tasks,
+            tenant_id=current_tenant_id,
         )
         jobs.append(job)
         queued_source_ids.append(current_source_id)
