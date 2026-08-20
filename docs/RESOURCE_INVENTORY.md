@@ -43,6 +43,28 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   revocation and destructive secret deletion remain explicit offboarding steps.
 - Local regression is `155 passed`; Ruff and `git diff --check` are clean.
 
+## 2026-08-20 Durable terminal-failure ledger release (current)
+
+- Source commit `ea29b6a` records a metadata-only terminal marker in
+  `driftline_job_failures` when a Cloud Tasks job exhausts its three bounded
+  attempts. The signed `/api/ops/job-failures` route filters by the caller's
+  tenant and excludes prompts, source bodies, exception text, and credentials;
+  public `/api/ops/summary` reports zero cross-tenant failure counts.
+- Cloud Build `871a4ed7-9702-441c-bfd7-b890f618c521` completed `SUCCESS`; image
+  digest `sha256:b561922052ab67abc8e4d79a4c847bb2e31ddeab2bdd2f757844195cf6f4b514`;
+  Cloud Run revision `driftline-00145-ddh` serves 100% of traffic.
+- Live proof: `/health` returned Firestore persistence and async jobs, root
+  returned HTTP 200, the public invoker binding remained present, the active
+  revision has zero `severity>=ERROR` logs, and hosted static tenant admission
+  bindings are absent. Public ops reported `dead_lettered=0`; the signed
+  `driftline-demo` failure ledger returned an empty, redacted list with a
+  30-day retention contract. Local regression is `157 passed`; Ruff and
+  `git diff --check` are clean.
+- Firestore TTL enablement for `driftline_job_failures.expires_at` was issued
+  in the isolated project and was still `CREATING` at release capture; it must
+  be rechecked as `ACTIVE` before claiming automated cleanup for this new
+  collection. Existing job/workflow/source/outcome TTLs remain active.
+
 ## 2026-08-20 Signed live-mode guard release (current)
 
 - Source commit `155c184` makes a tenant-signed direct ADK run explicitly use
@@ -1015,9 +1037,9 @@ not invoked by that public path.
 ## Current deployment pointers
 
 The authoritative live pointers for the latest release are Cloud Run revision
-`driftline-00144-rjf` from source commits `245b149` and `457c7f8` and Artifact
-Registry image digest
-`sha256:b4355fcb6a37294fafb3975dcf3051a07c7a0e114e650a184986666a56fa2c67`.
+`driftline-00145-ddh` from source commit `ea29b6a` and Artifact Registry image
+digest
+`sha256:b561922052ab67abc8e4d79a4c847bb2e31ddeab2bdd2f757844195cf6f4b514`.
 The historical resource table below is retained as the broader inventory; the
 release sections above record each subsequent deployment and its direct proof.
 
@@ -1028,14 +1050,14 @@ release sections above record each subsequent deployment and its direct proof.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00144-rjf` from commits `245b149` / `457c7f8` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated, version-pinned Secret Manager bindings with owner-only activation, audited rotation/revocation, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, tenant-specific break-glass signing, durable Firestore tenant admission, atomic OIDC-only platform tenant bootstrap metadata + audit transaction, no active deployment-wide signer or HMAC allowlist binding, and strict fail-closed unknown-tenant behavior; Salesforce OAuth refresh tokens use the same tenant connector namespace with deprovision race protection and owner-only acquisition; Firestore is authoritative for hosted tenant state and OAuth state, including status-read failures; monitor fetch failures never become synthetic changes and source-failure health is surfaced in the registry summary; both legacy global connector credential and hosted deployment-target fallbacks disabled |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00145-ddh` from commit `ea29b6a` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated, version-pinned Secret Manager bindings with owner-only activation, audited rotation/revocation, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, tenant-specific break-glass signing, durable Firestore tenant admission, atomic OIDC-only platform tenant bootstrap metadata + audit transaction, no active deployment-wide signer or HMAC allowlist binding, and strict fail-closed unknown-tenant behavior; Salesforce OAuth refresh tokens use the same tenant connector namespace with deprovision race protection and owner-only acquisition; Firestore is authoritative for hosted tenant state and OAuth state, including status-read failures; monitor fetch failures never become synthetic changes and source-failure health is surfaced in the registry summary; terminal Cloud Tasks failures write tenant-filtered metadata markers to `driftline_job_failures`; both legacy global connector credential and hosted deployment-target fallbacks disabled |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
 | Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline@sha256:22dd01920ebd9974e86f4f1329dc6fd9655f0c7652d3f447c701db45d0f60485` |
-| Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, `audit_events`, tenant control-plane metadata, `driftline_tenant_audit_events`, `driftline_tenant_usage`, `driftline_tenant_rate_limits`, `driftline_tenant_connector_profiles`, and bounded `driftline_source_failures`; tenant lifecycle, usage, rate-limit, profile, binding, and failure-marker records are metadata-only and have no content TTL beyond the failure marker's 30-day expiry |
+| Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_job_failures`, `driftline_workflows`, `audit_events`, tenant control-plane metadata, `driftline_tenant_audit_events`, `driftline_tenant_usage`, `driftline_tenant_rate_limits`, `driftline_tenant_connector_profiles`, and bounded `driftline_source_failures`; tenant lifecycle, usage, rate-limit, profile, and binding records are metadata-only; job-failure markers carry the same 30-day expiry (TTL enablement is pending ACTIVE confirmation) |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | Cloud Build source bucket | `gs://driftline-hackathon-2026_us-central1_cloudbuild` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |

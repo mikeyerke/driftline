@@ -148,6 +148,13 @@ control-plane metering for quota and pilot evidence only: billing is disabled,
 content is not included, and the deployment still does not claim a hosted
 subscription system.
 
+Cloud Tasks retries failed jobs at most three times. A terminal failure also
+creates a tenant-filtered metadata marker in `driftline_job_failures`, visible
+to signed operators at `/api/ops/job-failures`; the marker contains no prompt,
+source body, exception text, or credential and expires with the normal 30-day
+retention window. The public console never exposes another tenant's failure
+count.
+
 The direct `POST /api/agent/run` route has an explicit two-lane contract. The
 public judge request is tenantless and limited to an allowlisted source. A
 real operator can add `operator`, `tenant_id`, and a Google OIDC or HMAC
