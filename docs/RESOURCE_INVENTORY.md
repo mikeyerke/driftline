@@ -49,6 +49,12 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   post-callback aggregate health probe.
 - Cloud Logging returned no severity `ERROR` entries for revision
   `driftline-00021-rlt` after rollout.
+- The deployed pilot gate was rechecked: unsigned `GET /api/ops/pilot-report`
+  returned `401`, while the signed `driftline-demo` request returned
+  `status=not_measured`, `record_count=0`, and null outcome lifts. This is the
+  correct fail-closed state until a real participant supplies independently
+  verifiable before/after records; synthetic workflow telemetry is not used as
+  a customer-pilot substitute.
 
 ## 2026-08-20 Durable connector-read quota fix (live)
 
