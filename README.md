@@ -100,6 +100,12 @@ owner can soft-deprovision a tenant through `POST /api/tenants/deprovision`
 with an exact tenant-ID confirmation; this disables memberships and revokes
 bindings while preserving metadata for audit. Secret deletion and
 provider-token revocation remain explicit infrastructure offboarding steps.
+The optional operator-owned `DRIFTLINE_TENANT_CONNECTOR_CONFIG` profile scopes
+non-secret destinations per tenant (Jira project, Confluence space, Slack
+channel, or GitHub repository). Requests cannot provide arbitrary targets, and
+credentials still resolve only from the deterministic tenant Secret Manager
+binding. The current demo deployment keeps its existing single-tenant target
+defaults; a second tenant profile has not been provisioned or live-verified.
 
 Signals do not have to become work. A named reviewer can dismiss a
 needs-approval signal as non-material with a required reason; Driftline records
