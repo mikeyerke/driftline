@@ -103,6 +103,24 @@ def salesforce_readiness() -> dict[str, object]:
             "scope": "read_only_context",
             "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
         }
+    oauth_ready = False
+    try:
+        config.validate_oauth()
+        oauth_ready = True
+    except ConnectorError:
+        pass
+    # OAuth configuration is intentionally valid before the first tenant has
+    # completed authorization.  The tenant refresh token is stored only after
+    # the callback, so a missing read token/base URL must not hide a usable
+    # authorization lane from operators.
+    if oauth_ready and not config.token:
+        return {
+            "status": "oauth_ready",
+            "mode": "awaiting_authorization",
+            "external_write": False,
+            "scope": "read_only_context",
+            "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
+        }
     try:
         config.validate()
     except ConnectorError as exc:
@@ -113,12 +131,6 @@ def salesforce_readiness() -> dict[str, object]:
             "scope": "read_only_context",
             "reason": str(exc),
         }
-    oauth_ready = False
-    try:
-        config.validate_oauth()
-        oauth_ready = True
-    except ConnectorError:
-        pass
     if not config.token and not oauth_ready:
         return {
             "status": "oauth_not_configured",
