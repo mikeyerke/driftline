@@ -82,7 +82,7 @@ lane. A noisy tenant cannot consume another tenant's in-process allowance; the
 public demo and scheduler use separate buckets. These are bounded deployment
 guardrails, not a claim of a hosted billing or usage-metering system.
 
-The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
+The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each custom source belongs to the caller's tenant, and its append-only snapshot ledger is stored under a tenant-namespaced key. Each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler. Public registry/history routes expose only the pinned fixtures; signed source history is tenant-scoped.
 Operator fetches also reject common bot/challenge interstitials before recording
 an observation, so a CAPTCHA or “verify you are human” page cannot masquerade as
 a competitor change. The source remains unavailable until a clean page can be
