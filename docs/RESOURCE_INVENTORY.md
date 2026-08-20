@@ -17,7 +17,35 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
-## 2026-08-20 Artifact-routing override release (current)
+## 2026-08-20 Decision Copilot and artifact-routing release (current)
+
+- Source commits `bb95199` and `25136a4` keep the copilot's reviewed option id
+  while marking an operator's artifact-route change as an explicit custom
+  override. The API revalidates complete artifact coverage, allowlisted
+  actions, high-risk routing, and a human-provided reason before recording the
+  plan and audit event. The Decision Copilot output budget was raised to fit
+  three evidence-bound options across four artifacts; a fresh public run
+  verified `decision_copilot.mode=gemini_structured` with
+  `model=gemini-3.5-flash`, not the deterministic demo fallback.
+- Cloud Build `7711374d-9907-4696-83e2-eb6d1137288d` completed `SUCCESS`; image
+  digest `sha256:c07b8593d2cea458cc4ced86eb758e52c40f7ec2286d8c22dab502a63f94425e`,
+  Cloud Run revision `driftline-00159-g9d` serves 100% of traffic.
+- Public `/health` returned Firestore persistence and async jobs. Headless
+  Chrome at 1440px and 390px passed with no overflow, console errors, or
+  failed requests. The live journey passed scan, evidence, artifact
+  selection, manual `Owner review` routing, approval, packet completion, and
+  reopen/undo; the final browser state was `Decision reopened · no external
+  systems were changed` with `sawNeedsApproval=true`, `sawCompleted=true`,
+  and `sawReopened=true`. The latest durable job is
+  `job-9548be0d202b` and workflow `acf228c7-903d-4039-a274-e07239141b58`;
+  its Firestore trace records Gemini structured impact analysis and a
+  Gemini structured decision copilot, while the approval event records the
+  explicit custom override and `external_write=false`.
+- Local regression is `178 passed`; Ruff and the frontend production build
+  are clean. The public lane remains synthetic and packet-only; authenticated
+  connectors remain tenant-scoped and signed.
+
+## 2026-08-20 Artifact-routing override release (historical)
 
 - Source commit `11348a5` keeps the copilot's reviewed option id while marking
   an operator's artifact-route change as an explicit custom override. The API
