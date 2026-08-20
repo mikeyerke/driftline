@@ -91,6 +91,37 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   failed requests; post-rollout Cloud Logging has zero severity `ERROR` or
   `WARNING` entries for revision `driftline-00011-mnz`.
 
+## 2026-08-20 Credential namespace isolation hardening (live)
+
+- Source commit `3d7854a` makes the broker compare every canonical namespace
+  field before reading Secret Manager: schema version, tenant, connector,
+  fully-qualified secret resource, per-tenant service account, and isolation
+  mode. A mismatch fails closed as `credential_namespace_mismatch`.
+- Cloud Build `8c7d6e80-cfb0-4642-9ea3-f78c108740ac` completed `SUCCESS` with
+  image digest
+  `sha256:685ab0f488076dace3049c57ab1bdf2bce79c4d114d8f358384288187887250c`;
+  Cloud Run revision `driftline-00012-trk` serves 100% of traffic. `/health`
+  returned 200 with Firestore persistence and async jobs, the public invoker
+  remained `allUsers`, and post-rollout logs have zero severity `ERROR`
+  entries. The focused credential-broker suite is `8 passed`.
+
+## 2026-08-20 Visual evidence outage fallback (live)
+
+- Source commit `b50c982` keeps the fixed public visual evidence panel
+  available when a GitHub byte fetch is temporarily unavailable. The strict
+  multimodal helper still fails closed for live callers; the anonymous
+  metadata route may return a clearly labelled `synthetic_demo` pair with a
+  `fallback_reason`, and the UI switches asset/analysis requests to demo mode
+  without claiming public bytes or Gemini execution.
+- Cloud Build `efdeaf85-c64e-42eb-ae57-450421f261b1` completed `SUCCESS` with
+  image digest
+  `sha256:aa890284c3f6bfe2185d39488e737f3b8aad18dc0a5d5e64db1c3c895a5c577e`;
+  Cloud Run revision `driftline-00013-d9g` serves 100% of traffic. `/health`
+  returned 200, the live visual metadata route returned 200 with
+  `data_mode=public_source` and a 64-character pair hash, and post-rollout
+  logs have zero severity `ERROR` entries. The deployed desktop/mobile audit
+  remains clean with no overflow, console errors, or failed requests.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
