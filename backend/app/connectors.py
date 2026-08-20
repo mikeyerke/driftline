@@ -353,7 +353,9 @@ def _secret_or_env(env_name: str) -> str:
     explicitly enabled.  The value is never included in a returned status or
     error message.
     """
-    value = os.getenv(env_name, "")
+    # Secret Manager values are operator-supplied text; trim transport
+    # newlines so a copied token can never become an invalid HTTP header.
+    value = os.getenv(env_name, "").strip()
     if value:
         return value
     reference = os.getenv(f"{env_name}_SECRET", "").strip()
@@ -371,7 +373,7 @@ def _secret_or_env(env_name: str) -> str:
 
         client = secretmanager.SecretManagerServiceClient()
         response = client.access_secret_version(name=name)
-        return response.payload.data.decode("utf-8")
+        return response.payload.data.decode("utf-8").strip()
     except Exception as exc:
         raise ConnectorError(f"{env_name.lower()}_secret_read_failed") from exc
 
