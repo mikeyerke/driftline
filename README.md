@@ -186,7 +186,12 @@ rotation, moves the binding to `rotation_pending`, and fails connector
 resolution closed until that replacement version is verified. Activation,
 rotation, and revocation append metadata-only records readable from the signed
 `/api/tenants/audit` route; lifecycle records never contain the credential
-value.
+value. Active bindings pin the concrete Secret Manager version resolved during
+verification, so a later provider-token update cannot silently change a live
+tenant. The current deployment has a real tenant control plane, not a claim of
+self-serve enterprise SSO, customer billing, or IAM-isolated Cloud Run workers
+per tenant; those are the next production SaaS layer beyond this hackathon
+deployment.
 The signed `GET /api/connectors/bindings/health` probe reconciles every fixed
 connector namespace against the exact Secret Manager binding and reports
 `healthy`, `attention`, or `not_configured` without returning credential
