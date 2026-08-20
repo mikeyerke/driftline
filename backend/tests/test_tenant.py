@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from app import persistence
-from app.tenant import principal_for_claims
+from app.tenant import (
+    principal_for_claims,
+    tenant_connector_secret_name,
+    validate_connector_profile,
+)
 
 
 def test_persisted_membership_can_authorize_a_tenant_without_env_mapping(monkeypatch) -> None:
@@ -67,3 +71,13 @@ def test_disabled_durable_membership_fails_closed(monkeypatch) -> None:
         assert str(exc) == "tenant_membership_inactive"
     else:  # pragma: no cover - explicit fail-closed assertion
         raise AssertionError("disabled tenant membership unexpectedly authorized")
+
+
+def test_salesforce_uses_shared_tenant_secret_namespace() -> None:
+    assert (
+        tenant_connector_secret_name("acme", "salesforce")
+        == "driftline-tenant-acme-salesforce"
+    )
+    assert validate_connector_profile(
+        "salesforce", {"instance_url": "https://acme.my.salesforce.com"}
+    )["instance_url"].startswith("https://")

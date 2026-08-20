@@ -28,6 +28,7 @@ other than driftline-hackathon-2026. It creates only:
 - driftline-tenant-acme-confluence
 - driftline-tenant-acme-slack
 - driftline-tenant-acme-github
+- driftline-tenant-acme-salesforce (OAuth refresh token, when enabled)
 
 Each secret is labeled with the tenant and connector and grants
 roles/secretmanager.secretAccessor only to the Driftline runtime service

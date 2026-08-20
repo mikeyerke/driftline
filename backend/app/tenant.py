@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 _TENANT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _ROLES = {"viewer", "operator", "owner"}
-CONNECTOR_NAMES = frozenset({"jira", "confluence", "slack", "github"})
+CONNECTOR_NAMES = frozenset({"jira", "confluence", "slack", "github", "salesforce"})
 
 # Non-secret destination metadata is deliberately narrower than the provider
 # APIs. Credentials, arbitrary query/path fields, and user-supplied targets do
@@ -29,6 +29,9 @@ CONNECTOR_PROFILE_KEYS: dict[str, frozenset[str]] = {
     ),
     "slack": frozenset({"base_url", "channel_id"}),
     "github": frozenset({"api_url", "owner", "repo"}),
+    # Salesforce's instance URL is learned during OAuth and is non-secret
+    # connection metadata. The refresh token remains in the tenant secret.
+    "salesforce": frozenset({"instance_url"}),
 }
 
 

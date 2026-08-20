@@ -1096,10 +1096,8 @@ def health() -> dict[str, str | bool]:
 
 
 def _salesforce_secret_name(tenant_id: str) -> str:
-    safe = validate_tenant_id(tenant_id)
-    # Secret names are deliberately deterministic, bounded, and never based
-    # on an email address or arbitrary user input.
-    return f"driftline-sf-{safe}"[:100]
+    """Return the same tenant connector secret name used by every adapter."""
+    return tenant_connector_secret_name(tenant_id, "salesforce")
 
 
 def _save_salesforce_state(state: str, payload: dict[str, object]) -> None:
@@ -1206,6 +1204,17 @@ def salesforce_oauth_callback(
         tenant_id = validate_tenant_id(str(callback_state["tenant_id"]))
         secret_name = _salesforce_secret_name(tenant_id)
         write_secret_version(secret_name, refresh_token)
+        binding = persist_connector_binding(
+            {
+                "tenant_id": tenant_id,
+                "connector": "salesforce",
+                "secret_name": secret_name,
+                "status": "active",
+                "scope": "tenant_bound_oauth_refresh_token",
+                "configured_by": callback_state.get("email", "") or "salesforce_oauth",
+                "updated_at": utc_now(),
+            }
+        )
         persist_salesforce_connection(
             {
                 "tenant_id": tenant_id,
@@ -1215,6 +1224,16 @@ def salesforce_oauth_callback(
                 "status": "connected_read_only",
                 "connected_at": utc_now(),
                 "operator_email": callback_state.get("email", ""),
+            }
+        )
+        persist_tenant_audit_event(
+            {
+                "tenant_id": tenant_id,
+                "event_type": "salesforce_connected_read_only",
+                "connector": "salesforce",
+                "status": "active",
+                "secret_name": binding["secret_name"],
+                "actor": callback_state.get("email", "") or "salesforce_oauth",
             }
         )
         return PlainTextResponse(
@@ -1241,7 +1260,15 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
     )
     tenant_id = identity["tenant_id"]
     connection = load_salesforce_connection(tenant_id)
-    if not connection or connection.get("status") != "connected_read_only":
+    binding = load_connector_binding(tenant_id, "salesforce")
+    expected_secret = _salesforce_secret_name(tenant_id)
+    if (
+        not connection
+        or connection.get("status") != "connected_read_only"
+        or not binding
+        or binding.get("status") != "active"
+        or binding.get("secret_name") != expected_secret
+    ):
         raise HTTPException(
             status_code=409, detail="Salesforce is not connected for this tenant"
         )
@@ -1276,10 +1303,33 @@ def disconnect_salesforce(request: SalesforceConnectRequest) -> dict[str, object
     )
     if identity.get("role") != "owner":
         raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    delete_salesforce_connection(identity["tenant_id"])
+    tenant_id = identity["tenant_id"]
+    binding = load_connector_binding(tenant_id, "salesforce")
+    if binding:
+        persist_connector_binding(
+            {
+                **binding,
+                "tenant_id": tenant_id,
+                "connector": "salesforce",
+                "status": "revoked",
+                "revoked_at": utc_now(),
+                "revoked_by": identity.get("email") or identity.get("identity"),
+            }
+        )
+    delete_salesforce_connection(tenant_id)
+    persist_tenant_audit_event(
+        {
+            "tenant_id": tenant_id,
+            "event_type": "salesforce_disconnected",
+            "connector": "salesforce",
+            "status": "revoked",
+            "secret_name": (binding or {}).get("secret_name", _salesforce_secret_name(tenant_id)),
+            "actor": identity.get("email") or identity.get("identity"),
+        }
+    )
     return {
         "status": "disconnected",
-        "tenant_id": identity["tenant_id"],
+        "tenant_id": tenant_id,
         "follow_up": "Revoke the Driftline app in Salesforce and delete the tenant secret during offboarding.",
     }
 
@@ -1853,6 +1903,16 @@ def provision_platform_tenant(
     if "@" not in owner_email or len(owner_email) > 320:
         raise HTTPException(status_code=422, detail="owner_email_invalid")
     now = utc_now()
+    bootstrap_audit = {
+        "event_id": f"tenant-audit-{uuid4().hex}",
+        "tenant_id": tenant_id,
+        "event_type": "tenant_provisioned",
+        "status": "active",
+        "owner_email": owner_email,
+        "actor": platform["email"],
+        "identity": platform["identity"],
+        "created_at": now,
+    }
     created = provision_tenant_metadata(
         {
             "tenant_id": tenant_id,
@@ -1871,22 +1931,13 @@ def provision_platform_tenant(
             "configured_by": platform["email"],
             "updated_at": now,
         },
+        audit_payload=bootstrap_audit,
     )
     if not created:
         raise HTTPException(status_code=409, detail="tenant_already_exists")
     membership_id = base64.urlsafe_b64encode(
         f"{tenant_id}:{owner_email}".encode()
     ).decode("ascii").rstrip("=")
-    audit_event = persist_tenant_audit_event(
-        {
-            "tenant_id": tenant_id,
-            "event_type": "tenant_provisioned",
-            "status": "active",
-            "owner_email": owner_email,
-            "actor": platform["email"],
-            "identity": platform["identity"],
-        }
-    )
     return {
         "status": "active",
         "tenant_id": tenant_id,
@@ -1898,7 +1949,7 @@ def provision_platform_tenant(
         },
         "operator_signing_secret": tenant_operator_signing_secret_name(tenant_id),
         "credential_values_exposed": False,
-        "audit_event_id": audit_event["event_id"],
+        "audit_event_id": bootstrap_audit["event_id"],
         "next_step": (
             "Provision the deterministic Secret Manager containers out of band, "
             "then add provider values and activate each owner binding."

@@ -663,13 +663,18 @@ def persist_tenant(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def provision_tenant_metadata(
-    tenant_payload: dict[str, Any], membership_payload: dict[str, Any]
+    tenant_payload: dict[str, Any],
+    membership_payload: dict[str, Any],
+    *,
+    audit_payload: dict[str, Any] | None = None,
 ) -> bool:
     """Atomically create/reactivate a tenant and its initial owner metadata.
 
     Returns ``False`` when another active tenant already owns the identifier.
     No credential-shaped fields are persisted, and the Firestore path uses a
     transaction so concurrent Cloud Run instances cannot swap the owner email.
+    When supplied, the initial audit event is committed in that same
+    transaction; a tenant can never be visible without its bootstrap record.
     """
     tenant_id = str(tenant_payload["tenant_id"])
     email = str(membership_payload["email"]).strip().casefold()
@@ -710,6 +715,24 @@ def provision_tenant_metadata(
     ).decode("ascii").rstrip("=")
     safe_membership["membership_id"] = membership_id
 
+    safe_audit: dict[str, Any] | None = None
+    if audit_payload is not None:
+        safe_audit = {
+            key: value
+            for key, value in audit_payload.items()
+            if key
+            not in {
+                "token",
+                "secret_value",
+                "access_token",
+                "refresh_token",
+                "client_secret",
+            }
+        }
+        safe_audit.setdefault("event_id", f"tenant-audit-{uuid4().hex}")
+        safe_audit.setdefault("created_at", utc_now())
+        safe_audit["tenant_id"] = tenant_id
+
     if not _enabled():
         with _tenant_provision_lock:
             existing = _tenants_memory.get(tenant_id)
@@ -718,6 +741,8 @@ def provision_tenant_metadata(
                 return False
             _tenants_memory[tenant_id] = dict(safe_tenant)
             _tenant_memberships_memory[(tenant_id, email)] = dict(safe_membership)
+            if safe_audit is not None:
+                _tenant_audit_memory.append(dict(safe_audit))
         return True
 
     client = _client()
@@ -735,6 +760,11 @@ def provision_tenant_metadata(
             return False
         transaction.set(tenant_document, safe_tenant)
         transaction.set(membership_document, safe_membership)
+        if safe_audit is not None:
+            audit_document = client.collection(TENANT_AUDIT_COLLECTION).document(
+                str(safe_audit["event_id"])
+            )
+            transaction.create(audit_document, safe_audit)
         return True
 
     created = provision(client.transaction())

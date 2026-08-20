@@ -24,7 +24,7 @@ if [[ ! "${TENANT}" =~ ^[a-z0-9][a-z0-9-]{1,62}$ ]]; then
   exit 2
 fi
 
-for connector in jira confluence slack github; do
+for connector in jira confluence slack github salesforce; do
   secret="driftline-tenant-${TENANT}-${connector}"
   if gcloud secrets describe "${secret}" --project="${PROJECT}" >/dev/null 2>&1; then
     echo "exists ${secret}"
