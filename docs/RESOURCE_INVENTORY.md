@@ -157,6 +157,9 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 - GitHub Actions run `32411709745` completed successfully: backend Ruff plus
   the full Python suite and the locked frontend `npm ci`/production build all
   passed. Deployment remains an explicit Cloud Build step after this gate.
+- Commit `26c1f03` refreshed the action runtimes to current Node 24-compatible
+  majors; final-HEAD run `32411863662` passed both jobs without the prior
+  Node 20 deprecation annotation.
 
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
