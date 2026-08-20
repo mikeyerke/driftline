@@ -17,6 +17,30 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Tenant identity and read-isolation releases
+
+- Source commits `b783a74` (tenant identity propagation through signed monitor
+  jobs and workflows) and `5eb997a` (signed read authorization for tenant-bound
+  jobs, workflows, packets, actions, and scenarios), pushed to
+  `https://github.com/mikeyerke/driftline`.
+- Cloud Build `1225e5a4-b3d5-4fb3-9717-27a28126d8ea` built the first change;
+  Cloud Build `7cefae2e-b1c9-4033-b224-bf4059e33429` deployed the combined
+  release successfully. Artifact Registry image digest:
+  `sha256:31ed4cbef61839b47c3017180595eb52faf6734c1b563c8af82fc5862bfeefae`.
+- Cloud Run revision `driftline-00098-5g2` is ready and serves 100% of traffic.
+  `GET /health` returned Firestore persistence and async jobs; the newest
+  revision `severity>=ERROR` query returned no entries.
+- Live signed monitor probe created `job-fc0c4ff0d774` for
+  `tenant_id=driftline-demo`; it completed with `model=gemini-3.5-flash`,
+  `execution_mode=google_adk`, and no error. An unsigned read returned `403`,
+  the public job list omitted the tenant-bound job, and a matching signed read
+  returned it. The signed tenant metadata probe still returned four active
+  connector bindings with `credential_values_exposed=false`; an unknown tenant
+  returned `403 tenant_not_allowlisted`.
+- The local regression suite is `117 passed`; Ruff and `git diff --check` are
+  clean. The public demo remains tenantless synthetic data and continues to
+  use the packet-only lane.
+
 ## 2026-08-20 Membership status enforcement release
 
 - Source commit: `7c5293b` (durable membership state overrides bootstrap
@@ -237,7 +261,7 @@ not invoked by that public path.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00096-2st` from commit `7c5293b` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; connector credentials are tenant-bound through isolated Secret Manager bindings |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00098-5g2` from commit `5eb997a` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound reads and writes require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
