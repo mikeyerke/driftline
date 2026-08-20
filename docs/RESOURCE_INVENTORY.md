@@ -344,6 +344,12 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   confirmed in Firestore collection `driftline_workflows`; no external write
   occurred. The fix binds placeholder model references only to the workflow
   created in the same ADK turn and requires an explicit allowlisted `source_id`.
+- A second direct public probe (`decision-copilot-audit`) also completed with
+  live Gemini structured impact analysis and live Gemini decision copilot
+  output (`option_count=2`); its workflow was
+  `e4a32330-fa45-4080-9a6e-e118c5bb28e6`. The first probe's transient
+  deterministic decision fallback is retained as an explicitly labelled demo
+  reliability path, not presented as Gemini output.
 - The local regression suite is `135 passed`; Ruff, frontend production
   build, and `git diff --check` passed. Salesforce remains
   `oauth_ready` / `awaiting_authorization`; no connected-org claim is made.
