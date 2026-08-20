@@ -340,12 +340,16 @@ class DriftlineWorkflow:
         state = self.get(workflow_id)
         if state.status is not WorkflowStatus.NEEDS_APPROVAL:
             raise PolicyViolation("Only approval-gated workflows can be dismissed")
-        _require_named_human(actor, "actor")
+        if state.evidence is None or state.evidence.evidence_hash != _evidence_digest(
+            state.evidence.before, state.evidence.after
+        ):
+            raise PolicyViolation("Evidence hash no longer matches the source snapshot")
+        cleaned_actor = _require_named_human(actor, "actor")
         cleaned_reason = " ".join(reason.split())
         if not cleaned_reason:
             raise PolicyViolation("Dismissal reason is required")
         state.approval = {
-            "approver": actor,
+            "approver": cleaned_actor,
             "decision": "dismissed",
             "reason": cleaned_reason,
             "timestamp": self._timestamp(),

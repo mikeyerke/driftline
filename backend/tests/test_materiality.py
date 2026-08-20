@@ -57,6 +57,20 @@ def test_dismissal_is_auditable_and_creates_no_downstream_work() -> None:
     assert "intentional no-op" in dismissed.change_card["closure"]["next_step"]
 
 
+def test_dismissal_rejects_tampered_source_evidence() -> None:
+    workflow = DriftlineWorkflow()
+    state = workflow.start_demo()
+    state.evidence = state.evidence.__class__(
+        **{**state.evidence.__dict__, "after": "tampered source text"}
+    )
+    try:
+        workflow.dismiss(state.workflow_id, "Named reviewer", "Not material")
+    except Exception as exc:  # noqa: BLE001 - assert the policy boundary below.
+        assert "Evidence hash" in str(exc)
+    else:
+        raise AssertionError("Tampered evidence must not be dismissible")
+
+
 def test_same_source_snapshot_reuses_change_card_and_action_identity() -> None:
     workflow = DriftlineWorkflow()
     first = workflow.start_demo(source_id="public/pricing")
