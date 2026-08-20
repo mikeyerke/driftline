@@ -19,9 +19,12 @@ project number: 724959673622
   `1cc53c92-d106-46a1-9d51-0d17dac60a9f` completed `SUCCESS`, producing Cloud
   Run revision `driftline-00031-n7l` at 100% traffic. The active gcloud project
   was `driftline-hackathon-2026`.
-- `/health` returned 200 after rollout. The existing runtime canary, query-auth
-  guard, signed connector reconciliation, and browser quality checks remain
-  the evidence recorded in the immediately preceding release sections.
+- `/health` returned 200 after rollout. A fresh canary on `driftline-00031-n7l`
+  persisted a Firestore workflow with `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, `source_status=needs_approval`, and exactly
+  `inspect_source_change` plus `get_workflow_state`; Cloud Logging returned no
+  severity `ERROR` entries for the revision. The query-auth guard and signed
+  connector reconciliation remain active as recorded below.
 
 ## 2026-08-20 final UI copy and live quality gate (live)
 
