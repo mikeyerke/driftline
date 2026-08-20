@@ -197,6 +197,18 @@ class ConnectorBindingRequest(BaseModel):
     identity_token: str | None = Field(default=None, max_length=4096)
 
 
+class TenantMemberRequest(BaseModel):
+    """Owner-managed durable membership metadata; never accepts credentials."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    email: str = Field(min_length=3, max_length=320)
+    role: Literal["viewer", "operator", "owner"] = "viewer"
+    status: Literal["active", "disabled"] = "active"
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
 class ActionItemRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
 
@@ -1343,6 +1355,52 @@ def get_tenant_members(
             }
             for member in members
         ],
+        "credential_values_exposed": False,
+    }
+
+
+@app.post("/api/tenants/members")
+def provision_tenant_member(request: TenantMemberRequest) -> dict[str, object]:
+    """Provision or update one tenant role without accepting a secret/token."""
+    identity = _verify_approval_mode(
+        "tenant-member-provision",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    email = request.email.strip().casefold()
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
+        raise HTTPException(status_code=422, detail="member_email_invalid")
+    tenant_id = identity["tenant_id"]
+    persist_tenant(
+        {
+            "tenant_id": tenant_id,
+            "status": "active",
+            "provisioning": "owner_membership",
+            "configured_by": identity.get("email") or identity.get("identity"),
+            "updated_at": utc_now(),
+        }
+    )
+    member = persist_tenant_membership(
+        {
+            "tenant_id": tenant_id,
+            "email": email,
+            "role": request.role,
+            "status": request.status,
+            "source": "owner_provisioned",
+            "updated_at": utc_now(),
+        }
+    )
+    return {
+        "status": request.status,
+        "tenant_id": tenant_id,
+        "email": email,
+        "role": request.role,
+        "membership_id": member["membership_id"],
         "credential_values_exposed": False,
     }
 

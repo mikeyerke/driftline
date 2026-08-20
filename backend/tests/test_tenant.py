@@ -27,3 +27,19 @@ def test_persisted_membership_can_authorize_a_tenant_without_env_mapping(monkeyp
     assert principal.tenant_id == "persisted-acme"
     assert principal.role == "operator"
     assert principal.can("operator") is True
+
+
+def test_unprovisioned_oidc_identity_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.delenv("DRIFTLINE_TENANT_MEMBERS", raising=False)
+
+    try:
+        principal_for_claims(
+            subject="unknown-subject",
+            email="unknown@example.com",
+            requested_tenant_id="arbitrary-acme",
+        )
+    except PermissionError as exc:
+        assert str(exc) == "tenant_membership_required"
+    else:  # pragma: no cover - explicit fail-closed assertion
+        raise AssertionError("unprovisioned OIDC identity unexpectedly authorized")

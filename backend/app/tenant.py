@@ -106,11 +106,10 @@ def principal_for_claims(
             tenant_id = validate_tenant_id(str(persisted["tenant_id"]))
             role = str(persisted.get("role", "viewer")).casefold()
         else:
-            tenant_id = validate_tenant_id(
-                requested_tenant_id
-                or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
-            )
-            role = os.getenv("DRIFTLINE_DEFAULT_TENANT_ROLE", "owner").casefold()
+            # OIDC identities must be explicitly mapped to a tenant. Falling
+            # back to the default tenant here would let an authenticated but
+            # unprovisioned user claim an arbitrary tenant/owner role.
+            raise PermissionError("tenant_membership_required")
         if role not in _ROLES:
             role = "viewer"
     if requested_tenant_id:
