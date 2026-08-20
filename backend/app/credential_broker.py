@@ -19,6 +19,8 @@ from uuid import uuid4
 
 from .tenant import (
     tenant_connector_secret_name,
+    tenant_credential_namespace,
+    tenant_service_account_email,
     validate_connector_name,
     validate_tenant_id,
 )
@@ -53,8 +55,9 @@ class CredentialLease:
     value: str
     issued_at: str
     expires_at: str
+    namespace_verified: bool = False
 
-    def metadata(self) -> dict[str, str]:
+    def metadata(self) -> dict[str, object]:
         """Return a safe audit/API view without the credential value."""
         return {
             "lease_id": self.lease_id,
@@ -65,6 +68,7 @@ class CredentialLease:
             "secret_version": self.secret_version,
             "issued_at": self.issued_at,
             "expires_at": self.expires_at,
+            "namespace_verified": self.namespace_verified,
         }
 
 
@@ -142,9 +146,48 @@ def resolve_tenant_credential(
 
     if not binding or str(binding.get("status", "")).casefold() != "active":
         raise CredentialBrokerError("credential_binding_unavailable")
+    if str(binding.get("tenant_id", safe_tenant)) != safe_tenant:
+        raise CredentialBrokerError("credential_tenant_mismatch")
+    if str(binding.get("connector", safe_connector)) != safe_connector:
+        raise CredentialBrokerError("credential_connector_mismatch")
     expected_secret = tenant_connector_secret_name(safe_tenant, safe_connector)
     if str(binding.get("secret_name", "")) != expected_secret:
         raise CredentialBrokerError("secret_name_mismatch")
+
+    # New bindings carry a fully-qualified namespace. Accept legacy records
+    # during migration, but if the metadata exists it must agree with the
+    # authenticated tenant, connector, project, and service identity before a
+    # provider value is read.
+    namespace = binding.get("credential_namespace")
+    if namespace is not None:
+        if not isinstance(namespace, dict):
+            raise CredentialBrokerError("credential_namespace_invalid")
+        try:
+            expected_namespace = tenant_credential_namespace(
+                safe_tenant, safe_connector
+            )
+        except ValueError as exc:
+            raise CredentialBrokerError("credential_namespace_invalid") from exc
+        for key in ("tenant_id", "connector", "secret_resource", "service_account"):
+            if str(namespace.get(key, "")) != str(expected_namespace[key]):
+                raise CredentialBrokerError("credential_namespace_mismatch")
+    elif (
+        os.getenv("DRIFTLINE_TENANT_SECRET_IDENTITY_MODE", "direct").casefold()
+        == "impersonated"
+        and os.getenv(
+            "DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE", "false"
+        ).casefold()
+        == "true"
+    ):
+        # Operators can turn this on after the one-time migration. Keeping the
+        # switch explicit lets a rolling deployment read pre-migration records
+        # without weakening the new namespace checks for migrated tenants.
+        try:
+            expected_service = tenant_service_account_email(safe_tenant)
+        except ValueError as exc:
+            raise CredentialBrokerError("credential_namespace_invalid") from exc
+        if str(binding.get("service_account", "")) != expected_service:
+            raise CredentialBrokerError("credential_namespace_required")
 
     configured_operations = binding.get("allowed_operations")
     if configured_operations is None:
@@ -186,6 +229,7 @@ def resolve_tenant_credential(
         value=value,
         issued_at=issued_at.isoformat(),
         expires_at=expires_at.isoformat(),
+        namespace_verified=isinstance(namespace, dict),
     )
     _record_access(
         {

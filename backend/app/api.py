@@ -160,6 +160,7 @@ from .tenant import (
     principal_for_hmac,
     public_demo_principal,
     tenant_connector_secret_name,
+    tenant_credential_namespace,
     tenant_operator_signing_secret_name,
     validate_connector_name,
     validate_connector_profile,
@@ -1635,6 +1636,13 @@ def get_ops_summary(
                 == "true",
                 "binding_route": "/api/connectors/{connector}/binding",
                 "metadata_collection": "driftline_connector_bindings",
+                "canonical_binding_path": "driftline_tenants/{tenant}/credentials/{connector}",
+                "namespace_schema_version": 1,
+                "namespace_migration": "scripts/migrate_tenant_credential_bindings.py",
+                "strict_namespace_required": os.getenv(
+                    "DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE", "false"
+                ).casefold()
+                == "true",
                 "broker_inventory_route": "/api/connectors/credentials",
                 "broker_access_route": "/api/connectors/credentials/access",
                 "broker_access_collection": "driftline_credential_access_events",
@@ -1839,6 +1847,12 @@ def register_connector_binding(
         "tenant_id": tenant_id,
         "connector": safe_connector,
         "secret_name": secret_name,
+        "credential_namespace": binding.get(
+            "credential_namespace",
+            tenant_credential_namespace(tenant_id, safe_connector)
+            if os.getenv("GOOGLE_CLOUD_PROJECT")
+            else None,
+        ),
         "secret_version": binding.get("secret_version", "latest"),
         "verified_at": binding.get("verified_at"),
         "scope": binding["scope"],
@@ -1900,6 +1914,7 @@ def revoke_connector_binding(
         "tenant_id": tenant_id,
         "connector": safe_connector,
         "secret_name": revoked["secret_name"],
+        "credential_namespace": revoked.get("credential_namespace"),
         "credential_value_exposed": False,
         "audit_event_id": audit_event["event_id"],
         "follow_up": (
@@ -1953,6 +1968,7 @@ def rotate_connector_binding(
             "connector": safe_connector,
             "rotation_id": binding["rotation_id"],
             "secret_name": binding["secret_name"],
+            "credential_namespace": binding.get("credential_namespace"),
             "credential_value_exposed": False,
             "already_pending": True,
             "next_step": (
@@ -1993,6 +2009,7 @@ def rotate_connector_binding(
         "connector": safe_connector,
         "rotation_id": rotation_id,
         "secret_name": pending["secret_name"],
+        "credential_namespace": pending.get("credential_namespace"),
         "credential_value_exposed": False,
         "audit_event_id": audit_event["event_id"],
         "next_step": (
@@ -2481,6 +2498,8 @@ def get_connector_credentials(
                     )
                 ),
                 "lease_seconds": int(binding.get("lease_seconds", 300)),
+                "namespace_verified": bool(binding.get("credential_namespace")),
+                "credential_namespace": binding.get("credential_namespace"),
                 "verified_at": binding.get("verified_at"),
                 "updated_at": binding.get("updated_at"),
                 "credential_values_exposed": False,
@@ -2492,6 +2511,13 @@ def get_connector_credentials(
         "credentials": credentials,
         "architecture": {
             "isolation": "tenant_binding_to_exact_secret_manager_secret",
+            "canonical_binding_path": "driftline_tenants/{tenant}/credentials/{connector}",
+            "namespace_schema_version": 1,
+            "namespace_migration": "scripts/migrate_tenant_credential_bindings.py",
+            "strict_namespace_required": os.getenv(
+                "DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE", "false"
+            ).casefold()
+            == "true",
             "resolution": "short_lived_in_process_lease",
             "rotation": "owner_requested_then_version_pinned",
             "revocation": "binding_status_fail_closed",

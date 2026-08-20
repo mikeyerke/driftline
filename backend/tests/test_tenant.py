@@ -4,6 +4,8 @@ from app import persistence
 from app.tenant import (
     principal_for_claims,
     tenant_connector_secret_name,
+    tenant_credential_namespace,
+    tenant_secret_resource_name,
     tenant_service_account_email,
     tenant_service_account_id,
     validate_connector_profile,
@@ -145,3 +147,18 @@ def test_tenant_service_identity_is_deterministic_and_bounded(monkeypatch) -> No
     assert tenant_service_account_id("a-long-customer-tenant-name") != tenant_service_account_id(
         "a-long-customer-tenant-names"
     )
+
+
+def test_tenant_credential_namespace_is_fully_qualified(monkeypatch) -> None:
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "driftline-hackathon-2026")
+    resource = tenant_secret_resource_name("acme", "jira")
+    namespace = tenant_credential_namespace("acme", "jira")
+    assert resource == (
+        "projects/driftline-hackathon-2026/secrets/"
+        "driftline-tenant-acme-jira"
+    )
+    assert namespace["schema_version"] == 1
+    assert namespace["tenant_id"] == "acme"
+    assert namespace["connector"] == "jira"
+    assert namespace["secret_resource"] == resource
+    assert namespace["service_account"].startswith("driftline-acme-")

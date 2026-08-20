@@ -6,6 +6,7 @@ from app.credential_broker import (
     CredentialBrokerError,
     resolve_tenant_credential,
 )
+from app.tenant import tenant_credential_namespace
 
 
 def test_resolver_returns_scoped_lease_and_never_accepts_arbitrary_secret_name(
@@ -108,3 +109,51 @@ def test_resolver_records_metadata_only_access(monkeypatch) -> None:
     assert events[0]["outcome"] == "resolved"
     assert "value" not in events[0]
     assert "refresh-token" not in str(events[0])
+
+
+def test_resolver_rejects_mismatched_credential_namespace(monkeypatch) -> None:
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "driftline-hackathon-2026")
+    namespace = tenant_credential_namespace("acme", "jira")
+    namespace["secret_resource"] = (
+        "projects/driftline-hackathon-2026/secrets/driftline-tenant-other-jira"
+    )
+    monkeypatch.setattr(
+        "app.persistence.load_connector_binding",
+        lambda *_args: {
+            "tenant_id": "acme",
+            "connector": "jira",
+            "secret_name": "driftline-tenant-acme-jira",
+            "credential_namespace": namespace,
+            "status": "active",
+        },
+    )
+    with pytest.raises(CredentialBrokerError, match="credential_namespace_mismatch"):
+        resolve_tenant_credential(
+            "acme",
+            "jira",
+            secret_reader=lambda *_args, **_kwargs: "should-not-read",
+        )
+
+
+def test_resolver_marks_migrated_namespace_in_lease(monkeypatch) -> None:
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "driftline-hackathon-2026")
+    namespace = tenant_credential_namespace("acme", "salesforce")
+    monkeypatch.setattr(
+        "app.persistence.load_connector_binding",
+        lambda *_args: {
+            "tenant_id": "acme",
+            "connector": "salesforce",
+            "secret_name": "driftline-tenant-acme-salesforce",
+            "credential_namespace": namespace,
+            "status": "active",
+        },
+    )
+    events: list[dict[str, object]] = []
+    lease = resolve_tenant_credential(
+        "acme",
+        "salesforce",
+        secret_reader=lambda *_args, **_kwargs: "refresh-token",
+        access_writer=events.append,
+    )
+    assert lease.namespace_verified is True
+    assert events[0]["namespace_verified"] is True

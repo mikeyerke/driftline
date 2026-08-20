@@ -18,6 +18,7 @@ from dataclasses import dataclass
 _TENANT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _ROLES = {"viewer", "operator", "owner"}
 CONNECTOR_NAMES = frozenset({"jira", "confluence", "slack", "github", "salesforce"})
+TENANT_CREDENTIAL_SCHEMA_VERSION = 1
 
 # Non-secret destination metadata is deliberately narrower than the provider
 # APIs. Credentials, arbitrary query/path fields, and user-supplied targets do
@@ -90,6 +91,48 @@ def tenant_connector_secret_name(tenant_id: str, connector: str) -> str:
     safe_tenant = validate_tenant_id(tenant_id)
     safe_connector = validate_connector_name(connector)
     return f"driftline-tenant-{safe_tenant}-{safe_connector}"[:100]
+
+
+def tenant_secret_resource_name(
+    tenant_id: str, connector: str, project_id: str | None = None
+) -> str:
+    """Return the fully-qualified Secret Manager resource for one tenant.
+
+    Connector callers never accept a resource name from a request.  They derive
+    it from the authenticated tenant and fixed connector allowlist, which makes
+    project and tenant swaps detectable before Secret Manager is touched.
+    """
+    project = (project_id or os.getenv("GOOGLE_CLOUD_PROJECT", "")).strip()
+    if not re.fullmatch(r"[a-z][a-z0-9-]{4,28}[a-z0-9]", project):
+        raise ValueError("google_project_id_invalid")
+    return (
+        f"projects/{project}/secrets/"
+        f"{tenant_connector_secret_name(tenant_id, connector)}"
+    )
+
+
+def tenant_credential_namespace(
+    tenant_id: str, connector: str, project_id: str | None = None
+) -> dict[str, str | int]:
+    """Describe the stable control/data-plane namespace for one credential.
+
+    This metadata is safe to persist and inspect: it contains no provider
+    value.  The namespace is the contract shared by Firestore, Secret Manager,
+    and the per-tenant service identity.
+    """
+    safe_tenant = validate_tenant_id(tenant_id)
+    safe_connector = validate_connector_name(connector)
+    project = (project_id or os.getenv("GOOGLE_CLOUD_PROJECT", "")).strip()
+    return {
+        "schema_version": TENANT_CREDENTIAL_SCHEMA_VERSION,
+        "tenant_id": safe_tenant,
+        "connector": safe_connector,
+        "secret_resource": tenant_secret_resource_name(
+            safe_tenant, safe_connector, project
+        ),
+        "service_account": tenant_service_account_email(safe_tenant, project),
+        "isolation": "tenant_service_identity",
+    }
 
 
 def tenant_service_account_id(tenant_id: str) -> str:

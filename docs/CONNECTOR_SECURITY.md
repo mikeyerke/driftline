@@ -38,15 +38,21 @@ forbidden response for unknown tenants; it is not a wildcard tenant selector.
 Connector credentials are now tenant-bound for every external integration.
 Each signed approval resolves a tenant principal first, then loads only the
 deterministic Secret Manager name
-`driftline-tenant-<tenant>-<connector>` from the metadata-only
-`driftline_connector_bindings` collection. The runtime accepts neither a
-credential value nor an arbitrary secret name. An owner activates a binding
-through `POST /api/connectors/{connector}/binding` only after infrastructure
-has provisioned the secret; missing or mismatched bindings fail closed. The
-binding records the resolved Secret Manager version at verification time when
-the provider returns one, and connector calls read that pinned version rather
-than silently following a later `latest` value. Legacy bindings without a
-version remain compatible on `latest` until their next owner verification.
+`driftline-tenant-<tenant>-<connector>` from the canonical tenant credential
+namespace (`driftline_tenants/{tenant}/credentials/{connector}`). The older
+`driftline_connector_bindings` collection is a rolling-migration mirror, not a
+second authority. Every migrated binding carries a versioned namespace record
+with the exact Secret Manager resource, tenant service identity, connector, and
+schema version. The runtime accepts neither a credential value nor an arbitrary
+secret name. An owner activates a binding through
+`POST /api/connectors/{connector}/binding` only after infrastructure has
+provisioned the secret; missing, cross-tenant, cross-project, or mismatched
+identity bindings fail closed. The binding records the resolved Secret Manager
+version at verification time when the provider returns one, and connector
+calls read that pinned version rather than silently following a later `latest`
+value. Legacy bindings without a version remain compatible on `latest` until
+their next owner verification. `scripts/migrate_tenant_credential_bindings.py`
+adds the namespace metadata without reading or changing any credential value.
 Rotation therefore has a hard cutover: the owner first moves the binding to
 `rotation_pending`, connector calls fail closed, infrastructure adds the
 replacement version, and the owner re-verifies to pin the new version. The

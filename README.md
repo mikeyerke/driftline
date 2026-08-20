@@ -195,8 +195,14 @@ rotation, and revocation append metadata-only records readable from the signed
 `/api/tenants/audit` route; lifecycle records never contain the credential
 value. Active bindings pin the concrete Secret Manager version resolved during
 verification, so a later provider-token update cannot silently change a live
-tenant. The hosted runtime also derives a collision-resistant per-tenant Google
-service identity and impersonates it for Secret Manager access. The shared
+tenant. Bindings are stored canonically below the tenant document at
+`driftline_tenants/{tenant}/credentials/{connector}` and carry a versioned
+namespace record naming the exact project Secret Manager resource and tenant
+service identity. The legacy flat collection is only a rolling-migration mirror;
+`scripts/migrate_tenant_credential_bindings.py` backfills this metadata without
+reading or changing a credential value. The hosted runtime also derives a
+collision-resistant per-tenant Google service identity and impersonates it for
+Secret Manager access. The shared
 Cloud Run identity has only narrowly scoped `Service Account Token Creator`
 access to each tenant identity; each tenant identity can read only its own
 deterministic secrets and can add Salesforce refresh-token versions only on
@@ -215,7 +221,8 @@ secret reads are reserved for local compatibility. Signed owners can inspect the
 `/api/connectors/credentials` and access trail at
 `/api/connectors/credentials/access`. This closes the runtime credential seam
 for multiple tenants while leaving customer-managed encryption keys,
-self-serve SSO/billing, and per-tenant worker IAM as future SaaS layers.
+self-serve SSO/billing, and per-tenant worker IAM as explicit future SaaS
+layers rather than implied functionality.
 The signed `GET /api/connectors/bindings/health` probe reconciles every fixed
 connector namespace against the exact Secret Manager binding and reports
 `healthy`, `attention`, or `not_configured` without returning credential

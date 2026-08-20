@@ -131,8 +131,13 @@ saved, revenue lift, and willingness-to-pay.
 
 Connector credentials are tenant-scoped rather than deployment-scoped. A
 signed request resolves its tenant principal, looks up a metadata-only binding
-in Firestore, and reads the deterministic Secret Manager secret
-`driftline-tenant-<tenant>-<connector>`. Only the owner binding route can
+in the canonical Firestore namespace
+`driftline_tenants/{tenant}/credentials/{connector}`, and reads the
+deterministic Secret Manager secret
+`driftline-tenant-<tenant>-<connector>`. Each binding carries a versioned
+namespace record naming the exact project resource and per-tenant service
+identity; the legacy flat binding collection is only a rolling-migration
+mirror. Only the owner binding route can
 activate that reference; arbitrary secret names and raw credential values are
 rejected. Each active binding pins the resolved Secret Manager version when
 available, so adding a new version cannot silently change a live tenant until
@@ -151,8 +156,10 @@ Cloud Run identity has only scoped `Service Account Token Creator` access to
 each tenant identity; Secret Manager IAM grants the tenant identity access only
 to that tenant's deterministic secrets. This is a real tenant credential data
 plane for this deployment, while customer-managed KMS keys, self-serve identity
-and billing, and dedicated compute per tenant remain outside the hackathon
-release.
+and billing, and dedicated compute per tenant remain explicit SaaS layers beyond
+the hackathon release. The metadata-only migration is runnable with
+`scripts/migrate_tenant_credential_bindings.py` and never reads or changes
+provider credential values.
 The credential broker is the runtime seam behind every tenant connector. It
 accepts only `(tenant_id, connector, operation)`, derives the exact
 `driftline-tenant-<tenant>-<connector>` Secret Manager reference, verifies the

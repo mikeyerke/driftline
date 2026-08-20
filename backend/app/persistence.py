@@ -36,6 +36,7 @@ TENANT_USAGE_COLLECTION = "driftline_tenant_usage"
 TENANT_RATE_LIMITS_COLLECTION = "driftline_tenant_rate_limits"
 TENANT_CONNECTOR_PROFILES_COLLECTION = "driftline_tenant_connector_profiles"
 CREDENTIAL_ACCESS_COLLECTION = "driftline_credential_access_events"
+TENANT_CREDENTIALS_SUBCOLLECTION = "credentials"
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _connector_profiles_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenants_memory: dict[str, dict[str, Any]] = {}
@@ -425,8 +426,10 @@ def persist_connector_binding(payload: dict[str, Any]) -> dict[str, Any]:
     It must survive the normal content-retention window until an owner
     disconnects or rotates it, so it intentionally has no Firestore TTL field.
     """
-    tenant_id = str(payload["tenant_id"])
-    connector = str(payload["connector"])
+    from .tenant import validate_connector_name, validate_tenant_id
+
+    tenant_id = validate_tenant_id(str(payload["tenant_id"]))
+    connector = validate_connector_name(str(payload["connector"]))
     safe = {
         key: value
         for key, value in payload.items()
@@ -434,34 +437,112 @@ def persist_connector_binding(payload: dict[str, Any]) -> dict[str, Any]:
     }
     safe.setdefault("updated_at", utc_now())
     safe.pop("expires_at", None)
+    # Every binding carries the same derived namespace used by the broker.
+    # Older records may not have this field; the migration-compatible read path
+    # below fills it only when the active project identity is available.
+    if "credential_namespace" not in safe:
+        try:
+            from .tenant import tenant_credential_namespace
+
+            safe["credential_namespace"] = tenant_credential_namespace(
+                tenant_id, connector
+            )
+        except (ValueError, TypeError):
+            # Local contract tests do not need a configured Google project.
+            pass
     _connector_bindings_memory[(tenant_id, connector)] = dict(safe)
     if _enabled():
+        # Canonical SaaS layout: credentials live below their tenant document,
+        # preventing a caller from querying one flat global credential index.
+        _client().collection(TENANTS_COLLECTION).document(tenant_id).collection(
+            TENANT_CREDENTIALS_SUBCOLLECTION
+        ).document(connector).set(safe)
+        # Keep the legacy collection in sync during the zero-downtime migration
+        # so an older revision can still read an already-provisioned binding.
         _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
             f"{tenant_id}:{connector}"
         ).set(safe)
     return dict(safe)
 
 
+def _hydrate_credential_namespace(
+    payload: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Backfill namespace metadata on a legacy binding without reading a secret."""
+    if not payload or payload.get("credential_namespace"):
+        return dict(payload) if payload else None
+    tenant_id = str(payload.get("tenant_id", ""))
+    connector = str(payload.get("connector", ""))
+    try:
+        from .tenant import tenant_credential_namespace
+
+        namespace = tenant_credential_namespace(tenant_id, connector)
+    except (ValueError, TypeError):
+        return dict(payload)
+    hydrated = {**payload, "credential_namespace": namespace}
+    _connector_bindings_memory[(tenant_id, connector)] = dict(hydrated)
+    if _enabled():
+        _client().collection(TENANTS_COLLECTION).document(tenant_id).collection(
+            TENANT_CREDENTIALS_SUBCOLLECTION
+        ).document(connector).set(hydrated)
+        _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
+            f"{tenant_id}:{connector}"
+        ).set(hydrated)
+    return hydrated
+
+
 def load_connector_binding(tenant_id: str, connector: str) -> dict[str, Any] | None:
     """Load one tenant connector binding without reading the referenced secret."""
+    from .tenant import validate_connector_name, validate_tenant_id
+
+    tenant_id = validate_tenant_id(tenant_id)
+    connector = validate_connector_name(connector)
     if _enabled():
+        canonical = (
+            _client()
+            .collection(TENANTS_COLLECTION)
+            .document(tenant_id)
+            .collection(TENANT_CREDENTIALS_SUBCOLLECTION)
+            .document(connector)
+            .get()
+        )
+        if canonical.exists:
+            return _hydrate_credential_namespace(canonical.to_dict())
         snapshot = _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
             f"{tenant_id}:{connector}"
         ).get()
         if snapshot.exists:
-            return snapshot.to_dict()
+            return _hydrate_credential_namespace(snapshot.to_dict())
         return None
     payload = _connector_bindings_memory.get((tenant_id, connector))
-    return dict(payload) if payload else None
+    return _hydrate_credential_namespace(payload)
 
 
 def list_connector_bindings(tenant_id: str) -> list[dict[str, Any]]:
     """Return bounded, metadata-only bindings for an authenticated tenant."""
+    from .tenant import validate_tenant_id
+
+    tenant_id = validate_tenant_id(tenant_id)
     if _enabled():
+        canonical = list(
+            _client()
+            .collection(TENANTS_COLLECTION)
+            .document(tenant_id)
+            .collection(TENANT_CREDENTIALS_SUBCOLLECTION)
+            .stream()
+        )
+        if canonical:
+            return [
+                _hydrate_credential_namespace(snapshot.to_dict()) or {}
+                for snapshot in canonical
+            ]
         query = _client().collection(CONNECTOR_BINDINGS_COLLECTION).where(
             "tenant_id", "==", tenant_id
         )
-        return [snapshot.to_dict() or {} for snapshot in query.stream()]
+        return [
+            _hydrate_credential_namespace(snapshot.to_dict()) or {}
+            for snapshot in query.stream()
+        ]
     return [
         dict(payload)
         for (bound_tenant, _), payload in _connector_bindings_memory.items()

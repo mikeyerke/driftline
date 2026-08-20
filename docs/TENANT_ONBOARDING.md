@@ -69,7 +69,10 @@ An authenticated tenant owner calls
 POST /api/connectors/{connector}/binding. Driftline derives the same
 deterministic secret name, verifies that a readable version exists, resolves
 its concrete Secret Manager version when available, and stores only metadata
-in driftline_connector_bindings. Active connector calls use that pinned
+in the canonical tenant credential path
+`driftline_tenants/{tenant}/credentials/{connector}`. The legacy
+`driftline_connector_bindings` collection mirrors that record during the
+rolling migration. Active connector calls use that pinned
 version; they do not silently follow a later `latest` secret update. The
 signed
 GET /api/connectors/bindings and GET /api/tenants/audit routes expose status
@@ -81,7 +84,10 @@ operation such as `read_context` or `create_issue`; it derives the exact
 tenant secret name, checks the active binding and operation scope, and returns
 a short-lived in-process lease for the pinned version. Cross-tenant secret
 references, revoked/rotation-pending bindings, arbitrary operations, and
-invalid versions fail closed. The signed
+invalid versions fail closed. A binding namespace mismatch also fails before
+Secret Manager is read. To migrate a pre-existing deployment, run
+`scripts/migrate_tenant_credential_bindings.py` first without `--apply`, then
+repeat with `--apply` after reviewing the bounded metadata plan. The signed
 `GET /api/connectors/credentials` route exposes the metadata-only inventory,
 while `GET /api/connectors/credentials/access` exposes the tenant-filtered
 append-only lease trail. Neither route returns credential values. Lease audit
