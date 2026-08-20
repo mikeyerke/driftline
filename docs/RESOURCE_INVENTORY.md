@@ -17,6 +17,32 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Durable tenant discovery and selection release (current)
+
+- Source commit `4aeb73d` adds the identity-only `GET /api/tenants/available`
+  contract and durable membership discovery. A Google OIDC identity with one
+  active membership can resolve that tenant without inheriting the demo
+  default; identities with multiple active memberships must select a tenant;
+  unknown, disabled, malformed, or partial tenant records fail closed. The
+  response contains only tenant/role metadata and `credential_values_exposed=false`.
+- Cloud Build `535f2cf5-9b6c-412c-b348-a5aaac9270fb` completed `SUCCESS`; image
+  digest `sha256:54a773bb5fbab49875345a0e1145cac44919c8692c24a026c05d1013e6c41b60`;
+  Cloud Run revision `driftline-00152-9gm` serves 100% of traffic.
+- Live proof: the active Cloud Run URL returned `/health` with Firestore
+  persistence and async jobs, the console returned HTTP 200, and
+  `/api/tenants/available` returned `401` without an OIDC identity. Public
+  `/api/agent/run` returned HTTP 200 with `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, `source_status=needs_approval`, and
+  `persisted=true`; its Firestore workflow retained raw source evidence,
+  contained no credential terms, and contained no model sanitizer marker.
+  The active revision had zero `severity>=ERROR` log entries.
+- This completes the tenant identity/selection layer for the credential data
+  plane. It does not claim customer-managed KMS keys, self-serve billing, a
+  second-customer pilot, or Salesforce consent; those remain explicitly
+  unverified product/commercial gates.
+- Local regression is `175 passed`; Ruff, production frontend build, and
+  `git diff --check` are clean.
+
 ## 2026-08-20 Per-tenant Secret Manager identity release (current)
 
 - Source commit `8950abc` adds a deterministic, collision-resistant Google
