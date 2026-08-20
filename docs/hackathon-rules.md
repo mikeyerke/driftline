@@ -1,21 +1,21 @@
 # Google All Things Agentic — verified submission requirements
 
-Checked against the official rules on August 20, 2026. The canonical sources
-are:
+Checked against the official Devpost overview, rules, judging criteria, and
+key-date endpoints on August 20, 2026. The canonical sources are:
 
 - [Contest overview](https://allthingsagentichackathon.devpost.com/)
 - [Official rules](https://allthingsagentichackathon.devpost.com/rules)
 - [Google Cloud free program](https://cloud.google.com/free)
-- [Contest credit request](https://forms.gle/riGhgDSHkHeMx8Ca6)
+- [Contest credit request](https://forms.gle/5PtXmw1dSbDnpYke9)
 - [Google Cloud Gemini 3.5 Flash model reference](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash)
 
 ## Dates and eligibility
 
-- Contest and submission period: August 3, 2026 at 9:00 AM Pacific through
-  August 31, 2026 at 5:00 PM Pacific.
-- Judging period: September 1, 2026 at 9:00 AM Pacific through October 1, 2026
-  at 11:45 PM Pacific.
-- Winners are expected around October 8, 2026 at 10:00 AM Pacific.
+- Contest and submission period: August 4, 2026 at 7:45 AM Pacific through
+  August 31, 2026 at 5:00 PM Pacific (September 1, 2026 00:00 UTC).
+- Judging period: September 1, 2026 at 9:00 AM Pacific through September 24,
+  2026 at 5:00 PM Pacific (September 25, 2026 00:00 UTC).
+- Winners are expected October 8, 2026 at 12:00 PM Pacific (7:00 PM UTC).
 - Entrants must be above the age of majority in their jurisdiction and must
   not be located in Italy, Quebec, Crimea, Cuba, Iran, Syria, North Korea,
   Sudan, Belarus, or Russia, or otherwise be excluded by export controls,

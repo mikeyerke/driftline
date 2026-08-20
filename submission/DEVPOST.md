@@ -4,7 +4,7 @@
 
 - Hosted application: https://driftline-xvxczqg62a-uc.a.run.app/
 - Source repository: https://github.com/mikeyerke/driftline
-- Demonstration video: held while the product is being pressure-tested; replace with a public upload only after final QA
+- Demonstration video: pending final live recording; the official rules require a public YouTube/Vimeo upload (not unlisted)
 - Architecture diagram: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
 
 ## Category
@@ -46,8 +46,10 @@ Jira Task, and undo keeps that issue, changes only Driftline-owned labels, and
 appends a reversal comment. The public judge console is packet-only even when
 credentials are present; its named demo actor is not production identity.
 Approval also prepares target-specific Confluence, Slack, GitHub, and
-Salesforce-context manifests. The Salesforce contract is read-only and
-prepared-only; it is not authenticated in this deployment.
+Salesforce-context manifests. GitHub is authenticated for the isolated
+repository and verified with a reversible issue flow. Confluence and Slack
+remain prepared-only pending separate app authorization. The Salesforce
+contract is read-only and remains pending final tenant consent.
 
 ## Other data sources used
 
@@ -128,16 +130,13 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current public verification job is `job-d42b00502424`, with workflow
-  `ed5a1842-4d65-4897-acec-29bef5e59eec`. Its persisted audit trail contains
-  verified evidence, four mapped artifacts, four drafted updates, a human
-  approval, packet creation, and `decision_reopened`; the final state is back
-  at the deterministic approval gate.
-- The deployed public path returned `execution_mode=google_adk`,
-  `model=gemini-3.5-flash`, and both allowlisted tool calls. Cloud Build
-  `31dc6793-0240-4698-b569-db2e1de0cea6` completed `SUCCESS`, and Cloud Run
-  revision `driftline-00005-qh6` serves 100% of traffic in the isolated
-  project. The
+- The deployed public path has returned `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
+  The latest runtime source is commit `f58065a`, deployed through Cloud Build
+  `8ea58385-0a1d-4f6e-ac42-18ed59ba938c` and the dedicated `driftline-build`
+  identity as Cloud Run revision `driftline-00018-4v9` at 100% traffic after
+  local and CI gates passed. A live direct-agent canary returned the two
+  allowlisted tool calls without echoing anonymous query or user fields. The
   latest browser proof passed desktop and 390px mobile scan, evidence, artifact
   selection, approval, completion, and reopen/undo with no console errors or
   failed requests.
@@ -170,9 +169,9 @@ sources and does not perform live writes from the public console. The
 integration layer produces bounded, target-specific handoff manifests and
 tracks their prepared state. The signed operator connector lane is deliberately
 limited to the free Driftline Jira project, uses a Jira-scoped token held only
-in Secret Manager, and never deletes Jira work. Confluence, Slack, and GitHub
-are similarly bounded but require their own isolated configuration. Salesforce
-is read-only context preparation only. Customer ROI, hours saved, and
+in Secret Manager, and never deletes Jira work. GitHub is authenticated and
+reversible; Confluence and Slack require separate authorization. Salesforce
+is read-only context preparation pending tenant consent. Customer ROI, hours saved, and
 willingness-to-pay remain unmeasured; see `docs/VALIDATION_PLAN.md`. This is a
 verified multi-tenant control-plane foundation, not a claim of self-serve
 enterprise SSO, commercial billing, or a multi-customer pilot.
@@ -182,3 +181,12 @@ enterprise SSO, commercial billing, or a multi-customer pilot.
 See [docs/hackathon-rules.md](https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md)
 for the rules, dates, required technology, video limit, category definitions,
 and eligibility disclosures verified from the official Devpost rules page.
+
+Official live references:
+
+- [Hackathon overview](https://allthingsagentichackathon.devpost.com/)
+- [Official rules](https://allthingsagentichackathon.devpost.com/rules)
+- [Official judging criteria](https://allthingsagentichackathon.devpost.com/details/judging-criteria)
+- [Official submission requirements](https://allthingsagentichackathon.devpost.com/details#what-to-submit)
+- Submission deadline: **2026-09-01 00:00 UTC** (2026-08-31 7:00 PM Central / 5:00 PM Pacific)
+- Required video: approximately four minutes maximum, public on YouTube or Vimeo, English or subtitled, showing the working agent and Google Cloud proof.
