@@ -90,8 +90,13 @@ synthetic demo packets.
 
 Agent-call and workflow-mutation budgets are also tenant-scoped in the signed
 lane. A noisy tenant cannot consume another tenant's in-process allowance; the
-public demo and scheduler use separate buckets. These are bounded deployment
-guardrails, not a claim of a hosted billing or usage-metering system.
+public demo and scheduler use separate buckets. The signed
+`GET /api/tenants/usage` endpoint records durable monthly aggregates for
+`agent_calls`, `workflow_mutations`, and `monitor_jobs` in
+`driftline_tenant_usage`. The records contain tenant/period/counter metadata,
+not source content or credentials. This is metering for quota and pilot
+evidence only; billing is disabled and the in-process guardrails are not a
+distributed hosted billing system.
 
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each custom source belongs to the caller's tenant, and its append-only snapshot ledger is stored under a tenant-namespaced key. Each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler. Public registry/history routes expose only the pinned fixtures; signed source history is tenant-scoped.
 Operator fetches also reject common bot/challenge interstitials before recording

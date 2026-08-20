@@ -204,6 +204,28 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 - The local regression suite is `123 passed`, including disabled-tenant
   authorization failure.
 
+## 2026-08-20 Durable tenant usage metering release
+
+- Source commit: `9ae19d9` (durable tenant-period usage counters and signed
+  tenant usage read), pushed to
+  `https://github.com/mikeyerke/driftline`.
+- Cloud Build `423618fe-0495-4129-a926-cd67aa88a819` — `SUCCESS`; Artifact
+  Registry image digest
+  `sha256:8e0444f443a0e17cab4dfcc18d47d27e74b2843012e901c4e351745bcc1276f6`.
+- Cloud Run revision `driftline-00109-lwj` is ready and serves 100% of
+  traffic. `GET /health` returned Firestore persistence and async jobs; the
+  newest-revision error query returned zero entries.
+- A signed live monitor canary completed with `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, and `tenant_id=driftline-demo`. The signed
+  `GET /api/tenants/usage` read returned `agent_calls=1` for the current
+  period with `metering.durable=true`, `billing_enabled=false`, and
+  `credential_values_exposed=false`. This directly verifies a Firestore-backed
+  aggregate write without exposing source content or credentials.
+- The local regression suite is `125 passed`; Ruff and `git diff --check`
+  passed. Durable counters are metering evidence, not customer ROI or a
+  billing claim; distributed quota enforcement and self-serve plan management
+  remain future SaaS work.
+
 ## 2026-08-20 Membership status enforcement release
 
 - Source commit: `7c5293b` (durable membership state overrides bootstrap
@@ -424,14 +446,14 @@ not invoked by that public path.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00108-ts4` from commit `7f5007e` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, and soft offboarding |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00109-lwj` from commit `9ae19d9` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, and durable usage metering |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline@sha256:e7ffd91a12d389b60d20cffe11f1bb28d5b895dcf751597d895d49e6afac64bc` |
-| Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, `audit_events`, tenant control-plane metadata, and `driftline_tenant_audit_events`; tenant lifecycle records are metadata-only and have no content TTL |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline@sha256:8e0444f443a0e17cab4dfcc18d47d27e74b2843012e901c4e351745bcc1276f6` |
+| Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, `audit_events`, tenant control-plane metadata, `driftline_tenant_audit_events`, and `driftline_tenant_usage`; tenant lifecycle and usage records are metadata-only and have no content TTL |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | Cloud Build source bucket | `gs://driftline-hackathon-2026_us-central1_cloudbuild` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
