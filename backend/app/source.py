@@ -25,6 +25,8 @@ from .workflow import DEMO_AFTER, DEMO_BEFORE, DEMO_SOURCE_URL
 _SYNTHETIC_STORE = InMemorySnapshotStore()
 _CUSTOM_SOURCE_DEFINITIONS: dict[tuple[str, str], dict[str, str]] = {}
 _SOURCE_REGISTRY_COLLECTION = "driftline_source_registry"
+_SOURCE_FAILURE_COLLECTION = "driftline_source_failures"
+_SOURCE_FAILURES_MEMORY: dict[str, dict[str, object]] = {}
 _MAX_REGISTERED_BODY_BYTES = 128 * 1024
 _CHALLENGE_MARKERS = (
     "cf-chl-",
@@ -138,6 +140,83 @@ def _snapshot_storage_key(
     if tenant_id:
         return f"tenant/{tenant_id}/{source_id}"
     return source_id
+
+
+def _failure_storage_key(
+    source_id: str, tenant_id: str | None, definition: Mapping[str, str]
+) -> str:
+    return _snapshot_storage_key(source_id, tenant_id, definition)
+
+
+def _failure_document_id(storage_key: str) -> str:
+    return base64.urlsafe_b64encode(storage_key.encode()).decode().rstrip("=")
+
+
+def _record_source_failure(
+    source_id: str,
+    *,
+    tenant_id: str | None,
+    definition: Mapping[str, str],
+    reason: str,
+    failed_at: str | None = None,
+) -> None:
+    """Record bounded source-health metadata without storing failed bodies."""
+    storage_key = _failure_storage_key(source_id, tenant_id, definition)
+    payload: dict[str, object] = {
+        "source_id": source_id,
+        "tenant_id": tenant_id or "",
+        "status": "source_fetch_failed",
+        "reason": reason[:240],
+        "failed_at": failed_at or datetime.now(UTC).isoformat(),
+        "expires_at": datetime.now(UTC) + timedelta(days=30),
+    }
+    _SOURCE_FAILURES_MEMORY[storage_key] = dict(payload)
+    if _firestore_enabled():
+        try:
+            _registry_client().collection(_SOURCE_FAILURE_COLLECTION).document(
+                _failure_document_id(storage_key)
+            ).set(payload)
+        except Exception:  # noqa: BLE001 - health recording never changes fetch semantics.
+            return
+
+
+def _clear_source_failure(
+    source_id: str,
+    *,
+    tenant_id: str | None,
+    definition: Mapping[str, str],
+) -> None:
+    """Clear the current failure marker after a clean observation."""
+    storage_key = _failure_storage_key(source_id, tenant_id, definition)
+    _SOURCE_FAILURES_MEMORY.pop(storage_key, None)
+    if _firestore_enabled():
+        try:
+            _registry_client().collection(_SOURCE_FAILURE_COLLECTION).document(
+                _failure_document_id(storage_key)
+            ).delete()
+        except Exception:  # noqa: BLE001 - recovery cleanup is best effort.
+            return
+
+
+def _latest_source_failure(
+    source_id: str,
+    *,
+    tenant_id: str | None,
+    definition: Mapping[str, str],
+) -> dict[str, object] | None:
+    storage_key = _failure_storage_key(source_id, tenant_id, definition)
+    if _firestore_enabled():
+        try:
+            snapshot = _registry_client().collection(
+                _SOURCE_FAILURE_COLLECTION
+            ).document(_failure_document_id(storage_key)).get()
+            if snapshot.exists:
+                return snapshot.to_dict() or {}
+            return None
+        except Exception:  # noqa: BLE001 - health remains bounded on lookup outage.
+            return None
+    payload = _SOURCE_FAILURES_MEMORY.get(storage_key)
+    return dict(payload) if payload else None
 
 
 def source_definitions(tenant_id: str | None = None) -> dict[str, dict[str, str]]:
@@ -423,6 +502,11 @@ def _public_snapshot(
                 data_mode="operator_registered_public",
                 store=store or _default_public_store(),
             )
+            _clear_source_failure(
+                source_id,
+                tenant_id=tenant_id,
+                definition=definition,
+            )
             result["source_id"] = source_id
             return result
         except (HTTPError, OSError, UnicodeDecodeError, URLError, ValueError) as exc:
@@ -430,6 +514,12 @@ def _public_snapshot(
                 str(exc)
                 if isinstance(exc, ValueError)
                 else "operator_registered_source_unavailable"
+            )
+            _record_source_failure(
+                source_id,
+                tenant_id=tenant_id,
+                definition=definition,
+                reason=reason,
             )
             return {
                 "status": "source_fetch_failed",
@@ -489,6 +579,11 @@ def _public_snapshot(
             data_mode="public_source",
             store=store or _default_public_store(),
         )
+        _clear_source_failure(
+            source_id,
+            tenant_id=tenant_id,
+            definition=definition,
+        )
         result["source_id"] = source_id
         return result
     except (OSError, UnicodeDecodeError, URLError, ValueError) as exc:
@@ -500,6 +595,12 @@ def _public_snapshot(
                 str(exc)
                 if isinstance(exc, ValueError)
                 else "public_source_unavailable"
+            )
+            _record_source_failure(
+                source_id,
+                tenant_id=tenant_id,
+                definition=definition,
+                reason=reason,
             )
             return {
                 "status": "source_fetch_failed",
@@ -646,6 +747,17 @@ def source_registry_health(
             status = "stale"
         else:
             status = "healthy"
+        failure = _latest_source_failure(
+            source_id,
+            tenant_id=tenant_id,
+            definition=definition,
+        )
+        failure_at = _parse_iso(failure.get("failed_at") if failure else None)
+        if failure and (
+            retrieved is None
+            or (failure_at is not None and retrieved <= failure_at)
+        ):
+            status = "source_failed"
         next_due = (retrieved + timedelta(hours=sla_hours)).isoformat() if retrieved else None
         health.append(
             {
@@ -661,6 +773,8 @@ def source_registry_health(
                 "last_observed_at": latest.get("retrieved_at") if latest else None,
                 "last_data_mode": latest.get("data_mode") if latest else None,
                 "last_snapshot_hash": latest.get("snapshot_hash") if latest else None,
+                "last_failure_at": failure.get("failed_at") if failure else None,
+                "last_failure_reason": failure.get("reason") if failure else None,
                 "age_seconds": age_seconds,
                 "next_due_at": next_due,
                 "source_url": definition["url"],
