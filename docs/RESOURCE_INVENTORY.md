@@ -17,6 +17,35 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Durable value proof and history merge release (current)
+
+- Source commits `1d2196e` and `fdb086a` add the public Value proof panel and
+  fix an instance-boundary undercount in operator history. Hosted summaries,
+  change memory, job history, and value proof now merge bounded Firestore
+  records with the in-flight Cloud Run cache, deduplicated by durable ID; the
+  current instance wins for an in-progress transition. Local regression is
+  `179 passed`; Ruff, frontend production build, and `git diff --check` are
+  clean.
+- Cloud Build `3a53460f-aa3e-45e2-943c-2d0ce13e4d5f` completed `SUCCESS`; image
+  digest `sha256:e985aa1241aa67c1964655d176071f043e2c240c00aa7a4a29fd7c0c2e6c18a5`,
+  Cloud Run revision `driftline-00161-5jc` serves 100% of traffic. The build
+  emitted an IAM warning while preserving the already-verified `allUsers`
+  invoker binding; the live policy was checked after deployment.
+- Public `/health` returned Firestore persistence and async jobs. The live
+  value-proof endpoint from a fresh instance reported `40` durable jobs, `37`
+  durable workflows, `27` source observations, and five healthy sources. It
+  explicitly keeps hours saved, revenue/win-rate lift, retention impact, and
+  willingness-to-pay in `not_measured`.
+- Headless Chrome at 1440px and 390px passed with no overflow, console errors,
+  or failed requests. The corrected end-to-end journey passed scan, evidence,
+  artifact selection, custom `Owner review` routing, approval, packet
+completion, and reopen/undo. Latest verified job is `job-f78894009a9e` and
+  workflow `03788b14-b0a8-4bff-a827-ba61052d0e12`; its persisted trace is
+  `google_adk` / `gemini-3.5-flash`, both structured analysis and Decision
+  Copilot are `gemini_structured`, policy review is `pass`, and the audit chain
+  contains `approval_recorded` with the explicit copilot override marker and
+  `decision_reopened` with `external_write=false`.
+
 ## 2026-08-20 Decision Copilot and artifact-routing release (current)
 
 - Source commits `bb95199` and `25136a4` keep the copilot's reviewed option id
