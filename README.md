@@ -406,7 +406,9 @@ API key is embedded in the client. The production image installs the frozen
 before a release with `uv lock --check --directory backend`. The deployment
 script refuses any active project other than `driftline-hackathon-2026` and
 explicitly selects the isolated `driftline-build` Cloud Build service account;
-it never falls back to the default Compute service account.
+it never falls back to the default Compute service account. The checked-in
+`.gcloudignore` also excludes credentials, local environments, dependency
+trees, generated bundles, and screenshots from the uploaded build context.
 
 ## Public links
 

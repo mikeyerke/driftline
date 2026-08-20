@@ -1,0 +1,26 @@
+# Keep local credentials and machine state out of every Cloud Build upload.
+.git/
+.git/**
+.env
+.env.*
+**/.env
+**/.env.*
+!backend/.env.example
+!frontend/.env.example
+
+# Dependencies and generated artifacts are rebuilt inside the Docker image.
+.venv/
+**/.venv/
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+.ruff_cache/
+**/.ruff_cache/
+
+# Local captures are not part of the deployed product.
+docs/screenshots/
