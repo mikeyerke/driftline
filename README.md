@@ -48,6 +48,13 @@ The console also compares allowlisted pricing visuals with Gemini vision,
 previews approve/grandfather/defer counterfactuals without writes, and keeps an
 append-only change genome of recurring source transitions and unresolved work.
 
+If a reviewer changes an artifact route after selecting a copilot option,
+Driftline keeps the original option ID and records an explicit override reason.
+The API rechecks the reviewed workflow decision, requires a complete route for
+every mapped artifact, rejects unknown actions, and prevents high-risk work
+from being silently queued. The approval record and audit event distinguish a
+copilot recommendation from a deliberate human adjustment.
+
 ### The utility wedge: a Change Card, not an alert
 
 Every verified signal becomes a deterministic **Change Card**. It answers four

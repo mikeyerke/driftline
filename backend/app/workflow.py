@@ -188,6 +188,7 @@ class DriftlineWorkflow:
         approver: str,
         decision: str,
         artifact_decisions: dict[str, str] | None = None,
+        approval_metadata: dict[str, object] | None = None,
     ) -> WorkflowState:
         state = self.get(workflow_id)
         if state.status is not WorkflowStatus.NEEDS_APPROVAL:
@@ -229,7 +230,17 @@ class DriftlineWorkflow:
             "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
             "artifact_decisions": requested_actions,
         }
+        if approval_metadata:
+            state.approval.update(approval_metadata)
         self._event(state, "policy_engine", "approval_recorded")
+        if approval_metadata and approval_metadata.get("copilot_artifact_override"):
+            state.events[-1].update(
+                {
+                    "copilot_artifact_override": True,
+                    "copilot_option_id": approval_metadata.get("copilot_option_id"),
+                    "override_reason": approval_metadata.get("copilot_override_reason"),
+                }
+            )
         state.stage = Stage.PUBLISH
         packets: list[dict[str, object]] = []
         updated_impacts: list[ArtifactImpact] = []

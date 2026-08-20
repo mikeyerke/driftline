@@ -73,7 +73,7 @@ export function getMemorySummary(limit = 50) {
   return request(`/api/memory/summary?limit=${limit}`);
 }
 
-export function approveWorkflow(workflowId, artifactDecisions, decision = "grandfather_existing_customers", copilotOptionId = null) {
+export function approveWorkflow(workflowId, artifactDecisions, decision = "grandfather_existing_customers", copilotOptionId = null, copilotArtifactOverride = false, copilotOverrideReason = null) {
   return request(`/api/workflows/${workflowId}/approve`, {
     method: "POST",
     body: JSON.stringify({
@@ -81,6 +81,8 @@ export function approveWorkflow(workflowId, artifactDecisions, decision = "grand
       decision,
       artifact_decisions: artifactDecisions,
       copilot_option_id: copilotOptionId,
+      copilot_artifact_override: copilotArtifactOverride,
+      copilot_override_reason: copilotOverrideReason,
     }),
   });
 }

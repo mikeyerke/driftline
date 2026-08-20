@@ -192,8 +192,10 @@ customer-managed KMS keys, self-serve billing, and dedicated compute per tenant
 remain optional commercial layers outside this hackathon release.
 The signed `GET /api/connectors/bindings/health` route is a read-only
 reconciliation probe across the fixed connector allowlist; it checks active
-bindings against readable Secret Manager state and surfaces attention without
-ever returning a credential value.
+bindings against readable Secret Manager state and the tenant's bounded
+non-secret destination profile. Missing, inactive, or malformed profiles are
+surfaced as attention, and the response never returns a credential or target
+value.
 
 The Change Card is the product's decision unit. It is assembled from verified
 source evidence, the deterministic impact graph, and action lifecycle state.
@@ -210,6 +212,15 @@ before a customer connector exists and prevents a model from manufacturing
 business exposure. Approval also assigns deterministic risk-based due dates to
 owner actions; the closure card and `/api/ops/value-proof` expose overdue work
 without claiming customer ROI.
+
+The human may change an artifact-level route after choosing a Decision Copilot
+option, but this is not an escape hatch from policy. The console keeps the
+original option ID, requires an override reason, and sends an explicit custom
+override marker. The API revalidates the reviewed workflow decision, requires
+an exact decision for every mapped artifact, rejects unknown actions, and
+blocks queuing a high-risk artifact. The approval and `approval_recorded` event
+retain the original option ID, override marker, and reason so reviewers can
+distinguish a copilot recommendation from a deliberate human adjustment.
 
 The production container is reproducible by construction: Cloud Build copies
 `backend/uv.lock`, installs the pinned `uv==0.8.17` bootstrap, and runs

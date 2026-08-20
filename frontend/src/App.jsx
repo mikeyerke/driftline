@@ -186,7 +186,14 @@ export default function App() {
       const decision = selectedOption?.workflow_decision || (workflowState?.impact_graph?.summary?.category?.startsWith("Competitor")
         ? "approve_competitive_response"
         : "grandfather_existing_customers");
-      const state = await approveWorkflow(workflowId, artifactDecisions, decision, selectedOption?.option_id);
+      const state = await approveWorkflow(
+        workflowId,
+        artifactDecisions,
+        decision,
+        selectedOption?.option_id,
+        selectedOption?.copilot_artifact_override || false,
+        selectedOption?.copilot_override_reason || null,
+      );
       setWorkflowState(state);
       setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
       setScanMessage("Action plan recorded · sandbox packet created");

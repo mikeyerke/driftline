@@ -371,9 +371,20 @@ def validate_approval_choice(
     option_id: str | None,
     workflow_decision: str,
     artifact_decisions: dict[str, str] | None,
+    *,
+    custom_override: bool = False,
+    override_reason: str | None = None,
 ) -> None:
-    """Enforce that an API approval matches a reviewed option."""
+    """Enforce that an API approval matches a reviewed or custom plan."""
     if not option_id:
+        if custom_override:
+            raise ValueError("Custom routing requires a reviewed copilot option")
+        # Legacy synthetic workflows have no copilot trace and remain
+        # compatible with the packet-only approval contract. Once a live ADK
+        # trace exists, however, an approval must name the reviewed option so
+        # callers cannot silently bypass the deterministic policy review.
+        if isinstance((state.agent_trace or {}).get("decision_copilot"), dict):
+            raise ValueError("Decision copilot option is required")
         return
     trace = state.agent_trace or {}
     payload = trace.get("decision_copilot")
@@ -391,7 +402,43 @@ def validate_approval_choice(
     if option.workflow_decision != workflow_decision:
         raise ValueError("Approval policy does not match the selected option")
     if artifact_decisions is not None and artifact_decisions != option.artifact_decisions:
-        raise ValueError("Artifact decisions do not match the selected option")
+        if not custom_override:
+            raise ValueError("Artifact decisions do not match the selected option")
+        validate_custom_artifact_plan(
+            state,
+            workflow_decision=workflow_decision,
+            artifact_decisions=artifact_decisions,
+            override_reason=override_reason,
+        )
+    elif custom_override:
+        raise ValueError("Custom routing must change at least one artifact decision")
+
+
+def validate_custom_artifact_plan(
+    state: WorkflowState,
+    *,
+    workflow_decision: str,
+    artifact_decisions: dict[str, str] | None,
+    override_reason: str | None,
+) -> None:
+    """Validate a human artifact override without weakening the policy gate."""
+    reason = (override_reason or "").strip()
+    if len(reason) < 3 or len(reason) > 240:
+        raise ValueError("Custom routing requires an override reason")
+    if workflow_decision not in ALLOWED_WORKFLOW_DECISIONS:
+        raise ValueError("Approval policy is not allowlisted")
+    if not isinstance(artifact_decisions, dict):
+        raise TypeError("Custom routing requires artifact decisions")
+    expected = {item.name for item in state.impacts}
+    if set(artifact_decisions) != expected:
+        raise ValueError("Custom routing must cover every mapped artifact")
+    if any(value not in ALLOWED_ACTIONS for value in artifact_decisions.values()):
+        raise ValueError("Custom artifact action is not allowlisted")
+    high_risk = {
+        item.name for item in state.impacts if str(item.risk).casefold() == "high"
+    }
+    if any(artifact_decisions[name] == "queued" for name in high_risk):
+        raise ValueError("High-risk artifacts cannot be queued in a custom plan")
 
 
 def decision_trace(

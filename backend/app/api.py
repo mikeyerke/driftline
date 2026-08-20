@@ -213,6 +213,8 @@ class ApprovalRequest(BaseModel):
     decision: str = Field(default="grandfather_existing_customers", max_length=64)
     artifact_decisions: dict[str, str] | None = None
     copilot_option_id: str | None = Field(default=None, min_length=3, max_length=64)
+    copilot_artifact_override: bool = False
+    copilot_override_reason: str | None = Field(default=None, min_length=3, max_length=240)
     approval_mode: Literal["demo", "signed"] = "demo"
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
@@ -2666,16 +2668,59 @@ def get_connector_binding_health(
         for binding in list_connector_bindings(identity["tenant_id"])
         if binding.get("connector")
     }
+
+    def profile_health(connector: str) -> dict[str, object]:
+        """Reconcile the non-secret destination profile without returning values."""
+        try:
+            profile = load_connector_profile(identity["tenant_id"], connector)
+        except Exception:  # noqa: BLE001 - health must not leak provider/storage errors.
+            return {
+                "status": "attention",
+                "reason": "profile_lookup_failed",
+                "configured_keys": [],
+            }
+        if not profile:
+            return {
+                "status": "not_configured",
+                "reason": "profile_missing",
+                "configured_keys": [],
+            }
+        if str(profile.get("status", "active")).casefold() != "active":
+            return {
+                "status": "attention",
+                "reason": "profile_inactive",
+                "configured_keys": [],
+            }
+        try:
+            safe_settings = validate_connector_profile(
+                connector, dict(profile.get("settings") or {})
+            )
+        except (TypeError, ValueError):
+            return {
+                "status": "attention",
+                "reason": "profile_invalid",
+                "configured_keys": [],
+            }
+        return {
+            "status": "healthy",
+            "reason": "profile_configured",
+            "configured_keys": sorted(safe_settings),
+        }
+
     checks: list[dict[str, object]] = []
     for connector in sorted(CONNECTOR_NAMES):
         expected_secret = tenant_connector_secret_name(identity["tenant_id"], connector)
         binding = bound.get(connector)
+        profile = profile_health(connector)
         if binding is None:
             checks.append(
                 {
                     "connector": connector,
                     "status": "not_configured",
                     "secret_status": "not_configured",
+                    "profile_status": profile["status"],
+                    "profile_reason": profile["reason"],
+                    "profile_configured_keys": profile["configured_keys"],
                     "secret_name": expected_secret,
                     "credential_values_exposed": False,
                 }
@@ -2687,6 +2732,9 @@ def get_connector_binding_health(
             "connector": connector,
             "binding_status": binding_status,
             "secret_name": expected_secret,
+            "profile_status": profile["status"],
+            "profile_reason": profile["reason"],
+            "profile_configured_keys": profile["configured_keys"],
             "credential_values_exposed": False,
         }
         if secret_name != expected_secret:
@@ -2699,7 +2747,11 @@ def get_connector_binding_health(
             except Exception:  # noqa: BLE001 - health must not leak provider errors.
                 readable = False
             check.update(
-                status="healthy" if readable else "attention",
+                status=(
+                    "healthy"
+                    if readable and profile["status"] == "healthy"
+                    else "attention"
+                ),
                 secret_status="readable" if readable else "unreadable",
             )
         checks.append(check)
@@ -3813,6 +3865,8 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
                     request.copilot_option_id,
                     request.decision,
                     request.artifact_decisions,
+                    custom_override=request.copilot_artifact_override,
+                    override_reason=request.copilot_override_reason,
                 )
             except (ValueError, TypeError) as exc:
                 raise PolicyViolation(str(exc)) from exc
@@ -3821,6 +3875,16 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
                 request.approver,
                 request.decision,
                 request.artifact_decisions,
+                approval_metadata={
+                    "copilot_option_id": request.copilot_option_id,
+                    "copilot_artifact_override": request.copilot_artifact_override,
+                    **(
+                        {"copilot_override_reason": request.copilot_override_reason.strip()}
+                        if request.copilot_artifact_override
+                        and request.copilot_override_reason
+                        else {}
+                    ),
+                },
             )
             if state.approval is not None:
                 state.approval["approval_identity"] = approval_identity

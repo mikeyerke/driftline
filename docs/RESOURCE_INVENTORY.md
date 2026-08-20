@@ -19,10 +19,12 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 
 ## 2026-08-20 Artifact-routing override release (current)
 
-- Source commit `11348a5` keeps the copilot's reviewed workflow decision while
-  explicitly clearing a stale copilot option id when an operator changes an
-  artifact route. This makes a deliberate custom packet plan auditable instead
-  of returning a false `409 Artifact decisions do not match` response.
+- Source commit `11348a5` keeps the copilot's reviewed option id while marking
+  an operator's artifact-route change as an explicit custom override. The API
+  revalidates complete artifact coverage, allowlisted actions, high-risk
+  routing, and a human-provided reason before recording the plan and audit
+  event; the previous false `409 Artifact decisions do not match` response is
+  gone without creating a policy bypass.
 - Cloud Build `7cb9a192-b403-4f14-aa53-eff9d60ce3e3` completed `SUCCESS`; image
   digest `sha256:cf2de9ba2390ab6f336e5aa2e352e3b8ca68369ef4eedbbc1d746a108f6555b4`;
   Cloud Run revision `driftline-00157-ck5` serves 100% of traffic.

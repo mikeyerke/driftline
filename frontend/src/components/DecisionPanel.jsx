@@ -7,19 +7,25 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
   const counts = Object.values(decisions).reduce((result, value) => ({ ...result, [value]: (result[value] || 0) + 1 }), {});
   const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
   const [selectedOptionId, setSelectedOptionId] = useState(copilot?.recommendation_id || "");
+  const [overrideReason, setOverrideReason] = useState("Operator reviewed the evidence and chose a narrower artifact route.");
   useEffect(() => {
     setSelectedOptionId(copilot?.recommendation_id || "");
   }, [copilot?.recommendation_id]);
   const selectedOption = copilot?.options?.find((option) => option.option_id === selectedOptionId);
   // A human can intentionally override one or more artifact routes after
-  // selecting a copilot option. Keep the reviewed workflow decision, but
-  // clear the option id so the API treats this as an explicit custom plan
-  // instead of rejecting a stale recommendation/action mismatch.
+  // selecting a copilot option. Keep the reviewed option id and mark the
+  // override explicitly so the API can revalidate and audit the custom plan.
   const selectedOptionMatchesArtifacts = selectedOption
     && Object.keys(selectedOption.artifact_decisions || {}).length === Object.keys(artifactDecisions || {}).length
     && Object.entries(selectedOption.artifact_decisions || {}).every(([name, value]) => artifactDecisions?.[name] === value);
   const customRouting = Boolean(selectedOption && !selectedOptionMatchesArtifacts);
-  const approvalOption = customRouting ? { ...selectedOption, option_id: null } : selectedOption;
+  const approvalOption = selectedOption
+    ? {
+        ...selectedOption,
+        copilot_artifact_override: customRouting,
+        copilot_override_reason: customRouting ? overrideReason.trim() : null,
+      }
+    : selectedOption;
   const policyBlocked = copilot?.policy_review?.status === "blocked";
   if (approved) {
     const approver = approval?.approver || "Demo operator";
@@ -73,8 +79,9 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
       <p className="decision-question">{sourceCategory?.startsWith("Competitor") ? "Should Product Marketing approve this competitive response for owner handoff?" : "Should existing enterprise customers retain unlimited history through renewal?"}</p>
       <div className="decision-rationale"><strong>Why this needs a decision</strong><p>{sourceCategory?.startsWith("Competitor") ? "This signal can change comparison claims and deal guidance; Driftline keeps the observed source attached before anyone acts." : "This change affects contractual expectations and may require an exception path for existing customers."}</p></div>
       <DecisionCopilot copilot={copilot} selectedId={selectedOptionId} onSelect={(option) => { setSelectedOptionId(option.option_id); onOptionSelect?.(option); }} />
+      {customRouting && <label className="override-reason"><span>Why change the recommended artifact routing?</span><textarea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} maxLength={240} rows={2} /></label>}
       <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>{customRouting ? "Custom artifact routing selected · the reviewed workflow decision remains bounded by policy." : "High-risk artifacts remain behind this deterministic human gate."}</small></div>
-      <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || (copilot && !selectedOption)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : "Approve action plan"}</button>
+      <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || (copilot && !selectedOption) || (customRouting && overrideReason.trim().length < 3)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : "Approve action plan"}</button>
       <button className="secondary full" onClick={() => {
         const reason = window.prompt("Why is this signal not material right now?", "Reviewed as non-material for the current segment");
         if (reason?.trim()) onDismiss?.(reason.trim());

@@ -105,8 +105,10 @@ fallback only, not the preferred multi-tenant path.
 
 After binding or rotation, the signed
 `GET /api/connectors/bindings/health` route reconciles all five fixed connector
-namespaces against readable Secret Manager state. It is safe to run repeatedly
-and returns metadata-only `healthy`, `attention`, and `not_configured` results.
+namespaces against readable Secret Manager state and each connector's bounded
+non-secret destination profile. It is safe to run repeatedly and returns
+metadata-only `healthy`, `attention`, and `not_configured` results; configured
+field names may be shown, but target values and credentials never are.
 
 ## 4. Rotate or offboard
 

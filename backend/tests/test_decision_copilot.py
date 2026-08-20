@@ -89,3 +89,55 @@ def test_approval_without_copilot_option_remains_compatible() -> None:
         "grandfather_existing_customers",
         None,
     )
+
+
+def test_live_trace_requires_a_reviewed_option() -> None:
+    state = DriftlineWorkflow().start_demo()
+    copilot = fallback_copilot(state)
+    state.agent_trace = {
+        "decision_copilot": {
+            **copilot.model_dump(),
+            "policy_review": red_team_review(copilot, state).model_dump(),
+        }
+    }
+
+    with pytest.raises(ValueError, match="option is required"):
+        validate_approval_choice(
+            state,
+            None,
+            copilot.options[0].workflow_decision,
+            copilot.options[0].artifact_decisions,
+        )
+
+
+def test_custom_artifact_override_is_complete_and_audited() -> None:
+    state = DriftlineWorkflow().start_demo()
+    copilot = fallback_copilot(state)
+    state.agent_trace = {
+        "decision_copilot": {
+            **copilot.model_dump(),
+            "policy_review": red_team_review(copilot, state).model_dump(),
+        }
+    }
+    option = copilot.options[0]
+    custom = dict(option.artifact_decisions)
+    custom["Renewal playbook"] = "owner_review"
+
+    validate_approval_choice(
+        state,
+        option.option_id,
+        option.workflow_decision,
+        custom,
+        custom_override=True,
+        override_reason="Narrow renewal work to owner review",
+    )
+
+    with pytest.raises(ValueError, match="cover every"):
+        validate_approval_choice(
+            state,
+            option.option_id,
+            option.workflow_decision,
+            {"Pricing battlecard": "packet"},
+            custom_override=True,
+            override_reason="Narrow the plan",
+        )

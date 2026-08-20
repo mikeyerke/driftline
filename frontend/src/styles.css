@@ -192,6 +192,8 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .run-kind, .run-time, .run-result { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-workflow { display: inline-flex; align-items: center; gap: 4px; color: var(--blue); }
 .approval-scope { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; padding: 11px 12px; border: 1px solid #ffc9ae; border-radius: 4px; background: #fff7f2; font-size: 12px; }
+.override-reason { display: flex; flex-direction: column; gap: 5px; margin: 10px 0 12px; color: var(--ink); font-size: 11px; font-weight: 600; }
+.override-reason textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 58px; padding: 8px 9px; border: 1px solid #c8d3e6; border-radius: 4px; background: #fff; color: var(--ink); font: inherit; font-weight: 400; line-height: 1.4; }
 .approval-scope strong { color: var(--orange); }.approval-scope span { font-weight: 700; }.approval-scope small { color: var(--muted); line-height: 1.4; }
 .decision-copilot { margin: 0 -4px 16px; padding: 12px; border: 1px solid #c7d9fa; border-radius: 5px; background: var(--blue-soft); }
 .decision-copilot-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }.decision-copilot-header h3 { margin: 2px 0 0; font-size: 14px; }.decision-copilot-kicker { color: var(--blue); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }.decision-copilot-question { margin: 8px 0 10px; color: #334666; font-size: 11px; line-height: 1.4; }

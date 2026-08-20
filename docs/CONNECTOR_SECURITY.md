@@ -77,9 +77,12 @@ caller's tenant metadata; `/api/tenants/members` is owner-only. Content records
 continue to use bounded `expires_at` fields for TTL cleanup; the configured
 deployment window is 30 days unless an operator changes it deliberately.
 The signed `GET /api/connectors/bindings/health` route performs a bounded read-only
-reconciliation of all five connector namespaces. It checks only the
-deterministic tenant secret, treats pending, revoked, mismatched, or unreadable
-bindings as attention, and never includes a credential value in its response.
+reconciliation of all five connector namespaces. It checks the deterministic
+tenant secret and the tenant's non-secret destination profile; a binding is not
+healthy when its target profile is missing, inactive, or malformed. Pending,
+revoked, mismatched, or unreadable bindings are surfaced as attention, while
+the response exposes only profile status and configured field names and never
+includes a credential or target value.
 
 Non-secret connector targets are now owner-managed per tenant through
 `POST /api/connectors/{connector}/profile` and the durable

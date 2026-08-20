@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app import api, source
 from app.api import app
 from app.connectors import ConnectorError, _tenant_secret_or_env
+from app.decision_copilot import fallback_copilot, red_team_review
 from app.models import JobState
 from app.tenant import principal_for_hmac, tenant_operator_signing_secret_name
 
@@ -795,6 +796,15 @@ def test_connector_binding_health_reconciles_without_exposing_credentials(monkey
             },
         ],
     )
+    monkeypatch.setattr(
+        api,
+        "load_connector_profile",
+        lambda _tenant, connector: (
+            {"status": "active", "settings": {"project_key": "KAN"}}
+            if connector == "jira"
+            else None
+        ),
+    )
     monkeypatch.setattr(api, "read_secret", lambda _name: "token-not-returned")
     token = hmac.new(
         secret.encode(),
@@ -822,9 +832,12 @@ def test_connector_binding_health_reconciles_without_exposing_credentials(monkey
     jira = next(item for item in payload["checks"] if item["connector"] == "jira")
     assert jira["status"] == "healthy"
     assert jira["secret_status"] == "readable"
+    assert jira["profile_status"] == "healthy"
+    assert jira["profile_configured_keys"] == ["project_key"]
     slack = next(item for item in payload["checks"] if item["connector"] == "slack")
     assert slack["status"] == "attention"
     assert slack["secret_status"] == "not_checked"
+    assert slack["profile_status"] == "not_configured"
     assert "token-not-returned" not in str(payload)
     assert payload["credential_values_exposed"] is False
 
@@ -1442,6 +1455,46 @@ def test_competitor_source_builds_offering_impact_graph_and_handoffs() -> None:
     )
     assert approved.status_code == 200
     assert approved.json()["approval"]["decision"] == "approve_competitive_response"
+
+
+def test_custom_copilot_routing_keeps_reviewed_option_and_audit_reason() -> None:
+    state = api.workflow_store.start_demo()
+    copilot = fallback_copilot(state)
+    state.agent_trace = {
+        "decision_copilot": {
+            **copilot.model_dump(),
+            "policy_review": red_team_review(copilot, state).model_dump(),
+        }
+    }
+    api.persist_workflow(state)
+    option = copilot.options[0]
+    custom = dict(option.artifact_decisions)
+    custom["Renewal playbook"] = "owner_review"
+
+    response = client.post(
+        f"/api/workflows/{state.workflow_id}/approve",
+        json={
+            "approver": "Demo operator",
+            "decision": option.workflow_decision,
+            "artifact_decisions": custom,
+            "copilot_option_id": option.option_id,
+            "copilot_artifact_override": True,
+            "copilot_override_reason": "Narrow renewal work to owner review",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["approval"]["copilot_option_id"] == option.option_id
+    assert payload["approval"]["copilot_artifact_override"] is True
+    assert payload["approval"]["copilot_override_reason"] == (
+        "Narrow renewal work to owner review"
+    )
+    recorded = next(
+        event for event in payload["events"] if event["outcome"] == "approval_recorded"
+    )
+    assert recorded["copilot_artifact_override"] is True
+    assert recorded["override_reason"] == "Narrow renewal work to owner review"
 
 
 def test_approved_action_item_can_be_claimed_and_completed_by_same_human() -> None:
