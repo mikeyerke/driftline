@@ -61,6 +61,11 @@ from .connectors import (
     secret_version_for,
     write_secret_version,
 )
+from .credential_broker import (
+    CredentialBrokerError,
+    allowed_operations,
+    resolve_tenant_credential,
+)
 from .decision_copilot import validate_approval_choice
 from .materiality import build_change_card
 from .memory import build_memory_summary
@@ -78,6 +83,7 @@ from .persistence import (
     delete_salesforce_connection,
     list_connector_bindings,
     list_connector_profiles,
+    list_credential_access_events,
     list_job_failures,
     list_jobs,
     list_outcome_measurements,
@@ -621,7 +627,7 @@ def _safe_connector_call(
 ) -> dict[str, object]:
     try:
         return operation(state)
-    except ConnectorError as exc:
+    except (ConnectorError, CredentialBrokerError) as exc:
         logger.warning("%s connector failed: %s", status_key, exc)
         return {f"{status_key}_status": "failed", "external_write": False}
 
@@ -1248,6 +1254,11 @@ def salesforce_oauth_callback(
                 "secret_name": secret_name,
                 "status": "active",
                 "scope": "tenant_bound_oauth_refresh_token",
+                "credential_id": f"cred-{tenant_id}-salesforce",
+                "secret_backend": "google_secret_manager",
+                "secret_reference_scope": "exact_tenant_connector_secret",
+                "allowed_operations": allowed_operations("salesforce"),
+                "lease_seconds": 300,
                 "secret_version": secret_version,
                 "verified_at": utc_now(),
                 "configured_by": callback_state.get("email", "") or "salesforce_oauth",
@@ -1313,7 +1324,12 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
         )
     config = SalesforceConfig.from_env()
     try:
-        refresh_token = read_secret(str(connection["secret_name"]))
+        refresh_token = resolve_tenant_credential(
+            tenant_id,
+            "salesforce",
+            operation="read_context",
+            secret_reader=read_secret,
+        ).value
         token = refresh_salesforce_token(config, refresh_token)
         client = SalesforceReadOnlyClient(
             config,
@@ -1322,7 +1338,7 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
         )
         result = client.health_summary()
         return {"tenant_id": tenant_id, **result}
-    except ConnectorError as exc:
+    except (ConnectorError, CredentialBrokerError) as exc:
         logger.warning("Salesforce health probe failed: %s", str(exc))
         raise HTTPException(
             status_code=503, detail="Salesforce read probe failed"
@@ -1587,6 +1603,17 @@ def get_ops_summary(
                 == "true",
                 "binding_route": "/api/connectors/{connector}/binding",
                 "metadata_collection": "driftline_connector_bindings",
+                "broker_inventory_route": "/api/connectors/credentials",
+                "broker_access_route": "/api/connectors/credentials/access",
+                "broker_access_collection": "driftline_credential_access_events",
+                "resolution": "short_lived_tenant_scoped_lease",
+                "lease_seconds": 300,
+                "operation_scopes": {
+                    connector: allowed_operations(connector)
+                    for connector in sorted(
+                        ("jira", "confluence", "slack", "github", "salesforce")
+                    )
+                },
                 "profile_route": "/api/connectors/{connector}/profile",
                 "profile_collection": "driftline_tenant_connector_profiles",
                 "deployment_target_fallback": os.getenv(
@@ -1706,6 +1733,7 @@ def register_connector_binding(
         raise HTTPException(status_code=403, detail="Tenant owner role is required")
     tenant_id = identity["tenant_id"]
     secret_name = tenant_connector_secret_name(tenant_id, safe_connector)
+    existing_binding = load_connector_binding(tenant_id, safe_connector) or {}
     status = "active"
     secret_version = "latest"
     try:
@@ -1748,6 +1776,12 @@ def register_connector_binding(
             "secret_name": secret_name,
             "status": status,
             "scope": "tenant_bound_connector_credential",
+            "credential_id": existing_binding.get("credential_id")
+            or f"cred-{tenant_id}-{safe_connector}",
+            "secret_backend": "google_secret_manager",
+            "secret_reference_scope": "exact_tenant_connector_secret",
+            "allowed_operations": allowed_operations(safe_connector),
+            "lease_seconds": 300,
             "secret_version": secret_version,
             "verified_at": utc_now() if status == "active" else None,
             "configured_by": identity.get("email") or identity.get("identity"),
@@ -2371,6 +2405,109 @@ def get_connector_bindings(
             }
             for binding in bindings
         ],
+        "credential_values_exposed": False,
+    }
+
+
+@app.get("/api/connectors/credentials")
+def get_connector_credentials(
+    operator: str,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return the tenant credential-broker inventory without secret values."""
+    identity = _verify_approval_mode(
+        "connector-credentials-list",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    bindings = list_connector_bindings(identity["tenant_id"])
+    credentials = []
+    for binding in bindings:
+        connector = str(binding.get("connector", ""))
+        credentials.append(
+            {
+                "credential_id": binding.get(
+                    "credential_id", f"cred-{identity['tenant_id']}-{connector}"
+                ),
+                "connector": connector,
+                "status": binding.get("status", "unknown"),
+                "secret_backend": binding.get(
+                    "secret_backend", "google_secret_manager"
+                ),
+                "secret_reference_scope": binding.get(
+                    "secret_reference_scope", "exact_tenant_connector_secret"
+                ),
+                "secret_version": binding.get("secret_version", "latest"),
+                "allowed_operations": sorted(
+                    binding.get(
+                        "allowed_operations", allowed_operations(connector)
+                    )
+                ),
+                "lease_seconds": int(binding.get("lease_seconds", 300)),
+                "verified_at": binding.get("verified_at"),
+                "updated_at": binding.get("updated_at"),
+                "credential_values_exposed": False,
+            }
+        )
+    return {
+        "status": "ok",
+        "tenant_id": identity["tenant_id"],
+        "credentials": credentials,
+        "architecture": {
+            "isolation": "tenant_binding_to_exact_secret_manager_secret",
+            "resolution": "short_lived_in_process_lease",
+            "rotation": "owner_requested_then_version_pinned",
+            "revocation": "binding_status_fail_closed",
+            "audit_collection": "driftline_credential_access_events",
+        },
+        "credential_values_exposed": False,
+    }
+
+
+@app.get("/api/connectors/credentials/access")
+def get_connector_credential_access(
+    operator: str,
+    tenant_id: str | None = None,
+    limit: int = 100,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return one tenant's redacted credential lease audit trail."""
+    identity = _verify_approval_mode(
+        "connector-credentials-access",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    events = list_credential_access_events(identity["tenant_id"], limit=limit)
+    redacted = [
+        {
+            key: value
+            for key, value in event.items()
+            if key
+            not in {
+                "value",
+                "token",
+                "secret_value",
+                "access_token",
+                "refresh_token",
+                "client_secret",
+            }
+        }
+        for event in events
+    ]
+    return {
+        "status": "ok",
+        "tenant_id": identity["tenant_id"],
+        "events": redacted,
+        "append_only": True,
         "credential_values_exposed": False,
     }
 

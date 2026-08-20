@@ -35,6 +35,7 @@ TENANT_AUDIT_COLLECTION = "driftline_tenant_audit_events"
 TENANT_USAGE_COLLECTION = "driftline_tenant_usage"
 TENANT_RATE_LIMITS_COLLECTION = "driftline_tenant_rate_limits"
 TENANT_CONNECTOR_PROFILES_COLLECTION = "driftline_tenant_connector_profiles"
+CREDENTIAL_ACCESS_COLLECTION = "driftline_credential_access_events"
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _connector_profiles_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenants_memory: dict[str, dict[str, Any]] = {}
@@ -43,6 +44,7 @@ _tenant_audit_memory: list[dict[str, Any]] = []
 _tenant_usage_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenant_rate_limit_memory: dict[tuple[str, str, int], int] = {}
 _job_failures_memory: dict[str, dict[str, Any]] = {}
+_credential_access_memory: list[dict[str, Any]] = []
 _tenant_provision_lock = Lock()
 
 
@@ -465,6 +467,56 @@ def list_connector_bindings(tenant_id: str) -> list[dict[str, Any]]:
         for (bound_tenant, _), payload in _connector_bindings_memory.items()
         if bound_tenant == tenant_id
     ]
+
+
+def persist_credential_access_event(payload: dict[str, Any]) -> dict[str, Any]:
+    """Append metadata for one short-lived credential lease.
+
+    The access ledger is deliberately separate from connector bindings: a
+    binding describes durable control-plane state, while this collection is a
+    bounded operational trail of which tenant/operation resolved a pinned
+    secret version.  Credential values and provider response bodies are
+    rejected before persistence and every event receives the normal retention
+    expiry.
+    """
+    forbidden = {
+        "value",
+        "token",
+        "secret_value",
+        "access_token",
+        "refresh_token",
+        "client_secret",
+    }
+    safe = {key: value for key, value in payload.items() if key not in forbidden}
+    safe.setdefault("event_id", f"credential-access-{uuid4().hex}")
+    safe.setdefault("created_at", utc_now())
+    safe["expires_at"] = _retention_expiry()
+    _credential_access_memory.append(dict(safe))
+    if _enabled():
+        _client().collection(CREDENTIAL_ACCESS_COLLECTION).document(
+            str(safe["event_id"])
+        ).create(safe)
+    return dict(safe)
+
+
+def list_credential_access_events(
+    tenant_id: str, limit: int = 100
+) -> list[dict[str, Any]]:
+    """Return one tenant's bounded, metadata-only credential access trail."""
+    bounded_limit = max(1, min(limit, 200))
+    if _enabled():
+        query = _client().collection(CREDENTIAL_ACCESS_COLLECTION).where(
+            "tenant_id", "==", tenant_id
+        )
+        events = [snapshot.to_dict() or {} for snapshot in query.stream()]
+    else:
+        events = [
+            dict(event)
+            for event in _credential_access_memory
+            if event.get("tenant_id") == tenant_id
+        ]
+    events.sort(key=lambda event: str(event.get("created_at", "")), reverse=True)
+    return events[:bounded_limit]
 
 
 def persist_connector_profile(payload: dict[str, Any]) -> dict[str, Any]:

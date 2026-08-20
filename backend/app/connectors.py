@@ -21,11 +21,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
-from .tenant import (
-    tenant_connector_secret_name,
-    validate_connector_name,
-    validate_tenant_id,
-)
+from .credential_broker import CredentialBrokerError, resolve_tenant_credential
+from .tenant import validate_connector_name, validate_tenant_id
 
 
 class ConnectorError(RuntimeError):
@@ -453,32 +450,34 @@ def _tenant_setting(
 def _tenant_secret_or_env(
     tenant_id: str, connector: str, env_name: str
 ) -> str:
-    """Resolve one tenant-bound secret; legacy global fallback is opt-in only."""
+    """Resolve one tenant-bound secret through the credential broker.
+
+    The broker is the only runtime path that may read a tenant connector
+    secret.  Legacy deployment-wide fallback remains an explicit compatibility
+    mode for local development, never the hosted SaaS default.
+    """
     safe_tenant = validate_tenant_id(tenant_id)
     safe_connector = validate_connector_name(connector)
     try:
-        from .persistence import load_connector_binding
-
-        binding = load_connector_binding(safe_tenant, safe_connector)
-    except Exception as exc:
-        raise ConnectorError(f"{safe_connector}_tenant_binding_lookup_failed") from exc
-    if binding and binding.get("status") == "active":
-        secret_name = str(binding.get("secret_name", ""))
-        expected = tenant_connector_secret_name(safe_tenant, safe_connector)
-        if secret_name != expected:
-            raise ConnectorError(f"{safe_connector}_tenant_secret_name_mismatch")
-        # An active binding may pin an exact Secret Manager version.  Legacy
-        # bindings without that metadata continue to use ``latest`` until an
-        # owner re-verifies them; rotation always moves the binding to
-        # ``rotation_pending`` first, so no silent credential swap occurs for
-        # version-aware tenants.
-        version = str(binding.get("secret_version", "latest")).strip() or "latest"
-        if version == "latest":
-            return read_secret(secret_name).strip()
-        return read_secret(secret_name, version=version).strip()
-    if os.getenv("DRIFTLINE_ALLOW_LEGACY_GLOBAL_CONNECTOR_SECRETS", "false").casefold() == "true":
-        return _secret_or_env(env_name)
-    raise ConnectorError(f"{safe_connector}_tenant_binding_missing")
+        lease = resolve_tenant_credential(
+            safe_tenant,
+            safe_connector,
+            operation="runtime",
+            secret_reader=read_secret,
+        )
+        return lease.value
+    except CredentialBrokerError as exc:
+        if os.getenv(
+            "DRIFTLINE_ALLOW_LEGACY_GLOBAL_CONNECTOR_SECRETS", "false"
+        ).casefold() == "true":
+            return _secret_or_env(env_name)
+        # Keep provider adapters' stable error vocabulary while hiding the
+        # broker's internal metadata and Secret Manager details.
+        if str(exc) in {"credential_binding_unavailable", "tenant_not_active"}:
+            raise ConnectorError(f"{safe_connector}_tenant_binding_missing") from exc
+        raise ConnectorError(
+            f"{safe_connector}_tenant_credential_unavailable"
+        ) from exc
 
 
 def _workflow_tenant_id(state: Any) -> str:

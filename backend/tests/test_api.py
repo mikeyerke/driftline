@@ -567,6 +567,79 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     assert tenant_metadata.json()["credential_values_exposed"] is False
 
 
+def test_owner_can_inspect_credential_broker_inventory_and_access_ledger(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "credential-inventory-test-secret"
+    tenant_id = "credential-inventory-acme"
+    operator = "Credential owner"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+    api.persist_connector_binding(
+        {
+            "tenant_id": tenant_id,
+            "connector": "jira",
+            "secret_name": f"driftline-tenant-{tenant_id}-jira",
+            "credential_id": "cred-inventory-jira-1",
+            "status": "active",
+            "secret_version": "4",
+            "allowed_operations": ["runtime", "create_issue"],
+        }
+    )
+    inventory = client.get(
+        "/api/connectors/credentials",
+        params={
+            "operator": operator,
+            "tenant_id": tenant_id,
+            "approval_token": hmac.new(
+                secret.encode(),
+                b"connector-credentials-list:Credential owner",
+                hashlib.sha256,
+            ).hexdigest(),
+        },
+    )
+    assert inventory.status_code == 200
+    payload = inventory.json()
+    assert payload["credentials"][0]["credential_id"] == "cred-inventory-jira-1"
+    assert payload["credentials"][0]["allowed_operations"] == [
+        "create_issue",
+        "runtime",
+    ]
+    assert payload["credential_values_exposed"] is False
+    assert "secret_name" not in str(payload)
+
+    monkeypatch.setattr(
+        api,
+        "list_credential_access_events",
+        lambda _tenant, limit=100: [
+            {
+                "tenant_id": tenant_id,
+                "credential_id": "cred-inventory-jira-1",
+                "connector": "jira",
+                "operation": "create_issue",
+                "secret_version": "4",
+                "outcome": "resolved",
+            }
+        ],
+    )
+    access = client.get(
+        "/api/connectors/credentials/access",
+        params={
+            "operator": operator,
+            "tenant_id": tenant_id,
+            "approval_token": hmac.new(
+                secret.encode(),
+                b"connector-credentials-access:Credential owner",
+                hashlib.sha256,
+            ).hexdigest(),
+        },
+    )
+    assert access.status_code == 200
+    assert access.json()["append_only"] is True
+    assert access.json()["events"][0]["credential_id"] == "cred-inventory-jira-1"
+    assert access.json()["credential_values_exposed"] is False
+
+
 def test_owner_rotation_fails_closed_until_binding_is_reverified(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

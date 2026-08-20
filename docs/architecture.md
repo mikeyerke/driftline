@@ -147,6 +147,20 @@ offboarding steps. This keeps two customer tenants from sharing a token even
 when they use the same connector type, while preserving the public packet-only
 lane. The result is a real tenant credential control plane for this deployment,
 not a claim that customer identity, billing, or enterprise SSO is complete.
+The credential broker is the runtime seam behind every tenant connector. It
+accepts only `(tenant_id, connector, operation)`, derives the exact
+`driftline-tenant-<tenant>-<connector>` Secret Manager reference, verifies the
+active binding and operation scope, reads the pinned version, and returns a
+short-lived in-process lease. A connector adapter cannot supply an arbitrary
+secret name or bypass a revoked/rotating binding. Lease metadata (tenant,
+connector, operation, credential ID, pinned version, and expiry) is appended to
+`driftline_credential_access_events`; values, bearer tokens, source bodies, and
+provider responses are excluded. Owners can inspect this inventory through the
+signed `GET /api/connectors/credentials` and its append-only access trail at
+`GET /api/connectors/credentials/access`. This is a real multi-tenant
+credential-control-plane foundation with least-privilege operation scopes; it
+does not pretend to provide customer-managed KMS keys, self-serve billing, or a
+dedicated Cloud Run worker/IAM project for every tenant.
 The signed `GET /api/connectors/bindings/health` route is a read-only
 reconciliation probe across the fixed connector allowlist; it checks active
 bindings against readable Secret Manager state and surfaces attention without

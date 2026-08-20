@@ -60,10 +60,9 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `driftline-demo` failure ledger returned an empty, redacted list with a
   30-day retention contract. Local regression is `157 passed`; Ruff and
   `git diff --check` are clean.
-- Firestore TTL enablement for `driftline_job_failures.expires_at` was issued
-  in the isolated project and was still `CREATING` at release capture; it must
-  be rechecked as `ACTIVE` before claiming automated cleanup for this new
-  collection. Existing job/workflow/source/outcome TTLs remain active.
+- Firestore TTL for `driftline_job_failures.expires_at` is now `ACTIVE` in the
+  isolated project, so terminal markers receive the same automated bounded
+  cleanup as jobs, workflows, source observations, and outcomes.
 
 ## 2026-08-20 Signed live-mode guard release (current)
 
@@ -1057,7 +1056,7 @@ release sections above record each subsequent deployment and its direct proof.
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
 | Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline@sha256:22dd01920ebd9974e86f4f1329dc6fd9655f0c7652d3f447c701db45d0f60485` |
-| Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_job_failures`, `driftline_workflows`, `audit_events`, tenant control-plane metadata, `driftline_tenant_audit_events`, `driftline_tenant_usage`, `driftline_tenant_rate_limits`, `driftline_tenant_connector_profiles`, and bounded `driftline_source_failures`; tenant lifecycle, usage, rate-limit, profile, and binding records are metadata-only; job-failure markers carry the same 30-day expiry (TTL enablement is pending ACTIVE confirmation) |
+| Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_job_failures`, `driftline_workflows`, `audit_events`, tenant control-plane metadata, `driftline_tenant_audit_events`, `driftline_tenant_usage`, `driftline_tenant_rate_limits`, `driftline_tenant_connector_profiles`, and bounded `driftline_source_failures`; tenant lifecycle, usage, rate-limit, profile, and binding records are metadata-only; job-failure markers carry the same 30-day expiry and `expires_at` TTL is `ACTIVE` |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | Cloud Build source bucket | `gs://driftline-hackathon-2026_us-central1_cloudbuild` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |

@@ -71,6 +71,19 @@ signed
 GET /api/connectors/bindings and GET /api/tenants/audit routes expose status
 and lifecycle events without returning credential values.
 
+At request time, every adapter crosses the same credential-broker seam. The
+broker accepts only the authenticated tenant, an allowlisted connector, and an
+operation such as `read_context` or `create_issue`; it derives the exact
+tenant secret name, checks the active binding and operation scope, and returns
+a short-lived in-process lease for the pinned version. Cross-tenant secret
+references, revoked/rotation-pending bindings, arbitrary operations, and
+invalid versions fail closed. The signed
+`GET /api/connectors/credentials` route exposes the metadata-only inventory,
+while `GET /api/connectors/credentials/access` exposes the tenant-filtered
+append-only lease trail. Neither route returns credential values. Lease audit
+records are retained for the normal 30-day window in
+`driftline_credential_access_events`.
+
 Provision non-secret destinations through the owner-only
 `POST /api/connectors/{connector}/profile` route. It stores only the
 connector-specific allowlisted fields in

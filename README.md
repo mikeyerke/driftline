@@ -199,6 +199,17 @@ tenant. The current deployment has a real tenant control plane, not a claim of
 self-serve enterprise SSO, customer billing, or IAM-isolated Cloud Run workers
 per tenant; those are the next production SaaS layer beyond this hackathon
 deployment.
+At runtime, adapters resolve credentials through one tenant credential broker:
+the caller supplies only tenant, connector, and an allowlisted operation. The
+broker rejects cross-tenant secret references, revoked/rotating bindings, and
+unapproved operations, then reads the pinned Secret Manager version into a
+short-lived in-process lease. It appends metadata-only lease records to
+`driftline_credential_access_events`; values and provider response bodies never
+enter the ledger. Signed owners can inspect the redacted inventory at
+`/api/connectors/credentials` and access trail at
+`/api/connectors/credentials/access`. This closes the runtime credential seam
+for multiple tenants while leaving customer-managed encryption keys,
+self-serve SSO/billing, and per-tenant worker IAM as future SaaS layers.
 The signed `GET /api/connectors/bindings/health` probe reconciles every fixed
 connector namespace against the exact Secret Manager binding and reports
 `healthy`, `attention`, or `not_configured` without returning credential
