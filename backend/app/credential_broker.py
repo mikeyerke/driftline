@@ -177,7 +177,9 @@ def resolve_tenant_credential(
         lease_id=f"lease-{uuid4().hex}",
         tenant_id=safe_tenant,
         connector=safe_connector,
-        credential_id=str(binding.get("credential_id") or f"{safe_tenant}:{safe_connector}"),
+        credential_id=str(
+            binding.get("credential_id") or f"cred-{safe_tenant}-{safe_connector}"
+        ),
         operation=safe_operation,
         secret_name=expected_secret,
         secret_version=secret_version,
