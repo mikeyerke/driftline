@@ -81,7 +81,10 @@ completion, reversals, and source health are observable at
 willingness-to-pay remain `not_measured` until a real pilot supplies aggregate
 before/after evidence. See
 [`docs/UTILITY_RESEARCH_2026-08-20.md`](docs/UTILITY_RESEARCH_2026-08-20.md)
-for the research-backed scope and deferred work.
+for the research-backed scope and deferred work. The public console's **Value
+proof** panel reads the same bounded endpoint, making observed deployment
+utility and unmeasured customer outcomes visible without turning synthetic
+activity into a business claim.
 
 For an authenticated operator, `POST /api/connectors/context/summary` adds a
 bounded internal-workload view before approval: fixed-scope Jira, Confluence,

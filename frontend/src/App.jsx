@@ -20,6 +20,7 @@ import ChangeTimeline from "./components/ChangeTimeline";
 import ScenarioSimulator from "./components/ScenarioSimulator";
 import ChangeGenomePanel from "./components/ChangeGenomePanel";
 import ChangeCardPanel from "./components/ChangeCardPanel";
+import ValueProofPanel from "./components/ValueProofPanel";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -312,6 +313,7 @@ export default function App() {
 
           <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} sourceHealth={sourceHealth} selectedSource={selectedSource} onSourceChange={setSelectedSource} />
           <ChangeGenomePanel />
+          <ValueProofPanel />
           <RunHistory jobs={recentJobs} loading={historyLoading} />
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>

@@ -46,6 +46,10 @@ export function getOpsSummary() {
   return request("/api/ops/summary");
 }
 
+export function getValueProof() {
+  return request("/api/ops/value-proof");
+}
+
 export function getSourceHistory(sourceId, limit = 8) {
   return request(`/api/sources/${encodeURIComponent(sourceId)}/history?limit=${limit}`);
 }
