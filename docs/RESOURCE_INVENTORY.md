@@ -919,6 +919,14 @@ not invoked by that public path.
   `redaction=aggregate_metadata_only`; the newest-revision error query returned
   zero `ERROR` log entries.
 
+## Current deployment pointers
+
+The authoritative live pointers for the latest release are Cloud Run revision
+`driftline-00138-zdr` from source commit `e97b5ce` and Artifact Registry image
+digest `sha256:a55226fc54c42e7a993c915dd1fd9a818bbe2e740ca8d7a9d26a678851aec6a9`.
+The historical resource table below is retained as the broader inventory; the
+release sections above record each subsequent deployment and its direct proof.
+
 ## Resources
 
 | Resource | Name / scope | Verified status | Labels / notes |
