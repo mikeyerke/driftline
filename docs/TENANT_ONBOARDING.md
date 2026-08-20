@@ -48,10 +48,13 @@ only metadata in driftline_connector_bindings. The signed
 GET /api/connectors/bindings and GET /api/tenants/audit routes expose status
 and lifecycle events without returning credential values.
 
-Non-secret destinations (Jira project, Confluence space, Slack channel, or
-GitHub repository) may be supplied through the operator-owned
-DRIFTLINE_TENANT_CONNECTOR_CONFIG profile. Request bodies cannot choose an
-arbitrary target.
+Provision non-secret destinations through the owner-only
+`POST /api/connectors/{connector}/profile` route. It stores only the
+connector-specific allowlisted fields in
+`driftline_tenant_connector_profiles`; request bodies cannot choose an
+arbitrary target or credential. The older
+`DRIFTLINE_TENANT_CONNECTOR_CONFIG` environment profile is a compatibility
+fallback only, not the preferred multi-tenant path.
 
 ## 4. Rotate or offboard
 

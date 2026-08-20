@@ -312,6 +312,54 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     assert tenant_metadata.json()["credential_values_exposed"] is False
 
 
+def test_owner_can_register_non_secret_connector_profile(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "profile-route-test-secret"
+    tenant_id = "profile-route-acme"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+    token = hmac.new(
+        secret.encode(), b"connector-profile:jira:Profile owner", hashlib.sha256
+    ).hexdigest()
+
+    response = client.post(
+        "/api/connectors/jira/profile",
+        json={
+            "operator": "Profile owner",
+            "tenant_id": tenant_id,
+            "settings": {
+                "base_url": "https://profile.atlassian.net",
+                "project_key": "PROF",
+            },
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["settings"]["project_key"] == "PROF"
+    assert payload["credential_values_accepted"] is False
+
+    read_token = hmac.new(
+        secret.encode(),
+        b"connector-profile-read:jira:Profile owner",
+        hashlib.sha256,
+    ).hexdigest()
+    read = client.get(
+        "/api/connectors/jira/profile",
+        params={
+            "operator": "Profile owner",
+            "tenant_id": tenant_id,
+            "approval_token": read_token,
+        },
+    )
+    assert read.status_code == 200
+    assert read.json()["settings"]["base_url"] == "https://profile.atlassian.net"
+    assert read.json()["credential_values_exposed"] is False
+    assert "secret" not in str(read.json()).casefold()
+
+
 def test_owner_can_provision_durable_member_without_credentials(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

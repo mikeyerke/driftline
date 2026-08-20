@@ -1,6 +1,6 @@
 # Google All Things Agentic — verified submission requirements
 
-Checked against the official rules on August 18, 2026. The canonical sources
+Checked against the official rules on August 20, 2026. The canonical sources
 are:
 
 - [Contest overview](https://allthingsagentichackathon.devpost.com/)
@@ -16,8 +16,11 @@ are:
 - Judging period: September 1, 2026 at 9:00 AM Pacific through October 1, 2026
   at 11:45 PM Pacific.
 - Winners are expected around October 8, 2026 at 10:00 AM Pacific.
-- Entrants must meet the majority-age and location/export-control rules in the
-  official rules. Devpost registration is required.
+- Entrants must be above the age of majority in their jurisdiction and must
+  not be located in Italy, Quebec, Crimea, Cuba, Iran, Syria, North Korea,
+  Sudan, Belarus, or Russia, or otherwise be excluded by export controls,
+  OFAC restrictions, or the government-employee conflict rules. Devpost
+  registration is required.
 - The entry must remain free, working, English-language, and unrestricted for
   judging and testing through the judging period.
 
@@ -26,7 +29,9 @@ are:
 Every project must use Gemini 3.5 or newer through Gemini API or Vertex AI, at
 least one Google agent framework (Google ADK, GenAI SDK, Antigravity SDK, or
 GenKit 3), and at least one Google Cloud infrastructure service. Driftline uses
-Vertex AI, Google ADK, Cloud Run, and Firestore.
+Vertex AI, Google ADK, Cloud Run, and Firestore. The rules also require a
+newly-created project during the submission period, disclosure of pre-existing
+work, and authorization for any third-party integrations.
 
 The model reference lists Gemini 3.5 Flash on the `global` and `us` Vertex AI
 endpoints. Driftline keeps Cloud Run and Firestore in `us-central1` but sends
@@ -40,13 +45,15 @@ be no longer than four minutes; if longer, only the first four minutes are
 evaluated. The video must be publicly visible on YouTube or Vimeo, so Driftline
 will use a public link rather than an unlisted upload.
 
-The optional content bonus also requires a public post and explicit language
-that it was created for this hackathon. Driftline does not claim that optional
+The optional content bonus requires public content that explicitly says it was
+created for this hackathon. It can add up to 0.6 judging points when the
+required hashtag and disclosure are present. Driftline does not claim that
 bonus unless the post is actually published.
 
 ## Categories and selection
 
-The rules require selecting one category:
+The rules require selecting one category, and an entrant may receive only one
+prize:
 
 - Taskmaster — complete a messy, multi-step workflow and take action.
 - Collaborative Partner — guide a user, ask clarifying questions, and capture
@@ -54,7 +61,9 @@ The rules require selecting one category:
 - Fortified Enterprise Fleet — demonstrate a governed, scalable network of
   institutional agents.
 
-Driftline is being entered as **Taskmaster**. It is a single governed workflow,
+Driftline is being entered as **Taskmaster**. The category specifically values
+"Bring Your Own Friction" workflows that finish background work beyond chat.
+It is a single governed workflow,
 not an enterprise fleet, so the Fortified Enterprise Fleet category is not
 claimed. The entry will not claim Startup Excellence without verified
 incorporation and corporate-email eligibility.
@@ -74,6 +83,19 @@ ideation was created during the contest.
 Stage One checks baseline viability, category fit, and the requirements above.
 Stage Two weights Innovation & Operational Utility at 40%, Architectural
 Discipline & Tech Stack at 30%, and Demo & Production Readiness at 30%. The
-rules specifically ask for autonomous execution beyond chat, clean state and
-tool isolation, an unedited live action proof, Google Cloud deployment proof,
-and reproducible documentation.
+Taskmaster rubric asks for autonomous execution beyond chat and background
+workflow completion. The architecture rubric looks for modular agents, tools,
+state, and Google technology used substantively. The demo rubric asks for an
+unedited proof of a real action, Google Cloud deployment proof, and
+reproducible documentation.
+
+## Current submission gates
+
+- Final submission deadline: **August 31, 2026 at 5:00 PM Pacific**.
+- The demo video must be publicly viewable on YouTube or Vimeo and no longer
+  than four minutes; only the first four minutes are evaluated.
+- The hosted project must be free and accessible to judges through judging,
+  and the README must include setup instructions and an architecture diagram.
+- Driftline will not submit until its live URL, repository, video, claims, and
+  integration statuses are all verified. The current video remains on hold by
+  the project owner.

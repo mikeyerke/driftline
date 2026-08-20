@@ -268,6 +268,38 @@ def test_tenant_connector_profile_scopes_non_secret_targets(monkeypatch) -> None
     assert config.token == "tenant-token"
 
 
+def test_durable_tenant_connector_profile_precedes_deployment_defaults(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_JIRA_BASE_URL", "https://default.atlassian.net")
+    monkeypatch.setenv("DRIFTLINE_JIRA_EMAIL", "default@example.com")
+    monkeypatch.setenv("DRIFTLINE_JIRA_PROJECT_KEY", "DEFAULT")
+    monkeypatch.delenv("DRIFTLINE_TENANT_CONNECTOR_CONFIG", raising=False)
+    monkeypatch.setattr(
+        "app.persistence.load_connector_profile",
+        lambda tenant, connector: {
+            "tenant_id": tenant,
+            "connector": connector,
+            "status": "active",
+            "settings": {
+                "base_url": "https://durable.atlassian.net",
+                "email": "owner@durable.example",
+                "project_key": "DUR",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        connector_module,
+        "_tenant_secret_or_env",
+        lambda tenant, connector, env_name: "tenant-token",
+    )
+
+    config = JiraConfig.from_env("durable-acme")
+
+    assert config.base_url == "https://durable.atlassian.net/"
+    assert config.email == "owner@durable.example"
+    assert config.project_key == "DUR"
+
+
 def test_invalid_tenant_connector_profile_fails_closed(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_TENANT_CONNECTOR_CONFIG", "{not-json")
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app import persistence
 
 
@@ -60,3 +62,29 @@ def test_tenant_rate_limit_reservation_is_window_and_tenant_scoped(monkeypatch) 
     assert persistence.reserve_tenant_rate_limit(
         "quota-acme", "agent_calls", 2, 60, now=180
     )
+
+
+def test_connector_profile_is_bounded_non_secret_metadata(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    profile = persistence.persist_connector_profile(
+        {
+            "tenant_id": "profile-acme",
+            "connector": "jira",
+            "settings": {
+                "base_url": "https://profile.atlassian.net",
+                "project_key": "PROF",
+            },
+        }
+    )
+
+    assert profile["settings"]["project_key"] == "PROF"
+    assert "token" not in str(profile).casefold()
+    assert persistence.load_connector_profile("profile-acme", "jira") == profile
+    with pytest.raises(ValueError, match="not_allowlisted"):
+        persistence.persist_connector_profile(
+            {
+                "tenant_id": "profile-acme",
+                "connector": "jira",
+                "settings": {"token": "must-never-persist"},
+            }
+        )

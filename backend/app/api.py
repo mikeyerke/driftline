@@ -76,18 +76,21 @@ from .persistence import (
     consume_salesforce_oauth_state,
     delete_salesforce_connection,
     list_connector_bindings,
+    list_connector_profiles,
     list_jobs,
     list_outcome_measurements,
     list_tenant_audit_events,
     list_tenant_memberships,
     list_workflows,
     load_connector_binding,
+    load_connector_profile,
     load_job,
     load_salesforce_connection,
     load_tenant,
     load_tenant_usage,
     load_workflow,
     persist_connector_binding,
+    persist_connector_profile,
     persist_job,
     persist_outcome_measurement,
     persist_salesforce_connection,
@@ -116,6 +119,7 @@ from .tenant import (
     public_demo_principal,
     tenant_connector_secret_name,
     validate_connector_name,
+    validate_connector_profile,
     validate_tenant_id,
 )
 from .workflow import PolicyViolation, packet_markdown, workflow_store
@@ -199,6 +203,16 @@ class ConnectorBindingRequest(BaseModel):
     """Owner request to register/verify a tenant connector secret binding."""
 
     operator: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class ConnectorProfileRequest(BaseModel):
+    """Owner-managed non-secret connector destination profile."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    settings: dict[str, str] = Field(default_factory=dict)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
@@ -1393,6 +1407,8 @@ def get_ops_summary(
                 == "true",
                 "binding_route": "/api/connectors/{connector}/binding",
                 "metadata_collection": "driftline_connector_bindings",
+                "profile_route": "/api/connectors/{connector}/profile",
+                "profile_collection": "driftline_tenant_connector_profiles",
                 "tenant_collection": "driftline_tenants",
                 "membership_collection": "driftline_tenant_memberships",
             },
@@ -1612,6 +1628,85 @@ def revoke_connector_binding(
     }
 
 
+@app.post("/api/connectors/{connector}/profile")
+def register_connector_profile(
+    connector: str, request: ConnectorProfileRequest
+) -> dict[str, object]:
+    """Persist one tenant's bounded, non-secret connector destination."""
+    try:
+        safe_connector = validate_connector_name(connector)
+        settings = validate_connector_profile(safe_connector, request.settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    identity = _verify_approval_mode(
+        f"connector-profile:{safe_connector}",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    tenant_id = identity["tenant_id"]
+    profile = persist_connector_profile(
+        {
+            "tenant_id": tenant_id,
+            "connector": safe_connector,
+            "settings": settings,
+            "updated_at": utc_now(),
+        }
+    )
+    audit_event = persist_tenant_audit_event(
+        {
+            "tenant_id": tenant_id,
+            "event_type": "connector_profile_updated",
+            "connector": safe_connector,
+            "setting_keys": sorted(settings),
+            "actor": identity.get("email") or identity.get("identity"),
+        }
+    )
+    return {
+        "status": "active",
+        "tenant_id": tenant_id,
+        "connector": safe_connector,
+        "settings": profile["settings"],
+        "credential_values_accepted": False,
+        "audit_event_id": audit_event["event_id"],
+    }
+
+
+@app.get("/api/connectors/{connector}/profile")
+def get_connector_profile(
+    connector: str,
+    operator: str,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return the caller's non-secret profile, never a credential value."""
+    try:
+        safe_connector = validate_connector_name(connector)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    identity = _verify_approval_mode(
+        f"connector-profile-read:{safe_connector}",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    profile = load_connector_profile(identity["tenant_id"], safe_connector)
+    return {
+        "tenant_id": identity["tenant_id"],
+        "connector": safe_connector,
+        "status": (profile or {}).get("status", "not_configured"),
+        "settings": (profile or {}).get("settings", {}),
+        "credential_values_exposed": False,
+    }
+
+
 @app.get("/api/tenants")
 def get_tenant_metadata(
     operator: str,
@@ -1634,6 +1729,7 @@ def get_tenant_metadata(
     }
 
     bindings = list_connector_bindings(identity["tenant_id"])
+    profiles = list_connector_profiles(identity["tenant_id"])
     memberships = list_tenant_memberships(identity["tenant_id"])
     return {
         "tenant": {
@@ -1643,6 +1739,7 @@ def get_tenant_metadata(
         },
         "role": identity["role"],
         "connector_binding_count": len(bindings),
+        "connector_profile_count": len(profiles),
         "membership_count": len(memberships),
         "credential_values_exposed": False,
     }

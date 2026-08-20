@@ -18,6 +18,19 @@ _TENANT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _ROLES = {"viewer", "operator", "owner"}
 CONNECTOR_NAMES = frozenset({"jira", "confluence", "slack", "github"})
 
+# Non-secret destination metadata is deliberately narrower than the provider
+# APIs. Credentials, arbitrary query/path fields, and user-supplied targets do
+# not belong in a tenant profile. Connector adapters still validate URL and
+# provider-specific constraints before making a request.
+CONNECTOR_PROFILE_KEYS: dict[str, frozenset[str]] = {
+    "jira": frozenset({"base_url", "email", "project_key", "issue_type"}),
+    "confluence": frozenset(
+        {"base_url", "email", "space_key", "parent_page_id"}
+    ),
+    "slack": frozenset({"base_url", "channel_id"}),
+    "github": frozenset({"api_url", "owner", "repo"}),
+}
+
 
 @dataclass(frozen=True)
 class TenantPrincipal:
@@ -45,6 +58,27 @@ def validate_connector_name(value: str) -> str:
     if connector not in CONNECTOR_NAMES:
         raise ValueError("connector_not_allowlisted")
     return connector
+
+
+def validate_connector_profile(
+    connector: str, settings: dict[str, object]
+) -> dict[str, str]:
+    """Return bounded, non-secret settings for one allowlisted connector."""
+    safe_connector = validate_connector_name(connector)
+    if not isinstance(settings, dict) or not settings:
+        raise ValueError("connector_profile_settings_required")
+    allowed = CONNECTOR_PROFILE_KEYS[safe_connector]
+    safe: dict[str, str] = {}
+    for key, value in settings.items():
+        if key not in allowed:
+            raise ValueError("connector_profile_key_not_allowlisted")
+        if not isinstance(value, str):
+            raise TypeError("connector_profile_value_invalid")
+        normalized = value.strip()
+        if not normalized or len(normalized) > 500:
+            raise ValueError("connector_profile_value_invalid")
+        safe[key] = normalized
+    return safe
 
 
 def tenant_connector_secret_name(tenant_id: str, connector: str) -> str:

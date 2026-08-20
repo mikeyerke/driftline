@@ -57,14 +57,17 @@ caller's tenant metadata; `/api/tenants/members` is owner-only. Content records
 continue to use bounded `expires_at` fields for TTL cleanup; the configured
 deployment window is 30 days unless an operator changes it deliberately.
 
-Non-secret connector targets can also be supplied through the operator-owned
-`DRIFTLINE_TENANT_CONNECTOR_CONFIG` profile. It is keyed by tenant and
-connector and can scope a Jira project, Confluence space, Slack channel, or
-GitHub repository. The API never accepts these targets from a request, and
-each URL is still validated by its connector adapter; deployment-wide values
-remain only as a compatibility fallback. This makes target scope tenant-aware
-without putting credentials, arbitrary destinations, or provider data in
-Firestore.
+Non-secret connector targets are now owner-managed per tenant through
+`POST /api/connectors/{connector}/profile` and the durable
+`driftline_tenant_connector_profiles` collection. The profile accepts only the
+small connector-specific allowlist (Jira project, Confluence space, Slack
+channel, or GitHub repository plus required service URL fields); credentials,
+arbitrary paths, query strings, and provider data are rejected. Connector
+adapters prefer the durable profile and still validate every URL and target
+before a request. The older operator-owned
+`DRIFTLINE_TENANT_CONNECTOR_CONFIG` environment profile remains only as a
+compatibility fallback for tenants that have not yet been provisioned. This
+keeps tenant target scope durable without putting credentials in Firestore.
 `POST /api/tenants/deprovision` is an owner-confirmed soft offboarding route:
 it disables memberships and revokes connector bindings, but does not delete
 secrets or provider-side data.

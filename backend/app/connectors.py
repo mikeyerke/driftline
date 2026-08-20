@@ -396,11 +396,28 @@ def _tenant_setting(
     DRIFTLINE_TENANT_CONNECTOR_CONFIG is optional JSON shaped as
     {tenant: {connector: {key: value}}}. It carries only bounded target
     metadata, while credentials and request-supplied targets are rejected.
-    Deployment-wide environment values remain the compatibility fallback.
+    A durable Firestore profile is preferred for signed tenants. Deployment-
+    wide environment values remain only as an explicit compatibility fallback
+    for fields that have not yet been provisioned for that tenant.
     """
     fallback = os.getenv(env_name, default)
     if not tenant_id:
         return fallback
+    try:
+        from .persistence import load_connector_profile
+
+        profile = load_connector_profile(tenant_id, connector)
+    except Exception as exc:
+        # A signed production connector must not silently cross the tenant
+        # boundary when its durable profile cannot be read.
+        if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
+            raise ConnectorError("tenant_connector_profile_lookup_failed") from exc
+        profile = None
+    if profile and profile.get("status", "active") == "active":
+        settings = profile.get("settings") or {}
+        if isinstance(settings, dict) and key in settings:
+            value = settings.get(key)
+            return str(value).strip() if value is not None else fallback
     raw = os.getenv("DRIFTLINE_TENANT_CONNECTOR_CONFIG", "").strip()
     if not raw:
         return fallback
