@@ -79,7 +79,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 - Live proof: `/health` returned `ok`; unauthenticated binding-health access
   returned `401 Signed approval is required`; the live OpenAPI contract exposes
   the route; the newest revision has zero `severity>=ERROR` log entries. Local
-  regression is `153 passed`.
+  regression is `153 passed`. A tenant-signed live probe returned four
+  readable active bindings (Jira, Confluence, Slack, GitHub), one honest
+  `not_configured` Salesforce binding, zero attention states, and
+  `credential_values_exposed=false`.
 
 ## 2026-08-20 Tenant signer isolation release
 
