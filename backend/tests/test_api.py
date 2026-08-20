@@ -1567,6 +1567,37 @@ def test_demo_approval_and_undo_round_trip() -> None:
     assert undone.json()["action_record"]["jira_status"] == "prepared_only"
 
 
+def test_value_proof_counts_reopened_workflows_after_undo() -> None:
+    before = client.get("/api/ops/value-proof").json()["observed"]
+    started = client.post("/api/workflows/demo")
+    assert started.status_code == 200
+    workflow_id = started.json()["workflow_id"]
+
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={
+            "approver": "Demo operator",
+            "decision": "grandfather_existing_customers",
+        },
+    )
+    assert approved.status_code == 200
+    undone = client.post(
+        f"/api/workflows/{workflow_id}/undo",
+        json={"actor": "Demo operator"},
+    )
+    assert undone.status_code == 200
+    assert any(
+        event.get("outcome") == "decision_reopened"
+        for event in undone.json()["events"]
+    )
+
+    after = client.get("/api/ops/value-proof").json()["observed"]
+    assert after["workflows_reversed_or_reopened"] >= (
+        before["workflows_reversed_or_reopened"] + 1
+    )
+    assert after["action_items_completed"] == before["action_items_completed"]
+
+
 def test_demo_dismissal_records_reason_without_creating_work() -> None:
     started = client.post("/api/workflows/demo")
     assert started.status_code == 200

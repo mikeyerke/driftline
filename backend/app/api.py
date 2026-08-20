@@ -3426,7 +3426,7 @@ def get_value_proof(
         bool((state.action_record or {}).get("external_write")) for state in workflows
     )
     reversed_workflows = sum(
-        any(event.get("detail") == "decision_reopened" for event in state.events)
+        any(event.get("outcome") == "decision_reopened" for event in state.events)
         for state in workflows
     )
     approval_latencies: list[float] = []
