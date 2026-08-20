@@ -26,6 +26,13 @@ Each secret is labeled with the tenant and connector and grants
 roles/secretmanager.secretAccessor only to the Driftline runtime service
 account. The helper never accepts a token value.
 
+The helper also creates `driftline-tenant-operator-acme`, an empty
+tenant-specific break-glass signer container. Google OIDC is the preferred
+operator identity; if a signed fallback is needed, generate a random value
+out of band and add it to that exact secret. Driftline's hosted release is
+configured with `DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS=true`, so a
+deployment-wide signer cannot authorize a tenant-scoped request.
+
 ## 2. Add provider values out of band
 
 Use the provider's least-privilege token/OAuth flow to add a version directly

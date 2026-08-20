@@ -17,6 +17,31 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Tenant signer isolation release
+
+- Source commit `6dfd885` adds deterministic tenant-specific break-glass
+  signing. OIDC remains the preferred operator identity; the hosted release
+  requires `DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS=true` and reads only
+  `driftline-tenant-operator-<tenant>` from Secret Manager. A deployment-wide
+  HMAC token is rejected rather than reused across tenants.
+- Cloud Build `c4b4bee9-7f77-401f-9d1d-68214acd8ab3` completed `SUCCESS`; image
+  digest `sha256:0baae28f9e1fdbb2322cf8ef7d69a6383b51f2a8fd67aa18d2a1ac516e7362fb`;
+  Cloud Run revision `driftline-00119-h78` serves 100% of traffic.
+- Live proof: `/health` returned `ok`; the tenant-specific signer authorized
+  an aggregate context read with all four connector scopes `status=ok` and
+  `external_read=true`; a token signed with a deployment-wide key returned
+  `401 Invalid signed approval`. The new revision has zero `ERROR` log entries.
+- Secret Manager `driftline-tenant-operator-driftline-demo` is version 1,
+  labeled `app=driftline`, `environment=production`,
+  `hackathon=all-things-agentic`, `tenant=driftline-demo`,
+  `kind=operator-signing`; only the Driftline runtime service account can
+  access it. The similarly labeled `driftline-tenant-driftline-demo-operator`
+  container was created during the first provisioning attempt and is retained
+  as an unused, recoverable resource; it is not referenced by Cloud Run.
+- The checked-in tenant provisioning helper now creates the signer container
+  for every future tenant, without accepting a secret value. Local API tests:
+  `46 passed`; Ruff and `git diff --check` are clean.
+
 ## 2026-08-20 Tenant identity and read-isolation releases
 
 - Source commits `b783a74` (tenant identity propagation through signed monitor
@@ -611,7 +636,7 @@ not invoked by that public path.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00117-lp7` from commit `869ca30` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, and both legacy global credential and hosted deployment-target fallbacks disabled |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00119-h78` from commit `6dfd885` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, tenant-specific break-glass signing, and both legacy global credential and hosted deployment-target fallbacks disabled |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
@@ -636,6 +661,8 @@ not invoked by that public path.
 | Secret Manager | `driftline-tenant-driftline-demo-confluence` | Active, version 1 verified; tenant binding active | Same isolated labels with `connector=confluence`; accessor is the Driftline runtime service account only; no token value is stored in Git or docs |
 | Secret Manager | `driftline-tenant-driftline-demo-slack` | Active, version 1 verified; tenant binding active | Same isolated labels with `connector=slack`; accessor is the Driftline runtime service account only; no token value is stored in Git or docs |
 | Secret Manager | `driftline-tenant-driftline-demo-github` | Active, version 1 verified; tenant binding active | Same isolated labels with `connector=github`; accessor is the Driftline runtime service account only; no token value is stored in Git or docs |
+| Secret Manager | `driftline-tenant-operator-driftline-demo` | Active, version 1 verified; tenant-specific break-glass signer | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`, `tenant=driftline-demo`, `kind=operator-signing`; accessor is the Driftline runtime service account only; not exposed through Cloud Run environment variables or API responses |
+| Secret Manager | `driftline-tenant-driftline-demo-operator` | Active, version 1; unused recoverable provisioning artifact | Same Driftline/tenant/operator labels; not referenced by the deployed prefix and safe to delete later after review |
 
 Cloud Build ID `51c869d8-e134-4664-8120-3ed1004001ea` completed successfully
 in `global` and deployed revision `driftline-00049-q48` from runtime commit

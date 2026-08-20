@@ -36,10 +36,25 @@ for connector in jira confluence slack github; do
   gcloud secrets add-iam-policy-binding "${secret}" --project="${PROJECT}" --member="serviceAccount:${RUNTIME_SA}" --role="roles/secretmanager.secretAccessor" >/dev/null
 done
 
+# Optional break-glass signer for this tenant. Normal operators should use
+# Google OIDC; this deterministic secret prevents one deployment-wide HMAC key
+# from authorizing every tenant. The script creates only the container; add a
+# random value through a separate Secret Manager workflow.
+signer_secret="driftline-tenant-operator-${TENANT}"
+if gcloud secrets describe "${signer_secret}" --project="${PROJECT}" >/dev/null 2>&1; then
+  echo "exists ${signer_secret}"
+else
+  gcloud secrets create "${signer_secret}" --project="${PROJECT}" --replication-policy=automatic --labels="app=driftline,environment=production,hackathon=all-things-agentic,tenant=${TENANT},kind=operator-signing" >/dev/null
+  echo "created ${signer_secret}"
+fi
+gcloud secrets update "${signer_secret}" --project="${PROJECT}" --update-labels="app=driftline,environment=production,hackathon=all-things-agentic,tenant=${TENANT},kind=operator-signing" >/dev/null
+gcloud secrets add-iam-policy-binding "${signer_secret}" --project="${PROJECT}" --member="serviceAccount:${RUNTIME_SA}" --role="roles/secretmanager.secretAccessor" >/dev/null
+
 cat <<EOF
 Provisioned deterministic Secret Manager containers for tenant ${TENANT}.
 No credential values were accepted or changed.
 Next: add each provider value through Secret Manager, then call the signed
 owner binding route for each connector. A binding stays pending until its
-secret has a readable version.
+secret has a readable version. For break-glass signed operators, add a random
+value to ${signer_secret}; normal operator traffic should use Google OIDC.
 EOF

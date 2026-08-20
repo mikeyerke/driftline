@@ -154,6 +154,9 @@ or unallowlisted-source requests fail before a model call.
 In the Firestore deployment, signed tenant reservations use a transactional
 window counter so concurrent Cloud Run instances cannot race past the same
 limit; local development uses a process-local fallback.
+Google OIDC is preferred for operators; the hosted break-glass fallback uses
+the deterministic `driftline-tenant-operator-<tenant>` signer secret and fails
+closed rather than accepting one deployment-wide HMAC key for every tenant.
 
 Operator source onboarding is a separate signed lane: it persists one exact
 public URL in the isolated Firestore registry, then the bounded scheduler can

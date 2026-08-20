@@ -152,3 +152,15 @@ request cannot select a tenant by query parameter alone.
   activate a binding; operator/viewer identities cannot rebind a tenant.
 - `/api/operator/sources` is the only source-registration path and requires a signed or Google-verified operator identity.
 - The signed operator path is exercised separately from public browser QA; its token is never committed or returned by the API.
+
+## Tenant-specific break-glass signing
+
+Google OIDC is the normal operator path. For a controlled fallback, the
+runtime derives `driftline-tenant-operator-<tenant>` from the authenticated
+tenant and reads that exact Secret Manager resource; request bodies cannot
+choose a secret name. The hosted deployment requires this tenant signer and
+fails closed when it is missing, so a deployment-wide HMAC token cannot cross
+tenant boundaries. Each signer is labeled with its tenant and is readable only
+by the isolated Driftline runtime service account. Rotate it by adding a new
+version through infrastructure, then retire the old signer; no API response
+returns the value.
