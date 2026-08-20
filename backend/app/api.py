@@ -1477,7 +1477,7 @@ def get_connector_context_summary(request: ConnectorContextRequest) -> dict[str,
             "redaction": "aggregate_metadata_only",
             "persisted": False,
             "retention": "request-scoped; no source bodies or message text retained",
-            "user_input_scope": "none; connector targets come only from deployment configuration",
+            "user_input_scope": "none; connector targets come only from the caller's durable tenant profile",
         },
         "connectors": summaries,
     }
