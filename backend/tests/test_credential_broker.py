@@ -162,6 +162,7 @@ def test_resolver_records_metadata_only_access(monkeypatch) -> None:
     assert lease.value == "refresh-token"
     assert events and events[0]["tenant_id"] == "acme"
     assert events[0]["credential_id"] == "cred-acme-sf-1"
+    assert events[0]["operation"] == "read_context"
     assert events[0]["outcome"] == "resolved"
     assert "value" not in events[0]
     assert "refresh-token" not in str(events[0])

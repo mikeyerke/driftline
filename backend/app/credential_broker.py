@@ -156,7 +156,7 @@ def resolve_tenant_credential(
     tenant_id: str,
     connector: str,
     *,
-    operation: str = "runtime",
+    operation: str = "read_context",
     secret_reader: Callable[..., str],
     access_writer: Callable[[dict[str, object]], object] | None = None,
 ) -> CredentialLease:

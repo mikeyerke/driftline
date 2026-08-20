@@ -54,8 +54,9 @@ deployment-wide signer cannot authorize a tenant-scoped request.
 An owner can create a short-lived enrollment session with
 `POST /api/connectors/{connector}/credential-enrollment`. The signed response
 contains the exact tenant secret reference, a 15-minute expiry, and an
-allowlisted operation scope. New sessions default to `runtime` and
-`read_context`; request write operations only when the tenant needs them. The
+allowlisted operation scope. New sessions default to the concrete
+`read_context` scope only; request a concrete write or reversal operation only
+when the tenant needs it. The
 session ID is the only value needed for the completion step.
 
 ## 3. Add provider values out of band
