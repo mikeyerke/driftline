@@ -58,6 +58,18 @@ to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
 account, API key, repository, or environment variable is reused.
 
+## 2026-08-20 Dismissed-state console polish release
+
+- Source commit: `d61433a` (explicit dismissed-state timeline and connector
+  copy), pushed to `https://github.com/mikeyerke/driftline`.
+- Cloud Build `9e0ca731-b2cc-4098-a7a0-957c489d5649` — `SUCCESS`; Artifact
+  Registry image digest `sha256:8f183621023b0979f3b2b4086498346fd81488a927314ab825639d800d232271`.
+- Cloud Run revision `driftline-00079-gdd` serves 100% of traffic in the
+  isolated project. The public root served the new `index-BvcT1rW9.js` asset,
+  `/health` returned Firestore persistence plus async jobs, and a live
+  dismissal again returned `status=dismissed` with zero action items. The
+  revision error-log query returned no `ERROR` entries.
+
 ## 2026-08-20 Auditable signal dismissal release
 
 - Source commit: `9572770` (auditable non-material dismissal path), pushed to
