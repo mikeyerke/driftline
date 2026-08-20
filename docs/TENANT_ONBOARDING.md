@@ -7,6 +7,13 @@ logs.
 
 ## 1. Create the isolated secret containers
 
+First, a platform operator may create the durable tenant and owner metadata
+with the OIDC-only `POST /api/platform/tenants` route. The route accepts a
+tenant ID and owner email, but no credentials; it returns the deterministic
+Secret Manager references needed by the infrastructure step below. Existing
+active tenants are not overwritten, while disabled tenants can be reactivated
+through the same controlled path.
+
 Run from a machine authenticated to the Driftline project:
 
 ~~~bash

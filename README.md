@@ -160,6 +160,10 @@ closed rather than accepting one deployment-wide HMAC key for every tenant.
 The hosted runtime also checks the durable Firestore tenant directory, so an
 active, provisioned tenant can be admitted without editing a deployment-wide
 allowlist; disabled or unreadable tenant records fail closed.
+Platform operators can bootstrap or reactivate tenant metadata through the
+OIDC-only `POST /api/platform/tenants` route. It returns deterministic
+Secret Manager references and owner metadata, never credential values; the
+provider secrets still have to be created and populated out of band.
 
 Operator source onboarding is a separate signed lane: it persists one exact
 public URL in the isolated Firestore registry, then the bounded scheduler can

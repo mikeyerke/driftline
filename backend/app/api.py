@@ -241,6 +241,15 @@ class TenantDeprovisionRequest(BaseModel):
     identity_token: str | None = Field(default=None, max_length=4096)
 
 
+class PlatformTenantProvisionRequest(BaseModel):
+    """Platform-admin tenant bootstrap metadata; never accepts credentials."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    tenant_id: str = Field(min_length=3, max_length=63)
+    owner_email: str = Field(min_length=3, max_length=320)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
 class ActionItemRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
@@ -824,6 +833,37 @@ def _verify_approval_mode(
         "scope": "configured",
         "tenant_id": principal.tenant_id,
         "role": principal.role,
+    }
+
+
+def _verify_platform_operator(identity_token: str | None) -> dict[str, str]:
+    """Verify the separate platform-admin OIDC boundary for tenant bootstrap."""
+    audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
+    if not identity_token or not audience:
+        raise HTTPException(status_code=401, detail="Platform identity is required")
+    try:
+        from google.auth.transport.requests import Request as GoogleRequest
+        from google.oauth2 import id_token
+
+        claims = id_token.verify_oauth2_token(
+            identity_token.removeprefix("Bearer ").strip(),
+            GoogleRequest(),
+            audience=audience,
+        )
+    except Exception as exc:  # pragma: no cover - Google-only runtime path.
+        raise HTTPException(status_code=401, detail="Invalid platform identity") from exc
+    email = str(claims.get("email", "")).strip().casefold()
+    allowed = {
+        item.strip().casefold()
+        for item in os.getenv("DRIFTLINE_PLATFORM_OPERATOR_EMAILS", "").split(",")
+        if item.strip()
+    }
+    if not email or email not in allowed:
+        raise HTTPException(status_code=403, detail="Platform operator is not allowlisted")
+    return {
+        "identity": "google_oidc_platform_operator",
+        "subject": str(claims.get("sub", "")),
+        "email": email,
     }
 
 
@@ -1789,6 +1829,80 @@ def get_tenant_metadata(
         "connector_profile_count": len(profiles),
         "membership_count": len(memberships),
         "credential_values_exposed": False,
+    }
+
+
+@app.post("/api/platform/tenants")
+def provision_platform_tenant(
+    request: PlatformTenantProvisionRequest,
+) -> dict[str, object]:
+    """Create or reactivate tenant metadata through a platform OIDC identity.
+
+    This route is intentionally a control-plane bootstrap only. It creates no
+    Secret Manager value and accepts no provider credential; infrastructure
+    provisions the deterministic containers separately before bindings can be
+    activated.
+    """
+    platform = _verify_platform_operator(request.identity_token)
+    try:
+        tenant_id = validate_tenant_id(request.tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    owner_email = request.owner_email.strip().casefold()
+    if "@" not in owner_email or len(owner_email) > 320:
+        raise HTTPException(status_code=422, detail="owner_email_invalid")
+    existing = load_tenant(tenant_id)
+    existing_status = str((existing or {}).get("status", "")).casefold()
+    if existing and existing_status not in {"disabled", "deprovisioned"}:
+        raise HTTPException(status_code=409, detail="tenant_already_exists")
+    now = utc_now()
+    persist_tenant(
+        {
+            "tenant_id": tenant_id,
+            "status": "active",
+            "provisioning": "platform_oidc",
+            "configured_by": platform["email"],
+            "created_at": (existing or {}).get("created_at", now),
+            "updated_at": now,
+        }
+    )
+    membership = persist_tenant_membership(
+        {
+            "tenant_id": tenant_id,
+            "email": owner_email,
+            "role": "owner",
+            "status": "active",
+            "source": "platform_oidc_bootstrap",
+            "configured_by": platform["email"],
+            "updated_at": now,
+        }
+    )
+    audit_event = persist_tenant_audit_event(
+        {
+            "tenant_id": tenant_id,
+            "event_type": "tenant_provisioned",
+            "status": "active",
+            "owner_email": owner_email,
+            "actor": platform["email"],
+            "identity": platform["identity"],
+        }
+    )
+    return {
+        "status": "active",
+        "tenant_id": tenant_id,
+        "owner_email": owner_email,
+        "membership_id": membership.get("membership_id"),
+        "secret_references": {
+            connector: tenant_connector_secret_name(tenant_id, connector)
+            for connector in ("jira", "confluence", "slack", "github")
+        },
+        "operator_signing_secret": tenant_operator_signing_secret_name(tenant_id),
+        "credential_values_exposed": False,
+        "audit_event_id": audit_event["event_id"],
+        "next_step": (
+            "Provision the deterministic Secret Manager containers out of band, "
+            "then add provider values and activate each owner binding."
+        ),
     }
 
 

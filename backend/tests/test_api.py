@@ -306,6 +306,64 @@ def test_hmac_can_use_the_durable_tenant_directory_without_redeployment(monkeypa
         principal_for_hmac("directory-missing-acme")
 
 
+def test_platform_tenant_provisioning_creates_metadata_only_bootstrap(monkeypatch) -> None:
+    tenant_id = "platform-bootstrap-acme"
+    monkeypatch.setattr(
+        api,
+        "_verify_platform_operator",
+        lambda _token: {
+            "identity": "google_oidc_platform_operator",
+            "subject": "platform-subject",
+            "email": "platform@example.com",
+        },
+    )
+    response = client.post(
+        "/api/platform/tenants",
+        json={
+            "operator": "Platform bootstrap",
+            "tenant_id": tenant_id,
+            "owner_email": "owner@example.com",
+            "identity_token": "opaque-test-token",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["tenant_id"] == tenant_id
+    assert payload["owner_email"] == "owner@example.com"
+    assert payload["credential_values_exposed"] is False
+    assert payload["secret_references"]["jira"] == (
+        f"driftline-tenant-{tenant_id}-jira"
+    )
+    assert payload["operator_signing_secret"] == (
+        f"driftline-tenant-operator-{tenant_id}"
+    )
+    assert "token" not in str(payload).casefold()
+    assert api.load_tenant(tenant_id)["status"] == "active"
+    assert api.list_tenant_memberships(tenant_id)[0]["role"] == "owner"
+
+
+def test_platform_tenant_provisioning_rejects_duplicate_active_tenant(monkeypatch) -> None:
+    tenant_id = "platform-duplicate-acme"
+    api.persist_tenant({"tenant_id": tenant_id, "status": "active"})
+    monkeypatch.setattr(
+        api,
+        "_verify_platform_operator",
+        lambda _token: {"identity": "google_oidc_platform_operator", "email": "platform@example.com"},
+    )
+    response = client.post(
+        "/api/platform/tenants",
+        json={
+            "operator": "Platform bootstrap",
+            "tenant_id": tenant_id,
+            "owner_email": "owner@example.com",
+            "identity_token": "opaque-test-token",
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "tenant_already_exists"
+
+
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

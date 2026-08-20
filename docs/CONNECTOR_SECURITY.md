@@ -169,5 +169,12 @@ The hosted authorization check accepts a signer only for an active tenant in
 the durable Firestore tenant directory. This removes the need to redeploy for
 every new tenant while preserving a fail-closed response when the directory is
 unavailable or a tenant is disabled. The legacy environment allowlist remains
-as a compatibility bootstrap for the existing demo tenant, not as the sole
+available only as a local/bootstrap compatibility path, not as the hosted
 source of SaaS tenant admission.
+
+Platform tenant bootstrap is a separate OIDC-only route,
+`POST /api/platform/tenants`. It is allowlisted by
+`DRIFTLINE_PLATFORM_OPERATOR_EMAILS`, creates or reactivates only tenant and
+owner-membership metadata, and returns deterministic secret references without
+accepting or returning provider credentials. Secret containers and provider
+token rotation remain infrastructure-controlled operations.
