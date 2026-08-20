@@ -61,3 +61,13 @@ jobs:
 
       - name: Build production bundle
         run: npm run build
+
+  standalone-backend-image:
+    name: Standalone backend image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Build lockfile-pinned backend image
+        run: docker build --file backend/Dockerfile --tag driftline-backend:ci backend
