@@ -864,7 +864,9 @@ def list_tenant_audit_events(tenant_id: str, limit: int = 50) -> list[dict[str, 
     return events[:safe_limit]
 
 
-_USAGE_METRICS = frozenset({"agent_calls", "workflow_mutations", "monitor_jobs"})
+_USAGE_METRICS = frozenset(
+    {"agent_calls", "workflow_mutations", "connector_calls", "monitor_jobs"}
+)
 
 
 def _usage_period(now: datetime | None = None) -> str:
@@ -886,6 +888,7 @@ def record_tenant_usage(
             "period": usage_period,
             "agent_calls": 0,
             "workflow_mutations": 0,
+            "connector_calls": 0,
             "monitor_jobs": 0,
         },
     )
@@ -981,6 +984,7 @@ def load_tenant_usage(tenant_id: str, period: str | None = None) -> dict[str, An
                 "period": usage_period,
                 "agent_calls": 0,
                 "workflow_mutations": 0,
+                "connector_calls": 0,
                 "monitor_jobs": 0,
             },
         )

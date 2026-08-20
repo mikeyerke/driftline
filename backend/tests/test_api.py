@@ -208,6 +208,7 @@ def test_signed_tenant_usage_is_aggregate_and_not_billing(monkeypatch) -> None:
     assert payload["usage"] == {
         "agent_calls": 1,
         "workflow_mutations": 2,
+        "connector_calls": 0,
         "monitor_jobs": 0,
     }
     assert payload["metering"]["durable"] is True

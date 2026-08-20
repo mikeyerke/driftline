@@ -2723,7 +2723,12 @@ def get_tenant_usage(
         "period": usage.get("period"),
         "usage": {
             key: usage.get(key, 0)
-            for key in ("agent_calls", "workflow_mutations", "monitor_jobs")
+            for key in (
+                "agent_calls",
+                "workflow_mutations",
+                "connector_calls",
+                "monitor_jobs",
+            )
         },
         "metering": {
             "durable": True,
