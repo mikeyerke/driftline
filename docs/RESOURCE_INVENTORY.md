@@ -1095,12 +1095,35 @@ not invoked by that public path.
   `redaction=aggregate_metadata_only`; the newest-revision error query returned
   zero `ERROR` log entries.
 
+## 2026-08-20 Tenant credential namespace release
+
+- Source commit: `2adbaeb` (canonical per-tenant credential namespace,
+  namespace validation, metadata-only migration, and tenant-scoped lease
+  evidence), pushed to `https://github.com/mikeyerke/driftline`.
+- Cloud Build `1f9eea3a-8c91-4d86-8f03-e496b49fa297` completed `SUCCESS` in the
+  isolated `driftline-hackathon-2026` project. Artifact Registry image digest:
+  `sha256:ffbe02d786b743c48dc2d696942dde359521d4d90a3faf43909777e1e34e0c6b`.
+- Cloud Run revision `driftline-00150-n8m` serves 100% of traffic at the
+  existing public alias with min 0, max 1, 1 CPU, 512 MiB, and concurrency 20.
+  `/health` returned `status=ok`, `persistence=firestore`, and
+  `async_jobs=true`; the public ADK smoke returned HTTP 200 with
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, and a persisted
+  workflow. The revision error query returned zero `ERROR` entries.
+- Cloud Run reports `DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE=true` and
+  `strict_namespace_required=true` in `/api/ops/summary`. Four active
+  `driftline-demo` bindings (Jira, Confluence, Slack, GitHub) were migrated
+  through the Firestore API into
+  `driftline_tenants/driftline-demo/credentials/{connector}` with schema
+  version `1`, exact project Secret Manager resources, and the derived tenant
+  service identity. The legacy flat records remain a rolling-migration mirror.
+  No Secret Manager value was read or changed by the migration.
+
 ## Current deployment pointers
 
 The authoritative live pointers for the latest release are Cloud Run revision
-`driftline-00149-z6f` from source commit `8950abc` and Artifact Registry image
+`driftline-00150-n8m` from source commit `2adbaeb` and Artifact Registry image
 digest
-`sha256:42c5926f6175cdb173bc7ea0d3c57a50107fdd983ad85010d99fdd81767a7a5e`.
+`sha256:ffbe02d786b743c48dc2d696942dde359521d4d90a3faf43909777e1e34e0c6b`.
 The historical resource table below is retained as the broader inventory; the
 release sections above record each subsequent deployment and its direct proof.
 
@@ -1111,7 +1134,7 @@ release sections above record each subsequent deployment and its direct proof.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00149-z6f` from commit `8950abc` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20; tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials use exact tenant Secret Manager references, operation scopes, pinned versions, short-lived leases, owner-only lifecycle, metadata-only lease audit, and impersonated per-tenant service identities; shared runtime has no direct live-tenant secret grants; Salesforce OAuth refresh tokens use the same broker namespace; both legacy global connector credential and hosted deployment-target fallbacks disabled |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00150-n8m` from commit `2adbaeb` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20; tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials use canonical tenant credential paths, exact Secret Manager resources, namespace schema validation, operation scopes, pinned versions, short-lived leases, owner-only lifecycle, metadata-only lease audit, and impersonated per-tenant service identities; shared runtime has no direct live-tenant secret grants; Salesforce OAuth refresh tokens use the same broker namespace; both legacy global connector credential and hosted deployment-target fallbacks disabled | 
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user`; `roles/iam.serviceAccountTokenCreator` only on derived tenant identities |
 | Tenant data-plane identity | `driftline-driftline-de-7f8fce0@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created; `driftline-demo` tenant | Secret Manager accessor only on that tenant's connector and signer secrets; Salesforce version-adder only on its Salesforce secret |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
@@ -1119,7 +1142,7 @@ release sections above record each subsequent deployment and its direct proof.
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
 | Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline@sha256:22dd01920ebd9974e86f4f1329dc6fd9655f0c7652d3f447c701db45d0f60485` |
-| Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_job_failures`, `driftline_credential_access_events`, `driftline_workflows`, `audit_events`, tenant control-plane metadata, `driftline_tenant_audit_events`, `driftline_tenant_usage`, `driftline_tenant_rate_limits`, `driftline_tenant_connector_profiles`, and bounded `driftline_source_failures`; tenant lifecycle, usage, rate-limit, profile, binding, and credential-access records are metadata-only; job-failure and credential-access markers carry the same 30-day expiry; TTL is `ACTIVE` for both job failures and credential access |
+| Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_job_failures`, `driftline_credential_access_events`, `driftline_workflows`, `audit_events`, tenant control-plane metadata, canonical `driftline_tenants/{tenant}/credentials/{connector}` bindings plus rolling `driftline_connector_bindings` mirror, `driftline_tenant_audit_events`, `driftline_tenant_usage`, `driftline_tenant_rate_limits`, `driftline_tenant_connector_profiles`, and bounded `driftline_source_failures`; tenant lifecycle, usage, rate-limit, profile, binding, and credential-access records are metadata-only; job-failure and credential-access markers carry the same 30-day expiry; TTL is `ACTIVE` for both job failures and credential access |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
 | Cloud Build source bucket | `gs://driftline-hackathon-2026_us-central1_cloudbuild` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
