@@ -1173,21 +1173,62 @@ def get_monitor_registry() -> dict[str, object]:
 
 
 @app.get("/api/ops/summary")
-def get_ops_summary() -> dict[str, object]:
-    """Expose bounded operator health, never secrets or raw credentials."""
+def get_ops_summary(
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Expose bounded operator health without cross-tenant record counts."""
+    identity: dict[str, str] | None = None
+    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
+        if not operator or not tenant_id:
+            raise HTTPException(
+                status_code=401, detail="Signed approval is required for tenant metrics"
+            )
+        identity = _verify_approval_mode(
+            "ops:summary",
+            operator,
+            "signed",
+            approval_token,
+            identity_token,
+            tenant_id,
+        )
     with _jobs_lock:
-        jobs = list(_jobs.values())
+        jobs = [
+            job
+            for job in _jobs.values()
+            if job.tenant_id is None
+            or (identity is not None and job.tenant_id == identity.get("tenant_id"))
+        ]
     if (
         not jobs
         and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
     ):
-        jobs = list_jobs(20)
-    workflows = list(workflow_store._runs.values())
+        candidates = list_jobs(20)
+        jobs = [
+            job
+            for job in candidates
+            if job.tenant_id is None
+            or (identity is not None and job.tenant_id == identity.get("tenant_id"))
+        ]
+    workflows = [
+        state
+        for state in workflow_store._runs.values()
+        if state.tenant_id is None
+        or (identity is not None and state.tenant_id == identity.get("tenant_id"))
+    ]
     if (
         not workflows
         and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
     ):
-        workflows = list_workflows(20)
+        candidates = list_workflows(20)
+        workflows = [
+            state
+            for state in candidates
+            if state.tenant_id is None
+            or (identity is not None and state.tenant_id == identity.get("tenant_id"))
+        ]
     source_health = source_registry_health()
     connector_names = ("jira", "confluence", "slack", "github")
     return {
@@ -1720,20 +1761,50 @@ def get_source_history(source_id: str, limit: int = 12) -> dict[str, object]:
 
 
 @app.get("/api/memory/summary")
-def get_memory_summary(limit: int = 50) -> dict[str, object]:
+def get_memory_summary(
+    limit: int = 50,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
     """Return append-only change memory plus recurring and unresolved work."""
     bounded_limit = max(1, min(limit, 100))
+    identity: dict[str, str] | None = None
+    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
+        if not operator or not tenant_id:
+            raise HTTPException(
+                status_code=401, detail="Signed approval is required for tenant memory"
+            )
+        identity = _verify_approval_mode(
+            "memory:summary",
+            operator,
+            "signed",
+            approval_token,
+            identity_token,
+            tenant_id,
+        )
     source_observations = {
         source_id: list_source_history(source_id, bounded_limit)
         for source_id in source_definitions()
     }
     with _jobs_lock:
-        workflows = [state.to_dict() for state in workflow_store._runs.values()]
+        workflows = [
+            state.to_dict()
+            for state in workflow_store._runs.values()
+            if state.tenant_id is None
+            or (identity is not None and state.tenant_id == identity.get("tenant_id"))
+        ]
     if (
         not workflows
         and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
     ):
-        workflows = [state.to_dict() for state in list_workflows(bounded_limit)]
+        workflows = [
+            state.to_dict()
+            for state in list_workflows(bounded_limit)
+            if state.tenant_id is None
+            or (identity is not None and state.tenant_id == identity.get("tenant_id"))
+        ]
     return build_memory_summary(source_observations, workflows)
 
 
