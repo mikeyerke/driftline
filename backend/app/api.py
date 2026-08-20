@@ -99,6 +99,7 @@ from .persistence import (
     persist_tenant_audit_event,
     persist_tenant_membership,
     persist_workflow,
+    provision_tenant_metadata,
     record_tenant_usage,
     reserve_tenant_rate_limit,
     update_jobs_for_workflow,
@@ -1851,22 +1852,16 @@ def provision_platform_tenant(
     owner_email = request.owner_email.strip().casefold()
     if "@" not in owner_email or len(owner_email) > 320:
         raise HTTPException(status_code=422, detail="owner_email_invalid")
-    existing = load_tenant(tenant_id)
-    existing_status = str((existing or {}).get("status", "")).casefold()
-    if existing and existing_status not in {"disabled", "deprovisioned"}:
-        raise HTTPException(status_code=409, detail="tenant_already_exists")
     now = utc_now()
-    persist_tenant(
+    created = provision_tenant_metadata(
         {
             "tenant_id": tenant_id,
             "status": "active",
             "provisioning": "platform_oidc",
             "configured_by": platform["email"],
-            "created_at": (existing or {}).get("created_at", now),
+            "created_at": now,
             "updated_at": now,
-        }
-    )
-    membership = persist_tenant_membership(
+        },
         {
             "tenant_id": tenant_id,
             "email": owner_email,
@@ -1875,8 +1870,13 @@ def provision_platform_tenant(
             "source": "platform_oidc_bootstrap",
             "configured_by": platform["email"],
             "updated_at": now,
-        }
+        },
     )
+    if not created:
+        raise HTTPException(status_code=409, detail="tenant_already_exists")
+    membership_id = base64.urlsafe_b64encode(
+        f"{tenant_id}:{owner_email}".encode()
+    ).decode("ascii").rstrip("=")
     audit_event = persist_tenant_audit_event(
         {
             "tenant_id": tenant_id,
@@ -1891,7 +1891,7 @@ def provision_platform_tenant(
         "status": "active",
         "tenant_id": tenant_id,
         "owner_email": owner_email,
-        "membership_id": membership.get("membership_id"),
+        "membership_id": membership_id,
         "secret_references": {
             connector: tenant_connector_secret_name(tenant_id, connector)
             for connector in ("jira", "confluence", "slack", "github")

@@ -1,8 +1,34 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 from app import persistence
+
+
+def test_tenant_bootstrap_is_atomic_in_memory(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    tenant_id = "atomic-bootstrap-acme"
+    persistence._tenants_memory.pop(tenant_id, None)
+    persistence._tenant_memberships_memory.pop((tenant_id, "owner@example.com"), None)
+
+    def provision() -> bool:
+        return persistence.provision_tenant_metadata(
+            {"tenant_id": tenant_id, "status": "active"},
+            {
+                "tenant_id": tenant_id,
+                "email": "owner@example.com",
+                "role": "owner",
+                "status": "active",
+            },
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _index: provision(), range(2)))
+
+    assert sorted(results) == [False, True]
+    assert persistence.load_tenant(tenant_id)["status"] == "active"
 
 
 def test_connector_binding_is_control_plane_metadata_not_ttl_content(monkeypatch) -> None:

@@ -178,3 +178,7 @@ Platform tenant bootstrap is a separate OIDC-only route,
 owner-membership metadata, and returns deterministic secret references without
 accepting or returning provider credentials. Secret containers and provider
 token rotation remain infrastructure-controlled operations.
+Tenant bootstrap writes the tenant record and initial owner membership in one
+Firestore transaction, so concurrent platform requests cannot claim the same
+tenant identifier for different owners. The local development fallback uses a
+process lock with the same single-winner contract.

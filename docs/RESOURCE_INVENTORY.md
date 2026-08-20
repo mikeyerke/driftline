@@ -125,6 +125,17 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `git diff --check` are clean. A real platform OIDC success has not been
   claimed because no browser identity token was used in this smoke window.
 
+## 2026-08-20 Atomic tenant bootstrap release
+
+- Source commit `e7d4f8c` now uses `provision_tenant_metadata`, an atomic
+  tenant/membership transaction, rather than a read-then-write bootstrap.
+  Concurrent platform requests have a single-winner contract; the local
+  fallback uses a process lock.
+- The regression suite covers the concurrent single-winner behavior and now
+  reports `143 passed`; Ruff remains clean. This change is queued for the next
+  Cloud Run rollout before any platform tenant is created through the live
+  OIDC route.
+
 ## 2026-08-20 Tenant identity and read-isolation releases
 
 - Source commits `b783a74` (tenant identity propagation through signed monitor

@@ -5,6 +5,7 @@ import os
 import time
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 from typing import Any
 from uuid import uuid4
 
@@ -40,6 +41,7 @@ _tenant_memberships_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenant_audit_memory: list[dict[str, Any]] = []
 _tenant_usage_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenant_rate_limit_memory: dict[tuple[str, str, int], int] = {}
+_tenant_provision_lock = Lock()
 
 
 def _enabled() -> bool:
@@ -658,6 +660,88 @@ def persist_tenant(payload: dict[str, Any]) -> dict[str, Any]:
     if _enabled():
         _client().collection(TENANTS_COLLECTION).document(tenant_id).set(safe)
     return dict(safe)
+
+
+def provision_tenant_metadata(
+    tenant_payload: dict[str, Any], membership_payload: dict[str, Any]
+) -> bool:
+    """Atomically create/reactivate a tenant and its initial owner metadata.
+
+    Returns ``False`` when another active tenant already owns the identifier.
+    No credential-shaped fields are persisted, and the Firestore path uses a
+    transaction so concurrent Cloud Run instances cannot swap the owner email.
+    """
+    tenant_id = str(tenant_payload["tenant_id"])
+    email = str(membership_payload["email"]).strip().casefold()
+    safe_tenant = {
+        key: value
+        for key, value in tenant_payload.items()
+        if key
+        not in {
+            "token",
+            "secret_value",
+            "access_token",
+            "refresh_token",
+            "client_secret",
+        }
+    }
+    safe_tenant.setdefault("status", "active")
+    safe_tenant.setdefault("updated_at", utc_now())
+    safe_tenant.pop("expires_at", None)
+    safe_membership = {
+        key: value
+        for key, value in membership_payload.items()
+        if key
+        not in {
+            "token",
+            "secret_value",
+            "access_token",
+            "refresh_token",
+            "identity_token",
+        }
+    }
+    safe_membership["tenant_id"] = tenant_id
+    safe_membership["email"] = email
+    safe_membership.setdefault("status", "active")
+    safe_membership.setdefault("updated_at", utc_now())
+    safe_membership.pop("expires_at", None)
+    membership_id = base64.urlsafe_b64encode(
+        f"{tenant_id}:{email}".encode()
+    ).decode("ascii").rstrip("=")
+    safe_membership["membership_id"] = membership_id
+
+    if not _enabled():
+        with _tenant_provision_lock:
+            existing = _tenants_memory.get(tenant_id)
+            existing_status = str((existing or {}).get("status", "")).casefold()
+            if existing and existing_status not in {"disabled", "deprovisioned"}:
+                return False
+            _tenants_memory[tenant_id] = dict(safe_tenant)
+            _tenant_memberships_memory[(tenant_id, email)] = dict(safe_membership)
+        return True
+
+    client = _client()
+    tenant_document = client.collection(TENANTS_COLLECTION).document(tenant_id)
+    membership_document = client.collection(TENANT_MEMBERSHIPS_COLLECTION).document(
+        membership_id
+    )
+
+    @firestore.transactional
+    def provision(transaction: Any) -> bool:
+        snapshot = tenant_document.get(transaction=transaction)
+        existing = snapshot.to_dict() if snapshot.exists else None
+        existing_status = str((existing or {}).get("status", "")).casefold()
+        if existing and existing_status not in {"disabled", "deprovisioned"}:
+            return False
+        transaction.set(tenant_document, safe_tenant)
+        transaction.set(membership_document, safe_membership)
+        return True
+
+    created = provision(client.transaction())
+    if created:
+        _tenants_memory[tenant_id] = dict(safe_tenant)
+        _tenant_memberships_memory[(tenant_id, email)] = dict(safe_membership)
+    return created
 
 
 def load_tenant(tenant_id: str) -> dict[str, Any] | None:
