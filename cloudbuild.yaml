@@ -34,6 +34,7 @@ substitutions:
   _REGION: us-central1
   _REPOSITORY: driftline
   _RUN_SERVICE_ACCOUNT: driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com
+serviceAccount: projects/driftline-hackathon-2026/serviceAccounts/driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com
 options:
   logging: CLOUD_LOGGING_ONLY
 images:
