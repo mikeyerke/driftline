@@ -5,6 +5,7 @@ import { analyzeMultimodalEvidence, getMultimodalEvidence, multimodalAssetUrl } 
 export default function MultimodalEvidencePanel({ assetId = "promise-card", mode = "live" }) {
   const [evidence, setEvidence] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const [resolvedMode, setResolvedMode] = useState(mode);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
@@ -13,8 +14,17 @@ export default function MultimodalEvidencePanel({ assetId = "promise-card", mode
     let active = true;
     setLoading(true);
     setError("");
+    setResolvedMode(mode);
     getMultimodalEvidence(assetId, mode)
-      .then((payload) => active && setEvidence(payload))
+      .then((payload) => {
+        if (!active) return;
+        const nextMode = payload.data_mode === "synthetic_demo" ? "demo" : mode;
+        setResolvedMode(nextMode);
+        setEvidence(payload);
+        if (payload.fallback_reason) {
+          setError("Public visual bytes were unavailable; showing a labelled demo fallback.");
+        }
+      })
       .catch((requestError) => active && setError(requestError.message || "Visual evidence unavailable"))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
@@ -24,7 +34,7 @@ export default function MultimodalEvidencePanel({ assetId = "promise-card", mode
     setAnalyzing(true);
     setError("");
     try {
-      const payload = await analyzeMultimodalEvidence(assetId, mode);
+      const payload = await analyzeMultimodalEvidence(assetId, resolvedMode);
       setEvidence(payload.evidence || evidence);
       setAnalysis(payload.analysis || null);
     } catch (requestError) {
@@ -47,7 +57,7 @@ export default function MultimodalEvidencePanel({ assetId = "promise-card", mode
           <div className="multimodal-grid">
             {["before", "after"].map((side) => {
               const item = evidence[side];
-              return <figure className="multimodal-card" key={side}><figcaption><strong>{side === "before" ? "Before" : "After"}</strong><small>{item.mime_type} · {(item.size_bytes / 1024 / 1024).toFixed(2)} MB</small></figcaption><img src={multimodalAssetUrl(assetId, side, mode)} alt={`${item.label}, ${side} visual evidence`} loading="lazy" /><code>{item.snapshot_hash.slice(0, 16)}…</code></figure>;
+              return <figure className="multimodal-card" key={side}><figcaption><strong>{side === "before" ? "Before" : "After"}</strong><small>{item.mime_type} · {(item.size_bytes / 1024 / 1024).toFixed(2)} MB</small></figcaption><img src={multimodalAssetUrl(assetId, side, resolvedMode)} alt={`${item.label}, ${side} visual evidence`} loading="lazy" /><code>{item.snapshot_hash.slice(0, 16)}…</code></figure>;
             })}
           </div>
           <div className="multimodal-proof"><span><Hash size={13} />Pair evidence hash</span><code>{evidence.evidence_hash}</code></div>

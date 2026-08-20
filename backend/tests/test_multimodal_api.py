@@ -54,6 +54,21 @@ def test_demo_vision_endpoint_returns_explicit_synthetic_fallback(monkeypatch) -
     assert response.json()["analysis"]["confidence"] == 0.0
 
 
+def test_live_visual_metadata_degrades_to_labelled_demo_pair(monkeypatch) -> None:
+    monkeypatch.setattr(
+        multimodal,
+        "urlopen",
+        lambda request, timeout: (_ for _ in ()).throw(OSError("offline")),
+    )
+    client = TestClient(api.app)
+
+    response = client.get("/api/multimodal/evidence/promise-card?mode=live")
+
+    assert response.status_code == 200
+    assert response.json()["data_mode"] == "synthetic_demo"
+    assert response.json()["fallback_reason"] == "visual_asset_fetch_failed"
+
+
 def test_multimodal_analysis_has_a_bounded_retryable_quota(monkeypatch) -> None:
     monkeypatch.setattr(api, "MULTIMODAL_MAX_CALLS", 1)
     monkeypatch.setattr(api, "MULTIMODAL_WINDOW_SECONDS", 3600)
