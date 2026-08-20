@@ -42,7 +42,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   with no console errors or failed requests; latest verified job is
   `job-c81f2d6d1677` and workflow `47b48b8f-a3e6-420b-9668-f21b9221aca9`.
 
-## 2026-08-20 Evidence-mix transparency release (current)
+## 2026-08-20 Evidence-mix transparency release (superseded snapshot)
 
 - Source commit `876e98b` adds an explicit evidence-mix breakdown to the public
   Value proof panel and makes signed value metrics report
@@ -55,11 +55,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   Cloud Run revision `driftline-00164-r6r` serves 100% of traffic. The live
   service remains in project `driftline-hackathon-2026`, with scale-to-zero and
   max-one settings unchanged.
-- Fresh public value proof reports `41` public-source workflows and `4`
-  synthetic replays (`45` total workflows), all `45` tenantless in the
-  anonymous scope. The categories are mutually exclusive `data_mode` counts;
-  job counts are a separate `run_mode` dimension. These are isolated
-  deployment observations, not customer, revenue, or adoption claims.
+- At that earlier snapshot, public value proof reported `41` public-source
+  workflows and `4` synthetic replays. The exact-scope release above is the
+  authoritative current count; this historical count is retained for audit
+  continuity only.
 - The final desktop/mobile audit passed with no overflow, console errors, or
   failed requests. The complete journey passed scan, evidence, artifact
   selection, approval, completion, and reopen/undo; latest verified job is
