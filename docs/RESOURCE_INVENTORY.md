@@ -48,7 +48,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   regression remains `195 passed`; Ruff, frontend production build, and
   `git diff --check` are clean.
 
-## 2026-08-20 Multimodal spend guardrail (pending deploy)
+## 2026-08-20 Multimodal spend guardrail (live)
 
 - Source change adds a process-wide cap of 10 allowlisted Gemini visual
   analyses per 3600-second window. Exhaustion returns HTTP `429` with a
@@ -57,7 +57,17 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 - The route remains limited to the fixed repository visual pair and is kept
   separate from tenant connector quotas because the public visual lane is
   intentionally tenantless. Local regression covers the accepted call and
-  retryable exhaustion behavior (`196 passed` before deployment).
+  retryable exhaustion behavior (`196 passed`). Cloud Build
+  `4fa9ad07-333c-4996-a2b0-58f2ff38eb01` completed `SUCCESS` with image digest
+  `sha256:2108138018ff5181d3adb8289f582af0f4fdc66c91422a06e64d366c189a3162`;
+  Cloud Run revision `driftline-00009-mlb` serves 100% of traffic.
+- `/health` returned 200 with Firestore persistence and async jobs. The live
+  ops summary reports `multimodal_max_calls=10` and
+  `multimodal_window_seconds=3600`. One live visual analysis returned 200 with
+  `mode=gemini_vision`, `model=gemini-3.5-flash`, material change true,
+  confidence `0.98`, and a 64-character evidence hash. Post-deploy logs have
+  zero severity `ERROR` entries; desktop/mobile audit and the complete
+  scan-to-reopen journey pass with no console errors or failed requests.
 
 ## 2026-08-20 Canonical tenant credential control plane (live)
 
