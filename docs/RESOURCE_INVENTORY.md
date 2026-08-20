@@ -57,7 +57,9 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   requests, or document overflow. The final end-to-end journey passed live
   scan, artifact selection, decision selection, approval, packet completion,
   and reopen/undo, with `sawNeedsApproval=true`, `sawCompleted=true`, and
-  `sawReopened=true`.
+  `sawReopened=true`. The resulting Firestore-backed job was
+  `job-8ac5cf45f80e` and workflow `051817f9-a65e-4c35-ab60-029dab0c2869`;
+  its audit events include `approval_recorded` and `decision_reopened`.
 - Local regression remains `175 passed`; Ruff and the frontend production build
   pass. The anonymous lane remains a synthetic, packet-only evaluation surface;
   authenticated connectors remain tenant-scoped and signed.
