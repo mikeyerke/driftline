@@ -17,6 +17,31 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Exact tenant evidence scope release (current)
+
+- Source commit `035b01b` makes anonymous record reads strictly tenantless and
+  makes signed operational reads exact-tenant only. This prevents a signed
+  customer metric from mixing deployment-wide demo activity into its evidence.
+  The public Value proof panel is explicitly labeled `Public sandbox records`
+  and remains an anonymous, judge-safe surface.
+- Cloud Build `79b94c56-a949-453f-9bb5-d103bc23ba5c` completed `SUCCESS`; image
+  digest is
+  `sha256:790b1574af6caa92c92a503149b7302eddc092f7cde682c4501bbdf42775fe06`.
+  Cloud Run revision `driftline-00165-6jn` serves 100% of traffic in
+  `driftline-hackathon-2026`; `/health` reports Firestore persistence and async
+  jobs. The active project was verified before deployment.
+- The current anonymous proof window reports `45` workflows: `41`
+  `public_source` and `4` `synthetic_demo`, all `45` tenantless. These mode
+  categories are mutually exclusive; separate job modes report `37` demo and
+  `9` monitor jobs. They are isolated deployment observations, not customer,
+  revenue, adoption, or ROI claims.
+- Post-deploy error logs at or after `2026-08-20T15:35:00Z` are empty. Cloud Run
+  invoker policy remains intentionally public for the packet-only demo plus the
+  scheduler service identity. Desktop/mobile browser QA and the complete
+  scan → evidence → artifact → approval → completion → reopen journey passed
+  with no console errors or failed requests; latest verified job is
+  `job-c81f2d6d1677` and workflow `47b48b8f-a3e6-420b-9668-f21b9221aca9`.
+
 ## 2026-08-20 Evidence-mix transparency release (current)
 
 - Source commit `876e98b` adds an explicit evidence-mix breakdown to the public
