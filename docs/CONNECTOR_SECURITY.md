@@ -115,6 +115,16 @@ tenant slots with a transactional window counter in
 `driftline_tenant_rate_limits`; local development uses the process-local
 fallback.
 
+The direct `POST /api/agent/run` endpoint has the same two lanes. The public
+judge request may omit identity fields and runs only a tenantless synthetic or
+allowlisted public-source turn. A real operator supplies `operator`,
+`tenant_id`, and either the Google OIDC identity or the tenant-bound HMAC
+approval token; the route verifies the principal, reserves the tenant's agent
+quota, and passes that tenant into ADK source inspection and Firestore workflow
+state. Supplying only a tenant ID or an unallowlisted source is rejected before
+any model call. This keeps the fast direct ADK path from becoming a credential
+or cross-tenant escape hatch while preserving a reliable public demo.
+
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each custom source belongs to the caller's tenant, and its append-only snapshot ledger is stored under a tenant-namespaced key. Each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler. Public registry/history routes expose only the pinned fixtures; signed source history is tenant-scoped.
 Operator fetches also reject common bot/challenge interstitials before recording
 an observation, so a CAPTCHA or “verify you are human” page cannot masquerade as

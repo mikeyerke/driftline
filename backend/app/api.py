@@ -256,6 +256,14 @@ class AgentRunRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
     user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
     source_id: str = Field(default="public/pricing", min_length=1, max_length=80)
+    # The public judge path intentionally omits these fields and stays
+    # tenantless. A real operator can supply the same signed identity fields
+    # used by the connector/action lanes so ADK execution carries a durable
+    # tenant boundary all the way into source inspection and Firestore state.
+    operator: str | None = Field(default=None, min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
 
 
 class JobStartRequest(BaseModel):
@@ -2666,7 +2674,32 @@ async def run_agent(request: AgentRunRequest) -> dict:
     definition = source_definition(request.source_id)
     if definition is None or definition.get("dynamic") == "true":
         raise HTTPException(status_code=422, detail="Source is not allowlisted")
-    if not _reserve_agent_call():
+    signed_identity: dict[str, str] | None = None
+    has_signed_fields = any(
+        value is not None
+        for value in (
+            request.operator,
+            request.tenant_id,
+            request.approval_token,
+            request.identity_token,
+        )
+    )
+    if has_signed_fields:
+        if not request.operator or not request.tenant_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Signed agent execution requires operator and tenant_id",
+            )
+        signed_identity = _verify_approval_mode(
+            f"agent-run:{request.source_id}",
+            request.operator,
+            "signed",
+            request.approval_token,
+            request.identity_token,
+            request.tenant_id,
+        )
+    bound_tenant = signed_identity.get("tenant_id") if signed_identity else None
+    if not _reserve_agent_call(bound_tenant):
         raise HTTPException(
             status_code=429,
             detail="Live agent demo rate limit reached; retry later.",
@@ -2676,6 +2709,12 @@ async def run_agent(request: AgentRunRequest) -> dict:
         f'"{request.source_id}". Do not choose a different source.'
     )
     try:
+        if bound_tenant:
+            return await run_agent_task(
+                query,
+                request.user_id,
+                tenant_id=bound_tenant,
+            )
         return await run_agent_task(query, request.user_id)
     except Exception as exc:
         logger.exception("Live ADK execution failed")

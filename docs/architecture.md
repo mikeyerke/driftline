@@ -53,6 +53,12 @@ audit-event documents. Failed jobs are retried by Cloud Tasks at most three
 times with bounded backoff. Persisted jobs, workflows, source observations, and
 outcome measurements carry an explicit 30-day TTL by default.
 
+The direct `/api/agent/run` path preserves the same boundary in both modes:
+the public judge request is tenantless and packet-safe, while a signed operator
+request verifies its tenant principal before reserving quota and passing that
+tenant into ADK source inspection and Firestore workflow persistence. A partial
+identity or non-allowlisted source is rejected before the model is called.
+
 The policy gate is deliberately deterministic. A model cannot self-approve a
 high-risk action, widen its own tool permissions, or call the approval and undo
 endpoints. Approval creates a packet inside Driftline only; it never claims to
