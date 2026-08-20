@@ -1570,21 +1570,62 @@ def get_connector_bindings(
 
 
 @app.get("/api/ops/value-proof")
-def get_value_proof() -> dict[str, object]:
-    """Return observed workflow throughput without extrapolating ROI claims."""
+def get_value_proof(
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return observed workflow throughput without cross-tenant disclosure."""
+    identity: dict[str, str] | None = None
+    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
+        if not operator or not tenant_id:
+            raise HTTPException(
+                status_code=401, detail="Signed approval is required for value metrics"
+            )
+        identity = _verify_approval_mode(
+            "ops:value-proof",
+            operator,
+            "signed",
+            approval_token,
+            identity_token,
+            tenant_id,
+        )
     with _jobs_lock:
-        jobs = list(_jobs.values())
+        jobs = [
+            job
+            for job in _jobs.values()
+            if job.tenant_id is None
+            or (identity is not None and job.tenant_id == identity.get("tenant_id"))
+        ]
     if (
         not jobs
         and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
     ):
-        jobs = list_jobs(50)
-    workflows = list(workflow_store._runs.values())
+        candidates = list_jobs(50)
+        jobs = [
+            job
+            for job in candidates
+            if job.tenant_id is None
+            or (identity is not None and job.tenant_id == identity.get("tenant_id"))
+        ]
+    workflows = [
+        state
+        for state in workflow_store._runs.values()
+        if state.tenant_id is None
+        or (identity is not None and state.tenant_id == identity.get("tenant_id"))
+    ]
     if (
         not workflows
         and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
     ):
-        workflows = list_workflows(50)
+        candidates = list_workflows(50)
+        workflows = [
+            state
+            for state in candidates
+            if state.tenant_id is None
+            or (identity is not None and state.tenant_id == identity.get("tenant_id"))
+        ]
     action_items = [item for state in workflows for item in state.action_items]
     source_health = source_registry_health()
     change_cards = [state.change_card for state in workflows if state.change_card]
@@ -1693,9 +1734,33 @@ def get_value_proof() -> dict[str, object]:
 
 
 @app.get("/api/ops/outcomes")
-def get_outcome_measurements() -> dict[str, object]:
-    """Return operator-reported aggregate outcomes without exposing raw customer data."""
-    records = list_outcome_measurements(50)
+def get_outcome_measurements(
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return aggregate outcomes only for the public or signed tenant scope."""
+    identity: dict[str, str] | None = None
+    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
+        if not operator or not tenant_id:
+            raise HTTPException(
+                status_code=401, detail="Signed approval is required for outcome records"
+            )
+        identity = _verify_approval_mode(
+            "ops:outcomes",
+            operator,
+            "signed",
+            approval_token,
+            identity_token,
+            tenant_id,
+        )
+    records = [
+        record
+        for record in list_outcome_measurements(50)
+        if record.get("tenant_id") is None
+        or (identity is not None and record.get("tenant_id") == identity.get("tenant_id"))
+    ]
     return {
         "scope": "operator_reported_outcome_ledger",
         "records": records,
@@ -1732,6 +1797,7 @@ def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, 
     measurement_id = f"measurement-{uuid4().hex[:16]}"
     payload = {
         "measurement_id": measurement_id,
+        "tenant_id": approval_identity["tenant_id"],
         "source_type": request.source_type,
         "cohort_label": request.cohort_label,
         "changes_observed": request.changes_observed,

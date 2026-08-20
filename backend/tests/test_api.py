@@ -399,6 +399,7 @@ def test_tenant_bound_reads_require_matching_signed_identity(monkeypatch) -> Non
     assert all(item["job_id"] != job.job_id for item in client.get("/api/jobs").json()["jobs"])
     assert state.workflow_id not in str(client.get("/api/memory/summary").json())
     assert state.workflow_id not in str(client.get("/api/ops/summary").json())
+    public_value = client.get("/api/ops/value-proof").json()
 
     actor = "Tenant reader"
     token = hmac.new(
@@ -432,6 +433,22 @@ def test_tenant_bound_reads_require_matching_signed_identity(monkeypatch) -> Non
     )
     assert signed_memory.status_code == 200
     assert state.workflow_id in str(signed_memory.json())
+    value_token = hmac.new(
+        secret.encode(), f"ops:value-proof:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+    signed_value = client.get(
+        "/api/ops/value-proof",
+        params={
+            "operator": actor,
+            "tenant_id": "driftline-demo",
+            "approval_token": value_token,
+        },
+    )
+    assert signed_value.status_code == 200
+    assert (
+        signed_value.json()["observed"]["workflows"]
+        >= public_value["observed"]["workflows"] + 1
+    )
 
     wrong_token = hmac.new(
         secret.encode(), f"{state.workflow_id}:{actor}".encode(), hashlib.sha256
