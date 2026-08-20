@@ -21,7 +21,7 @@ jobs:
         working-directory: backend
     steps:
       - name: Check out source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -47,7 +47,7 @@ jobs:
         working-directory: frontend
     steps:
       - name: Check out source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Build lockfile-pinned backend image
         run: docker build --file backend/Dockerfile --tag driftline-backend:ci backend
