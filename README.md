@@ -136,6 +136,13 @@ fixtures. The internal scheduler carries each source's tenant ID into its
 bounded monitor job. It is an allowlist of sources, not an arbitrary web
 crawler.
 
+Connector bindings have an explicit owner-only lifecycle: a binding is
+activated only after the deterministic tenant Secret Manager secret exists, and
+`POST /api/connectors/{connector}/binding/revoke` can disable it without
+returning or deleting the secret. Connector resolution fails closed until a
+replacement secret version is provisioned and the owner re-verifies the
+binding.
+
 The deployed registry includes three verified public examples: Crayon's pricing
 inquiry page, Kompyte's competitive-intelligence article, and Visualping's
 monitoring guide. Each was fetched through the bounded adapter and has an
