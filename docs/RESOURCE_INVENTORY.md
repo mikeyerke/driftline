@@ -10,6 +10,26 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-20 Salesforce read-only scope release (live)
+
+- Source commit `bb0dd66` narrows the Salesforce OAuth callback binding to the
+  concrete `read_context` operation. It no longer inherits the legacy
+  compatibility `runtime` scope; Salesforce has no write path.
+- Cloud Build `4348b061-8b1c-4d6f-8262-6c40ed5355fb` completed `SUCCESS` and
+  Cloud Run revision `driftline-00029-zdn` serves 100% of traffic. The active
+  project was verified as `driftline-hackathon-2026` before submission.
+- Current live canary: `/health` 200; anonymous `/api/agent/run` persisted a
+  Firestore workflow with `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, `source_status=needs_approval`, and only
+  `inspect_source_change` plus `get_workflow_state` tool calls. Hosted query
+  authentication returned 400 for a URL token, and Cloud Logging returned no
+  severity `ERROR` entries for the revision.
+- Signed connector reconciliation remains `4 healthy`, `0 attention`, and `1
+  not_configured` (Salesforce). Jira, Confluence, Slack, and GitHub continue
+  to report verified tenant namespaces and aggregate-only read readiness with
+  no credential values exposed. Salesforce still requires the owner login and
+  consent callback before any CRM read can be claimed.
+
 ## 2026-08-20 fail-closed connector scope release (live)
 
 - Source commit `9ccde30` adds a fail-closed resolver default: a legacy or
