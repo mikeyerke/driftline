@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -99,6 +100,7 @@ async def run_agent_task(
     workflow_id: str | None = None
     source_status: str | None = None
     change_detected: bool | None = None
+    data_mode: str | None = None
     trace: list[dict[str, str]] = []
     mode_token = set_run_mode(run_mode)
     tenant_token = set_tenant_id(tenant_id)
@@ -125,6 +127,8 @@ async def run_agent_task(
                             source_status = str(response["status"])
                         if "change_detected" in response:
                             change_detected = bool(response["change_detected"])
+                        if response.get("data_mode"):
+                            data_mode = str(response["data_mode"])
             if event.is_final_response() and event.content and event.content.parts:
                 final_text = "".join(
                     part.text or "" for part in event.content.parts if part.text
@@ -222,6 +226,13 @@ async def run_agent_task(
         "model": root_agent.model,
         "execution_mode": "google_adk",
         "workflow_id": workflow_id,
+        "tenant_id": tenant_id,
+        "data_mode": data_mode,
+        "persisted": bool(
+            workflow_id
+            and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold()
+            == "firestore"
+        ),
         "source_status": source_status,
         "change_detected": change_detected,
         "agent_trace": _agent_trace_payload(
