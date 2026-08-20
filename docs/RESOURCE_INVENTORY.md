@@ -10,6 +10,35 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-20 fail-closed connector scope release (live)
+
+- Source commit `9ccde30` adds a fail-closed resolver default: a legacy or
+  malformed connector binding with no `allowed_operations` field can lease
+  `read_context` only and cannot silently authorize an external write. The
+  focused broker tests report `10 passed`; the full backend suite reports
+  `214 passed`; Ruff and the frontend production build are clean. GitHub
+  Actions run `32426734472` completed `success`.
+- Cloud Build `97a7231d-0718-4045-822e-5f49c423ee4e` completed `SUCCESS` with
+  the isolated `driftline-build` identity. Cloud Run revision
+  `driftline-00028-2nx` serves 100% of traffic with the existing scale-to-zero,
+  one-instance cap, and 512 MiB runtime settings. Bucket object-read and
+  Artifact Registry write permissions were granted only to the isolated
+  build identities required by this deployment.
+- Live `/health` returned 200 with Firestore persistence and async jobs. The
+  hosted query-auth guard returned 400 for a URL `approval_token`. A fresh
+  anonymous `/api/agent/run` returned `persisted=true`, `execution_mode=
+  google_adk`, `model=gemini-3.5-flash`, `source_status=needs_approval`, and
+  exactly `inspect_source_change` plus `get_workflow_state`.
+- A signed live binding-health probe returned `4` healthy configured
+  connectors and `1` not configured connector: Jira, Confluence, Slack, and
+  GitHub were readable within their fixed scopes with no credential values
+  exposed; Salesforce remains `not_configured` pending the owner-completed
+  OAuth consent callback. A signed aggregate context probe again returned
+  only bounded counts and scope metadata, with `persisted=false`.
+- Cloud Logging returned no severity `ERROR` entries for revision
+  `driftline-00028-2nx` after rollout. This is deployment evidence, not a
+  customer-outcome or pilot result.
+
 ## 2026-08-20 tenant and source security hardening (live)
 
 - New connector enrollments default to the concrete `read_context` scope only.
