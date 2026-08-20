@@ -48,6 +48,19 @@ project number: 724959673622
   improvement; revision `driftline-00023-w7h` remains the verified live
   deployment.
 
+## 2026-08-20 Frontend dependency reproducibility (repository/CI)
+
+- Source commit `a09f1a5` replaced direct frontend `latest` declarations with
+  the exact versions already present in the lockfile (`react`/`react-dom`
+  19.2.8, `vite` 8.2.1, `@vitejs/plugin-react` 6.0.5, and `lucide-react`
+  1.32.0). This prevents a fresh manifest install from silently selecting a
+  different build toolchain.
+- Local `npm ci --ignore-scripts`, production build, and high-severity audit
+  all passed with zero reported vulnerabilities. GitHub Actions run
+  `32423063200` completed `success` across all three verification jobs.
+- This is repository-only; the already verified Cloud Run revision
+  `driftline-00023-w7h` remains unchanged.
+
 Before any future mutation, verify the target explicitly:
 
 ```bash
