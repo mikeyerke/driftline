@@ -52,6 +52,13 @@ caller's tenant metadata; `/api/tenants/members` is owner-only. Content records
 continue to use bounded `expires_at` fields for TTL cleanup; the configured
 deployment window is 30 days unless an operator changes it deliberately.
 
+An owner can provision or update a member role through
+`POST /api/tenants/members`. The request contains an email and one of
+`viewer`, `operator`, or `owner`; it never accepts a connector credential,
+access token, or arbitrary Secret Manager name. OIDC identities without an
+explicit environment mapping or durable membership now fail closed with
+`tenant_membership_required` rather than inheriting the default tenant.
+
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
 Operator fetches also reject common bot/challenge interstitials before recording
 an observation, so a CAPTCHA or “verify you are human” page cannot masquerade as
