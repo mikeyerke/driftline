@@ -208,6 +208,20 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   generated bundles, and screenshots are excluded. Final-head GitHub Actions
   run `32413254910` passed the frozen-lock backend suite and frontend build.
 
+## 2026-08-20 Multimodal fallback URL contract (live)
+
+- Commit `e2f2b09` makes the visual evidence metadata route return asset URLs
+  using the effective mode. If live bytes fail and the route returns a
+  labelled `synthetic_demo` pair, both URLs now point to `mode=demo` instead
+  of advertising unavailable live bytes. The regression suite remains
+  `201 passed` with the multimodal fallback URL assertions included.
+- Dedicated build `aa34fdca-eb78-43dd-becd-a50ddf08572f` completed `SUCCESS`
+  as `driftline-build`, producing digest
+  `sha256:9fca7188373628dcb7fad9f2c3e16108129209e436d4b665fedf015fe409c7cd`
+  and revision `driftline-00015-gk5` at 100% traffic. `/health` returned 200,
+  the live visual route returned public-source metadata with a 64-character
+  evidence hash, and the new revision has no severity `ERROR` logs.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
