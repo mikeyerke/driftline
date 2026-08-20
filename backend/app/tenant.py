@@ -88,6 +88,21 @@ def tenant_connector_secret_name(tenant_id: str, connector: str) -> str:
     return f"driftline-tenant-{safe_tenant}-{safe_connector}"[:100]
 
 
+def tenant_operator_signing_secret_name(tenant_id: str, prefix: str = "driftline-tenant-operator-") -> str:
+    """Return the deterministic break-glass signer secret for one tenant.
+
+    The prefix is infrastructure-owned and never accepted from an API request.
+    Keeping the tenant suffix deterministic lets an operator provision and
+    rotate the secret out of band while the runtime refuses arbitrary secret
+    references.
+    """
+    safe_tenant = validate_tenant_id(tenant_id)
+    safe_prefix = prefix.strip()
+    if not safe_prefix or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", safe_prefix):
+        raise ValueError("tenant_signing_secret_prefix_invalid")
+    return f"{safe_prefix}{safe_tenant}"[:100]
+
+
 def _tenant_is_disabled(tenant_id: str) -> bool:
     """Fail closed for tenants soft-deprovisioned in the control plane."""
     try:

@@ -118,6 +118,7 @@ from .tenant import (
     principal_for_hmac,
     public_demo_principal,
     tenant_connector_secret_name,
+    tenant_operator_signing_secret_name,
     validate_connector_name,
     validate_connector_profile,
     validate_tenant_id,
@@ -774,7 +775,39 @@ def _verify_approval_mode(
             "tenant_id": principal.tenant_id,
             "role": principal.role,
         }
-    secret = os.getenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "")
+    # A deployment-wide signer is retained only as an explicit compatibility
+    # fallback. SaaS deployments can set a deterministic, infrastructure-owned
+    # per-tenant secret prefix and require every break-glass request to use the
+    # tenant's own signer. OIDC remains preferred for normal operator traffic.
+    tenant_for_signing = requested_tenant_id or os.getenv(
+        "DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo"
+    )
+    try:
+        tenant_for_signing = validate_tenant_id(tenant_for_signing)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail="tenant_id_invalid") from exc
+    secret = ""
+    tenant_signing_prefix = os.getenv(
+        "DRIFTLINE_TENANT_SIGNING_SECRET_PREFIX", ""
+    ).strip()
+    require_tenant_signer = (
+        os.getenv("DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS", "false").casefold()
+        == "true"
+    )
+    if tenant_signing_prefix:
+        try:
+            secret = read_secret(
+                tenant_operator_signing_secret_name(
+                    tenant_for_signing, tenant_signing_prefix
+                )
+            ).strip()
+        except (ConnectorError, ValueError):
+            if require_tenant_signer:
+                raise HTTPException(
+                    status_code=401, detail="Tenant signing secret is unavailable"
+                ) from None
+    if not secret and not require_tenant_signer:
+        secret = os.getenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "")
     if not secret or not token:
         raise HTTPException(status_code=401, detail="Signed approval is required")
     message = f"{workflow_id}:{cleaned}".encode()

@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app import api, source
 from app.api import app
 from app.models import JobState
+from app.tenant import tenant_operator_signing_secret_name
 
 client = TestClient(app)
 
@@ -214,6 +215,75 @@ def test_hmac_tenant_allowlist_rejects_unknown_tenant(monkeypatch) -> None:
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "tenant_not_allowlisted"
+
+
+def test_hmac_can_require_a_tenant_specific_signing_secret(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS", "true")
+    monkeypatch.setenv("DRIFTLINE_TENANT_SIGNING_SECRET_PREFIX", "driftline-signer-")
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "signer-acme")
+    tenant_secret = "signer-acme-secret"
+
+    def fake_read_secret(name: str) -> str:
+        assert name == tenant_operator_signing_secret_name(
+            "signer-acme", "driftline-signer-"
+        )
+        return tenant_secret
+
+    monkeypatch.setattr(api, "read_secret", fake_read_secret)
+    token = hmac.new(
+        tenant_secret.encode(),
+        b"connector-context-summary:Tenant signer",
+        hashlib.sha256,
+    ).hexdigest()
+    response = client.post(
+        "/api/connectors/context/summary",
+        json={
+            "operator": "Tenant signer",
+            "tenant_id": "signer-acme",
+            "approval_token": token,
+        },
+    )
+    assert response.status_code == 200
+
+    wrong_token = hmac.new(
+        b"deployment-wide-secret",
+        b"connector-context-summary:Tenant signer",
+        hashlib.sha256,
+    ).hexdigest()
+    rejected = client.post(
+        "/api/connectors/context/summary",
+        json={
+            "operator": "Tenant signer",
+            "tenant_id": "signer-acme",
+            "approval_token": wrong_token,
+        },
+    )
+    assert rejected.status_code == 401
+
+
+def test_hmac_required_tenant_signer_fails_closed_when_secret_is_missing(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS", "true")
+    monkeypatch.setenv("DRIFTLINE_TENANT_SIGNING_SECRET_PREFIX", "driftline-signer-")
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "missing-acme")
+
+    def missing_secret(_name: str) -> str:
+        raise api.ConnectorError("missing")
+
+    monkeypatch.setattr(api, "read_secret", missing_secret)
+    response = client.post(
+        "/api/connectors/context/summary",
+        json={
+            "operator": "Missing signer",
+            "tenant_id": "missing-acme",
+            "approval_token": "anything",
+        },
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Tenant signing secret is unavailable"
 
 
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
