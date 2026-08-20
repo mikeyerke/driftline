@@ -69,6 +69,17 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   zero severity `ERROR` entries; desktop/mobile audit and the complete
   scan-to-reopen journey pass with no console errors or failed requests.
 
+## 2026-08-20 Tenant RSS/Atom source parser (pending deploy)
+
+- Source registry onboarding now accepts the explicit `rss` parser alongside
+  `html` and `text`. It fetches only the caller's exact HTTPS URL, rejects
+  redirects/private DNS/challenge pages as before, parses bounded RSS/Atom
+  entries, and stores normalized titles, dates, links, and summaries rather
+  than raw XML. The source remains tenant-scoped and scheduler-capped.
+- Local regression is `198 passed`; the focused source suite is `14 passed`,
+  Ruff and `git diff --check` are clean. Deployment and live feed evidence are
+  intentionally recorded only after the next Cloud Run rollout.
+
 ## 2026-08-20 Canonical tenant credential control plane (live)
 
 - Source commit `3ba7554` is the checked-in tenant-boundary release. Connector

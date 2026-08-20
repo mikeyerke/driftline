@@ -182,6 +182,77 @@ def test_operator_registered_source_is_exact_url_and_append_only(monkeypatch) ->
     assert second["after"] == "Pro is now $59"
 
 
+def test_operator_registered_rss_source_normalizes_entries(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    source.register_operator_source(
+        source_id="custom/example-feed",
+        name="Example product feed",
+        category="Competitor narrative",
+        change_type="Product announcement",
+        url="https://example.com/feed.xml",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        parser="rss",
+    )
+    monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+
+    class _Opener:
+        def open(self, request, timeout):
+            assert request.full_url == "https://example.com/feed.xml"
+            assert timeout == 8
+            return _Response(
+                """<?xml version="1.0"?><rss><channel>
+                <item><title>Residency is now available</title>
+                <pubDate>2026-08-20</pubDate><link>https://example.com/post</link>
+                <description><![CDATA[<p>Regional storage is live.</p>]]></description></item>
+                </channel></rss>"""
+            )
+
+    monkeypatch.setattr(source, "build_opener", lambda _handler: _Opener())
+    result = source.inspect_allowlisted_source(
+        "custom/example-feed", store=InMemorySnapshotStore()
+    )
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert result["status"] == "baseline_established"
+    assert "Residency is now available" in result["after"]
+    assert "Regional storage is live" in result["after"]
+    assert "<p>" not in result["after"]
+
+
+def test_operator_registered_rss_rejects_malformed_xml(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    source.register_operator_source(
+        source_id="custom/bad-feed",
+        name="Bad feed",
+        category="Competitor narrative",
+        change_type="Announcement",
+        url="https://example.com/feed.xml",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        parser="rss",
+    )
+    monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+    monkeypatch.setattr(
+        source,
+        "build_opener",
+        lambda _handler: type(
+            "_Opener",
+            (),
+            {"open": lambda self, request, timeout: _Response("<rss>")},
+        )(),
+    )
+    result = source.inspect_allowlisted_source(
+        "custom/bad-feed", store=InMemorySnapshotStore()
+    )
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert result["status"] == "source_fetch_failed"
+    assert result["reason"] == "source_rss_invalid"
+
+
 def test_operator_sources_and_history_are_tenant_scoped() -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     source.register_operator_source(

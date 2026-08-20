@@ -393,7 +393,7 @@ class SourceOnboardingRequest(BaseModel):
     owner: str = Field(min_length=1, max_length=100)
     cadence: str = Field(default="24h", max_length=4)
     freshness_sla_hours: int = Field(default=48, ge=1, le=168)
-    parser: Literal["html", "text"] = "html"
+    parser: Literal["html", "text", "rss"] = "html"
     registered_by: str = Field(min_length=1, max_length=120)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)

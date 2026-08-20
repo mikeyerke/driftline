@@ -7,6 +7,7 @@ import ipaddress
 import os
 import re
 import socket
+import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from urllib.error import HTTPError, URLError
@@ -356,7 +357,7 @@ def register_operator_source(
         raise ValueError("source_id_must_use_custom_namespace")
     if source_id in SOURCE_DEFINITIONS:
         raise ValueError("source_id_reserved")
-    if parser not in {"html", "text"}:
+    if parser not in {"html", "text", "rss"}:
         raise ValueError("source_parser_not_allowlisted")
     if cadence not in {"1h", "6h", "12h", "24h", "7d"}:
         raise ValueError("source_cadence_not_allowlisted")
@@ -421,7 +422,10 @@ def _registered_body(definition: Mapping[str, str]) -> str:
         )
     if not body or len(body) > _MAX_REGISTERED_BODY_BYTES:
         raise ValueError("source_snapshot_out_of_bounds")
-    if definition.get("source_parser") == "html":
+    parser = definition.get("source_parser")
+    if parser == "rss":
+        body = _parse_feed_body(body)
+    elif parser == "html":
         body = re.sub(
             r"<script\b[^>]*>.*?</script>",
             " ",
@@ -442,6 +446,52 @@ def _registered_body(definition: Mapping[str, str]) -> str:
     if _looks_like_challenge_page(body):
         raise ValueError("source_challenge_page_detected")
     return body[:_MAX_REGISTERED_BODY_BYTES]
+
+
+def _parse_feed_body(body: str) -> str:
+    """Normalize a bounded RSS/Atom feed into comparable, citation-safe text."""
+    try:
+        root = ET.fromstring(body)
+    except ET.ParseError as exc:
+        raise ValueError("source_rss_invalid") from exc
+
+    def local_name(tag: str) -> str:
+        return tag.rsplit("}", 1)[-1].casefold()
+
+    def field_text(entry: ET.Element, names: set[str]) -> str:
+        for child in entry.iter():
+            if local_name(child.tag) not in names:
+                continue
+            value = str(child.attrib.get("href", "") or "").strip()
+            if not value:
+                value = " ".join("".join(child.itertext()).split())
+            if value:
+                value = html.unescape(re.sub(r"<[^>]+>", " ", value))
+                return re.sub(r"\s+", " ", value).strip()
+        return ""
+
+    rows: list[str] = []
+    for entry in root.iter():
+        if local_name(entry.tag) not in {"item", "entry"}:
+            continue
+        title = field_text(entry, {"title"})
+        link = field_text(entry, {"link", "id"})
+        published = field_text(
+            entry, {"pubdate", "published", "updated", "date"}
+        )
+        summary = field_text(
+            entry, {"description", "summary", "content", "encoded"}
+        )
+        if not title and not summary:
+            continue
+        parts = [part for part in (title, published, link, summary[:1200]) if part]
+        rows.append(" | ".join(parts))
+        if len(rows) >= 50:
+            break
+    normalized = "\n".join(rows).strip()
+    if not normalized:
+        raise ValueError("source_rss_empty")
+    return normalized
 
 
 def _looks_like_challenge_page(body: str) -> bool:
