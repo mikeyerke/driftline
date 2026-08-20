@@ -7,10 +7,31 @@ import logging
 import os
 from typing import Any
 
+from google.api_core.exceptions import PreconditionFailed
+
 from .models import WorkflowState
 from .workflow import packet_markdown
 
 logger = logging.getLogger(__name__)
+
+
+def _upload_immutable(blob: Any, body: bytes, *, content_type: str) -> tuple[str | None, bool]:
+    """Create an object once and reuse its generation on deterministic replay.
+
+    The runtime only needs ``storage.objectCreator`` plus viewer access. A
+    generation precondition prevents an idempotent retry from becoming an
+    overwrite (which would require delete/update permissions).
+    """
+    try:
+        blob.upload_from_string(
+            body,
+            content_type=content_type,
+            if_generation_match=0,
+        )
+        return str(blob.generation) if blob.generation is not None else None, False
+    except PreconditionFailed:
+        blob.reload()
+        return str(blob.generation) if blob.generation is not None else None, True
 
 
 def persist_action_artifact(state: WorkflowState, *, kind: str) -> dict[str, Any]:
@@ -54,13 +75,15 @@ def persist_action_artifact(state: WorkflowState, *, kind: str) -> dict[str, Any
                 sort_keys=True,
             ).encode()
             content_type = "application/json"
-        blob.upload_from_string(body, content_type=content_type)
-        generation = str(blob.generation) if blob.generation is not None else None
+        generation, reused = _upload_immutable(
+            blob, body, content_type=content_type
+        )
         return {
             "storage_status": "persisted",
             "artifact_uri": f"gs://{bucket_name}/{name}",
             "artifact_generation": generation,
             "artifact_kind": kind,
+            "artifact_reused": reused,
         }
     except Exception:
         # Storage is an evidence enhancement, never a reason to claim that a
@@ -139,13 +162,14 @@ def persist_operational_output(state: WorkflowState, *, kind: str) -> dict[str, 
             "driftline-action": action_id,
             "driftline-kind": kind,
         }
-        blob.upload_from_string(body, content_type=content_type)
+        generation, reused = _upload_immutable(
+            blob, body, content_type=content_type
+        )
         return {
             "operational_status": "active" if kind == "active" else "reversed",
             "operational_output_uri": f"gs://{bucket_name}/{name}",
-            "operational_output_generation": (
-                str(blob.generation) if blob.generation is not None else None
-            ),
+            "operational_output_generation": generation,
+            "operational_output_reused": reused,
         }
     except Exception:
         logger.exception("operational output persistence failed", extra={"kind": kind})
