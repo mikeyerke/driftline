@@ -314,6 +314,66 @@ def test_manual_monitor_job_requires_signed_operator(monkeypatch) -> None:
     assert allowed.status_code == 200
 
 
+def test_signed_monitor_job_carries_authenticated_tenant(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "tenant-monitor-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "driftline-demo")
+    captured: dict[str, object] = {}
+
+    def fake_start_job(**kwargs):
+        captured.update(kwargs)
+        return JobState(job_id="job-tenant-monitor", tenant_id=kwargs["tenant_id"])
+
+    monkeypatch.setattr(api, "_start_job", fake_start_job)
+    actor = "Tenant monitor operator"
+    token = hmac.new(
+        secret.encode(), f"monitor:public/pricing:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+
+    response = client.post(
+        "/api/jobs/demo",
+        json={
+            "run_mode": "monitor",
+            "source_id": "public/pricing",
+            "operator": actor,
+            "tenant_id": "driftline-demo",
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["tenant_id"] == "driftline-demo"
+    assert response.json()["tenant_id"] == "driftline-demo"
+
+
+def test_signed_operator_cannot_approve_another_tenant_workflow(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "cross-tenant-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "other-acme")
+    state = api.workflow_store.start_demo(tenant_id="driftline-demo")
+    api.persist_workflow(state)
+    token = hmac.new(
+        secret.encode(), f"{state.workflow_id}:Other operator".encode(), hashlib.sha256
+    ).hexdigest()
+
+    response = client.post(
+        f"/api/workflows/{state.workflow_id}/approve",
+        json={
+            "approver": "Other operator",
+            "approval_mode": "signed",
+            "tenant_id": "other-acme",
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "workflow_tenant_mismatch"
+
+
 def test_demo_approval_and_undo_round_trip() -> None:
     started = client.post("/api/workflows/demo")
     assert started.status_code == 200
@@ -432,8 +492,9 @@ def test_signed_approval_can_cross_connector_boundary_when_enabled(monkeypatch) 
         "_CONNECTOR_HANDOFFS",
         (("jira", create, create),),
     )
-    started = client.post("/api/workflows/demo")
-    workflow_id = started.json()["workflow_id"]
+    tenant_state = api.workflow_store.start_demo(tenant_id="driftline-demo")
+    api.persist_workflow(tenant_state)
+    workflow_id = tenant_state.workflow_id
     actor = "Signed operator"
     token = hmac.new(
         secret.encode(), f"{workflow_id}:{actor}".encode(), hashlib.sha256
@@ -779,8 +840,9 @@ def test_approval_requires_explicit_signed_token_when_signed_mode_enabled(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "signed")
-    started = client.post("/api/workflows/demo")
-    workflow_id = started.json()["workflow_id"]
+    tenant_state = api.workflow_store.start_demo(tenant_id="driftline-demo")
+    api.persist_workflow(tenant_state)
+    workflow_id = tenant_state.workflow_id
 
     rejected = client.post(
         f"/api/workflows/{workflow_id}/approve",

@@ -16,6 +16,7 @@ os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 
 _run_mode: ContextVar[str] = ContextVar("driftline_run_mode", default="demo")
+_tenant_id: ContextVar[str | None] = ContextVar("driftline_tenant_id", default=None)
 
 
 def set_run_mode(mode: str) -> Token[str]:
@@ -25,6 +26,15 @@ def set_run_mode(mode: str) -> Token[str]:
 
 def reset_run_mode(token: Token[str]) -> None:
     _run_mode.reset(token)
+
+
+def set_tenant_id(tenant_id: str | None) -> Token[str | None]:
+    """Bind a tenant to the current ADK turn without global mutable state."""
+    return _tenant_id.set(tenant_id)
+
+
+def reset_tenant_id(token: Token[str | None]) -> None:
+    _tenant_id.reset(token)
 
 
 def inspect_source_change(source_id: str) -> dict:
@@ -38,6 +48,7 @@ def inspect_source_change(source_id: str) -> dict:
     if not snapshot.get("change_detected", True):
         return snapshot
     state = workflow_store.start_demo(
+        tenant_id=_tenant_id.get(),
         source_id=str(snapshot.get("source_id", source_id)),
         source_name=(source_definition(source_id) or {}).get(
             "name", "Allowlisted public snapshot"

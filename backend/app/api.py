@@ -360,6 +360,35 @@ def _resolve_workflow(workflow_id: str):
         raise
 
 
+def _enforce_workflow_tenant(
+    state: WorkflowState, approval_identity: dict[str, str]
+) -> None:
+    """Prevent a signed operator from acting on another tenant's workflow."""
+    scope = approval_identity.get("scope")
+    if scope == "sandbox_packet_only":
+        if state.tenant_id is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Tenant-scoped workflow requires signed approval",
+            )
+        return
+    expected_tenant = approval_identity.get("tenant_id")
+    if not expected_tenant or not state.tenant_id:
+        raise HTTPException(status_code=403, detail="workflow_tenant_missing")
+    if state.tenant_id != expected_tenant:
+        raise HTTPException(status_code=403, detail="workflow_tenant_mismatch")
+
+
+def _authorize_workflow_tenant(
+    workflow_id: str, approval_identity: dict[str, str]
+) -> None:
+    try:
+        state = _resolve_workflow(workflow_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _enforce_workflow_tenant(state, approval_identity)
+
+
 def _resolve_job(job_id: str) -> JobState:
     with _jobs_lock:
         job = _jobs.get(job_id)
@@ -743,10 +772,17 @@ async def _run_job(job_id: str) -> None:
         return
     job = _resolve_job(job_id)
     try:
-        if job.run_mode == "demo":
+        if job.run_mode == "demo" and job.tenant_id is None:
             result = await run_agent_task(job.query, job.user_id)
-        else:
+        elif job.tenant_id is None:
             result = await run_agent_task(job.query, job.user_id, job.run_mode)
+        else:
+            result = await run_agent_task(
+                job.query,
+                job.user_id,
+                job.run_mode,
+                tenant_id=job.tenant_id,
+            )
         workflow_id = result.get("workflow_id")
         if not workflow_id:
             if result.get("change_detected") is False or result.get(
@@ -807,12 +843,18 @@ def _schedule_local_job(job: JobState) -> None:
 
 
 def _start_job(
-    *, query: str, user_id: str, run_mode: str, background_tasks: BackgroundTasks
+    *,
+    query: str,
+    user_id: str,
+    run_mode: str,
+    background_tasks: BackgroundTasks,
+    tenant_id: str | None = None,
 ) -> JobState:
     job = JobState(
         job_id=f"job-{uuid4().hex[:12]}",
         query=query,
         user_id=user_id,
+        tenant_id=tenant_id,
         run_mode=run_mode,
     )
     _set_job(job)
@@ -1751,8 +1793,9 @@ async def start_demo_job(
     definition = source_definition(request.source_id)
     if definition is None:
         raise HTTPException(status_code=422, detail="Source is not allowlisted")
+    tenant_id: str | None = None
     if request.run_mode == "monitor":
-        _verify_approval_mode(
+        monitor_identity = _verify_approval_mode(
             f"monitor:{request.source_id}",
             request.operator,
             "signed",
@@ -1760,6 +1803,7 @@ async def start_demo_job(
             request.identity_token,
             request.tenant_id,
         )
+        tenant_id = monitor_identity["tenant_id"]
     if definition.get("dynamic") == "true" and request.run_mode != "monitor":
         raise HTTPException(
             status_code=422,
@@ -1779,6 +1823,7 @@ async def start_demo_job(
         user_id=request.user_id,
         run_mode=request.run_mode,
         background_tasks=background_tasks,
+        tenant_id=tenant_id,
     )
     return job.to_dict()
 
@@ -2182,6 +2227,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         request.identity_token,
         request.tenant_id,
     )
+    _authorize_workflow_tenant(workflow_id, approval_identity)
     try:
 
         def apply(current: WorkflowState) -> WorkflowState:
@@ -2264,6 +2310,7 @@ def dismiss(workflow_id: str, request: DismissRequest) -> dict:
         request.identity_token,
         request.tenant_id,
     )
+    _authorize_workflow_tenant(workflow_id, approval_identity)
     try:
 
         def apply(current: WorkflowState) -> WorkflowState:
@@ -2300,6 +2347,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         request.identity_token,
         request.tenant_id,
     )
+    _authorize_workflow_tenant(workflow_id, approval_identity)
     try:
 
         def apply(current: WorkflowState) -> WorkflowState:

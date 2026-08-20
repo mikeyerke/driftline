@@ -7,7 +7,13 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from .agent import reset_run_mode, root_agent, set_run_mode
+from .agent import (
+    reset_run_mode,
+    reset_tenant_id,
+    root_agent,
+    set_run_mode,
+    set_tenant_id,
+)
 from .analysis import AnalysisUnavailable, analysis_trace, analyze_workflow
 from .decision_copilot import (
     analyze_decision,
@@ -37,7 +43,10 @@ def _analysis_failure_result(
 
 
 async def run_agent_task(
-    query: str, user_id: str = "demo-operator", run_mode: str = "demo"
+    query: str,
+    user_id: str = "demo-operator",
+    run_mode: str = "demo",
+    tenant_id: str | None = None,
 ) -> dict:
     """Run one real Gemini/ADK turn and return its final grounded response."""
     started_at = datetime.now(UTC).isoformat()
@@ -62,6 +71,7 @@ async def run_agent_task(
     change_detected: bool | None = None
     trace: list[dict[str, str]] = []
     mode_token = set_run_mode(run_mode)
+    tenant_token = set_tenant_id(tenant_id)
     try:
         async for event in runner.run_async(
             user_id=user_id,
@@ -90,6 +100,7 @@ async def run_agent_task(
                 )
     finally:
         reset_run_mode(mode_token)
+        reset_tenant_id(tenant_token)
 
     # The coordinator turn only discovers and verifies the source.  A second,
     # schema-constrained ADK turn performs the substantive impact mapping.  It

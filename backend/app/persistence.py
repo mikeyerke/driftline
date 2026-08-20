@@ -65,6 +65,7 @@ def _state_from_dict(payload: dict[str, Any]) -> WorkflowState:
     return WorkflowState(
         workflow_id=payload["workflow_id"],
         title=payload["title"],
+        tenant_id=payload.get("tenant_id"),
         stage=Stage(payload.get("stage", Stage.MONITOR.value)),
         status=WorkflowStatus(payload.get("status", WorkflowStatus.RUNNING.value)),
         evidence=evidence,
@@ -217,6 +218,7 @@ def load_job(job_id: str) -> JobState | None:
         status=payload.get("status", "queued"),
         query=payload.get("query", ""),
         user_id=payload.get("user_id", "demo-operator"),
+        tenant_id=payload.get("tenant_id"),
         run_mode=payload.get("run_mode", "demo"),
         workflow_id=payload.get("workflow_id"),
         model=payload.get("model"),
@@ -253,6 +255,7 @@ def list_jobs(limit: int = 8) -> list[JobState]:
                 status=payload.get("status", "queued"),
                 query=payload.get("query", ""),
                 user_id=payload.get("user_id", "demo-operator"),
+                tenant_id=payload.get("tenant_id"),
                 run_mode=payload.get("run_mode", "demo"),
                 workflow_id=payload.get("workflow_id"),
                 model=payload.get("model"),

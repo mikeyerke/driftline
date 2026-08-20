@@ -68,6 +68,7 @@ class ArtifactImpact:
 class WorkflowState:
     workflow_id: str
     title: str
+    tenant_id: str | None = None
     stage: Stage = Stage.MONITOR
     status: WorkflowStatus = WorkflowStatus.RUNNING
     evidence: SourceEvidence | None = None
@@ -109,6 +110,7 @@ class JobState:
     status: str = "queued"
     query: str = ""
     user_id: str = "demo-operator"
+    tenant_id: str | None = None
     run_mode: str = "demo"
     workflow_id: str | None = None
     model: str | None = None

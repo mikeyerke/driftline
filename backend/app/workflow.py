@@ -92,6 +92,7 @@ class DriftlineWorkflow:
     def start_demo(
         self,
         *,
+        tenant_id: str | None = None,
         source_id: str = "public/pricing",
         source_name: str = "Public pricing snapshot",
         data_mode: str = "synthetic_demo",
@@ -108,6 +109,7 @@ class DriftlineWorkflow:
         state = WorkflowState(
             workflow_id=str(uuid4()),
             title=profile["title"],
+            tenant_id=tenant_id,
             data_mode=data_mode,
         )
         self._runs[state.workflow_id] = state
