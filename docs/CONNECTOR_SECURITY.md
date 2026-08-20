@@ -56,6 +56,9 @@ until an owner explicitly deprovisions them. `/api/tenants` exposes only the
 caller's tenant metadata; `/api/tenants/members` is owner-only. Content records
 continue to use bounded `expires_at` fields for TTL cleanup; the configured
 deployment window is 30 days unless an operator changes it deliberately.
+`POST /api/tenants/deprovision` is an owner-confirmed soft offboarding route:
+it disables memberships and revokes connector bindings, but does not delete
+secrets or provider-side data.
 Binding activation, pending-secret verification, and revocation also append
 metadata-only events to `driftline_tenant_audit_events`; signed owners can read
 that tenant-filtered audit without receiving credentials or source content.

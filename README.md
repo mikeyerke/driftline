@@ -94,8 +94,12 @@ signed `GET /api/tenants` exposes only the caller's tenant, while the
 owner-only `GET /api/tenants/members` route exposes role metadata without
 tokens. Owners can provision or update role metadata with
 `POST /api/tenants/members`; unprovisioned OIDC identities fail closed instead
-of inheriting the default tenant. Tenant control-plane records are retained until explicit
-deprovisioning rather than expiring with content records.
+of inheriting the default tenant. Tenant control-plane records are retained
+until explicit deprovisioning rather than expiring with content records. An
+owner can soft-deprovision a tenant through `POST /api/tenants/deprovision`
+with an exact tenant-ID confirmation; this disables memberships and revokes
+bindings while preserving metadata for audit. Secret deletion and
+provider-token revocation remain explicit infrastructure offboarding steps.
 
 Signals do not have to become work. A named reviewer can dismiss a
 needs-approval signal as non-material with a required reason; Driftline records
