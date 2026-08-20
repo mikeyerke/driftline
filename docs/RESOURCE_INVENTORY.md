@@ -17,6 +17,29 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Reopened-workflow value-proof correction (live)
+
+- Source commit `2294467` corrected the value-proof aggregation to read the
+  workflow event's `outcome` field. Reopened decisions were being persisted as
+  `decision_reopened` but were omitted from `workflows_reversed_or_reopened`.
+  A regression test now covers the approve → undo path and the full local suite
+  reports `206 passed` with Ruff clean; the frontend production build also
+  passes.
+- Cloud Build `ea3c00d5-b041-4961-87d1-a89533a34b0e` completed `SUCCESS` and
+  produced image digest
+  `sha256:7890e3b7d0a5e4f4fd30cf75a9148ada0d8b5949c908d828c9b6676f7fecf758`.
+  Cloud Run revision `driftline-00021-rlt` serves 100% of traffic in
+  `driftline-hackathon-2026` with scale-to-zero and the existing one-instance
+  cap. GitHub Actions run `32419555900` for this commit completed `success`.
+- Live `/health` returned `200` with Firestore persistence and async jobs. The
+  public value-proof endpoint now reports `workflows_reversed_or_reopened=13`
+  and `action_items_completed=0` after the synthetic reversal exercise; these
+  are isolated deployment records, not customer outcomes. A direct public
+  agent canary returned `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, exactly the allowlisted tools
+  `inspect_source_change` and `get_workflow_state`, and redacted anonymous
+  query/user fields (`null`).
+
 ## 2026-08-20 Durable connector-read quota fix (live)
 
 - Source commit `2aaca67` registers `connector_calls` in the shared usage and
