@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 from time import monotonic
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -432,6 +432,44 @@ _jobs: dict[str, JobState] = {}
 _jobs_lock = Lock()
 _workflow_transition_lock = Lock()
 _background_tasks: set[asyncio.Task[None]] = set()
+
+
+def _merge_durable_records(
+    memory_records: list[Any],
+    loader: Callable[[int], list[Any]],
+    *,
+    limit: int,
+    key: Callable[[Any], str],
+) -> list[Any]:
+    """Merge the current instance with durable history for operator metrics.
+
+    Cloud Run instances are intentionally disposable. Reading only the local
+    cache whenever it contains one record makes value proof, memory, and ops
+    summaries under-report after a fresh instance starts. Firestore remains
+    the source of truth in hosted mode; the local copy wins for an in-flight
+    transition that has not finished its durable write. A bounded local
+    fallback keeps local development and a transient Firestore outage useful.
+    """
+    if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() != "firestore":
+        return memory_records
+    try:
+        durable_records = loader(limit)
+    except Exception:  # noqa: BLE001 - metrics must not take the console down.
+        logger.warning("Durable record merge unavailable; using local records")
+        return memory_records
+    merged = {key(record): record for record in durable_records if key(record)}
+    for record in memory_records:
+        identifier = key(record)
+        if identifier:
+            merged[identifier] = record
+    return list(merged.values())
+
+
+def _visible_tenant_record(record: Any, identity: dict[str, str] | None) -> bool:
+    tenant_id = getattr(record, "tenant_id", None)
+    return tenant_id is None or (
+        identity is not None and tenant_id == identity.get("tenant_id")
+    )
 
 
 def _record_tenant_usage(tenant_id: str | None, metric: str) -> None:
@@ -1575,40 +1613,25 @@ def get_ops_summary(
             tenant_id,
         )
     with _jobs_lock:
-        jobs = [
-            job
-            for job in _jobs.values()
-            if job.tenant_id is None
-            or (identity is not None and job.tenant_id == identity.get("tenant_id"))
-        ]
-    if (
-        not jobs
-        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
-    ):
-        candidates = list_jobs(20)
-        jobs = [
-            job
-            for job in candidates
-            if job.tenant_id is None
-            or (identity is not None and job.tenant_id == identity.get("tenant_id"))
-        ]
+        job_records = list(_jobs.values())
+    jobs = [
+        job
+        for job in _merge_durable_records(
+            job_records, list_jobs, limit=20, key=lambda item: item.job_id
+        )
+        if _visible_tenant_record(job, identity)
+    ]
+    workflow_records = list(workflow_store._runs.values())
     workflows = [
         state
-        for state in workflow_store._runs.values()
-        if state.tenant_id is None
-        or (identity is not None and state.tenant_id == identity.get("tenant_id"))
+        for state in _merge_durable_records(
+            workflow_records,
+            list_workflows,
+            limit=20,
+            key=lambda item: item.workflow_id,
+        )
+        if _visible_tenant_record(state, identity)
     ]
-    if (
-        not workflows
-        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
-    ):
-        candidates = list_workflows(20)
-        workflows = [
-            state
-            for state in candidates
-            if state.tenant_id is None
-            or (identity is not None and state.tenant_id == identity.get("tenant_id"))
-        ]
     source_health = source_registry_health(
         tenant_id=identity.get("tenant_id") if identity else None
     )
@@ -2795,40 +2818,25 @@ def get_value_proof(
             tenant_id,
         )
     with _jobs_lock:
-        jobs = [
-            job
-            for job in _jobs.values()
-            if job.tenant_id is None
-            or (identity is not None and job.tenant_id == identity.get("tenant_id"))
-        ]
-    if (
-        not jobs
-        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
-    ):
-        candidates = list_jobs(50)
-        jobs = [
-            job
-            for job in candidates
-            if job.tenant_id is None
-            or (identity is not None and job.tenant_id == identity.get("tenant_id"))
-        ]
+        job_records = list(_jobs.values())
+    jobs = [
+        job
+        for job in _merge_durable_records(
+            job_records, list_jobs, limit=50, key=lambda item: item.job_id
+        )
+        if _visible_tenant_record(job, identity)
+    ]
+    workflow_records = list(workflow_store._runs.values())
     workflows = [
         state
-        for state in workflow_store._runs.values()
-        if state.tenant_id is None
-        or (identity is not None and state.tenant_id == identity.get("tenant_id"))
+        for state in _merge_durable_records(
+            workflow_records,
+            list_workflows,
+            limit=50,
+            key=lambda item: item.workflow_id,
+        )
+        if _visible_tenant_record(state, identity)
     ]
-    if (
-        not workflows
-        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
-    ):
-        candidates = list_workflows(50)
-        workflows = [
-            state
-            for state in candidates
-            if state.tenant_id is None
-            or (identity is not None and state.tenant_id == identity.get("tenant_id"))
-        ]
     action_items = [item for state in workflows for item in state.action_items]
     source_health = source_registry_health(
         tenant_id=identity.get("tenant_id") if identity else None
@@ -3106,22 +3114,17 @@ def get_memory_summary(
         for source_id in source_definitions(source_tenant)
     }
     with _jobs_lock:
-        workflows = [
-            state.to_dict()
-            for state in workflow_store._runs.values()
-            if state.tenant_id is None
-            or (identity is not None and state.tenant_id == identity.get("tenant_id"))
-        ]
-    if (
-        not workflows
-        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
-    ):
-        workflows = [
-            state.to_dict()
-            for state in list_workflows(bounded_limit)
-            if state.tenant_id is None
-            or (identity is not None and state.tenant_id == identity.get("tenant_id"))
-        ]
+        workflow_records = list(workflow_store._runs.values())
+    workflows = [
+        state.to_dict()
+        for state in _merge_durable_records(
+            workflow_records,
+            list_workflows,
+            limit=bounded_limit,
+            key=lambda item: item.workflow_id,
+        )
+        if _visible_tenant_record(state, identity)
+    ]
     return build_memory_summary(source_observations, workflows)
 
 
@@ -3289,14 +3292,11 @@ def get_jobs(
             tenant_id,
         )
     with _jobs_lock:
-        candidates = sorted(
-            _jobs.values(), key=lambda item: item.created_at or "", reverse=True
-        )
-    if (
-        not candidates
-        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
-    ):
-        candidates = list_jobs(20)
+        memory_jobs = list(_jobs.values())
+    candidates = _merge_durable_records(
+        memory_jobs, list_jobs, limit=bounded_limit, key=lambda item: item.job_id
+    )
+    candidates.sort(key=lambda item: item.created_at or "", reverse=True)
     jobs = [
         job
         for job in candidates

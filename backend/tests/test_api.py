@@ -20,6 +20,25 @@ def test_health() -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_durable_record_merge_does_not_underreport_after_instance_restart(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+    local = JobState(job_id="job-local", created_at="2026-08-20T00:02:00+00:00")
+    durable = JobState(job_id="job-durable", created_at="2026-08-20T00:01:00+00:00")
+    refreshed = JobState(job_id="job-local", created_at="2026-08-20T00:03:00+00:00")
+
+    merged = api._merge_durable_records(
+        [local],
+        lambda _limit: [durable, refreshed],
+        limit=20,
+        key=lambda item: item.job_id,
+    )
+
+    assert {item.job_id for item in merged} == {"job-local", "job-durable"}
+    # The in-flight local copy wins over an older or concurrently written
+    # durable snapshot; the durable-only record must still be included.
+    assert next(item for item in merged if item.job_id == "job-local").created_at.endswith("02:00+00:00")
+
+
 def test_available_tenants_is_identity_only_and_filters_disabled_memberships(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "test-audience")
     monkeypatch.setattr(

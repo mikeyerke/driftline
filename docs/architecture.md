@@ -100,6 +100,10 @@ freshness, baseline, stale, and synthetic-only states from that ledger without
 fetching or mutating a source. `/api/ops/summary` exposes bounded
 job/workflow counts, connector enablement, model and call guardrails, and
 source health for production operations; it never returns secret values.
+Hosted operator history, change memory, ops summary, and value-proof metrics
+merge the disposable instance cache with bounded Firestore history on every
+read. A warm Cloud Run instance therefore cannot under-report records created
+by a previous instance.
 The signed-only `/api/connectors/context/summary` route closes the utility
 loop without broadening the crawler: each configured adapter performs one
 fixed, bounded read against its deployment scope and returns aggregate
