@@ -329,7 +329,10 @@ lane boundaries.
 Pilot measurement is deliberately separate from synthetic demo telemetry. See
 `docs/PILOT_PLAN.md`; until real teams contribute aggregate evidence, Driftline
 continues to report ROI, revenue, retention, and willingness-to-pay as
-`not_measured`.
+`not_measured`. Once signed records exist, tenant owners can use
+`GET /api/ops/pilot-report` for a tenant-filtered, aggregate before/after delta;
+the report remains `operator_reported_unverified` until its evidence is
+reviewed.
 
 | Connector | Enable flag | Required scope |
 | --- | --- | --- |

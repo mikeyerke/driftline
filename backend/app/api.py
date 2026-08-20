@@ -14,6 +14,7 @@ from collections import deque
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from statistics import median
 from threading import Lock
 from time import monotonic
 from typing import Any, Literal
@@ -3627,6 +3628,85 @@ def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, 
         "status": "recorded",
         "measurement": payload,
         "disclosure": "This is operator-reported aggregate evidence, not an independently verified customer claim.",
+    }
+
+
+@app.get("/api/ops/pilot-report")
+def get_pilot_report(
+    cohort_label: str | None = None,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Summarize signed, aggregate pilot records without exposing evidence refs.
+
+    A pilot report is intentionally separate from public value proof. It only
+    reads the caller's tenant records, keeps the records marked
+    ``operator_reported_unverified``, and computes deltas without turning them
+    into independently verified customer claims.
+    """
+    if not operator or not tenant_id:
+        raise HTTPException(
+            status_code=401, detail="Signed approval is required for pilot reports"
+        )
+    identity = _verify_approval_mode(
+        "ops:pilot-report",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    requested_cohort = cohort_label.strip() if cohort_label else None
+    if requested_cohort and len(requested_cohort) > 80:
+        raise HTTPException(status_code=422, detail="cohort_label_too_long")
+    records = [
+        record
+        for record in list_outcome_measurements(100)
+        if record.get("tenant_id") == identity["tenant_id"]
+        and (not requested_cohort or record.get("cohort_label") == requested_cohort)
+    ]
+    total_changes = sum(int(record.get("changes_observed", 0) or 0) for record in records)
+    baseline_total = sum(float(record.get("baseline_minutes", 0) or 0) for record in records)
+    driftline_total = sum(float(record.get("driftline_minutes", 0) or 0) for record in records)
+    wtp_values = [
+        float(record["willingness_to_pay_usd"])
+        for record in records
+        if record.get("willingness_to_pay_usd") is not None
+    ]
+    revenue_values = [
+        float(record["revenue_lift_usd"])
+        for record in records
+        if record.get("revenue_lift_usd") is not None
+    ]
+    retention_values = [
+        float(record["retention_lift_pct"])
+        for record in records
+        if record.get("retention_lift_pct") is not None
+    ]
+    return {
+        "scope": "signed_tenant_pilot_records",
+        "tenant_id": identity["tenant_id"],
+        "cohort_label": requested_cohort,
+        "status": "not_measured" if not records else "operator_reported_unverified",
+        "record_count": len(records),
+        "changes_observed": total_changes,
+        "baseline_minutes_total": round(baseline_total, 2),
+        "driftline_minutes_total": round(driftline_total, 2),
+        "time_saved_minutes_total": round(baseline_total - driftline_total, 2),
+        "time_saved_pct": (
+            round((baseline_total - driftline_total) / baseline_total * 100, 2)
+            if baseline_total
+            else None
+        ),
+        "revenue_lift_usd_total": round(sum(revenue_values), 2) if revenue_values else None,
+        "retention_lift_pct_median": round(median(retention_values), 2) if retention_values else None,
+        "willingness_to_pay_usd_median": round(median(wtp_values), 2) if wtp_values else None,
+        "disclosure": (
+            "Aggregate operator-reported evidence only; independently verify each "
+            "record against its source before making a customer or revenue claim."
+        ),
     }
 
 

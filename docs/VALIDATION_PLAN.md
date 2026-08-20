@@ -40,7 +40,9 @@ and an evidence reference. The API rejects raw customer text and marks every
 record `operator_reported_unverified` until a human reconciles it to the
 referenced interview, pilot log, win/loss record, or billing artifact. The
 public console exposes only the redacted outcome ledger through
-`GET /api/ops/outcomes`.
+`GET /api/ops/outcomes`. Tenant owners can use the signed
+`GET /api/ops/pilot-report` endpoint to compute before/after totals and deltas
+for one cohort without returning evidence references or other tenant records.
 
 ## Open proof gaps
 

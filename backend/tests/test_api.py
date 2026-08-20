@@ -359,6 +359,59 @@ def test_outcome_measurements_require_signed_operator(monkeypatch) -> None:
     assert response.status_code == 401
 
 
+def test_pilot_report_requires_signed_operator() -> None:
+    response = client.get("/api/ops/pilot-report")
+    assert response.status_code == 401
+
+
+def test_pilot_report_is_tenant_filtered_and_aggregate_only(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *args, **kwargs: {"tenant_id": "pilot-tenant", "identity": "signed_operator"},
+    )
+    monkeypatch.setattr(
+        api,
+        "list_outcome_measurements",
+        lambda _limit: [
+            {
+                "tenant_id": "pilot-tenant",
+                "cohort_label": "pilot-a",
+                "changes_observed": 2,
+                "baseline_minutes": 120,
+                "driftline_minutes": 40,
+                "revenue_lift_usd": 1500,
+                "retention_lift_pct": 4,
+                "willingness_to_pay_usd": 900,
+                "evidence_ref": "https://private.example/not-returned",
+            },
+            {
+                "tenant_id": "other-tenant",
+                "cohort_label": "pilot-a",
+                "changes_observed": 99,
+                "baseline_minutes": 999,
+                "driftline_minutes": 1,
+            },
+        ],
+    )
+
+    response = client.get(
+        "/api/ops/pilot-report",
+        params={"operator": "Pilot owner", "tenant_id": "pilot-tenant", "cohort_label": "pilot-a"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["record_count"] == 1
+    assert payload["changes_observed"] == 2
+    assert payload["time_saved_minutes_total"] == 80
+    assert payload["time_saved_pct"] == 66.67
+    assert payload["revenue_lift_usd_total"] == 1500
+    assert payload["willingness_to_pay_usd_median"] == 900
+    assert "evidence_ref" not in str(payload)
+    assert payload["status"] == "operator_reported_unverified"
+
+
 def test_connector_context_summary_is_signed_and_redacted(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
