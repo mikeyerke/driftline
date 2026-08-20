@@ -199,6 +199,15 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    )
+    if request.url.path.startswith("/api/"):
+        # API responses can contain tenant-scoped metadata or one-time OAuth
+        # handoff state. Never let a browser, proxy, or shared intermediary
+        # retain those responses beyond the request.
+        response.headers.setdefault("Cache-Control", "no-store")
+    response.headers.setdefault(
         "Content-Security-Policy",
         "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; "

@@ -19,6 +19,15 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert response.headers["permissions-policy"] == (
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    )
+
+
+def test_api_responses_are_not_cacheable() -> None:
+    response = client.get("/api/ops/value-proof")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
 
 
 def test_public_job_payload_redacts_caller_text_and_internal_claims() -> None:
