@@ -17,7 +17,30 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
-## 2026-08-20 Exact tenant evidence scope release (current)
+## 2026-08-20 Tenant quota policy release (current)
+
+- Source commit `ae42e4f` adds durable, owner-managed tenant policy for
+  `agent_calls_per_window` and `workflow_mutations_per_window`. Values are
+  allowlisted, clamped to `1..1000`, audit-recorded, and used by both local and
+  Firestore quota reservations. Missing policy metadata falls back to the
+  deployment defaults; a hosted policy lookup failure fails closed.
+- Signed `GET/POST /api/tenants/policy` is live. Anonymous policy access
+  returned `401 Signed approval is required`; the public Value proof remains
+  `observed_driftline_sandbox_records` with `0` tenant-scoped workflows.
+- Cloud Build `a08c59f4-b326-4e87-9b91-38032d6cb8ad` completed `SUCCESS`; image
+  digest is
+  `sha256:d932af0c13faac3407834aec298443177d2446055ed1ed3e852791345b0ffe34`.
+  Cloud Run revision `driftline-00167-jws` serves 100% of traffic in the
+  isolated project and `/health` reports Firestore persistence and async jobs.
+- Full backend suite: `185 passed`; Ruff, frontend production build, and
+  `git diff --check` are clean. Desktop/mobile browser QA and the complete
+  scan → evidence → artifact → approval → completion → reopen journey passed
+  with no console errors or failed requests. Latest verified job is
+  `job-82827e7d8483`, workflow
+  `71703a51-990c-4fac-b1cf-c20173da5512`, recorded with Gemini 3.5 Flash and
+  Google ADK.
+
+## 2026-08-20 Exact tenant evidence scope release (superseded snapshot)
 
 - Source commit `f1cf108` makes anonymous record reads strictly tenantless and
   makes signed operational reads exact-tenant only. This prevents a signed
