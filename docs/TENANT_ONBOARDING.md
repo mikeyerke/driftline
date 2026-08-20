@@ -121,7 +121,18 @@ non-secret destination profile. It is safe to run repeatedly and returns
 metadata-only `healthy`, `attention`, and `not_configured` results; configured
 field names may be shown, but target values and credentials never are.
 
-## 5. Rotate or offboard
+## 5. Set the tenant allowance policy (optional)
+
+An owner can inspect the effective per-tenant allowance with signed
+`GET /api/tenants/policy` and update it with `POST /api/tenants/policy`.
+`agent_calls_per_window` and `workflow_mutations_per_window` are the only
+accepted policy fields; both are clamped to safe bounds and apply to the
+existing deployment windows without a redeploy. Changes are append-only audit
+metadata and are metering controls, not subscription billing. If policy
+metadata is absent, the deployment defaults apply; a hosted policy lookup
+failure denies new work rather than widening access.
+
+## 6. Rotate or offboard
 
 For a planned rotation, the owner first POSTs
 `/api/connectors/{connector}/binding/rotate` with a reason. This records an

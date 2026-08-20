@@ -25,7 +25,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   Firestore quota reservations. Missing policy metadata falls back to the
   deployment defaults; a hosted policy lookup failure fails closed.
 - Signed `GET/POST /api/tenants/policy` is live. Anonymous policy access
-  returned `401 Signed approval is required`; the public Value proof remains
+  returned `401 Signed approval is required`; a live signed read for the
+  existing `driftline-demo` tenant returned the bounded default policy
+  (`10` agent calls and `30` workflow mutations), `billing_enabled=false`, and
+  `credential_values_exposed=false`. The public Value proof remains
   `observed_driftline_sandbox_records` with `0` tenant-scoped workflows.
 - Cloud Build `a08c59f4-b326-4e87-9b91-38032d6cb8ad` completed `SUCCESS`; image
   digest is
