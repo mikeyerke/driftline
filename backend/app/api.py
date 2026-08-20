@@ -213,6 +213,16 @@ class TenantMemberRequest(BaseModel):
     identity_token: str | None = Field(default=None, max_length=4096)
 
 
+class TenantDeprovisionRequest(BaseModel):
+    """Owner-confirmed soft deprovisioning request; never deletes secrets."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    tenant_id: str = Field(min_length=3, max_length=63)
+    confirmation: str = Field(min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
 class ActionItemRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
@@ -1611,6 +1621,76 @@ def get_tenant_audit(
             for event in events
         ],
         "credential_values_exposed": False,
+    }
+
+
+@app.post("/api/tenants/deprovision")
+def deprovision_tenant(request: TenantDeprovisionRequest) -> dict[str, object]:
+    """Soft-disable one tenant and revoke its connector bindings."""
+    identity = _verify_approval_mode(
+        "tenant-deprovision",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    tenant_id = identity["tenant_id"]
+    if request.confirmation.strip().casefold() != tenant_id:
+        raise HTTPException(status_code=422, detail="tenant_confirmation_mismatch")
+    now = utc_now()
+    bindings = list_connector_bindings(tenant_id)
+    for binding in bindings:
+        persist_connector_binding(
+            {
+                **binding,
+                "tenant_id": tenant_id,
+                "status": "revoked",
+                "revoked_at": now,
+                "revoked_by": identity.get("email") or identity.get("identity"),
+            }
+        )
+    memberships = list_tenant_memberships(tenant_id)
+    for member in memberships:
+        persist_tenant_membership(
+            {
+                **member,
+                "tenant_id": tenant_id,
+                "status": "disabled",
+                "updated_at": now,
+            }
+        )
+    persist_tenant(
+        {
+            "tenant_id": tenant_id,
+            "status": "disabled",
+            "deprovisioned_at": now,
+            "deprovisioned_by": identity.get("email") or identity.get("identity"),
+        }
+    )
+    audit_event = persist_tenant_audit_event(
+        {
+            "tenant_id": tenant_id,
+            "event_type": "tenant_deprovisioned",
+            "status": "disabled",
+            "revoked_binding_count": len(bindings),
+            "disabled_membership_count": len(memberships),
+            "actor": identity.get("email") or identity.get("identity"),
+        }
+    )
+    return {
+        "status": "disabled",
+        "tenant_id": tenant_id,
+        "revoked_binding_count": len(bindings),
+        "disabled_membership_count": len(memberships),
+        "audit_event_id": audit_event["event_id"],
+        "credential_values_exposed": False,
+        "follow_up": (
+            "Revoke provider tokens and delete or disable the tenant's Secret "
+            "Manager versions through infrastructure offboarding."
+        ),
     }
 
 

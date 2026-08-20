@@ -54,6 +54,20 @@ def tenant_connector_secret_name(tenant_id: str, connector: str) -> str:
     return f"driftline-tenant-{safe_tenant}-{safe_connector}"[:100]
 
 
+def _tenant_is_disabled(tenant_id: str) -> bool:
+    """Fail closed for tenants soft-deprovisioned in the control plane."""
+    try:
+        from .persistence import load_tenant
+
+        tenant = load_tenant(tenant_id)
+    except Exception:  # noqa: BLE001 - auth must not break bootstrap paths.
+        return False
+    return str((tenant or {}).get("status", "active")).casefold() in {
+        "disabled",
+        "deprovisioned",
+    }
+
+
 def _configured_members() -> dict[str, tuple[str, str]]:
     members: dict[str, tuple[str, str]] = {}
     for raw in os.getenv("DRIFTLINE_TENANT_MEMBERS", "").split(","):
@@ -117,6 +131,8 @@ def principal_for_claims(
         requested = validate_tenant_id(requested_tenant_id)
         if requested != tenant_id:
             raise PermissionError("tenant_not_allowlisted")
+    if _tenant_is_disabled(tenant_id):
+        raise PermissionError("tenant_disabled")
     return TenantPrincipal(
         tenant_id=tenant_id,
         subject=subject,
@@ -147,6 +163,8 @@ def principal_for_hmac(requested_tenant_id: str | None = None) -> TenantPrincipa
         )
     if tenant_id not in configured_tenants:
         raise PermissionError("tenant_not_allowlisted")
+    if _tenant_is_disabled(tenant_id):
+        raise PermissionError("tenant_disabled")
     return TenantPrincipal(
         tenant_id=tenant_id,
         role="owner",

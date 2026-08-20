@@ -307,6 +307,65 @@ def test_owner_can_provision_durable_member_without_credentials(monkeypatch) -> 
     assert "secret" not in str(payload).casefold()
 
 
+def test_owner_can_soft_deprovision_tenant_and_fail_closed(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "deprovision-test-secret"
+    tenant_id = "deprovision-acme"
+    actor = "Deprovision owner"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+    api.persist_connector_binding(
+        {
+            "tenant_id": tenant_id,
+            "connector": "jira",
+            "secret_name": f"driftline-tenant-{tenant_id}-jira",
+            "status": "active",
+            "scope": "tenant_bound_connector_credential",
+        }
+    )
+    api.persist_tenant_membership(
+        {
+            "tenant_id": tenant_id,
+            "email": "member@example.com",
+            "role": "operator",
+            "status": "active",
+        }
+    )
+    token = hmac.new(
+        secret.encode(), b"tenant-deprovision:Deprovision owner", hashlib.sha256
+    ).hexdigest()
+
+    response = client.post(
+        "/api/tenants/deprovision",
+        json={
+            "operator": actor,
+            "tenant_id": tenant_id,
+            "confirmation": tenant_id,
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "disabled"
+    assert response.json()["revoked_binding_count"] == 1
+    assert response.json()["disabled_membership_count"] == 1
+    assert response.json()["credential_values_exposed"] is False
+    metadata_token = hmac.new(
+        secret.encode(), b"tenant-metadata:Deprovision owner", hashlib.sha256
+    ).hexdigest()
+    blocked = client.get(
+        "/api/tenants",
+        params={
+            "operator": actor,
+            "tenant_id": tenant_id,
+            "approval_token": metadata_token,
+        },
+    )
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"] == "tenant_disabled"
+
+
 def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:
     monkeypatch.setattr(api, "_verify_scheduler_request", lambda request: None)
     monkeypatch.setattr(
