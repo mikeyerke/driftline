@@ -1337,6 +1337,15 @@ def test_tenant_bound_reads_require_matching_signed_identity(monkeypatch) -> Non
         signed_value_payload["observed"]["workflows"]
         >= public_value["observed"]["workflows"] + 1
     )
+    jobs_token = hmac.new(
+        secret.encode(), f"jobs:list:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+    signed_jobs = client.get(
+        "/api/jobs",
+        params={**signed_params, "approval_token": jobs_token},
+    )
+    assert signed_jobs.status_code == 200
+    assert all(item.get("tenant_id") == "driftline-demo" for item in signed_jobs.json()["jobs"])
 
     wrong_token = hmac.new(
         secret.encode(), f"{state.workflow_id}:{actor}".encode(), hashlib.sha256

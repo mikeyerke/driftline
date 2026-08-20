@@ -3587,8 +3587,7 @@ def get_jobs(
     jobs = [
         job
         for job in candidates
-        if job.tenant_id is None
-        or (identity is not None and job.tenant_id == identity.get("tenant_id"))
+        if _visible_tenant_record(job, identity)
     ][:bounded_limit]
     return {"jobs": [job.to_dict() for job in jobs]}
 
