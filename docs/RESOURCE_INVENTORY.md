@@ -58,6 +58,19 @@ to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
 account, API key, repository, or environment variable is reused.
 
+## 2026-08-20 Evidence-integrity dismissal hardening release
+
+- Source commit: `bf37f25` (dismissal now verifies the source evidence hash
+  before recording a no-op), pushed to
+  `https://github.com/mikeyerke/driftline`.
+- Cloud Build `5fc1f638-610b-4a49-812e-87045223e3df` — `SUCCESS`; Artifact
+  Registry image digest `sha256:658ac05936f6db4117bbd70b59550a198dc033c1f5db93ad7759325904c499b8`.
+- Cloud Run revision `driftline-00081-8sv` serves 100% of traffic in the
+  isolated project. Live `/health` returned Firestore persistence plus async
+  jobs; a live dismissal returned `status=dismissed`, stable card
+  `card-51b2caa0b18994ae6413`, closure `dismissed`, and zero action items. The
+  revision error-log query returned no `ERROR` entries.
+
 ## 2026-08-20 Stable Change Card idempotency release
 
 - Source commit: `dc2a138` (deterministic Change Card/action identity and
