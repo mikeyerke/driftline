@@ -295,6 +295,14 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .value-proof-details dd { margin: 0; color: var(--ink); font-weight: 700; }
 .value-proof-unmeasured p { margin: 0 0 7px; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .value-proof-unmeasured ul { display: flex; flex-wrap: wrap; gap: 5px 13px; margin: 0; padding-left: 16px; color: #765400; font-size: 11px; }
+.value-proof-mix { margin: 0 16px 12px; border: 1px solid var(--line); padding: 11px 12px; background: #fff; }
+.value-proof-mix h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 9px; font-size: 11px; }
+.value-proof-mix h3 svg { color: var(--blue); }
+.value-proof-mix-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+.value-proof-mix-grid > div { display: flex; align-items: baseline; gap: 6px; min-width: 132px; border-left: 3px solid var(--blue); padding: 7px 9px; background: var(--surface); }
+.value-proof-mix-grid strong { color: var(--ink); font-size: 16px; line-height: 1; }
+.value-proof-mix-grid span { color: var(--muted); font-size: 10px; }
+.value-proof-mix-grid p, .value-proof-mix > p { margin: 9px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .value-proof-note { margin: 0; padding: 10px 16px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.5; }
  .multimodal-panel, .scenario-panel { margin: 14px 16px 0; background: var(--surface); }
  .genome-panel { margin: 14px 16px 0; background: var(--surface); }

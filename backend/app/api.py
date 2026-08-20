@@ -3101,6 +3101,14 @@ def get_value_proof(
     change_cards = [state.change_card for state in workflows if state.change_card]
     materiality_cards = [card.get("materiality") or {} for card in change_cards]
     closure_cards = [card.get("closure") or {} for card in change_cards]
+    workflow_data_modes: dict[str, int] = {}
+    for state in workflows:
+        mode = str(state.data_mode or "unknown")
+        workflow_data_modes[mode] = workflow_data_modes.get(mode, 0) + 1
+    job_run_modes: dict[str, int] = {}
+    for job in jobs:
+        mode = str(job.run_mode or "unknown")
+        job_run_modes[mode] = job_run_modes.get(mode, 0) + 1
     external_writes = sum(
         bool((state.action_record or {}).get("external_write")) for state in workflows
     )
@@ -3139,10 +3147,22 @@ def get_value_proof(
     )
     return {
         "generated_at": utc_now(),
-        "scope": "observed_driftline_sandbox_records",
+        "scope": (
+            "observed_tenant_records"
+            if identity
+            else "observed_driftline_sandbox_records"
+        ),
         "observed": {
             "jobs": len(jobs),
             "workflows": len(workflows),
+            "workflow_data_modes": workflow_data_modes,
+            "job_run_modes": job_run_modes,
+            "tenant_scoped_workflows": sum(
+                state.tenant_id is not None for state in workflows
+            ),
+            "tenantless_workflows": sum(
+                state.tenant_id is None for state in workflows
+            ),
             "workflows_reversed_or_reopened": reversed_workflows,
             "external_write_actions": external_writes,
             "action_items": len(action_items),

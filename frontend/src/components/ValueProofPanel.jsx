@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, CheckCircle2, Clock3, Gauge, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Clock3, Gauge, Layers3, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getValueProof } from "../api";
 
@@ -7,6 +7,13 @@ const metric = (value, suffix = "") => (value === null || value === undefined ? 
 const outcomeLabel = (value) => value
   .replaceAll("_", " ")
   .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const modeLabel = (value) => {
+  if (value === "synthetic_demo") return "Synthetic replay";
+  if (value === "public_source") return "Public source";
+  if (value === "live") return "Live tenant run";
+  return outcomeLabel(value);
+};
 
 export default function ValueProofPanel() {
   const [proof, setProof] = useState(null);
@@ -24,6 +31,7 @@ export default function ValueProofPanel() {
   const observed = proof?.observed || {};
   const latency = observed.approval_latency_seconds || {};
   const notMeasured = proof?.not_measured || [];
+  const workflowModes = Object.entries(observed.workflow_data_modes || {});
 
   return (
     <section className="panel value-proof-panel" aria-labelledby="value-proof-title">
@@ -54,6 +62,15 @@ export default function ValueProofPanel() {
             <p>These require a real pilot and are intentionally not inferred from synthetic activity:</p>
             <ul>{notMeasured.map((item) => <li key={item}>{outcomeLabel(item)}</li>)}</ul>
           </div>
+        </div>
+        <div className="value-proof-mix">
+          <h3><Layers3 size={14} />Evidence mix</h3>
+          <div className="value-proof-mix-grid">
+            {workflowModes.length > 0 ? workflowModes.map(([mode, count]) => (
+              <div key={mode}><strong>{count}</strong><span>{modeLabel(mode)}</span></div>
+            )) : <p>No workflow records in this scope.</p>}
+          </div>
+          <p>{metric(observed.tenant_scoped_workflows, " tenant-scoped")} · {metric(observed.tenantless_workflows, " tenantless")} workflow records visible in this scope.</p>
         </div>
         <p className="value-proof-note">{proof.interpretation || "Counts are direct records from the isolated Driftline deployment."}</p>
       </>}

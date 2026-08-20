@@ -114,6 +114,9 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert value_proof.json()["scope"] == "observed_driftline_sandbox_records"
     assert "willingness_to_pay" in value_proof.json()["not_measured"]
     assert "change_cards" in value_proof.json()["observed"]
+    assert "workflow_data_modes" in value_proof.json()["observed"]
+    assert "job_run_modes" in value_proof.json()["observed"]
+    assert "tenantless_workflows" in value_proof.json()["observed"]
     assert "high_materiality_cards" in value_proof.json()["observed"]
     assert "cards_dismissed" in value_proof.json()["observed"]
     assert "overdue_owner_actions" in value_proof.json()["observed"]
@@ -1313,8 +1316,12 @@ def test_tenant_bound_reads_require_matching_signed_identity(monkeypatch) -> Non
         },
     )
     assert signed_value.status_code == 200
+    signed_value_payload = signed_value.json()
+    assert signed_value_payload["scope"] == "observed_tenant_records"
+    assert signed_value_payload["observed"]["tenant_scoped_workflows"] >= 1
+    assert signed_value_payload["observed"]["tenantless_workflows"] == 0
     assert (
-        signed_value.json()["observed"]["workflows"]
+        signed_value_payload["observed"]["workflows"]
         >= public_value["observed"]["workflows"] + 1
     )
 
