@@ -9,9 +9,12 @@ from app.connectors import (
     JiraConfig,
     JiraConnector,
     SalesforceConfig,
+    SalesforceReadOnlyClient,
     SlackConfig,
     SlackConnector,
+    exchange_salesforce_code,
     execute_confluence_handoff,
+    salesforce_authorization_url,
     salesforce_readiness,
 )
 from app.workflow import DriftlineWorkflow
@@ -254,3 +257,57 @@ def test_salesforce_config_rejects_non_salesforce_hosts() -> None:
         assert "salesforce_base_url" in str(exc)
     else:  # pragma: no cover - assertion documents the security boundary.
         raise AssertionError("non-Salesforce host was accepted")
+
+
+def test_salesforce_oauth_url_is_scoped_and_does_not_include_secret() -> None:
+    config = SalesforceConfig(
+        enabled=True,
+        client_id="client-id",
+        client_secret="do-not-leak",
+        redirect_uri="https://driftline.example/api/connectors/salesforce/oauth/callback",
+    )
+    url = salesforce_authorization_url(config, "opaque-state")
+    assert "client-id" in url
+    assert "do-not-leak" not in url
+    assert "state=opaque-state" in url
+    assert "refresh_token" in url
+
+
+def test_salesforce_code_exchange_uses_post_and_redacts_response_surface() -> None:
+    requests = []
+
+    def opener(request, timeout):
+        requests.append((request, timeout))
+        return _Response(
+            {
+                "access_token": "access",
+                "refresh_token": "refresh",
+                "instance_url": "https://acme.my.salesforce.com",
+            }
+        )
+
+    config = SalesforceConfig(
+        enabled=True,
+        client_id="client-id",
+        client_secret="secret",
+        redirect_uri="https://driftline.example/callback",
+    )
+    result = exchange_salesforce_code(config, "one-time-code", opener=opener)
+    assert result["instance_url"].endswith("salesforce.com")
+    assert requests[0][0].method == "POST"
+    assert b"one-time-code" in requests[0][0].data
+
+
+def test_salesforce_client_rejects_unallowlisted_object() -> None:
+    config = SalesforceConfig(enabled=True, base_url="https://acme.my.salesforce.com", token="token")
+    client = SalesforceReadOnlyClient(
+        config,
+        access_token="access",
+        instance_url="https://acme.my.salesforce.com",
+    )
+    try:
+        client.query_summary("Account")
+    except ConnectorError as exc:
+        assert str(exc) == "salesforce_object_not_allowlisted"
+    else:  # pragma: no cover - documents the read-only boundary.
+        raise AssertionError("unallowlisted Salesforce object was queried")

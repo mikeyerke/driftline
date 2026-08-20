@@ -16,7 +16,7 @@ import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
@@ -34,6 +34,11 @@ class SalesforceConfig:
     base_url: str = ""
     token: str = ""
     api_version: str = "v61.0"
+    client_id: str = ""
+    client_secret: str = ""
+    login_url: str = "https://login.salesforce.com"
+    redirect_uri: str = ""
+    scope: str = "api refresh_token"
 
     @classmethod
     def from_env(cls) -> SalesforceConfig:
@@ -45,6 +50,15 @@ class SalesforceConfig:
             base_url=os.getenv("DRIFTLINE_SALESFORCE_BASE_URL", "").rstrip("/"),
             token=_secret_or_env("DRIFTLINE_SALESFORCE_TOKEN") if enabled else "",
             api_version=os.getenv("DRIFTLINE_SALESFORCE_API_VERSION", "v61.0"),
+            client_id=_secret_or_env("DRIFTLINE_SALESFORCE_CLIENT_ID") if enabled else "",
+            client_secret=_secret_or_env("DRIFTLINE_SALESFORCE_CLIENT_SECRET") if enabled else "",
+            login_url=os.getenv(
+                "DRIFTLINE_SALESFORCE_LOGIN_URL", "https://login.salesforce.com"
+            ).rstrip("/"),
+            redirect_uri=os.getenv("DRIFTLINE_SALESFORCE_REDIRECT_URI", "").strip(),
+            scope=os.getenv(
+                "DRIFTLINE_SALESFORCE_SCOPE", "api refresh_token"
+            ).strip(),
         )
 
     def validate(self) -> None:
@@ -60,6 +74,22 @@ class SalesforceConfig:
             raise ConnectorError("salesforce_read_token_missing")
         if not re.fullmatch(r"v\d+\.\d+", self.api_version):
             raise ConnectorError("salesforce_api_version_invalid")
+
+    def validate_oauth(self) -> None:
+        if not self.enabled:
+            raise ConnectorError("salesforce_not_enabled")
+        parsed = urlparse(self.login_url)
+        if parsed.scheme != "https" or parsed.netloc not in {
+            "login.salesforce.com",
+            "test.salesforce.com",
+        }:
+            raise ConnectorError("salesforce_login_url_invalid")
+        if not self.client_id or not self.client_secret:
+            raise ConnectorError("salesforce_oauth_client_missing")
+        if not self.redirect_uri.startswith("https://"):
+            raise ConnectorError("salesforce_redirect_uri_invalid")
+        if "api" not in self.scope.split():
+            raise ConnectorError("salesforce_api_scope_missing")
 
 
 def salesforce_readiness() -> dict[str, object]:
@@ -83,14 +113,209 @@ def salesforce_readiness() -> dict[str, object]:
             "scope": "read_only_context",
             "reason": str(exc),
         }
+    oauth_ready = False
+    try:
+        config.validate_oauth()
+        oauth_ready = True
+    except ConnectorError:
+        pass
+    if not config.token and not oauth_ready:
+        return {
+            "status": "oauth_not_configured",
+            "mode": "prepared_only",
+            "external_write": False,
+            "scope": "read_only_context",
+            "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
+            "reason": "Salesforce OAuth client and redirect URI are required",
+        }
     return {
-        "status": "configured_read_only",
+        "status": "configured_read_only" if config.token else "oauth_ready",
         "mode": "prepared_only",
         "external_write": False,
         "scope": "read_only_context",
         "api_version": config.api_version,
         "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
+        "oauth": oauth_ready,
     }
+
+
+def salesforce_authorization_url(config: SalesforceConfig, state: str) -> str:
+    """Build the authorization URL without exposing any secret."""
+    config.validate_oauth()
+    return (
+        f"{config.login_url}/services/oauth2/authorize?"
+        + urlencode(
+            {
+                "response_type": "code",
+                "client_id": config.client_id,
+                "redirect_uri": config.redirect_uri,
+                "scope": config.scope,
+                "state": state,
+                "prompt": "login consent",
+            }
+        )
+    )
+
+
+def _salesforce_token_request(
+    config: SalesforceConfig,
+    payload: dict[str, str],
+    *,
+    opener: Callable[..., Any] = urlopen,
+) -> dict[str, Any]:
+    config.validate_oauth()
+    body = urlencode(payload).encode()
+    request = Request(
+        f"{config.login_url}/services/oauth2/token",
+        data=body,
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "Driftline-Salesforce-Connector/1.0",
+        },
+        method="POST",
+    )
+    try:
+        with opener(request, timeout=8) as response:
+            raw = response.read().decode("utf-8")
+    except (HTTPError, URLError, TimeoutError) as exc:
+        raise ConnectorError("salesforce_oauth_request_failed") from exc
+    try:
+        result = json.loads(raw) if raw else {}
+    except json.JSONDecodeError as exc:
+        raise ConnectorError("salesforce_oauth_response_not_json") from exc
+    if not result.get("access_token"):
+        raise ConnectorError("salesforce_oauth_token_missing")
+    return result
+
+
+def exchange_salesforce_code(
+    config: SalesforceConfig,
+    code: str,
+    *,
+    opener: Callable[..., Any] = urlopen,
+) -> dict[str, Any]:
+    """Exchange a one-time authorization code for tokens."""
+    if not code or len(code) > 4096:
+        raise ConnectorError("salesforce_oauth_code_invalid")
+    return _salesforce_token_request(
+        config,
+        {
+            "grant_type": "authorization_code",
+            "code": code,
+            "client_id": config.client_id,
+            "client_secret": config.client_secret,
+            "redirect_uri": config.redirect_uri,
+        },
+        opener=opener,
+    )
+
+
+def refresh_salesforce_token(
+    config: SalesforceConfig,
+    refresh_token: str,
+    *,
+    opener: Callable[..., Any] = urlopen,
+) -> dict[str, Any]:
+    if not refresh_token:
+        raise ConnectorError("salesforce_refresh_token_missing")
+    return _salesforce_token_request(
+        config,
+        {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": config.client_id,
+            "client_secret": config.client_secret,
+        },
+        opener=opener,
+    )
+
+
+class SalesforceReadOnlyClient:
+    """Allowlisted, aggregate-only Salesforce REST client.
+
+    No write method exists by design. Responses intentionally return counts and
+    field names rather than CRM records so logs and operator dashboards cannot
+    accidentally become a customer-data export.
+    """
+
+    _QUERIES: ClassVar[dict[str, str]] = {
+        "Product2": "SELECT Id,Name,ProductCode,IsActive,Family FROM Product2 LIMIT 25",
+        "PricebookEntry": "SELECT Id,Name,UnitPrice,IsActive,CurrencyIsoCode,Product2Id FROM PricebookEntry LIMIT 25",
+        "Opportunity": "SELECT Id,StageName,Amount,CloseDate,IsClosed FROM Opportunity LIMIT 25",
+    }
+
+    def __init__(
+        self,
+        config: SalesforceConfig,
+        *,
+        access_token: str,
+        instance_url: str,
+        opener: Callable[..., Any] = urlopen,
+    ) -> None:
+        config.validate()
+        if not access_token:
+            raise ConnectorError("salesforce_access_token_missing")
+        parsed = urlparse(instance_url.rstrip("/"))
+        if parsed.scheme != "https" or not (
+            parsed.netloc.endswith(".salesforce.com")
+            or parsed.netloc.endswith(".force.com")
+        ):
+            raise ConnectorError("salesforce_instance_url_invalid")
+        self.config = config
+        self.access_token = access_token
+        self.instance_url = instance_url.rstrip("/")
+        self._opener = opener
+
+    def query_summary(self, object_name: str) -> dict[str, Any]:
+        query = self._QUERIES.get(object_name)
+        if query is None:
+            raise ConnectorError("salesforce_object_not_allowlisted")
+        url = (
+            f"{self.instance_url}/services/data/{self.config.api_version}/query?"
+            + urlencode({"q": query})
+        )
+        request = Request(
+            url,
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {self.access_token}",
+                "User-Agent": "Driftline-Salesforce-Connector/1.0",
+            },
+            method="GET",
+        )
+        try:
+            with self._opener(request, timeout=8) as response:
+                raw = response.read().decode("utf-8")
+        except (HTTPError, URLError, TimeoutError) as exc:
+            raise ConnectorError("salesforce_query_failed") from exc
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError as exc:
+            raise ConnectorError("salesforce_query_response_not_json") from exc
+        if not isinstance(payload, dict) or "totalSize" not in payload:
+            raise ConnectorError("salesforce_query_response_invalid")
+        return {
+            "object": object_name,
+            "total": int(payload.get("totalSize", 0)),
+            "fields": sorted(
+                {
+                    key
+                    for row in payload.get("records", [])[:25]
+                    if isinstance(row, dict)
+                    for key in row
+                    if key != "attributes"
+                }
+            ),
+        }
+
+    def health_summary(self) -> dict[str, Any]:
+        results = [self.query_summary(name) for name in self._QUERIES]
+        return {
+            "status": "connected_read_only",
+            "objects": results,
+            "external_write": False,
+        }
 
 
 def _secret_or_env(env_name: str) -> str:
@@ -121,6 +346,45 @@ def _secret_or_env(env_name: str) -> str:
         return response.payload.data.decode("utf-8")
     except Exception as exc:
         raise ConnectorError(f"{env_name.lower()}_secret_read_failed") from exc
+
+
+def read_secret(secret_name: str) -> str:
+    """Read one explicitly named isolated Secret Manager secret."""
+    project = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+    if not project or not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,99}", secret_name):
+        raise ConnectorError("secret_reference_invalid")
+    try:
+        from google.cloud import secretmanager
+
+        client = secretmanager.SecretManagerServiceClient()
+        response = client.access_secret_version(
+            name=f"projects/{project}/secrets/{secret_name}/versions/latest"
+        )
+        return response.payload.data.decode("utf-8")
+    except Exception as exc:
+        raise ConnectorError("secret_read_failed") from exc
+
+
+def write_secret_version(secret_name: str, value: str) -> None:
+    """Add a version to a pre-provisioned isolated secret.
+
+    Secret creation is intentionally not attempted at request time. An
+    operator provisions the empty tenant secret once with infrastructure IAM;
+    the runtime only needs ``secretVersionAdder`` on that exact secret.
+    """
+    project = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+    if not project or not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,99}", secret_name):
+        raise ConnectorError("secret_reference_invalid")
+    try:
+        from google.cloud import secretmanager
+
+        client = secretmanager.SecretManagerServiceClient()
+        client.add_secret_version(
+            parent=f"projects/{project}/secrets/{secret_name}",
+            payload={"data": value.encode("utf-8")},
+        )
+    except Exception as exc:
+        raise ConnectorError("secret_write_failed") from exc
 
 
 def _require_https_service_url(value: str, marker: str) -> str:

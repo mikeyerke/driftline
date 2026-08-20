@@ -17,7 +17,20 @@ Undo follows the same boundary. A demo packet can be reopened without contacting
 - Confluence: one configured space/page marker; reversal appends a note and preserves history.
 - Slack: one configured channel; marker-based idempotency; reversal posts an audit message.
 - GitHub: one configured repository; marker-based idempotency; reversal adds a label/comment.
-- Salesforce: read-only context contract for `Product2`, `PricebookEntry`, and `Opportunity`; no write path and no live customer authorization in this deployment.
+- Salesforce: tenant-scoped OAuth read-only context for `Product2`, `PricebookEntry`, and `Opportunity`; no write path. The OAuth lane is deployed but remains disabled until a real org authorizes it.
+
+Signed operator identities resolve to a tenant and role from
+`DRIFTLINE_TENANT_MEMBERS`. `viewer` identities can inspect status, while
+`operator` and `owner` identities can start signed connector work; only an
+`owner` can disconnect Salesforce. The public demo has no tenant authority and
+can only create sandbox packets.
+
+Connector credentials are isolated per integration. Salesforce refresh tokens
+are written only to a pre-provisioned tenant Secret Manager secret, while
+Firestore stores the tenant, instance URL, scopes, and health status—never a
+token. Firestore job, workflow, outcome, and source snapshot records carry a
+bounded `expires_at` field for TTL cleanup; the configured deployment window is
+30 days unless an operator changes it deliberately.
 
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
 

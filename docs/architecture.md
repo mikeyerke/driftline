@@ -46,7 +46,9 @@ the model—creates the evidence, maps explicit offering impact profiles to
 downstream work surfaces, applies the
 approval policy, and records state transitions. Cloud Run hosts the API and
 console; Firestore stores jobs, workflows, snapshot history, and immutable
-audit-event documents.
+audit-event documents. Failed jobs are retried by Cloud Tasks at most three
+times with bounded backoff. Persisted jobs, workflows, source observations, and
+outcome measurements carry an explicit 30-day TTL by default.
 
 The policy gate is deliberately deterministic. A model cannot self-approve a
 high-risk action, widen its own tool permissions, or call the approval and undo
@@ -89,9 +91,9 @@ repository. The public demo remains identity-free for judging, so the
 displayed “Demo operator” is a named demo actor, not production authentication;
 its connector statuses remain `prepared_only`. The signed operator lane
 verifies a Google OIDC identity for the configured operator email (with an
-isolated HMAC break-glass path) before any external write. Salesforce is
-represented by a read-only, prepared-only context contract and is not
-authenticated in this isolated deployment. `/api/ops/value-proof` reports
+isolated HMAC break-glass path) before any external write. Salesforce has a
+tenant-scoped OAuth callback and read-only REST query allowlist, but remains
+disabled until a real org authorizes it. `/api/ops/value-proof` reports
 observed deployment counts, approval latency, and action-item completion while
 explicitly separating those observations from unmeasured customer ROI, time
 saved, revenue lift, and willingness-to-pay.

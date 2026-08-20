@@ -105,10 +105,12 @@ Confluence is provisioned on the free plan in the dedicated `DRIFT` space and is
 authenticated through the Atlassian API gateway with a Confluence-scoped token.
 Each connector can be enabled independently with its own project, space, channel,
 or repository scope; a failed connector is recorded as `failed` and never turns
-into a successful claim. Salesforce is a prepared-only, read-only context
-contract for product, pricebook, and opportunity objects; it has no write path
-and is not authenticated in this deployment. See
-`docs/CONNECTOR_SECURITY.md` for the lane boundary.
+into a successful claim. Salesforce now has a deployed read-only OAuth lane,
+tenant-scoped Secret Manager storage, and an allowlist for product, pricebook,
+and opportunity objects. It has no write path and remains disabled until a
+real Salesforce org authorizes the isolated tenant. See
+`docs/SALESFORCE_RUNBOOK.md` and `docs/CONNECTOR_SECURITY.md` for setup and
+lane boundaries.
 
 | Connector | Enable flag | Required scope |
 | --- | --- | --- |

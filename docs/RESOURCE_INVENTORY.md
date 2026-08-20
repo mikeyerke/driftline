@@ -389,3 +389,22 @@ Project deletion is irreversible and should be the final reviewed action. The
 free trial closes automatically on 2026-11-17 unless the full paid account is
 activated; do not click the Cloud Console “Activate” upsell while the project
 is no longer needed.
+## 2026-08-19 production hardening additions
+
+- Salesforce OAuth scaffolding is deployed in code but remains disabled until a
+  real org authorizes it. The callback is
+  `https://driftline-xvxczqg62a-uc.a.run.app/api/connectors/salesforce/oauth/callback`.
+- Isolated Secret Manager placeholders created: `driftline-sf-client-id`,
+  `driftline-sf-client-secret`, and tenant refresh-token secret
+  `driftline-sf-driftline-demo`. No versions contain user credentials yet.
+- Runtime service account can access and add versions only to the dedicated
+  tenant Salesforce secret; it has no browser-visible credential path.
+- Cloud Tasks `driftline-jobs` retry policy is bounded to three attempts with a
+  five-second minimum and 60-second maximum backoff, one concurrent dispatch,
+  and 0.2 dispatches per second.
+- Job, workflow, source snapshot, and outcome records now carry a bounded
+  `expires_at` retention field. Firestore TTL operations were requested for the
+  relevant collection groups; verify their state before calling retention
+  cleanup complete.
+- Signed operator requests now resolve a tenant and role from
+  `DRIFTLINE_TENANT_MEMBERS`; the public demo remains packet-only.

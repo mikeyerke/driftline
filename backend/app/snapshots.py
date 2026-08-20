@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import os
 import threading
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 
@@ -61,6 +62,11 @@ class SnapshotRecord:
         )
 
     def to_dict(self) -> dict[str, str]:
+        try:
+            retention_days = int(os.getenv("DRIFTLINE_RETENTION_DAYS", "30"))
+        except ValueError:
+            retention_days = 30
+        retention_days = max(1, min(retention_days, 3650))
         return {
             "source_id": self.source_id,
             "body": self.body,
@@ -69,6 +75,10 @@ class SnapshotRecord:
             "retrieved_at": self.retrieved_at,
             "data_mode": self.data_mode,
             "snapshot_label": self.snapshot_label,
+            # Firestore TTL can delete expired snapshots without a scheduled
+            # cleanup process. The body remains bounded and append-only until
+            # this explicit retention window elapses.
+            "expires_at": datetime.now(UTC) + timedelta(days=retention_days),
         }
 
     @classmethod

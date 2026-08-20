@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import time
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from google.api_core.exceptions import AlreadyExists, InvalidArgument
@@ -22,10 +22,20 @@ from .models import (
 COLLECTION = "driftline_workflows"
 JOBS_COLLECTION = "driftline_jobs"
 OUTCOMES_COLLECTION = "driftline_outcome_measurements"
+SALESFORCE_COLLECTION = "driftline_salesforce_connections"
+SALESFORCE_OAUTH_STATES_COLLECTION = "driftline_salesforce_oauth_states"
 
 
 def _enabled() -> bool:
     return os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+
+
+def _retention_expiry() -> datetime:
+    try:
+        days = int(os.getenv("DRIFTLINE_RETENTION_DAYS", "30"))
+    except ValueError:
+        days = 30
+    return datetime.now(UTC) + timedelta(days=max(1, min(days, 3650)))
 
 
 def _client() -> firestore.Client:
@@ -77,6 +87,7 @@ def persist_workflow(state: WorkflowState) -> None:
     document = client.collection(COLLECTION).document(state.workflow_id)
     payload = state.to_dict()
     payload["updated_at"] = datetime.now(UTC).isoformat()
+    payload["expires_at"] = _retention_expiry()
     document.set(payload)
     _create_audit_events(document.collection("audit_events"), state.events)
 
@@ -120,6 +131,7 @@ def compare_and_set_workflow(state: WorkflowState, expected_status: str) -> bool
     document = client.collection(COLLECTION).document(state.workflow_id)
     payload = state.to_dict()
     payload["updated_at"] = datetime.now(UTC).isoformat()
+    payload["expires_at"] = _retention_expiry()
     @firestore.transactional
     def transition(tx: Any) -> bool:
         snapshot = document.get(transaction=tx)
@@ -180,6 +192,7 @@ def persist_job(job: JobState) -> None:
         return
     payload = job.to_dict()
     payload["updated_at"] = datetime.now(UTC).isoformat()
+    payload["expires_at"] = _retention_expiry()
     _client().collection(JOBS_COLLECTION).document(job.job_id).set(payload)
 
 
@@ -253,9 +266,11 @@ def persist_outcome_measurement(payload: dict[str, Any]) -> None:
     """Persist an aggregate operator-reported outcome without raw customer data."""
     if not _enabled():
         return
+    stored = dict(payload)
+    stored["expires_at"] = _retention_expiry()
     _client().collection(OUTCOMES_COLLECTION).document(
         str(payload["measurement_id"])
-    ).create(dict(payload))
+    ).create(stored)
 
 
 def list_outcome_measurements(limit: int = 50) -> list[dict[str, Any]]:
@@ -277,6 +292,53 @@ def list_outcome_measurements(limit: int = 50) -> list[dict[str, Any]]:
         }
         for snapshot in query.stream()
     ]
+
+
+def persist_salesforce_connection(payload: dict[str, Any]) -> None:
+    """Persist Salesforce connection metadata without storing bearer tokens.
+
+    The refresh token is kept in Secret Manager; this document is only the
+    tenant-scoped pointer and non-sensitive connection health metadata.
+    """
+    if not _enabled():
+        return
+    tenant_id = str(payload["tenant_id"])
+    safe = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"access_token", "refresh_token", "client_secret"}
+    }
+    _client().collection(SALESFORCE_COLLECTION).document(tenant_id).set(safe)
+
+
+def load_salesforce_connection(tenant_id: str) -> dict[str, Any] | None:
+    if not _enabled():
+        return None
+    snapshot = _client().collection(SALESFORCE_COLLECTION).document(tenant_id).get()
+    return snapshot.to_dict() if snapshot.exists else None
+
+
+def delete_salesforce_connection(tenant_id: str) -> None:
+    if not _enabled():
+        return
+    _client().collection(SALESFORCE_COLLECTION).document(tenant_id).delete()
+
+
+def persist_salesforce_oauth_state(state: str, payload: dict[str, Any]) -> None:
+    if not _enabled():
+        return
+    _client().collection(SALESFORCE_OAUTH_STATES_COLLECTION).document(state).set(payload)
+
+
+def consume_salesforce_oauth_state(state: str) -> dict[str, Any] | None:
+    if not _enabled():
+        return None
+    document = _client().collection(SALESFORCE_OAUTH_STATES_COLLECTION).document(state)
+    snapshot = document.get()
+    if not snapshot.exists:
+        return None
+    document.delete()
+    return snapshot.to_dict()
 
 
 def claim_job(job_id: str, claim_id: str) -> bool:

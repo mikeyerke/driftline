@@ -7,9 +7,10 @@ import hmac
 import json
 import logging
 import os
+import secrets
 from collections import deque
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 from time import monotonic
@@ -33,15 +34,22 @@ from .adk_runtime import run_agent_task
 from .artifacts import persist_action_artifact, persist_operational_output
 from .connectors import (
     ConnectorError,
+    SalesforceConfig,
+    SalesforceReadOnlyClient,
+    exchange_salesforce_code,
     execute_confluence_handoff,
     execute_github_handoff,
     execute_jira_handoff,
     execute_slack_handoff,
+    read_secret,
+    refresh_salesforce_token,
     reverse_confluence_handoff,
     reverse_github_handoff,
     reverse_jira_handoff,
     reverse_slack_handoff,
+    salesforce_authorization_url,
     salesforce_readiness,
+    write_secret_version,
 )
 from .decision_copilot import validate_approval_choice
 from .memory import build_memory_summary
@@ -55,13 +63,18 @@ from .multimodal import (
 from .persistence import (
     claim_job,
     compare_and_set_workflow,
+    consume_salesforce_oauth_state,
+    delete_salesforce_connection,
     list_jobs,
     list_outcome_measurements,
     list_workflows,
     load_job,
+    load_salesforce_connection,
     load_workflow,
     persist_job,
     persist_outcome_measurement,
+    persist_salesforce_connection,
+    persist_salesforce_oauth_state,
     persist_workflow,
     update_jobs_for_workflow,
 )
@@ -73,6 +86,12 @@ from .source import (
     source_definition,
     source_definitions,
     source_registry_health,
+)
+from .tenant import (
+    principal_for_claims,
+    principal_for_hmac,
+    public_demo_principal,
+    validate_tenant_id,
 )
 from .workflow import PolicyViolation, packet_markdown, workflow_store
 
@@ -116,6 +135,7 @@ async def security_headers(request: Request, call_next):
 
 class ApprovalRequest(BaseModel):
     approver: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     decision: str = Field(default="grandfather_existing_customers", max_length=64)
     artifact_decisions: dict[str, str] | None = None
     copilot_option_id: str | None = Field(default=None, min_length=3, max_length=64)
@@ -126,6 +146,7 @@ class ApprovalRequest(BaseModel):
 
 class UndoRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_mode: Literal["demo", "signed"] = "demo"
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
@@ -157,6 +178,7 @@ class JobStartRequest(BaseModel):
     run_mode: Literal["demo", "monitor"] = "demo"
     source_id: str = Field(default="public/pricing", min_length=1, max_length=80)
     operator: str = Field(default="demo-operator", min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
 
@@ -177,6 +199,7 @@ class SourceOnboardingRequest(BaseModel):
     freshness_sla_hours: int = Field(default=48, ge=1, le=168)
     parser: Literal["html", "text"] = "html"
     registered_by: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
 
@@ -185,6 +208,7 @@ class OutcomeMeasurementRequest(BaseModel):
     """Aggregate pilot evidence; raw customer text and identifiers are excluded."""
 
     operator: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     source_type: Literal[
         "customer_interview", "pilot_log", "win_loss", "billing_record"
     ]
@@ -198,6 +222,17 @@ class OutcomeMeasurementRequest(BaseModel):
     evidence_ref: str = Field(min_length=1, max_length=300)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class SalesforceConnectRequest(BaseModel):
+    operator: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class SalesforceHealthRequest(SalesforceConnectRequest):
+    pass
 
 
 def _positive_int(name: str, default: int) -> int:
@@ -217,6 +252,10 @@ DEMO_MAX_MUTATIONS = _positive_int("DRIFTLINE_DEMO_MAX_MUTATIONS", 30)
 DEMO_WINDOW_SECONDS = _positive_int("DRIFTLINE_DEMO_WINDOW_SECONDS", 3600)
 _demo_mutation_times: deque[float] = deque()
 _demo_mutation_lock = Lock()
+MAX_JOB_ATTEMPTS = _positive_int("DRIFTLINE_MAX_JOB_ATTEMPTS", 3)
+
+_salesforce_oauth_states: dict[str, dict[str, object]] = {}
+_salesforce_oauth_lock = Lock()
 
 _jobs: dict[str, JobState] = {}
 _jobs_lock = Lock()
@@ -426,6 +465,7 @@ def _verify_approval_mode(
     mode: str,
     token: str | None,
     identity_token: str | None = None,
+    requested_tenant_id: str | None = None,
 ) -> dict[str, str]:
     """Bound public decisions to an explicit demo or signed approval mode.
 
@@ -451,10 +491,13 @@ def _verify_approval_mode(
         raise HTTPException(status_code=403, detail="Approval mode is not enabled")
     cleaned = actor.strip()
     if mode == "demo":
+        principal = public_demo_principal()
         return {
             "mode": "demo",
             "identity": "named_demo_actor",
             "scope": "sandbox_packet_only",
+            "tenant_id": principal.tenant_id,
+            "role": principal.role,
         }
     if identity_token:
         audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
@@ -479,12 +522,24 @@ def _verify_approval_mode(
         }
         if allowed and email not in allowed:
             raise HTTPException(status_code=403, detail="Google operator is not allowlisted")
+        try:
+            principal = principal_for_claims(
+                subject=str(claims.get("sub", "")),
+                email=email,
+                requested_tenant_id=requested_tenant_id,
+            )
+        except (ValueError, PermissionError) as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        if not principal.can("operator"):
+            raise HTTPException(status_code=403, detail="Tenant role cannot perform this operation")
         return {
             "mode": "signed",
             "identity": "google_oidc_operator",
             "scope": "configured",
             "subject": str(claims.get("sub", "")),
             "email": email,
+            "tenant_id": principal.tenant_id,
+            "role": principal.role,
         }
     secret = os.getenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "")
     if not secret or not token:
@@ -493,7 +548,14 @@ def _verify_approval_mode(
     expected = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(token, expected):
         raise HTTPException(status_code=401, detail="Invalid signed approval")
-    return {"mode": "signed", "identity": "signed_operator", "scope": "configured"}
+    principal = principal_for_hmac(requested_tenant_id)
+    return {
+        "mode": "signed",
+        "identity": "signed_operator",
+        "scope": "configured",
+        "tenant_id": principal.tenant_id,
+        "role": principal.role,
+    }
 
 
 _CONNECTOR_HANDOFFS: tuple[tuple[str, Callable[[WorkflowState], dict[str, object]], Callable[[WorkflowState], dict[str, object]]], ...] = (
@@ -604,8 +666,17 @@ async def _run_job(job_id: str) -> None:
         job.error = None
     except Exception:
         logger.exception("Async Driftline job failed")
-        job.status = "failed"
-        job.error = "The agent job failed before producing a workflow. Retry the scan."
+        if job.run_attempts < MAX_JOB_ATTEMPTS:
+            # Returning a retriable state lets Cloud Tasks redeliver the same
+            # deterministic task. The durable claim is cleared only after the
+            # failed attempt has been recorded, so a duplicate delivery cannot
+            # run concurrently with the retry.
+            job.status = "queued"
+            job.claim_id = None
+            job.error = f"Transient agent failure; retry {job.run_attempts}/{MAX_JOB_ATTEMPTS}."
+        else:
+            job.status = "failed"
+            job.error = "The agent job failed after bounded retries."
     _set_job(job)
 
 
@@ -650,6 +721,169 @@ def health() -> dict[str, str | bool]:
     }
 
 
+def _salesforce_secret_name(tenant_id: str) -> str:
+    safe = validate_tenant_id(tenant_id)
+    # Secret names are deliberately deterministic, bounded, and never based
+    # on an email address or arbitrary user input.
+    return f"driftline-sf-{safe}"[:100]
+
+
+def _save_salesforce_state(state: str, payload: dict[str, object]) -> None:
+    expires_at = float(payload.get("expires_at", 0))
+    with _salesforce_oauth_lock:
+        _salesforce_oauth_states[state] = payload
+        # Keep the local fallback bounded and remove expired state eagerly.
+        for key, item in list(_salesforce_oauth_states.items()):
+            if float(item.get("expires_at", 0)) < expires_at - 900:
+                _salesforce_oauth_states.pop(key, None)
+    persist_salesforce_oauth_state(state, payload)
+
+
+def _consume_salesforce_state(state: str) -> dict[str, object] | None:
+    with _salesforce_oauth_lock:
+        payload = _salesforce_oauth_states.pop(state, None)
+    durable = consume_salesforce_oauth_state(state)
+    result = durable or payload
+    if not result or float(result.get("expires_at", 0)) < datetime.now(UTC).timestamp():
+        return None
+    return result
+
+
+@app.post("/api/connectors/salesforce/start")
+def start_salesforce_connection(request: SalesforceConnectRequest) -> dict[str, object]:
+    """Start a tenant-scoped Salesforce OAuth authorization-code flow."""
+    identity = _verify_approval_mode(
+        "salesforce-connect",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    config = SalesforceConfig.from_env()
+    try:
+        config.validate_oauth()
+        tenant_id = identity["tenant_id"]
+        state = secrets.token_urlsafe(32)
+        _save_salesforce_state(
+            state,
+            {
+                "tenant_id": tenant_id,
+                "operator": request.operator.strip(),
+                "subject": identity.get("subject", ""),
+                "email": identity.get("email", ""),
+                "expires_at": datetime.now(UTC).timestamp() + 600,
+            },
+        )
+        return {
+            "status": "authorization_required",
+            "tenant_id": tenant_id,
+            "authorize_url": salesforce_authorization_url(config, state),
+            "expires_in_seconds": 600,
+            "scopes": config.scope.split(),
+            "disclosure": "The callback stores only a tenant-scoped refresh-token reference in Secret Manager; no Salesforce records are copied.",
+        }
+    except (ConnectorError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/connectors/salesforce/oauth/callback")
+def salesforce_oauth_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+) -> Response:
+    """Consume a one-time callback and persist only safe connection metadata."""
+    if error:
+        return PlainTextResponse("Salesforce authorization was declined.", status_code=400)
+    if not code or not state:
+        return PlainTextResponse("Salesforce callback is incomplete.", status_code=400)
+    callback_state = _consume_salesforce_state(state)
+    if callback_state is None:
+        return PlainTextResponse("Salesforce authorization expired or was already used.", status_code=400)
+    config = SalesforceConfig.from_env()
+    try:
+        result = exchange_salesforce_code(config, code)
+        refresh_token = str(result.get("refresh_token", ""))
+        if not refresh_token:
+            raise ConnectorError("salesforce_refresh_token_missing")
+        tenant_id = validate_tenant_id(str(callback_state["tenant_id"]))
+        secret_name = _salesforce_secret_name(tenant_id)
+        write_secret_version(secret_name, refresh_token)
+        persist_salesforce_connection(
+            {
+                "tenant_id": tenant_id,
+                "instance_url": str(result.get("instance_url", "")).rstrip("/"),
+                "secret_name": secret_name,
+                "scopes": config.scope.split(),
+                "status": "connected_read_only",
+                "connected_at": utc_now(),
+                "operator_email": callback_state.get("email", ""),
+            }
+        )
+        return PlainTextResponse(
+            "Salesforce connected to Driftline in read-only mode. You can close this tab."
+        )
+    except (ConnectorError, ValueError) as exc:
+        logger.warning("Salesforce OAuth callback failed: %s", str(exc))
+        return PlainTextResponse(
+            "Driftline could not finish Salesforce setup. Provision the tenant Secret Manager secret and retry.",
+            status_code=503,
+        )
+
+
+@app.post("/api/connectors/salesforce/health")
+def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
+    """Run aggregate-only read probes for the authenticated tenant."""
+    identity = _verify_approval_mode(
+        "salesforce-health",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    tenant_id = identity["tenant_id"]
+    connection = load_salesforce_connection(tenant_id)
+    if not connection or connection.get("status") != "connected_read_only":
+        raise HTTPException(status_code=409, detail="Salesforce is not connected for this tenant")
+    config = SalesforceConfig.from_env()
+    try:
+        refresh_token = read_secret(str(connection["secret_name"]))
+        token = refresh_salesforce_token(config, refresh_token)
+        client = SalesforceReadOnlyClient(
+            config,
+            access_token=str(token["access_token"]),
+            instance_url=str(connection["instance_url"]),
+        )
+        result = client.health_summary()
+        return {"tenant_id": tenant_id, **result}
+    except ConnectorError as exc:
+        logger.warning("Salesforce health probe failed: %s", str(exc))
+        raise HTTPException(status_code=503, detail="Salesforce read probe failed") from exc
+
+
+@app.delete("/api/connectors/salesforce")
+def disconnect_salesforce(request: SalesforceConnectRequest) -> dict[str, object]:
+    """Revoke Driftline's connection metadata; token deletion stays recoverable."""
+    identity = _verify_approval_mode(
+        "salesforce-disconnect",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    delete_salesforce_connection(identity["tenant_id"])
+    return {
+        "status": "disconnected",
+        "tenant_id": identity["tenant_id"],
+        "follow_up": "Revoke the Driftline app in Salesforce and delete the tenant secret during offboarding.",
+    }
+
+
 @app.get("/api/sources")
 def get_sources() -> dict[str, object]:
     """Expose the deliberately small source registry to the monitor UI."""
@@ -665,6 +899,7 @@ def onboard_operator_source(request: SourceOnboardingRequest) -> dict[str, objec
         "signed",
         request.approval_token,
         request.identity_token,
+        request.tenant_id,
     )
     try:
         definition = register_operator_source(
@@ -753,6 +988,11 @@ def get_ops_summary() -> dict[str, object]:
                 os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
             ),
             "external_writes_require_signed": True,
+            "tenant_auth": {
+                "configured": bool(os.getenv("DRIFTLINE_TENANT_MEMBERS", "").strip()),
+                "default_tenant": os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo"),
+                "role_model": ["viewer", "operator", "owner"],
+            },
         },
         "jobs": {
             "total": len(jobs),
@@ -902,6 +1142,7 @@ def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, 
         "signed",
         request.approval_token,
         request.identity_token,
+        request.tenant_id,
     )
     if not request.evidence_ref.startswith(("https://", "gs://", "artifact://")):
         raise HTTPException(
@@ -1070,6 +1311,7 @@ async def start_demo_job(
             "signed",
             request.approval_token,
             request.identity_token,
+            request.tenant_id,
         )
     if definition.get("dynamic") == "true" and request.run_mode != "monitor":
         raise HTTPException(
@@ -1195,7 +1437,10 @@ async def run_job(job_id: str, request: Request) -> dict:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await _run_job(job_id)
-    return get_job(job_id)
+    payload = get_job(job_id)
+    if payload.get("status") == "queued" and payload.get("error", "").startswith("Transient"):
+        raise HTTPException(status_code=503, detail="Transient job failure; Cloud Tasks will retry")
+    return payload
 
 
 @app.post("/api/agent/run")
@@ -1456,6 +1701,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         request.approval_mode,
         request.approval_token,
         request.identity_token,
+        request.tenant_id,
     )
     try:
 
@@ -1531,6 +1777,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         request.approval_mode,
         request.approval_token,
         request.identity_token,
+        request.tenant_id,
     )
     try:
 
