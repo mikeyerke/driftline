@@ -196,7 +196,12 @@ export default function App() {
         selectedOption?.copilot_override_reason || null,
       );
       setWorkflowState(state);
-      setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
+      setJob((current) => current ? {
+        ...current,
+        status: state.status,
+        workflow: state,
+        public_summary: "Action plan recorded · sandbox packet created",
+      } : current);
       setScanMessage("Action plan recorded · sandbox packet created");
       refreshHistory();
     } catch (error) {
@@ -212,7 +217,12 @@ export default function App() {
     try {
       const state = await undoWorkflow(workflowId);
       setWorkflowState(state);
-      setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
+      setJob((current) => current ? {
+        ...current,
+        status: state.status,
+        workflow: state,
+        public_summary: "Decision reopened · no external systems were changed",
+      } : current);
       setScanMessage("Decision reopened · no external systems were changed");
       refreshHistory();
     } catch (error) {
@@ -228,7 +238,12 @@ export default function App() {
     try {
       const state = await dismissWorkflow(workflowId, reason);
       setWorkflowState(state);
-      setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
+      setJob((current) => current ? {
+        ...current,
+        status: state.status,
+        workflow: state,
+        public_summary: "Signal dismissed · reason recorded in the audit trail",
+      } : current);
       setScanMessage("Signal dismissed · reason recorded in the audit trail");
       refreshHistory();
     } catch (error) {
