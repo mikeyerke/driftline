@@ -24,13 +24,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00061-lnj` from commit `8267a32` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; Jira, GitHub, Confluence, and Slack are enabled through isolated Secret Manager bindings |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00076-t2z` from commit `ec1ce91` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; connectors remain independently scoped through isolated Secret Manager bindings |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:c222b0de-9feb-4fa2-a9d7-906c99bff117`; digest `sha256:697e59f57bc417ba3fc5fb15e0e94f4e124def57c6edc8c907060459c2ed08b9` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline:31ac8e11-1986-4dff-a625-f35f7d1ad0e8`; digest `sha256:b99d326a26a801c6ad2af476cdeef90844279b3f95f1596840fbe143b7babb49` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -57,6 +57,35 @@ Cloud Build and Cloud Run may enable Google-managed dependency APIs in addition
 to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
 account, API key, repository, or environment variable is reused.
+
+## 2026-08-20 Change Card and connector hardening release
+
+- Source commit: `ec1ce91` (Change Card utility slice plus connector secret
+  trimming), pushed to `https://github.com/mikeyerke/driftline`.
+- Cloud Build `31ac8e11-1986-4dff-a625-f35f7d1ad0e8` — `SUCCESS`; Artifact
+  Registry image digest `sha256:b99d326a26a801c6ad2af476cdeef90844279b3f95f1596840fbe143b7babb49`.
+- Cloud Run revision `driftline-00076-t2z` serves 100% of traffic at the public
+  alias with scale-to-zero, one-instance cap, 512 MiB, concurrency 20, and
+  300-second timeout. The active gcloud project was verified as
+  `driftline-hackathon-2026` immediately before deployment.
+- The deterministic Change Card now carries hash-bound evidence, materiality
+  score/severity, decision window, source confidence, explicit contradiction
+  review state, internal-exposure disclosure, role-specific packets, and
+  append-only owner-action closure. Synthetic runs explicitly show “not CRM
+  data” and unavailable opportunity/renewal counts.
+- Final live smoke workflow `3eea56b8-125b-4fb5-bb3d-0700e168f2a3` reached the
+  approval gate, approved into four owner action items with `external_write=false`,
+  then undid back to `needs_approval` with all four action items marked
+  `reversed`. `/api/ops/value-proof` observed the new card and named owners.
+- Final asynchronous ADK job `job-a66e9453690b` reached `needs_approval` with
+  `model=gemini-3.5-flash`, `execution_mode=google_adk`, exactly
+  `inspect_source_change` and `get_workflow_state`, and no error. Its response
+  named the four affected work surfaces and stopped for human approval.
+- `/health` returned Firestore persistence and async jobs enabled. The revision
+  error-log query returned no `ERROR` entries after deployment. A historical
+  connector failure caused by a newline in a copied token was hardened by
+  trimming environment and Secret Manager values before HTTP use; no secret
+  value is recorded here.
 
 ## Current connector release evidence
 
