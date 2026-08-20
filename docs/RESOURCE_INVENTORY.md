@@ -149,6 +149,15 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   logs were observed. Cloud Tasks remains bounded at three attempts, one
   concurrent dispatch, and 0.2 dispatches per second.
 
+## 2026-08-20 Continuous verification gate (external)
+
+- Source commit `5c279c2` adds `.github/workflows/verify.yml` for every push
+  to `main` and every pull request. It has `contents: read` permissions only,
+  uses no cloud credentials, and never deploys.
+- GitHub Actions run `32411709745` completed successfully: backend Ruff plus
+  the full Python suite and the locked frontend `npm ci`/production build all
+  passed. Deployment remains an explicit Cloud Build step after this gate.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
