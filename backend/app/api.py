@@ -3735,6 +3735,7 @@ def get_multimodal_evidence(
 ) -> dict[str, object]:
     """Return before/after visual metadata and the combined evidence hash."""
     fallback_reason: str | None = None
+    resolved_mode = mode
     try:
         evidence = get_visual_evidence(asset_id, mode)
     except MultimodalUnavailable as exc:
@@ -3746,12 +3747,13 @@ def get_multimodal_evidence(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         try:
             evidence = get_visual_evidence(asset_id, "demo")
+            resolved_mode = "demo"
             fallback_reason = str(exc)
         except MultimodalUnavailable:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
     payload = evidence.to_dict()
-    payload["before_url"] = f"/api/multimodal/assets/{asset_id}/before?mode={mode}"
-    payload["after_url"] = f"/api/multimodal/assets/{asset_id}/after?mode={mode}"
+    payload["before_url"] = f"/api/multimodal/assets/{asset_id}/before?mode={resolved_mode}"
+    payload["after_url"] = f"/api/multimodal/assets/{asset_id}/after?mode={resolved_mode}"
     if fallback_reason:
         payload["fallback_reason"] = fallback_reason
     return payload

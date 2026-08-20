@@ -67,6 +67,8 @@ def test_live_visual_metadata_degrades_to_labelled_demo_pair(monkeypatch) -> Non
     assert response.status_code == 200
     assert response.json()["data_mode"] == "synthetic_demo"
     assert response.json()["fallback_reason"] == "visual_asset_fetch_failed"
+    assert "mode=demo" in response.json()["before_url"]
+    assert "mode=demo" in response.json()["after_url"]
 
 
 def test_multimodal_analysis_has_a_bounded_retryable_quota(monkeypatch) -> None:
