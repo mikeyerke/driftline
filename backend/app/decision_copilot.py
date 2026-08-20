@@ -89,7 +89,11 @@ decision_copilot_agent = Agent(
     generate_content_config=GenerateContentConfig(
         response_mime_type="application/json",
         response_json_schema=DecisionCopilot.model_json_schema(),
-        max_output_tokens=1800,
+        # Three options each cover every mapped artifact, citations, tradeoffs,
+        # and rollback text.  1,800 tokens was too tight for Gemini to finish
+        # the schema reliably, which caused an avoidable demo fallback.  Keep
+        # this bounded, but leave enough room for a complete response.
+        max_output_tokens=3200,
         thinking_config=ThinkingConfig(thinking_level="LOW"),
     ),
     description=(
