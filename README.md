@@ -381,6 +381,12 @@ The verified local suite also runs Ruff lint and format checks. If uv is not
 installed, a standard Python virtual environment with the dependencies in
 backend/pyproject.toml produces the same test result.
 
+Every push to `main` and every pull request runs the backend lint/tests and
+locked frontend production build in GitHub Actions. The workflow has
+read-only repository permissions, does not require cloud credentials, and does
+not deploy; deployment remains an explicit Cloud Build operation after the
+verification gates pass.
+
 ## Deploy to Google Cloud
 
 The contest deployment is isolated in the driftline-hackathon-2026 project.
