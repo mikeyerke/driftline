@@ -10,6 +10,20 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-20 final UI copy and live quality gate (live)
+
+- Source commit `6117327` removes a misleading hard-coded “four work items”
+  claim from the owner action queue; the copy now reflects the durable item
+  count returned by the workflow.
+- Cloud Build `0e4f1d76-244f-4385-b736-7f9c54c98631` completed `SUCCESS` and
+  Cloud Run revision `driftline-00030-kkb` serves 100% of traffic. GitHub
+  Actions run `32428607406` passed backend tests, Ruff, frontend production
+  build, and standalone image build.
+- Current public browser checks found no console messages. Lighthouse passed
+  all 57 audits on desktop and mobile: accessibility 100, best practices 100,
+  SEO 100, and agentic browsing 100. `/health` remains HTTP 200 with
+  Firestore persistence and async jobs enabled.
+
 ## 2026-08-20 Salesforce read-only scope release (live)
 
 - Source commit `bb0dd66` narrows the Salesforce OAuth callback binding to the
