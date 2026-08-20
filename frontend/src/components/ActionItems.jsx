@@ -34,7 +34,7 @@ export default function ActionItems({ workflowId, items, onChange }) {
         <div><h2 id="action-items-title">Owner action queue</h2><span className="live-label public">Human-owned</span></div>
         <span className="muted">Reversible lifecycle</span>
       </header>
-      <p className="action-items-intro">Approval created four durable work items. Driftline can track ownership without pretending to update a CRM or customer system.</p>
+      <p className="action-items-intro">Approval created {items.length} durable work {items.length === 1 ? "item" : "items"}. Driftline can track ownership without pretending to update a CRM or customer system.</p>
       {error && <p className="trace-error action-items-error" role="alert">{error}</p>}
       <div className="action-item-list">
         {items.map((item) => (
