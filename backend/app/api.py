@@ -80,6 +80,7 @@ from .persistence import (
     list_outcome_measurements,
     list_tenant_memberships,
     list_workflows,
+    load_connector_binding,
     load_job,
     load_salesforce_connection,
     load_tenant,
@@ -1465,6 +1466,53 @@ def register_connector_binding(
             "Binding is active; connector calls will use this tenant secret."
             if status == "active"
             else "Provision the deterministic secret, then repeat this signed owner request."
+        ),
+    }
+
+
+@app.post("/api/connectors/{connector}/binding/revoke")
+def revoke_connector_binding(
+    connector: str, request: ConnectorBindingRequest
+) -> dict[str, object]:
+    """Revoke one tenant binding without deleting or returning its secret."""
+    try:
+        safe_connector = validate_connector_name(connector)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    identity = _verify_approval_mode(
+        f"connector-binding-revoke:{safe_connector}",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    tenant_id = identity["tenant_id"]
+    binding = load_connector_binding(tenant_id, safe_connector)
+    if binding is None:
+        raise HTTPException(status_code=404, detail="connector_binding_not_found")
+    revoked = persist_connector_binding(
+        {
+            **binding,
+            "tenant_id": tenant_id,
+            "connector": safe_connector,
+            "status": "revoked",
+            "revoked_at": utc_now(),
+            "revoked_by": identity.get("email") or identity.get("identity"),
+        }
+    )
+    return {
+        "status": "revoked",
+        "tenant_id": tenant_id,
+        "connector": safe_connector,
+        "secret_name": revoked["secret_name"],
+        "credential_value_exposed": False,
+        "follow_up": (
+            "Revoke the provider token and disable or rotate the Secret Manager "
+            "version during offboarding; re-run the signed owner binding route "
+            "only after a replacement secret is ready."
         ),
     }
 

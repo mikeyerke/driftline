@@ -243,6 +243,23 @@ def test_tenant_connector_secret_resolution_fails_closed_without_binding(monkeyp
         JiraConfig.from_env("acme")
 
 
+def test_revoked_tenant_connector_binding_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
+    monkeypatch.delenv("DRIFTLINE_JIRA_TOKEN", raising=False)
+    monkeypatch.delenv("DRIFTLINE_JIRA_TOKEN_SECRET", raising=False)
+    monkeypatch.setattr(
+        "app.persistence.load_connector_binding",
+        lambda *_args: {
+            "tenant_id": "acme",
+            "connector": "jira",
+            "secret_name": "driftline-tenant-acme-jira",
+            "status": "revoked",
+        },
+    )
+    with pytest.raises(ConnectorError, match="tenant_binding_missing"):
+        JiraConfig.from_env("acme")
+
+
 def test_confluence_page_creation_is_marker_idempotent() -> None:
     requests = []
     responses = [

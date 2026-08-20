@@ -218,6 +218,31 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     assert listed.status_code == 200
     assert listed.json()["credential_values_exposed"] is False
     assert listed.json()["bindings"][0]["secret_name"] == payload["secret_name"]
+    revoked = client.post(
+        "/api/connectors/jira/binding/revoke",
+        json={
+            "operator": "Binding owner",
+            "tenant_id": "binding-acme",
+            "approval_token": hmac.new(
+                secret.encode(),
+                b"connector-binding-revoke:jira:Binding owner",
+                hashlib.sha256,
+            ).hexdigest(),
+        },
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "revoked"
+    assert revoked.json()["credential_value_exposed"] is False
+    assert client.get(
+        "/api/connectors/bindings",
+        params={
+            "operator": "Binding owner",
+            "tenant_id": "binding-acme",
+            "approval_token": hmac.new(
+                secret.encode(), b"connector-bindings-list:Binding owner", hashlib.sha256
+            ).hexdigest(),
+        },
+    ).json()["bindings"][0]["status"] == "revoked"
     tenant_metadata = client.get(
         "/api/tenants",
         params={
