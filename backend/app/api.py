@@ -211,6 +211,10 @@ class TenantMemberRequest(BaseModel):
 
 class ActionItemRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_mode: Literal["demo", "signed"] = "demo"
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
 
 
 class ActionFailureRequest(ActionItemRequest):
@@ -2212,14 +2216,35 @@ def _action_event(state: WorkflowState, item_id: str, outcome: str, actor: str) 
     state.updated_at = utc_now()
 
 
+def _authorize_action_request(
+    workflow_id: str, request: ActionItemRequest
+) -> dict[str, str]:
+    identity = _verify_approval_mode(
+        workflow_id,
+        request.actor,
+        request.approval_mode,
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    _authorize_workflow_tenant(workflow_id, identity)
+    if not _reserve_demo_mutation(identity.get("tenant_id")):
+        raise HTTPException(
+            status_code=429,
+            detail="Action mutation rate limit reached for this tenant; retry later.",
+        )
+    return identity
+
+
 def _action_transition(
     workflow_id: str,
     item_id: str,
-    actor: str,
+    request: ActionItemRequest,
     transition: Callable[[WorkflowState, dict[str, object], str], None],
 ) -> dict:
     """Apply one idempotent action-item transition through workflow CAS."""
-    cleaned_actor = _require_action_actor(actor)
+    _authorize_action_request(workflow_id, request)
+    cleaned_actor = _require_action_actor(request.actor)
 
     def apply(state: WorkflowState) -> WorkflowState:
         if state.status.value != "complete":
@@ -2263,7 +2288,7 @@ def claim_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> 
             )
             _action_event(state, item_id, "claimed", actor)
 
-        return _action_transition(workflow_id, item_id, request.actor, transition)
+        return _action_transition(workflow_id, item_id, request, transition)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
@@ -2299,7 +2324,7 @@ def complete_action(workflow_id: str, item_id: str, request: ActionItemRequest) 
             )
             _action_event(state, item_id, "completed", actor)
 
-        return _action_transition(workflow_id, item_id, request.actor, transition)
+        return _action_transition(workflow_id, item_id, request, transition)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
@@ -2336,7 +2361,7 @@ def fail_action(workflow_id: str, item_id: str, request: ActionFailureRequest) -
             )
             _action_event(state, item_id, "failed", actor)
 
-        return _action_transition(workflow_id, item_id, request.actor, transition)
+        return _action_transition(workflow_id, item_id, request, transition)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
@@ -2367,7 +2392,7 @@ def retry_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> 
             )
             _action_event(state, item_id, "retried", actor)
 
-        return _action_transition(workflow_id, item_id, request.actor, transition)
+        return _action_transition(workflow_id, item_id, request, transition)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
@@ -2400,7 +2425,7 @@ def reverse_action(workflow_id: str, item_id: str, request: ActionItemRequest) -
             )
             _action_event(state, item_id, "reversed", actor)
 
-        return _action_transition(workflow_id, item_id, request.actor, transition)
+        return _action_transition(workflow_id, item_id, request, transition)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:

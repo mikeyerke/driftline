@@ -389,6 +389,12 @@ def test_tenant_bound_reads_require_matching_signed_identity(monkeypatch) -> Non
     public = client.get(f"/api/workflows/{state.workflow_id}")
     assert public.status_code == 403
     assert public.json()["detail"] == "Tenant-scoped resource requires signed approval"
+    action_public = client.post(
+        f"/api/workflows/{state.workflow_id}/actions/action-1/claim",
+        json={"actor": "Action actor"},
+    )
+    assert action_public.status_code == 403
+    assert action_public.json()["detail"] == "Tenant-scoped workflow requires signed approval"
     assert client.get("/api/jobs/job-tenant-read").status_code == 403
     assert all(item["job_id"] != job.job_id for item in client.get("/api/jobs").json()["jobs"])
     assert state.workflow_id not in str(client.get("/api/memory/summary").json())
