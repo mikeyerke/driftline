@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app import api, source
 from app.api import app
+from app.connectors import ConnectorError, _tenant_secret_or_env
 from app.models import JobState
 from app.tenant import principal_for_hmac, tenant_operator_signing_secret_name
 
@@ -515,6 +516,76 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     assert tenant_metadata.status_code == 200
     assert tenant_metadata.json()["tenant"]["tenant_id"] == "binding-acme"
     assert tenant_metadata.json()["credential_values_exposed"] is False
+
+
+def test_owner_rotation_fails_closed_until_binding_is_reverified(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "rotation-test-secret"
+    tenant_id = "rotation-acme"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+    monkeypatch.setattr(api, "read_secret", lambda _name: "replacement-ready")
+    api.persist_connector_binding(
+        {
+            "tenant_id": tenant_id,
+            "connector": "jira",
+            "secret_name": f"driftline-tenant-{tenant_id}-jira",
+            "status": "active",
+            "scope": "tenant_bound_connector_credential",
+        }
+    )
+    token = hmac.new(
+        secret.encode(),
+        b"connector-binding-rotate:jira:Rotation owner",
+        hashlib.sha256,
+    ).hexdigest()
+
+    response = client.post(
+        "/api/connectors/jira/binding/rotate",
+        json={
+            "operator": "Rotation owner",
+            "tenant_id": tenant_id,
+            "reason": "scheduled credential rotation",
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "rotation_pending"
+    assert payload["rotation_id"].startswith("rotation-")
+    assert payload["credential_value_exposed"] is False
+    assert api.load_connector_binding(tenant_id, "jira")["status"] == "rotation_pending"
+    with pytest.raises(ConnectorError, match="jira_tenant_binding_missing"):
+        _tenant_secret_or_env(tenant_id, "jira", "DRIFTLINE_JIRA_TOKEN")
+
+    reactivate = client.post(
+        "/api/connectors/jira/binding",
+        json={
+            "operator": "Rotation owner",
+            "tenant_id": tenant_id,
+            "approval_token": hmac.new(
+                secret.encode(), b"connector-binding:jira:Rotation owner", hashlib.sha256
+            ).hexdigest(),
+        },
+    )
+    assert reactivate.status_code == 200
+    assert reactivate.json()["status"] == "active"
+    audit = client.get(
+        "/api/tenants/audit",
+        params={
+            "operator": "Rotation owner",
+            "tenant_id": tenant_id,
+            "approval_token": hmac.new(
+                secret.encode(), b"tenant-audit:Rotation owner", hashlib.sha256
+            ).hexdigest(),
+        },
+    )
+    assert audit.status_code == 200
+    assert "connector_binding_rotation_requested" in {
+        event["event_type"] for event in audit.json()["events"]
+    }
 
 
 def test_owner_can_register_non_secret_connector_profile(monkeypatch) -> None:

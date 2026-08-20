@@ -210,6 +210,16 @@ class ConnectorBindingRequest(BaseModel):
     identity_token: str | None = Field(default=None, max_length=4096)
 
 
+class ConnectorBindingRotationRequest(BaseModel):
+    """Owner request to begin a tenant connector credential rotation."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    reason: str = Field(default="credential_rotation", min_length=3, max_length=240)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
 class ConnectorProfileRequest(BaseModel):
     """Owner-managed non-secret connector destination profile."""
 
@@ -1776,6 +1786,78 @@ def revoke_connector_binding(
             "Revoke the provider token and disable or rotate the Secret Manager "
             "version during offboarding; re-run the signed owner binding route "
             "only after a replacement secret is ready."
+        ),
+    }
+
+
+@app.post("/api/connectors/{connector}/binding/rotate")
+def rotate_connector_binding(
+    connector: str, request: ConnectorBindingRotationRequest
+) -> dict[str, object]:
+    """Begin an owner-controlled credential rotation without accepting a secret.
+
+    Rotation is a two-step control-plane operation: this endpoint moves the
+    binding to ``rotation_pending`` so connector calls fail closed, then an
+    infrastructure operator adds a new version to the deterministic Secret
+    Manager secret and repeats the normal binding verification route.  The
+    runtime never receives or returns a credential value.
+    """
+    try:
+        safe_connector = validate_connector_name(connector)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    identity = _verify_approval_mode(
+        f"connector-binding-rotate:{safe_connector}",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    tenant_id = identity["tenant_id"]
+    binding = load_connector_binding(tenant_id, safe_connector)
+    if binding is None:
+        raise HTTPException(status_code=404, detail="connector_binding_not_found")
+    now = utc_now()
+    rotation_id = f"rotation-{uuid4().hex}"
+    pending = persist_connector_binding(
+        {
+            **binding,
+            "tenant_id": tenant_id,
+            "connector": safe_connector,
+            "status": "rotation_pending",
+            "rotation_id": rotation_id,
+            "rotation_reason": request.reason.strip(),
+            "rotation_started_at": now,
+            "rotation_started_by": identity.get("email") or identity.get("identity"),
+            "updated_at": now,
+        }
+    )
+    audit_event = persist_tenant_audit_event(
+        {
+            "tenant_id": tenant_id,
+            "event_type": "connector_binding_rotation_requested",
+            "connector": safe_connector,
+            "status": "rotation_pending",
+            "rotation_id": rotation_id,
+            "reason": request.reason.strip(),
+            "secret_name": pending["secret_name"],
+            "actor": identity.get("email") or identity.get("identity"),
+        }
+    )
+    return {
+        "status": "rotation_pending",
+        "tenant_id": tenant_id,
+        "connector": safe_connector,
+        "rotation_id": rotation_id,
+        "secret_name": pending["secret_name"],
+        "credential_value_exposed": False,
+        "audit_event_id": audit_event["event_id"],
+        "next_step": (
+            "Add a replacement version to this deterministic Secret Manager secret, "
+            "then repeat the signed owner binding request to verify and reactivate it."
         ),
     }
 

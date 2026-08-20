@@ -181,9 +181,12 @@ activated only after the deterministic tenant Secret Manager secret exists, and
 `POST /api/connectors/{connector}/binding/revoke` can disable it without
 returning or deleting the secret. Connector resolution fails closed until a
 replacement secret version is provisioned and the owner re-verifies the
-binding. Activation and revocation append metadata-only records readable from
-the signed `/api/tenants/audit` route; lifecycle records never contain the
-credential value.
+binding. `POST /api/connectors/{connector}/binding/rotate` starts an audited
+rotation, moves the binding to `rotation_pending`, and fails connector
+resolution closed until that replacement version is verified. Activation,
+rotation, and revocation append metadata-only records readable from the signed
+`/api/tenants/audit` route; lifecycle records never contain the credential
+value.
 
 The deployed registry includes three verified public examples: Crayon's pricing
 inquiry page, Kompyte's competitive-intelligence article, and Visualping's

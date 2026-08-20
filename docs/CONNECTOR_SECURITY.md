@@ -46,7 +46,11 @@ owner-only `POST /api/connectors/{connector}/binding/revoke` route marks a
 binding revoked without deleting or returning the secret; connector resolution
 then fails closed until a replacement version is provisioned and the binding is
 re-verified. Secret deletion and provider-token revocation remain explicit
-offboarding steps outside the runtime. The
+offboarding steps outside the runtime. The owner-only
+`POST /api/connectors/{connector}/binding/rotate` route starts the same
+two-step lifecycle: it records the reason and actor in the append-only audit
+trail, marks the binding `rotation_pending`, and keeps connector calls disabled
+until a replacement version is verified. The
 legacy deployment-wide connector secret fallback is explicitly disabled in
 Cloud Run. Salesforce refresh tokens use the same tenant boundary, while
 Firestore stores only the tenant, instance URL, scopes, and health status—never

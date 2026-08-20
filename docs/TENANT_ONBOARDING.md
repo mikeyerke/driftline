@@ -77,8 +77,12 @@ fallback only, not the preferred multi-tenant path.
 
 ## 4. Rotate or offboard
 
-Add a replacement secret version, re-run the owner binding verification, and
-then revoke the old provider token. POST
+For a planned rotation, the owner first POSTs
+`/api/connectors/{connector}/binding/rotate` with a reason. This records an
+append-only audit event and moves the binding to `rotation_pending`, so runtime
+connector calls fail closed while the credential is being changed. Add a
+replacement secret version to the deterministic tenant secret, then re-run the
+owner binding verification route and revoke the old provider token. POST
 /api/connectors/{connector}/binding/revoke blocks runtime use without deleting
 the recoverable secret. POST /api/tenants/deprovision disables memberships
 and revokes every binding; provider revocation and secret deletion remain

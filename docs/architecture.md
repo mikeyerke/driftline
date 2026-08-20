@@ -127,9 +127,16 @@ signed request resolves its tenant principal, looks up a metadata-only binding
 in Firestore, and reads the deterministic Secret Manager secret
 `driftline-tenant-<tenant>-<connector>`. Only the owner binding route can
 activate that reference; arbitrary secret names and raw credential values are
-rejected. Cloud Run has no legacy global connector-secret fallback. This keeps
-two customer tenants from sharing a token even when they use the same
-connector type, while preserving the public packet-only lane.
+rejected. Cloud Run has no legacy global connector-secret fallback. Owners can
+start an audited rotation, which moves a binding to `rotation_pending` and
+immediately fails connector calls closed until infrastructure adds a replacement
+Secret Manager version and the owner re-verifies the binding. Soft
+deprovisioning revokes every binding and disables memberships; provider-token
+revocation and secret-version destruction remain explicit infrastructure
+offboarding steps. This keeps two customer tenants from sharing a token even
+when they use the same connector type, while preserving the public packet-only
+lane. The result is a real tenant credential control plane for this deployment,
+not a claim that customer identity, billing, or enterprise SSO is complete.
 
 The Change Card is the product's decision unit. It is assembled from verified
 source evidence, the deterministic impact graph, and action lifecycle state.
