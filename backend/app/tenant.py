@@ -84,32 +84,33 @@ def principal_for_claims(
 ) -> TenantPrincipal:
     normalized_email = email.strip().casefold()
     configured = _configured_members()
-    binding = configured.get(normalized_email)
-    if binding:
-        tenant_id, role = binding
-    else:
-        persisted = None
-        try:
-            # Lazy import avoids coupling the pure tenant parser to Firestore
-            # during local synthetic runs while allowing durable memberships
-            # to survive environment/configuration rollouts.
-            from .persistence import load_tenant_membership
+    persisted = None
+    try:
+        # Lazy import avoids coupling the pure tenant parser to Firestore
+        # during local synthetic runs while allowing durable memberships
+        # to survive environment/configuration rollouts.
+        from .persistence import load_tenant_membership
 
-            persisted_tenant = validate_tenant_id(
-                requested_tenant_id
-                or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
-            )
-            persisted = load_tenant_membership(persisted_tenant, normalized_email)
-        except Exception:  # noqa: BLE001 - auth falls back to explicit bootstrap config.
-            persisted = None
-        if persisted:
-            tenant_id = validate_tenant_id(str(persisted["tenant_id"]))
-            role = str(persisted.get("role", "viewer")).casefold()
-        else:
+        persisted_tenant = validate_tenant_id(
+            requested_tenant_id
+            or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
+        )
+        persisted = load_tenant_membership(persisted_tenant, normalized_email)
+    except Exception:  # noqa: BLE001 - auth falls back to explicit bootstrap config.
+        persisted = None
+    if persisted:
+        if str(persisted.get("status", "active")).casefold() != "active":
+            raise PermissionError("tenant_membership_inactive")
+        tenant_id = validate_tenant_id(str(persisted["tenant_id"]))
+        role = str(persisted.get("role", "viewer")).casefold()
+    else:
+        binding = configured.get(normalized_email)
+        if not binding:
             # OIDC identities must be explicitly mapped to a tenant. Falling
             # back to the default tenant here would let an authenticated but
             # unprovisioned user claim an arbitrary tenant/owner role.
             raise PermissionError("tenant_membership_required")
+        tenant_id, role = binding
         if role not in _ROLES:
             role = "viewer"
     if requested_tenant_id:
