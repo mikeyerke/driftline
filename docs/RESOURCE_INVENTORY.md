@@ -58,6 +58,26 @@ to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
 account, API key, repository, or environment variable is reused.
 
+## 2026-08-20 Auditable signal dismissal release
+
+- Source commit: `9572770` (auditable non-material dismissal path), pushed to
+  `https://github.com/mikeyerke/driftline`.
+- Cloud Build `54ddd952-4ba1-40be-8c76-1c2172fdc225` — `SUCCESS`; Artifact
+  Registry image digest `sha256:d082dabad54cbd5d707c5665e1f2265c2dca0684a4846f6c432634278fdca4ce`.
+- Cloud Run revision `driftline-00078-mlg` serves 100% of traffic in the
+  isolated project with the existing scale-to-zero, one-instance limits. The
+  active gcloud project was verified as `driftline-hackathon-2026` immediately
+  before deployment.
+- Live public smoke created workflow `fc4a0227-e7c6-4507-b4e5-b92d5fcc6eeb`
+  through `https://driftline-xvxczqg62a-uc.a.run.app`, dismissed it with the
+  required reason `Not material for the current segment`, and verified
+  `status=dismissed`, Change Card closure `dismissed`, zero action items, and
+  `cards_dismissed=2` in `/api/ops/value-proof`.
+- Live async ADK smoke job `job-b0a6012d25cd` reached `needs_approval` on this
+  revision with `model=gemini-3.5-flash`, `execution_mode=google_adk`, exactly
+  `inspect_source_change` and `get_workflow_state`, structured Gemini analysis,
+  and no error. The revision error-log query returned no `ERROR` entries.
+
 ## 2026-08-20 Change Card, deadlines, and connector hardening release
 
 - Source commit: `c2e7d14` (risk-based owner deadlines and overdue work
