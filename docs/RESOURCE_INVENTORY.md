@@ -25,6 +25,9 @@ project number: 724959673622
   `inspect_source_change` plus `get_workflow_state`; Cloud Logging returned no
   severity `ERROR` entries for the revision. The query-auth guard and signed
   connector reconciliation remain active as recorded below.
+- A Chrome performance trace on the current public app recorded LCP 164 ms,
+  CLS 0.00, and no material render-blocking savings opportunity at desktop
+  navigation conditions. This is lab evidence, not field-user CrUX data.
 
 ## 2026-08-20 final UI copy and live quality gate (live)
 
