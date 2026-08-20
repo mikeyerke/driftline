@@ -1737,6 +1737,21 @@ This release adds the signed, tenant-filtered pilot outcome report at
 The historical resource table below is retained as the broader inventory; the
 release sections above record each subsequent deployment and its direct proof.
 
+## 2026-08-20 Agent trace state refresh
+
+- Source commit `eb66e30` keeps the frontend Agent Trace synchronized with
+  approval, reopen, and dismissal outcomes instead of retaining the prior
+  approval-gate summary. The change was deployed by Cloud Build
+  `18b0c587-6636-4540-9fec-498a975acb13` as revision `driftline-00020-w65`.
+- A fresh anonymous direct-agent canary against the new revision returned
+  HTTP 200 with `execution_mode=google_adk`, model `gemini-3.5-flash`, and
+  exactly the allowlisted tools `inspect_source_change` and
+  `get_workflow_state`; the attempted caller query and user ID were returned
+  as `null`.
+- Browser verification on the new revision reached the live workflow,
+  Firestore-backed approval gate, packet creation, and the corrected trace
+  summary `Action plan recorded · sandbox packet created`.
+
 ## 2026-08-20 Live connector context verification
 
 - A signed owner read through the public Cloud Run revision returned HTTP 200
