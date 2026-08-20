@@ -32,6 +32,9 @@ project number: 724959673622
   traffic in the isolated project. `/health` returned 200 and a GET carrying
   `approval_token` returned 400, while the public API retained `no-store` and
   HSTS headers.
+- GitHub Actions run `32425880837` completed `success` for the documentation
+  commit that records this live evidence. Cloud Logging returned no severity
+  `ERROR` entries for revision `driftline-00026-j25` after rollout.
 - Chrome DevTools loaded the public console at desktop and mobile widths with
   no console messages. Lighthouse navigation scored 100 for accessibility,
   best practices, SEO, and agentic browsing on both devices (57/57 audits).
