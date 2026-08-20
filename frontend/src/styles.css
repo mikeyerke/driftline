@@ -129,6 +129,7 @@ main { min-width: 0; }
 .decision-panel { border-radius: var(--radius); padding: 20px; min-height: 100%; }
 .decision-panel.pending { border: 1px solid #ffb68f; background: linear-gradient(180deg, #fff 0%, #fffaf7 100%); }
 .decision-panel.resolved { border: 1px solid #a9d4bb; background: #fff; }
+.decision-panel.dismissed { border: 1px solid #c8d0dc; background: #fff; }
 .warning-icon { color: var(--orange); margin-bottom: 10px; }
 .decision-panel h2 { font-size: 19px; margin: 0 0 18px; letter-spacing: -.2px; }
 .decision-question { font-size: 16px; line-height: 1.45; margin-bottom: 25px; }
@@ -139,6 +140,7 @@ main { min-width: 0; }
 .decision-note { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .decision-title { display: flex; align-items: center; gap: 12px; }.decision-title h2 { margin: 0; }
 .success-icon { background: var(--green); }
+.dismissed-icon { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; color: #526174; background: #eef1f6; display: grid; place-items: center; }
 .decision-panel dl { margin: 24px 0 15px; font-size: 13px; }.decision-panel dt { font-weight: 700; margin-top: 18px; }.decision-panel dd { margin: 6px 0 0; line-height: 1.5; }
 .approver { display: flex; align-items: center; gap: 9px; }
 .audit-id { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; }

@@ -154,6 +154,15 @@ class UndoRequest(BaseModel):
     identity_token: str | None = Field(default=None, max_length=4096)
 
 
+class DismissRequest(BaseModel):
+    actor: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=3, max_length=240)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_mode: Literal["demo", "signed"] = "demo"
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
 class ActionItemRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
 
@@ -1172,6 +1181,9 @@ def get_value_proof() -> dict[str, object]:
             "cards_closed": sum(
                 item.get("state") == "closed" for item in closure_cards
             ),
+            "cards_dismissed": sum(
+                item.get("state") == "dismissed" for item in closure_cards
+            ),
             "overdue_owner_actions": sum(
                 int(item.get("overdue", 0)) for item in closure_cards
             ),
@@ -1865,6 +1877,42 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         if storage_info.get("storage_status") != "not_configured":
             compare_and_set_workflow(state, "complete")
             workflow_store.restore(state)
+        _sync_jobs_for_workflow(workflow_id, state.status.value)
+        return state.to_dict()
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PolicyViolation as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/workflows/{workflow_id}/dismiss")
+def dismiss(workflow_id: str, request: DismissRequest) -> dict:
+    if not _reserve_demo_mutation():
+        raise HTTPException(
+            status_code=429,
+            detail="Demo workflow rate limit reached; retry later.",
+        )
+    approval_identity = _verify_approval_mode(
+        workflow_id,
+        request.actor,
+        request.approval_mode,
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    try:
+
+        def apply(current: WorkflowState) -> WorkflowState:
+            state = workflow_store.dismiss(
+                current.workflow_id,
+                request.actor,
+                request.reason,
+            )
+            if state.approval is not None:
+                state.approval["approval_identity"] = approval_identity
+            return state
+
+        state = _transition_workflow(workflow_id, "needs_approval", apply)
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:

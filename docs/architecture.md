@@ -66,6 +66,12 @@ the action record and every item to `reversed` and reopens the gate. Each approv
 sandbox packet and the approved operational output are written to the isolated,
 versioned Cloud Storage bucket; undo writes separate rollback markers. These
 objects are private and are referenced by `gs://` URI in the action record.
+Not every verified change should create downstream work. A named human can
+dismiss a pending signal with a required reason; the deterministic engine moves
+it to `dismissed`, clears packet/action-item candidates, and records the reason
+and actor in the workflow, Change Card closure state, packet, and audit event.
+Dismissal is an intentional no-op, not a hidden failure, and it leaves source
+evidence available for later review.
 Source observations use an append-only `observations` subcollection plus a
 current pointer for comparison. `/api/monitor/registry` derives source
 freshness, baseline, stale, and synthetic-only states from that ledger without

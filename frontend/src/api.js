@@ -92,6 +92,13 @@ export function undoWorkflow(workflowId) {
   });
 }
 
+export function dismissWorkflow(workflowId, reason = "Reviewed as non-material for the current segment") {
+  return request(`/api/workflows/${workflowId}/dismiss`, {
+    method: "POST",
+    body: JSON.stringify({ actor: "Demo operator", reason }),
+  });
+}
+
 export function claimAction(workflowId, itemId) {
   return request(`/api/workflows/${workflowId}/actions/${itemId}/claim`, {
     method: "POST",

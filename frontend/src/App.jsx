@@ -12,7 +12,7 @@ import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence } from "./data";
-import { apiEnabled, approveWorkflow, getJob, getMonitorRegistry, getSources, listJobs, packetUrl, startDemoJob, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, dismissWorkflow, getJob, getMonitorRegistry, getSources, listJobs, packetUrl, startDemoJob, undoWorkflow } from "./api";
 import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
 import IntegrationPanel from "./components/IntegrationPanel";
@@ -64,6 +64,7 @@ export default function App() {
   const modalTriggerRef = useRef(null);
 
   const approved = workflowState?.status === "complete";
+  const dismissed = workflowState?.status === "dismissed";
   const liveWorkflow = Boolean(workflowState?.workflow_id && workflowId);
   const evidence = workflowState?.evidence || demoEvidence;
   const impacts = workflowState?.impacts?.map((impact, index) => ({
@@ -206,6 +207,22 @@ export default function App() {
     }
   };
 
+  const dismissSignal = async (reason) => {
+    if (!workflowId || !liveWorkflow || decisionBusy) return;
+    setDecisionBusy(true);
+    try {
+      const state = await dismissWorkflow(workflowId, reason);
+      setWorkflowState(state);
+      setJob((current) => current ? { ...current, status: state.status, workflow: state } : current);
+      setScanMessage("Signal dismissed · reason recorded in the audit trail");
+      refreshHistory();
+    } catch (error) {
+      setScanMessage(`Unable to dismiss the signal · ${error.message || "retry the request"}`);
+    } finally {
+      setDecisionBusy(false);
+    }
+  };
+
   const updateArtifactDecision = (name, decision) => {
     setArtifactDecisions((current) => ({ ...current, [name]: decision }));
   };
@@ -269,7 +286,7 @@ export default function App() {
                 <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} />
               </div>
               <aside id="approvals-section">
-              <DecisionPanel approved={approved} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onEvidence={() => setShowEvidence(true)} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category} />
+              <DecisionPanel approved={approved} dismissed={dismissed} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onDismiss={dismissSignal} onEvidence={() => setShowEvidence(true)} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category} />
               </aside>
             </div>
             {approved && <ActionItems workflowId={workflowId} items={workflowState.action_items} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}

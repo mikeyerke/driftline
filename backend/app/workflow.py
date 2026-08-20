@@ -330,6 +330,30 @@ class DriftlineWorkflow:
         state.updated_at = self._timestamp()
         return state
 
+    def dismiss(self, workflow_id: str, actor: str, reason: str) -> WorkflowState:
+        """Record a human-reviewed no-op so noisy signals remain auditable."""
+        state = self.get(workflow_id)
+        if state.status is not WorkflowStatus.NEEDS_APPROVAL:
+            raise PolicyViolation("Only approval-gated workflows can be dismissed")
+        _require_named_human(actor, "actor")
+        cleaned_reason = " ".join(reason.split())
+        if not cleaned_reason:
+            raise PolicyViolation("Dismissal reason is required")
+        state.approval = {
+            "approver": actor,
+            "decision": "dismissed",
+            "reason": cleaned_reason,
+            "timestamp": self._timestamp(),
+        }
+        state.stage = Stage.MONITOR
+        state.status = WorkflowStatus.DISMISSED
+        state.artifact_packets = []
+        state.action_items = []
+        self._refresh_change_card(state)
+        self._event(state, "policy_engine", "signal_dismissed")
+        state.updated_at = self._timestamp()
+        return state
+
     def undo(self, workflow_id: str, actor: str) -> WorkflowState:
         state = self.get(workflow_id)
         if state.status is not WorkflowStatus.COMPLETE or state.approval is None:
@@ -396,6 +420,7 @@ def packet_markdown(state: WorkflowState) -> str:
         f"- Evidence confidence: {round(float((state.change_card.get('source_quality') or {}).get('confidence', 0.0)) * 100)}%",
         f"- Contradiction review: {(state.change_card.get('source_quality') or {}).get('contradiction_status', 'not_checked')}",
         f"- Closure: {(state.change_card.get('closure') or {}).get('state', 'approval_pending')}",
+        f"- Decision reason: {(state.approval or {}).get('reason', 'not recorded')}",
         "",
         "## Source change",
         "",

@@ -42,6 +42,7 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert "willingness_to_pay" in value_proof.json()["not_measured"]
     assert "change_cards" in value_proof.json()["observed"]
     assert "high_materiality_cards" in value_proof.json()["observed"]
+    assert "cards_dismissed" in value_proof.json()["observed"]
     assert "overdue_owner_actions" in value_proof.json()["observed"]
     outcomes = client.get("/api/ops/outcomes")
     assert outcomes.status_code == 200
@@ -181,6 +182,32 @@ def test_demo_approval_and_undo_round_trip() -> None:
     assert undone.json()["status"] == "needs_approval"
     assert undone.json()["action_record"]["operational_status"] == "not_configured"
     assert undone.json()["action_record"]["jira_status"] == "prepared_only"
+
+
+def test_demo_dismissal_records_reason_without_creating_work() -> None:
+    started = client.post("/api/workflows/demo")
+    assert started.status_code == 200
+    workflow_id = started.json()["workflow_id"]
+
+    dismissed = client.post(
+        f"/api/workflows/{workflow_id}/dismiss",
+        json={
+            "actor": "Demo operator",
+            "reason": "Not material for the current segment",
+        },
+    )
+
+    assert dismissed.status_code == 200
+    payload = dismissed.json()
+    assert payload["status"] == "dismissed"
+    assert payload["approval"]["decision"] == "dismissed"
+    assert payload["approval"]["reason"] == "Not material for the current segment"
+    assert payload["change_card"]["closure"]["state"] == "dismissed"
+    assert payload["action_items"] == []
+
+    packet = client.get(f"/api/workflows/{workflow_id}/packet")
+    assert packet.status_code == 200
+    assert "Decision reason: Not material for the current segment" in packet.text
 
 
 def test_demo_approval_never_calls_configured_connectors(monkeypatch) -> None:

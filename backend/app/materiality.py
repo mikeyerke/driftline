@@ -105,7 +105,9 @@ def _closure(
             overdue += due_at < now
         except (TypeError, ValueError):
             continue
-    if approval is None:
+    if approval and approval.get("decision") == "dismissed":
+        state = "dismissed"
+    elif approval is None:
         state = "approval_pending"
     elif not items:
         state = "approved"
@@ -126,7 +128,9 @@ def _closure(
         "overdue": overdue,
         "completion_rate": round(completed / len(items), 3) if items else 0.0,
         "next_step": (
-            "Named human approval is required"
+            "Recorded as an intentional no-op; reopen only if new evidence appears"
+            if state == "dismissed"
+            else "Named human approval is required"
             if approval is None
             else "Assign and close each owner action"
             if items and completed < len(items)

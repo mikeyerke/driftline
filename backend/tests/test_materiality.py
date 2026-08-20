@@ -37,3 +37,20 @@ def test_change_card_closure_tracks_completed_owner_work() -> None:
     workflow._refresh_change_card(state)
     assert state.change_card["closure"]["state"] == "closed"
     assert state.change_card["closure"]["completion_rate"] == 1.0
+
+
+def test_dismissal_is_auditable_and_creates_no_downstream_work() -> None:
+    workflow = DriftlineWorkflow()
+    state = workflow.start_demo(source_id="competitor/pricing")
+    dismissed = workflow.dismiss(
+        state.workflow_id,
+        "Named reviewer",
+        "Not material for the current segment",
+    )
+
+    assert dismissed.status.value == "dismissed"
+    assert dismissed.approval["decision"] == "dismissed"
+    assert dismissed.approval["reason"] == "Not material for the current segment"
+    assert dismissed.change_card["closure"]["state"] == "dismissed"
+    assert dismissed.action_items == []
+    assert "intentional no-op" in dismissed.change_card["closure"]["next_step"]

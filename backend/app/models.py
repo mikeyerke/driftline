@@ -25,6 +25,7 @@ class WorkflowStatus(StrEnum):
     RUNNING = "running"
     NEEDS_APPROVAL = "needs_approval"
     COMPLETE = "complete"
+    DISMISSED = "dismissed"
     FAILED = "failed"
 
 

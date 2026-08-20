@@ -72,6 +72,13 @@ before/after evidence. See
 [`docs/UTILITY_RESEARCH_2026-08-20.md`](docs/UTILITY_RESEARCH_2026-08-20.md)
 for the research-backed scope and deferred work.
 
+Signals do not have to become work. A named reviewer can dismiss a
+needs-approval signal as non-material with a required reason; Driftline records
+that intentional no-op in the workflow, Change Card, packet, and append-only
+audit trail without creating packets, owner tasks, or connector writes. This
+keeps monitoring useful when a source changes but the business decision is
+“not for us right now,” instead of silently losing the rationale.
+
 The Google ADK coordinator is configured for the Gemini 3.5 Flash model and a
 strictly allowlisted read/inspect tool set for reasoning. A second ADK task
 performs structured, evidence-hash-bound impact analysis; its JSON is validated

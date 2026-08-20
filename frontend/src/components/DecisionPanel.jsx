@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Download, FileText, RotateCcw } from "lucide-react";
+import { AlertTriangle, Ban, Check, Download, FileText, RotateCcw } from "lucide-react";
 import DecisionCopilot from "./DecisionCopilot";
 
-export default function DecisionPanel({ approved, approval, artifactDecisions, actionRecord, copilot, onApprove, onOptionSelect, onUndo, onEvidence, isLive, busy, packetHref, sourceCategory }) {
+export default function DecisionPanel({ approved, dismissed, approval, artifactDecisions, actionRecord, copilot, onApprove, onOptionSelect, onUndo, onDismiss, onEvidence, isLive, busy, packetHref, sourceCategory }) {
   const decisions = approval?.artifact_decisions || artifactDecisions || { "Pricing battlecard": "packet", "Renewal playbook": "packet", "Enterprise FAQ": "owner_review", "CRM guidance": "queued" };
   const counts = Object.values(decisions).reduce((result, value) => ({ ...result, [value]: (result[value] || 0) + 1 }), {});
   const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
@@ -41,6 +41,22 @@ export default function DecisionPanel({ approved, approval, artifactDecisions, a
     );
   }
 
+  if (dismissed) {
+    return (
+      <aside className="decision-panel dismissed">
+        <div className="decision-title"><span className="dismissed-icon"><Ban size={17} /></span><h2>Signal dismissed</h2></div>
+        <dl>
+          <dt>Reason</dt><dd>{approval?.reason || "Reviewed as non-material"}</dd>
+          <dt>Reviewed by</dt><dd>{approval?.approver || "Demo operator"}</dd>
+          <dt>Recorded</dt><dd>{approval?.timestamp ? new Date(approval.timestamp).toLocaleString() : "Synthetic local fallback"}</dd>
+        </dl>
+        <p className="decision-note">No packet or external system write was created. The dismissal is retained so this signal is not silently lost.</p>
+        <div className="audit-id"><strong>Audit state</strong><span>Intentional no-op · evidence remains available</span></div>
+        <button className="secondary full" onClick={onEvidence}><FileText size={17} />Open evidence</button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="decision-panel pending">
       <AlertTriangle className="warning-icon" size={27} />
@@ -50,6 +66,10 @@ export default function DecisionPanel({ approved, approval, artifactDecisions, a
       <DecisionCopilot copilot={copilot} selectedId={selectedOptionId} onSelect={(option) => { setSelectedOptionId(option.option_id); onOptionSelect?.(option); }} />
       <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>High-risk artifacts remain behind this deterministic human gate.</small></div>
       <button className="primary full" onClick={() => onApprove(selectedOption)} disabled={!isLive || busy || policyBlocked || (copilot && !selectedOption)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : "Approve action plan"}</button>
+      <button className="secondary full" onClick={() => {
+        const reason = window.prompt("Why is this signal not material right now?", "Reviewed as non-material for the current segment");
+        if (reason?.trim()) onDismiss?.(reason.trim());
+      }} disabled={!isLive || busy}><Ban size={17} />Dismiss as non-material</button>
       <button className="secondary full" onClick={onEvidence}><FileText size={17} />Open evidence</button>
       <p className="decision-note">Approval creates a reversible, evidence-linked packet and one isolated Google Cloud operational output. The agent cannot approve itself.</p>
       {!isLive && <p className="decision-note decision-warning">Run the scan to create a live Firestore workflow before deciding.</p>}
