@@ -4,6 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
+from starlette.responses import Response
 
 from app import api, source
 from app.api import app
@@ -27,6 +29,30 @@ def test_health() -> None:
 def test_api_responses_are_not_cacheable() -> None:
     response = client.get("/api/ops/value-proof")
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.asyncio
+async def test_api_cache_policy_overrides_endpoint_cache_header() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/test-cache-policy",
+            "scheme": "https",
+            "server": ("testserver", 443),
+            "client": ("testclient", 123),
+            "root_path": "",
+            "query_string": b"",
+            "headers": [],
+        }
+    )
+
+    async def call_next(_request: Request) -> Response:
+        return Response(headers={"Cache-Control": "public, max-age=3600"})
+
+    response = await api.security_headers(request, call_next)
+
     assert response.headers["cache-control"] == "no-store"
 
 

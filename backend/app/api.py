@@ -206,7 +206,7 @@ async def security_headers(request: Request, call_next):
         # API responses can contain tenant-scoped metadata or one-time OAuth
         # handoff state. Never let a browser, proxy, or shared intermediary
         # retain those responses beyond the request.
-        response.headers.setdefault("Cache-Control", "no-store")
+        response.headers["Cache-Control"] = "no-store"
     response.headers.setdefault(
         "Content-Security-Policy",
         "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
