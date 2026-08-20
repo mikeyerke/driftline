@@ -1,5 +1,8 @@
 import json
 
+import pytest
+
+from app import connectors as connector_module
 from app.connectors import (
     ConfluenceConfig,
     ConfluenceConnector,
@@ -206,6 +209,38 @@ def test_unconfigured_confluence_is_explicitly_prepared_only(monkeypatch) -> Non
         "confluence_prepared_only": True,
         "external_write": False,
     }
+
+
+def test_tenant_connector_secret_resolution_requires_binding(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
+    monkeypatch.delenv("DRIFTLINE_JIRA_TOKEN", raising=False)
+    monkeypatch.delenv("DRIFTLINE_JIRA_TOKEN_SECRET", raising=False)
+    monkeypatch.setattr(
+        connector_module,
+        "read_secret",
+        lambda name: "tenant-token" if name == "driftline-tenant-acme-jira" else "",
+    )
+    monkeypatch.setattr(
+        "app.persistence.load_connector_binding",
+        lambda tenant, connector: {
+            "tenant_id": tenant,
+            "connector": connector,
+            "secret_name": "driftline-tenant-acme-jira",
+            "status": "active",
+        },
+    )
+
+    config = JiraConfig.from_env("acme")
+    assert config.token == "tenant-token"
+
+
+def test_tenant_connector_secret_resolution_fails_closed_without_binding(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
+    monkeypatch.delenv("DRIFTLINE_JIRA_TOKEN", raising=False)
+    monkeypatch.delenv("DRIFTLINE_JIRA_TOKEN_SECRET", raising=False)
+    monkeypatch.setattr("app.persistence.load_connector_binding", lambda *_args: None)
+    with pytest.raises(ConnectorError, match="tenant_binding_missing"):
+        JiraConfig.from_env("acme")
 
 
 def test_confluence_page_creation_is_marker_idempotent() -> None:

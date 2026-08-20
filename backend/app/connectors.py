@@ -21,6 +21,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
+from .tenant import (
+    tenant_connector_secret_name,
+    validate_connector_name,
+    validate_tenant_id,
+)
+
 
 class ConnectorError(RuntimeError):
     """A configured connector could not complete its bounded operation."""
@@ -378,6 +384,39 @@ def _secret_or_env(env_name: str) -> str:
         raise ConnectorError(f"{env_name.lower()}_secret_read_failed") from exc
 
 
+def _tenant_secret_or_env(
+    tenant_id: str, connector: str, env_name: str
+) -> str:
+    """Resolve one tenant-bound secret; legacy global fallback is opt-in only."""
+    safe_tenant = validate_tenant_id(tenant_id)
+    safe_connector = validate_connector_name(connector)
+    try:
+        from .persistence import load_connector_binding
+
+        binding = load_connector_binding(safe_tenant, safe_connector)
+    except Exception as exc:
+        raise ConnectorError(f"{safe_connector}_tenant_binding_lookup_failed") from exc
+    if binding and binding.get("status") == "active":
+        secret_name = str(binding.get("secret_name", ""))
+        expected = tenant_connector_secret_name(safe_tenant, safe_connector)
+        if secret_name != expected:
+            raise ConnectorError(f"{safe_connector}_tenant_secret_name_mismatch")
+        return read_secret(secret_name).strip()
+    if os.getenv("DRIFTLINE_ALLOW_LEGACY_GLOBAL_CONNECTOR_SECRETS", "false").casefold() == "true":
+        return _secret_or_env(env_name)
+    raise ConnectorError(f"{safe_connector}_tenant_binding_missing")
+
+
+def _workflow_tenant_id(state: Any) -> str:
+    action = state.action_record or {}
+    approval = state.approval or {}
+    identity = approval.get("approval_identity") or {}
+    tenant_id = action.get("tenant_id") or identity.get("tenant_id")
+    if not tenant_id:
+        raise ConnectorError("connector_tenant_identity_missing")
+    return validate_tenant_id(str(tenant_id))
+
+
 def read_secret(secret_name: str) -> str:
     """Read one explicitly named isolated Secret Manager secret."""
     project = os.getenv("GOOGLE_CLOUD_PROJECT", "")
@@ -434,13 +473,17 @@ class JiraConfig:
     issue_type: str = "Task"
 
     @classmethod
-    def from_env(cls) -> JiraConfig:
+    def from_env(cls, tenant_id: str | None = None) -> JiraConfig:
         enabled = os.getenv("DRIFTLINE_JIRA_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
             base_url=os.getenv("DRIFTLINE_JIRA_BASE_URL", "").rstrip("/") + "/",
             email=os.getenv("DRIFTLINE_JIRA_EMAIL", ""),
-            token=_secret_or_env("DRIFTLINE_JIRA_TOKEN") if enabled else "",
+            token=(
+                _tenant_secret_or_env(tenant_id, "jira", "DRIFTLINE_JIRA_TOKEN")
+                if enabled and tenant_id
+                else _secret_or_env("DRIFTLINE_JIRA_TOKEN") if enabled else ""
+            ),
             project_key=os.getenv("DRIFTLINE_JIRA_PROJECT_KEY", ""),
             issue_type=os.getenv("DRIFTLINE_JIRA_ISSUE_TYPE", "Task"),
         )
@@ -643,6 +686,7 @@ def execute_jira_handoff(state: Any) -> dict[str, Any]:
     config = JiraConfig.from_env()
     if not config.enabled:
         return {"jira_status": "not_configured", "external_write": False}
+    config = JiraConfig.from_env(_workflow_tenant_id(state))
     packet = next(
         (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
         None,
@@ -677,6 +721,7 @@ def reverse_jira_handoff(state: Any) -> dict[str, Any]:
     config = JiraConfig.from_env()
     if not issue_key or not config.enabled:
         return {"jira_status": "not_configured", "external_write": False}
+    config = JiraConfig.from_env(_workflow_tenant_id(state))
     connector = JiraConnector(config)
     result = connector.reverse_issue(
         str(issue_key), str(action.get("action_id", "unknown"))
@@ -698,13 +743,19 @@ class ConfluenceConfig:
     parent_page_id: str = ""
 
     @classmethod
-    def from_env(cls) -> ConfluenceConfig:
+    def from_env(cls, tenant_id: str | None = None) -> ConfluenceConfig:
         enabled = os.getenv("DRIFTLINE_CONFLUENCE_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
             base_url=os.getenv("DRIFTLINE_CONFLUENCE_BASE_URL", "").rstrip("/") + "/",
             email=os.getenv("DRIFTLINE_CONFLUENCE_EMAIL", ""),
-            token=_secret_or_env("DRIFTLINE_CONFLUENCE_TOKEN") if enabled else "",
+            token=(
+                _tenant_secret_or_env(
+                    tenant_id, "confluence", "DRIFTLINE_CONFLUENCE_TOKEN"
+                )
+                if enabled and tenant_id
+                else _secret_or_env("DRIFTLINE_CONFLUENCE_TOKEN") if enabled else ""
+            ),
             space_key=os.getenv("DRIFTLINE_CONFLUENCE_SPACE_KEY", ""),
             parent_page_id=os.getenv("DRIFTLINE_CONFLUENCE_PARENT_PAGE_ID", ""),
         )
@@ -933,6 +984,7 @@ def execute_confluence_handoff(state: Any) -> dict[str, Any]:
             "confluence_prepared_only": True,
             "external_write": False,
         }
+    config = ConfluenceConfig.from_env(_workflow_tenant_id(state))
     packet = next(
         (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
         None,
@@ -968,6 +1020,7 @@ def reverse_confluence_handoff(state: Any) -> dict[str, Any]:
             "confluence_prepared_only": True,
             "external_write": False,
         }
+    config = ConfluenceConfig.from_env(_workflow_tenant_id(state))
     result = ConfluenceConnector(config).reverse_page(
         str(page_id), str(action.get("action_id", "unknown"))
     )
@@ -982,11 +1035,15 @@ class SlackConfig:
     base_url: str = "https://slack.com/api/"
 
     @classmethod
-    def from_env(cls) -> SlackConfig:
+    def from_env(cls, tenant_id: str | None = None) -> SlackConfig:
         enabled = os.getenv("DRIFTLINE_SLACK_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
-            token=_secret_or_env("DRIFTLINE_SLACK_TOKEN") if enabled else "",
+            token=(
+                _tenant_secret_or_env(tenant_id, "slack", "DRIFTLINE_SLACK_TOKEN")
+                if enabled and tenant_id
+                else _secret_or_env("DRIFTLINE_SLACK_TOKEN") if enabled else ""
+            ),
             channel_id=os.getenv("DRIFTLINE_SLACK_CHANNEL_ID", ""),
             base_url=os.getenv("DRIFTLINE_SLACK_BASE_URL", "https://slack.com/api/").rstrip("/") + "/",
         )
@@ -1081,6 +1138,7 @@ def execute_slack_handoff(state: Any) -> dict[str, Any]:
     config = SlackConfig.from_env()
     if not config.enabled:
         return {"slack_status": "not_configured", "slack_prepared_only": True, "external_write": False}
+    config = SlackConfig.from_env(_workflow_tenant_id(state))
     packet = next(
         (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
         None,
@@ -1107,6 +1165,7 @@ def reverse_slack_handoff(state: Any) -> dict[str, Any]:
     action_id = str((state.action_record or {}).get("action_id", "unknown"))
     if not config.enabled:
         return {"slack_status": "not_configured", "slack_prepared_only": True, "external_write": False}
+    config = SlackConfig.from_env(_workflow_tenant_id(state))
     result = SlackConnector(config).reverse_message(action_id)
     return {"slack_status": result["status"], "slack_message_ts": result.get("message_ts"), "external_write": True}
 
@@ -1120,11 +1179,15 @@ class GitHubConfig:
     api_url: str = "https://api.github.com/"
 
     @classmethod
-    def from_env(cls) -> GitHubConfig:
+    def from_env(cls, tenant_id: str | None = None) -> GitHubConfig:
         enabled = os.getenv("DRIFTLINE_GITHUB_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
-            token=_secret_or_env("DRIFTLINE_GITHUB_TOKEN") if enabled else "",
+            token=(
+                _tenant_secret_or_env(tenant_id, "github", "DRIFTLINE_GITHUB_TOKEN")
+                if enabled and tenant_id
+                else _secret_or_env("DRIFTLINE_GITHUB_TOKEN") if enabled else ""
+            ),
             owner=os.getenv("DRIFTLINE_GITHUB_OWNER", ""),
             repo=os.getenv("DRIFTLINE_GITHUB_REPO", ""),
             api_url=os.getenv("DRIFTLINE_GITHUB_API_URL", "https://api.github.com/"),
@@ -1221,6 +1284,7 @@ def execute_github_handoff(state: Any) -> dict[str, Any]:
     config = GitHubConfig.from_env()
     if not config.enabled:
         return {"github_status": "not_configured", "github_prepared_only": True, "external_write": False}
+    config = GitHubConfig.from_env(_workflow_tenant_id(state))
     packet = next(
         (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
         None,
@@ -1245,11 +1309,12 @@ def execute_github_handoff(state: Any) -> dict[str, Any]:
 
 
 def reverse_github_handoff(state: Any) -> dict[str, Any]:
-    config = GitHubConfig.from_env()
     action = state.action_record or {}
     issue_number = action.get("github_issue_number")
+    config = GitHubConfig.from_env()
     if not config.enabled or issue_number is None:
         return {"github_status": "not_configured", "github_prepared_only": True, "external_write": False}
+    config = GitHubConfig.from_env(_workflow_tenant_id(state))
     result = GitHubConnector(config).reverse_issue(
         int(issue_number), str(action.get("action_id", "unknown"))
     )

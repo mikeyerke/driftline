@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 _TENANT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _ROLES = {"viewer", "operator", "owner"}
+CONNECTOR_NAMES = frozenset({"jira", "confluence", "slack", "github"})
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,21 @@ def validate_tenant_id(value: str) -> str:
     if not _TENANT_ID.fullmatch(tenant_id):
         raise ValueError("tenant_id_invalid")
     return tenant_id
+
+
+def validate_connector_name(value: str) -> str:
+    """Validate the small, product-owned connector allowlist."""
+    connector = value.strip().casefold()
+    if connector not in CONNECTOR_NAMES:
+        raise ValueError("connector_not_allowlisted")
+    return connector
+
+
+def tenant_connector_secret_name(tenant_id: str, connector: str) -> str:
+    """Return the deterministic Secret Manager name for one tenant connector."""
+    safe_tenant = validate_tenant_id(tenant_id)
+    safe_connector = validate_connector_name(connector)
+    return f"driftline-tenant-{safe_tenant}-{safe_connector}"[:100]
 
 
 def _configured_members() -> dict[str, tuple[str, str]]:

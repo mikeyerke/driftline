@@ -31,12 +31,21 @@ Signed operator identities resolve to a tenant and role from
 `owner` can disconnect Salesforce. The public demo has no tenant authority and
 can only create sandbox packets.
 
-Connector credentials are isolated per integration. Salesforce refresh tokens
-are written only to a pre-provisioned tenant Secret Manager secret, while
-Firestore stores the tenant, instance URL, scopes, and health status—never a
-token. Firestore job, workflow, outcome, and source snapshot records carry a
-bounded `expires_at` field for TTL cleanup; the configured deployment window is
-30 days unless an operator changes it deliberately.
+Connector credentials are now tenant-bound for every external integration.
+Each signed approval resolves a tenant principal first, then loads only the
+deterministic Secret Manager name
+`driftline-tenant-<tenant>-<connector>` from the metadata-only
+`driftline_connector_bindings` collection. The runtime accepts neither a
+credential value nor an arbitrary secret name. An owner activates a binding
+through `POST /api/connectors/{connector}/binding` only after infrastructure
+has provisioned the secret; missing or mismatched bindings fail closed. The
+legacy deployment-wide connector secret fallback is explicitly disabled in
+Cloud Run. Salesforce refresh tokens use the same tenant boundary, while
+Firestore stores only the tenant, instance URL, scopes, and health status—never
+a token. Firestore job, workflow, outcome, source snapshot, and connector
+binding records carry bounded `expires_at` fields for TTL cleanup; the
+configured deployment window is 30 days unless an operator changes it
+deliberately.
 
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
 
@@ -48,5 +57,8 @@ The public source registry starts with five pinned raw GitHub fixtures with expl
   internal workload context contract. Disabled connectors report
   `not_configured` / `prepared_only`; configured connectors report an explicit
   read success or failure without returning raw records.
+- `/api/connectors/bindings` is signed-only and lists metadata for the caller's
+  tenant. It never returns credential values. Only an owner can register or
+  activate a binding; operator/viewer identities cannot rebind a tenant.
 - `/api/operator/sources` is the only source-registration path and requires a signed or Google-verified operator identity.
 - The signed operator path is exercised separately from public browser QA; its token is never committed or returned by the API.

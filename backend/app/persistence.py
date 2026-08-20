@@ -24,6 +24,8 @@ JOBS_COLLECTION = "driftline_jobs"
 OUTCOMES_COLLECTION = "driftline_outcome_measurements"
 SALESFORCE_COLLECTION = "driftline_salesforce_connections"
 SALESFORCE_OAUTH_STATES_COLLECTION = "driftline_salesforce_oauth_states"
+CONNECTOR_BINDINGS_COLLECTION = "driftline_connector_bindings"
+_connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 def _enabled() -> bool:
@@ -340,6 +342,51 @@ def consume_salesforce_oauth_state(state: str) -> dict[str, Any] | None:
         return None
     document.delete()
     return snapshot.to_dict()
+
+
+def persist_connector_binding(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist connector-to-tenant secret metadata, never credential values."""
+    tenant_id = str(payload["tenant_id"])
+    connector = str(payload["connector"])
+    safe = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"token", "secret_value", "access_token", "refresh_token"}
+    }
+    safe.setdefault("updated_at", utc_now())
+    safe["expires_at"] = _retention_expiry()
+    _connector_bindings_memory[(tenant_id, connector)] = dict(safe)
+    if _enabled():
+        _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
+            f"{tenant_id}:{connector}"
+        ).set(safe)
+    return dict(safe)
+
+
+def load_connector_binding(tenant_id: str, connector: str) -> dict[str, Any] | None:
+    """Load one tenant connector binding without reading the referenced secret."""
+    if _enabled():
+        snapshot = _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
+            f"{tenant_id}:{connector}"
+        ).get()
+        if snapshot.exists:
+            return snapshot.to_dict()
+    payload = _connector_bindings_memory.get((tenant_id, connector))
+    return dict(payload) if payload else None
+
+
+def list_connector_bindings(tenant_id: str) -> list[dict[str, Any]]:
+    """Return bounded, metadata-only bindings for an authenticated tenant."""
+    if _enabled():
+        query = _client().collection(CONNECTOR_BINDINGS_COLLECTION).where(
+            "tenant_id", "==", tenant_id
+        )
+        return [snapshot.to_dict() or {} for snapshot in query.stream()]
+    return [
+        dict(payload)
+        for (bound_tenant, _), payload in _connector_bindings_memory.items()
+        if bound_tenant == tenant_id
+    ]
 
 
 def claim_job(job_id: str, claim_id: str) -> bool:

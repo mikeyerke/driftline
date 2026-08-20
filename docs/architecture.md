@@ -115,6 +115,15 @@ observed deployment counts, approval latency, and action-item completion while
 explicitly separating those observations from unmeasured customer ROI, time
 saved, revenue lift, and willingness-to-pay.
 
+Connector credentials are tenant-scoped rather than deployment-scoped. A
+signed request resolves its tenant principal, looks up a metadata-only binding
+in Firestore, and reads the deterministic Secret Manager secret
+`driftline-tenant-<tenant>-<connector>`. Only the owner binding route can
+activate that reference; arbitrary secret names and raw credential values are
+rejected. Cloud Run has no legacy global connector-secret fallback. This keeps
+two customer tenants from sharing a token even when they use the same
+connector type, while preserving the public packet-only lane.
+
 The Change Card is the product's decision unit. It is assembled from verified
 source evidence, the deterministic impact graph, and action lifecycle state.
 Its `change_card_id` is deterministic for an allowlisted source plus evidence

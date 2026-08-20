@@ -75,7 +75,7 @@ def test_connector_context_summary_is_signed_and_redacted(monkeypatch) -> None:
     monkeypatch.setattr(
         api,
         "_connector_context_info",
-        lambda: {
+        lambda _tenant_id: {
             "jira": {
                 "status": "ok",
                 "scope": "read_only_project",
@@ -115,6 +115,45 @@ def test_connector_context_summary_rejects_unsigned_public_request(monkeypatch) 
         json={"operator": "Anonymous"},
     )
     assert response.status_code == 401
+
+
+def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "binding-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setattr(api, "read_secret", lambda name: "tenant-token")
+    token = hmac.new(
+        secret.encode(), b"connector-binding:jira:Binding owner", hashlib.sha256
+    ).hexdigest()
+
+    response = client.post(
+        "/api/connectors/jira/binding",
+        json={
+            "operator": "Binding owner",
+            "tenant_id": "binding-acme",
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "active"
+    assert payload["secret_name"] == "driftline-tenant-binding-acme-jira"
+    assert payload["credential_value_accepted"] is False
+    listed = client.get(
+        "/api/connectors/bindings",
+        params={
+            "operator": "Binding owner",
+            "tenant_id": "binding-acme",
+            "approval_token": hmac.new(
+                secret.encode(), b"connector-bindings-list:Binding owner", hashlib.sha256
+            ).hexdigest(),
+        },
+    )
+    assert listed.status_code == 200
+    assert listed.json()["credential_values_exposed"] is False
+    assert listed.json()["bindings"][0]["secret_name"] == payload["secret_name"]
 
 
 def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:

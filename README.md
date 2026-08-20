@@ -84,6 +84,12 @@ console. Unconfigured integrations remain explicitly `prepared_only`;
 Salesforce remains a separate read-only OAuth lane pending real tenant
 consent.
 
+External connector credentials are tenant-bound. An owner provisions the
+deterministic Secret Manager secret and activates its metadata-only binding via
+`POST /api/connectors/{connector}/binding`; signed workflow actions then read
+only that tenant's secret. Global connector secrets are disabled in the hosted
+runtime, and `GET /api/connectors/bindings` never returns credential values.
+
 Signals do not have to become work. A named reviewer can dismiss a
 needs-approval signal as non-material with a required reason; Driftline records
 that intentional no-op in the workflow, Change Card, packet, and append-only

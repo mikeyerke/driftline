@@ -75,12 +75,14 @@ from .persistence import (
     compare_and_set_workflow,
     consume_salesforce_oauth_state,
     delete_salesforce_connection,
+    list_connector_bindings,
     list_jobs,
     list_outcome_measurements,
     list_workflows,
     load_job,
     load_salesforce_connection,
     load_workflow,
+    persist_connector_binding,
     persist_job,
     persist_outcome_measurement,
     persist_salesforce_connection,
@@ -101,6 +103,8 @@ from .tenant import (
     principal_for_claims,
     principal_for_hmac,
     public_demo_principal,
+    tenant_connector_secret_name,
+    validate_connector_name,
     validate_tenant_id,
 )
 from .workflow import PolicyViolation, packet_markdown, workflow_store
@@ -173,6 +177,15 @@ class DismissRequest(BaseModel):
 
 class ConnectorContextRequest(BaseModel):
     """Signed operator request for aggregate-only internal context."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class ConnectorBindingRequest(BaseModel):
+    """Owner request to register/verify a tenant connector secret binding."""
 
     operator: str = Field(min_length=1, max_length=120)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
@@ -641,7 +654,7 @@ def _connector_handoff_info(
     return result
 
 
-def _connector_context_info() -> dict[str, object]:
+def _connector_context_info(tenant_id: str) -> dict[str, object]:
     """Read fixed internal scopes and return aggregate metadata only.
 
     This lane is deliberately independent of approval-time writes. A bad or
@@ -650,10 +663,10 @@ def _connector_context_info() -> dict[str, object]:
     or repository names.
     """
     definitions: tuple[tuple[str, Callable[[], object], str], ...] = (
-        ("jira", lambda: JiraConnector(JiraConfig.from_env()).read_context_summary(), "read_only_project"),
-        ("confluence", lambda: ConfluenceConnector(ConfluenceConfig.from_env()).read_context_summary(), "read_only_space"),
-        ("slack", lambda: SlackConnector(SlackConfig.from_env()).read_context_summary(), "read_only_channel"),
-        ("github", lambda: GitHubConnector(GitHubConfig.from_env()).read_context_summary(), "read_only_repository"),
+        ("jira", lambda: JiraConnector(JiraConfig.from_env(tenant_id)).read_context_summary(), "read_only_project"),
+        ("confluence", lambda: ConfluenceConnector(ConfluenceConfig.from_env(tenant_id)).read_context_summary(), "read_only_space"),
+        ("slack", lambda: SlackConnector(SlackConfig.from_env(tenant_id)).read_context_summary(), "read_only_channel"),
+        ("github", lambda: GitHubConnector(GitHubConfig.from_env(tenant_id)).read_context_summary(), "read_only_repository"),
     )
     result: dict[str, object] = {}
     for name, operation, scope in definitions:
@@ -1153,7 +1166,7 @@ def get_connector_context_summary(request: ConnectorContextRequest) -> dict[str,
         request.identity_token,
         request.tenant_id,
     )
-    summaries = _connector_context_info()
+    summaries = _connector_context_info(identity["tenant_id"])
     return {
         "status": "ok",
         "tenant_id": identity["tenant_id"],
@@ -1167,6 +1180,95 @@ def get_connector_context_summary(request: ConnectorContextRequest) -> dict[str,
             "user_input_scope": "none; connector targets come only from deployment configuration",
         },
         "connectors": summaries,
+    }
+
+
+@app.post("/api/connectors/{connector}/binding")
+def register_connector_binding(
+    connector: str, request: ConnectorBindingRequest
+) -> dict[str, object]:
+    """Register one deterministic tenant Secret Manager binding.
+
+    The runtime never accepts a secret value or arbitrary secret name. An
+    infrastructure operator pre-provisions the deterministic secret, then this
+    signed owner route verifies that it is readable and activates the binding.
+    """
+    try:
+        safe_connector = validate_connector_name(connector)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    identity = _verify_approval_mode(
+        f"connector-binding:{safe_connector}",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    tenant_id = identity["tenant_id"]
+    secret_name = tenant_connector_secret_name(tenant_id, safe_connector)
+    status = "active"
+    try:
+        if not read_secret(secret_name).strip():
+            status = "pending_secret"
+    except ConnectorError:
+        status = "pending_secret"
+    binding = persist_connector_binding(
+        {
+            "tenant_id": tenant_id,
+            "connector": safe_connector,
+            "secret_name": secret_name,
+            "status": status,
+            "scope": "tenant_bound_connector_credential",
+            "configured_by": identity.get("email") or identity.get("identity"),
+            "updated_at": utc_now(),
+        }
+    )
+    return {
+        "status": status,
+        "tenant_id": tenant_id,
+        "connector": safe_connector,
+        "secret_name": secret_name,
+        "scope": binding["scope"],
+        "credential_value_accepted": False,
+        "next_step": (
+            "Binding is active; connector calls will use this tenant secret."
+            if status == "active"
+            else "Provision the deterministic secret, then repeat this signed owner request."
+        ),
+    }
+
+
+@app.get("/api/connectors/bindings")
+def get_connector_bindings(
+    operator: str,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """List metadata-only connector bindings for the caller's tenant."""
+    identity = _verify_approval_mode(
+        "connector-bindings-list",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    bindings = list_connector_bindings(identity["tenant_id"])
+    return {
+        "tenant_id": identity["tenant_id"],
+        "bindings": [
+            {
+                key: value
+                for key, value in binding.items()
+                if key not in {"token", "secret_value", "access_token", "refresh_token"}
+            }
+            for binding in bindings
+        ],
+        "credential_values_exposed": False,
     }
 
 
@@ -1943,6 +2045,12 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             "needs_approval",
             apply,
         )
+        if state.action_record is not None:
+            # Connector credentials are selected from the approved tenant, not
+            # from deployment-wide environment variables. Keeping this opaque
+            # tenant id on the action also lets a later signed undo resolve the
+            # same binding after the approval object is cleared.
+            state.action_record["tenant_id"] = approval_identity["tenant_id"]
         storage_info = persist_action_artifact(state, kind="active")
         operational_info = persist_operational_output(state, kind="active")
         connector_info = _connector_handoff_info(state, approval_identity)
