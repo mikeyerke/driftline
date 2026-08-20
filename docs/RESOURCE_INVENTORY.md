@@ -161,6 +161,14 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   majors; final-HEAD run `32411863662` passed both jobs without the prior
   Node 20 deprecation annotation.
 
+## 2026-08-20 Public repository hygiene (external)
+
+- Read-only review of the public repository found 11 open issues whose bodies
+  identified them as Driftline connector smoke-test artifacts (synthetic
+  workflow IDs and evidence hashes, all authored by the repository owner).
+  Issues `#1` through `#11` were closed as `not planned`; no source, secrets,
+  or customer work were changed. The public open-issue count is now zero.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
