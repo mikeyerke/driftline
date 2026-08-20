@@ -345,7 +345,12 @@ def consume_salesforce_oauth_state(state: str) -> dict[str, Any] | None:
 
 
 def persist_connector_binding(payload: dict[str, Any]) -> dict[str, Any]:
-    """Persist connector-to-tenant secret metadata, never credential values."""
+    """Persist connector-to-tenant secret metadata, never credential values.
+
+    A binding is control-plane configuration, not ephemeral customer content.
+    It must survive the normal content-retention window until an owner
+    disconnects or rotates it, so it intentionally has no Firestore TTL field.
+    """
     tenant_id = str(payload["tenant_id"])
     connector = str(payload["connector"])
     safe = {
@@ -354,7 +359,7 @@ def persist_connector_binding(payload: dict[str, Any]) -> dict[str, Any]:
         if key not in {"token", "secret_value", "access_token", "refresh_token"}
     }
     safe.setdefault("updated_at", utc_now())
-    safe["expires_at"] = _retention_expiry()
+    safe.pop("expires_at", None)
     _connector_bindings_memory[(tenant_id, connector)] = dict(safe)
     if _enabled():
         _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
