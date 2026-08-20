@@ -11,6 +11,15 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
     setSelectedOptionId(copilot?.recommendation_id || "");
   }, [copilot?.recommendation_id]);
   const selectedOption = copilot?.options?.find((option) => option.option_id === selectedOptionId);
+  // A human can intentionally override one or more artifact routes after
+  // selecting a copilot option. Keep the reviewed workflow decision, but
+  // clear the option id so the API treats this as an explicit custom plan
+  // instead of rejecting a stale recommendation/action mismatch.
+  const selectedOptionMatchesArtifacts = selectedOption
+    && Object.keys(selectedOption.artifact_decisions || {}).length === Object.keys(artifactDecisions || {}).length
+    && Object.entries(selectedOption.artifact_decisions || {}).every(([name, value]) => artifactDecisions?.[name] === value);
+  const customRouting = Boolean(selectedOption && !selectedOptionMatchesArtifacts);
+  const approvalOption = customRouting ? { ...selectedOption, option_id: null } : selectedOption;
   const policyBlocked = copilot?.policy_review?.status === "blocked";
   if (approved) {
     const approver = approval?.approver || "Demo operator";
@@ -64,8 +73,8 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
       <p className="decision-question">{sourceCategory?.startsWith("Competitor") ? "Should Product Marketing approve this competitive response for owner handoff?" : "Should existing enterprise customers retain unlimited history through renewal?"}</p>
       <div className="decision-rationale"><strong>Why this needs a decision</strong><p>{sourceCategory?.startsWith("Competitor") ? "This signal can change comparison claims and deal guidance; Driftline keeps the observed source attached before anyone acts." : "This change affects contractual expectations and may require an exception path for existing customers."}</p></div>
       <DecisionCopilot copilot={copilot} selectedId={selectedOptionId} onSelect={(option) => { setSelectedOptionId(option.option_id); onOptionSelect?.(option); }} />
-      <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>High-risk artifacts remain behind this deterministic human gate.</small></div>
-      <button className="primary full" onClick={() => onApprove(selectedOption)} disabled={!isLive || busy || policyBlocked || (copilot && !selectedOption)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : "Approve action plan"}</button>
+      <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>{customRouting ? "Custom artifact routing selected · the reviewed workflow decision remains bounded by policy." : "High-risk artifacts remain behind this deterministic human gate."}</small></div>
+      <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || (copilot && !selectedOption)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : "Approve action plan"}</button>
       <button className="secondary full" onClick={() => {
         const reason = window.prompt("Why is this signal not material right now?", "Reviewed as non-material for the current segment");
         if (reason?.trim()) onDismiss?.(reason.trim());
