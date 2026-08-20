@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 
 from .models import WorkflowState
 from .workflow import packet_markdown
+
+logger = logging.getLogger(__name__)
 
 
 def persist_action_artifact(state: WorkflowState, *, kind: str) -> dict[str, Any]:
@@ -59,10 +62,11 @@ def persist_action_artifact(state: WorkflowState, *, kind: str) -> dict[str, Any
             "artifact_generation": generation,
             "artifact_kind": kind,
         }
-    except Exception:  # noqa: BLE001 - storage failures are recorded, never raised
+    except Exception:
         # Storage is an evidence enhancement, never a reason to claim that a
         # sandbox action changed an external system. The action remains visible
         # and explicitly records the failed persistence attempt.
+        logger.exception("action artifact persistence failed", extra={"kind": kind})
         return {"storage_status": "failed", "artifact_kind": kind}
 
 
@@ -143,5 +147,6 @@ def persist_operational_output(state: WorkflowState, *, kind: str) -> dict[str, 
                 str(blob.generation) if blob.generation is not None else None
             ),
         }
-    except Exception:  # noqa: BLE001 - state remains explicit if storage is down
+    except Exception:
+        logger.exception("operational output persistence failed", extra={"kind": kind})
         return {"operational_status": "failed"}
