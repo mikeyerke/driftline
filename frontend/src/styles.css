@@ -173,7 +173,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .activity-grid > * { min-width: 0; padding: 5px 12px; display: flex; align-items: center; gap: 6px; }
 .activity-heading { font-weight: 600; }.evidence-link { border: 0; background: transparent; color: var(--blue); cursor: pointer; text-align: left; overflow: hidden; text-overflow: ellipsis; }
 .outcome.success { color: var(--green); }.outcome.queued { color: var(--blue); }.outcome.scheduled { color: #566175; }
-.demo-footer { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 12px; }
+.demo-footer { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; margin-top: 12px; }.legal-links { display: inline-flex; gap: 10px; white-space: nowrap; }.legal-links a { color: var(--blue); }
 
 .modal-backdrop { position: fixed; z-index: 20; inset: 0; background: rgba(7, 17, 40, .36); display: grid; place-items: center; padding: 20px; }
 .modal { width: min(720px, 100%); background: #fff; border-radius: 6px; box-shadow: 0 22px 65px rgba(5, 18, 48, .24); overflow: hidden; }

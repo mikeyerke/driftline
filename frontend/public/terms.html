@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Driftline Terms of Service" />
+    <title>Driftline · Terms of Service</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; color: #0b1633; background: #f7f9fc; }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      .wrap { width: min(820px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0 64px; }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 32px; }
+      .brand { color: #0b1633; font-size: 22px; font-weight: 750; letter-spacing: -.04em; text-decoration: none; }
+      nav { display: flex; gap: 16px; font-size: 13px; }
+      nav a { color: #075be8; }
+      article { background: #fff; border: 1px solid #dbe1ea; border-radius: 8px; padding: clamp(24px, 5vw, 52px); box-shadow: 0 8px 30px rgba(5, 18, 48, .05); }
+      h1 { margin: 0 0 8px; font-size: clamp(28px, 5vw, 40px); letter-spacing: -.04em; }
+      .updated { color: #59657a; font-size: 13px; margin: 0 0 32px; }
+      h2 { margin: 30px 0 8px; font-size: 20px; letter-spacing: -.02em; }
+      p, li { color: #34415a; font-size: 15px; line-height: 1.65; }
+      ul { padding-left: 22px; }
+      a { color: #075be8; }
+      .notice { border-left: 3px solid #f04f18; background: #fff7f2; padding: 12px 16px; }
+      footer { color: #59657a; font-size: 12px; margin-top: 20px; text-align: center; }
+      @media (max-width: 560px) { header { align-items: flex-start; flex-direction: column; } nav { gap: 12px; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <a class="brand" href="/">Driftline</a>
+        <nav aria-label="Legal"><a href="/privacy.html">Privacy</a><a href="/">Return to app</a></nav>
+      </header>
+      <article>
+        <h1>Terms of Service</h1>
+        <p class="updated">Last updated: August 19, 2026</p>
+
+        <p>These Terms of Service (“Terms”) apply to your use of the Driftline demonstration console and any Driftline connector or operator feature that you intentionally enable. Driftline is a hackathon project operated by Mike Yerke. By using the service, you agree to these Terms. Questions can be sent to <a href="mailto:mikeyerke@gmail.com">mikeyerke@gmail.com</a>.</p>
+
+        <div class="notice"><strong>Evaluation service:</strong> Driftline is an experimental demonstration, not a production monitoring, compliance, pricing, legal, financial, or security service. Do not rely on it as the sole basis for a business decision.</div>
+
+        <h2>What Driftline provides</h2>
+        <p>Driftline monitors explicitly allowlisted public signals, verifies bounded evidence, maps possible downstream impact, and prepares work packets for human review. The public console may use synthetic fixtures so that the workflow remains predictable for evaluation. A model may propose analysis, but deterministic policy code controls high-risk approval.</p>
+
+        <h2>Your responsibilities</h2>
+        <ul>
+          <li>Provide only information and URLs that you are authorized to use.</li>
+          <li>Do not submit passwords, payment details, private keys, API tokens, regulated data, or sensitive personal information to the public demo.</li>
+          <li>Review evidence, scope, recipients, and proposed actions before approving a workflow.</li>
+          <li>Use connectors only for a tenant and destination where you have permission. You are responsible for the accuracy of connector configuration and for complying with the connected service’s terms.</li>
+          <li>Do not use Driftline to crawl private systems, bypass access controls, send spam, or interfere with another service.</li>
+        </ul>
+
+        <h2>Connectors and external actions</h2>
+        <p>Connector behavior is explicitly scoped and may be packet-only, prepared-only, read-only, or configured for a least-privilege destination. A connector status in the console is not a guarantee that an external system accepted an action. When an external write is enabled, you authorize Driftline to perform only the bounded action shown in the approval record. You remain responsible for verifying the result in the external system.</p>
+
+        <h2>Third-party services</h2>
+        <p>Driftline may rely on Google Cloud, Vertex AI/Gemini, Cloud Run, Firestore, Cloud Storage, Cloud Tasks, Jira, Confluence, Slack, GitHub, Salesforce, or other services that you choose to connect. Those services are governed by their own terms and privacy policies. Driftline is not responsible for outages, changes, or actions taken by a third-party service.</p>
+
+        <h2>Intellectual property</h2>
+        <p>Driftline and its original software, visual design, documentation, and name are owned by their respective rights holders. You retain rights in information you submit and grant Driftline only the limited permission needed to operate the features you request. Do not upload material that infringes another person’s rights.</p>
+
+        <h2>Availability and disclaimers</h2>
+        <p>The service is provided on an experimental, “as is” and “as available” basis. Driftline does not promise uninterrupted availability, error-free analysis, complete source coverage, or that a generated recommendation is correct, complete, current, or suitable for a particular outcome. Human review is required for consequential decisions.</p>
+
+        <h2>Limitation of liability</h2>
+        <p>To the maximum extent permitted by law, Driftline and its operator are not liable for indirect, incidental, special, consequential, exemplary, or loss-of-data damages arising from your use of the experimental service. Nothing in these Terms limits liability that cannot lawfully be limited.</p>
+
+        <h2>Suspension and changes</h2>
+        <p>Access may be suspended or discontinued to protect the service, connected systems, or users, or to retire the hackathon deployment. These Terms may be updated as Driftline changes; the “Last updated” date will identify the current version.</p>
+
+        <h2>Contact</h2>
+        <p><a href="mailto:mikeyerke@gmail.com">mikeyerke@gmail.com</a></p>
+      </article>
+      <footer>Driftline · Change operations with evidence and human approval</footer>
+    </div>
+  </body>
+</html>
