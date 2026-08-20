@@ -32,7 +32,11 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   manual `Owner review` routing, approval, packet completion, and reopen/undo;
   the final browser state was `Decision reopened · no external systems were
   changed` with `sawNeedsApproval=true`, `sawCompleted=true`, and
-  `sawReopened=true`.
+  `sawReopened=true`. The latest durable job is `job-d8770ab35c36` and
+  workflow `b020f014-845c-4e36-b20c-f829a212fee0`; its Firestore event chain
+  includes `approval_recorded`, four artifact decisions, a packet summary, and
+  `decision_reopened`, with `external_write=false` and a persisted rollback
+  marker.
 - Local regression remains `175 passed`; the production frontend build and
   `git diff --check` are clean. The public lane remains synthetic and
   packet-only; authenticated connectors remain tenant-scoped and signed.
