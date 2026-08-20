@@ -19,3 +19,23 @@ def test_connector_binding_is_control_plane_metadata_not_ttl_content(monkeypatch
     loaded = persistence.load_connector_binding("retention-acme", "jira")
     assert loaded is not None
     assert "expires_at" not in loaded
+
+
+def test_tenant_usage_is_period_scoped_and_aggregate_only(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    first = persistence.record_tenant_usage(
+        "usage-acme", "agent_calls", period="2026-08"
+    )
+    second = persistence.record_tenant_usage(
+        "usage-acme", "workflow_mutations", amount=2, period="2026-08"
+    )
+    current = persistence.load_tenant_usage("usage-acme", period="2026-08")
+    other_period = persistence.load_tenant_usage("usage-acme", period="2026-07")
+
+    assert first["agent_calls"] == 1
+    assert second["workflow_mutations"] == 2
+    assert current["agent_calls"] == 1
+    assert current["workflow_mutations"] == 2
+    assert current["monitor_jobs"] == 0
+    assert other_period["agent_calls"] == 0
+    assert set(current) >= {"tenant_id", "period", "agent_calls"}

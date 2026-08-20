@@ -30,10 +30,12 @@ CONNECTOR_BINDINGS_COLLECTION = "driftline_connector_bindings"
 TENANTS_COLLECTION = "driftline_tenants"
 TENANT_MEMBERSHIPS_COLLECTION = "driftline_tenant_memberships"
 TENANT_AUDIT_COLLECTION = "driftline_tenant_audit_events"
+TENANT_USAGE_COLLECTION = "driftline_tenant_usage"
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenants_memory: dict[str, dict[str, Any]] = {}
 _tenant_memberships_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenant_audit_memory: list[dict[str, Any]] = []
+_tenant_usage_memory: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 def _enabled() -> bool:
@@ -445,6 +447,71 @@ def list_tenant_audit_events(tenant_id: str, limit: int = 50) -> list[dict[str, 
         ]
     events.sort(key=lambda event: str(event.get("created_at", "")), reverse=True)
     return events[:safe_limit]
+
+
+_USAGE_METRICS = frozenset({"agent_calls", "workflow_mutations", "monitor_jobs"})
+
+
+def _usage_period(now: datetime | None = None) -> str:
+    return (now or datetime.now(UTC)).strftime("%Y-%m")
+
+
+def record_tenant_usage(
+    tenant_id: str, metric: str, amount: int = 1, *, period: str | None = None
+) -> dict[str, Any]:
+    """Increment bounded tenant-period usage without retaining request content."""
+    if metric not in _USAGE_METRICS or amount <= 0:
+        raise ValueError("usage_metric_invalid")
+    usage_period = period or _usage_period()
+    key = (tenant_id, usage_period)
+    payload = _tenant_usage_memory.setdefault(
+        key,
+        {
+            "tenant_id": tenant_id,
+            "period": usage_period,
+            "agent_calls": 0,
+            "workflow_mutations": 0,
+            "monitor_jobs": 0,
+        },
+    )
+    payload[metric] = int(payload.get(metric, 0)) + amount
+    payload["updated_at"] = utc_now()
+    if _enabled():
+        _client().collection(TENANT_USAGE_COLLECTION).document(
+            f"{tenant_id}:{usage_period}"
+        ).set(
+            {
+                "tenant_id": tenant_id,
+                "period": usage_period,
+                metric: firestore.Increment(amount),
+                "updated_at": payload["updated_at"],
+            },
+            merge=True,
+        )
+    return dict(payload)
+
+
+def load_tenant_usage(tenant_id: str, period: str | None = None) -> dict[str, Any]:
+    """Return one tenant's aggregate usage for the requested month."""
+    usage_period = period or _usage_period()
+    if _enabled():
+        snapshot = _client().collection(TENANT_USAGE_COLLECTION).document(
+            f"{tenant_id}:{usage_period}"
+        ).get()
+        if snapshot.exists:
+            return snapshot.to_dict() or {}
+    return dict(
+        _tenant_usage_memory.get(
+            (tenant_id, usage_period),
+            {
+                "tenant_id": tenant_id,
+                "period": usage_period,
+                "agent_calls": 0,
+                "workflow_mutations": 0,
+                "monitor_jobs": 0,
+            },
+        )
+    )
 
 
 def persist_tenant(payload: dict[str, Any]) -> dict[str, Any]:

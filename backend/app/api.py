@@ -85,6 +85,7 @@ from .persistence import (
     load_job,
     load_salesforce_connection,
     load_tenant,
+    load_tenant_usage,
     load_workflow,
     persist_connector_binding,
     persist_job,
@@ -95,6 +96,7 @@ from .persistence import (
     persist_tenant_audit_event,
     persist_tenant_membership,
     persist_workflow,
+    record_tenant_usage,
     update_jobs_for_workflow,
 )
 from .simulator import simulate_scenarios
@@ -342,6 +344,16 @@ _workflow_transition_lock = Lock()
 _background_tasks: set[asyncio.Task[None]] = set()
 
 
+def _record_tenant_usage(tenant_id: str | None, metric: str) -> None:
+    """Best-effort aggregate metering; quota enforcement remains local and fail-safe."""
+    if not tenant_id:
+        return
+    try:
+        record_tenant_usage(tenant_id, metric)
+    except Exception:  # noqa: BLE001 - metering must not authorize extra work.
+        logger.warning("Tenant usage ledger update failed for %s/%s", tenant_id, metric)
+
+
 def _reserve_agent_call(tenant_id: str | None = None) -> bool:
     now = monotonic()
     cutoff = now - AGENT_WINDOW_SECONDS
@@ -356,6 +368,7 @@ def _reserve_agent_call(tenant_id: str | None = None) -> bool:
         if len(times) >= AGENT_MAX_CALLS:
             return False
         times.append(now)
+        _record_tenant_usage(tenant_id, "agent_calls")
         return True
 
 
@@ -373,6 +386,7 @@ def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
         if len(times) >= DEMO_MAX_MUTATIONS:
             return False
         times.append(now)
+        _record_tenant_usage(tenant_id, "workflow_mutations")
         return True
 
 
@@ -1620,6 +1634,41 @@ def get_tenant_audit(
             }
             for event in events
         ],
+        "credential_values_exposed": False,
+    }
+
+
+@app.get("/api/tenants/usage")
+def get_tenant_usage(
+    operator: str,
+    tenant_id: str | None = None,
+    period: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return aggregate tenant usage; this is metering, not billing."""
+    identity = _verify_approval_mode(
+        "tenant-usage",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    usage = load_tenant_usage(identity["tenant_id"], period=period)
+    return {
+        "tenant_id": identity["tenant_id"],
+        "period": usage.get("period"),
+        "usage": {
+            key: usage.get(key, 0)
+            for key in ("agent_calls", "workflow_mutations", "monitor_jobs")
+        },
+        "metering": {
+            "durable": True,
+            "scope": "tenant_period",
+            "billing_enabled": False,
+            "retention": "control_plane_metadata; no content TTL",
+        },
         "credential_values_exposed": False,
     }
 

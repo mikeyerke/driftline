@@ -90,6 +90,42 @@ def test_source_registry_and_freshness_can_be_bound_to_signed_tenant(monkeypatch
     assert all("token" not in str(item).casefold() for item in registry.json()["sources"])
 
 
+def test_signed_tenant_usage_is_aggregate_and_not_billing(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "usage-route-secret"
+    actor = "Usage reader"
+    tenant_id = "usage-route-acme"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+    api.record_tenant_usage(tenant_id, "agent_calls", period="2026-08")
+    api.record_tenant_usage(tenant_id, "workflow_mutations", amount=2, period="2026-08")
+    token = hmac.new(
+        secret.encode(), f"tenant-usage:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+
+    response = client.get(
+        "/api/tenants/usage",
+        params={
+            "operator": actor,
+            "tenant_id": tenant_id,
+            "period": "2026-08",
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["usage"] == {
+        "agent_calls": 1,
+        "workflow_mutations": 2,
+        "monitor_jobs": 0,
+    }
+    assert payload["metering"]["durable"] is True
+    assert payload["metering"]["billing_enabled"] is False
+    assert payload["credential_values_exposed"] is False
+
+
 def test_outcome_measurements_require_signed_operator(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
