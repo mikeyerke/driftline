@@ -331,7 +331,10 @@ gcloud builds submit --project=driftline-hackathon-2026 --config cloudbuild.yaml
 
 The root Dockerfile builds the React console and serves it from FastAPI. Cloud
 Run uses the dedicated runtime service account for Vertex AI and Firestore; no
-API key is embedded in the client.
+API key is embedded in the client. The production image installs the frozen
+`backend/uv.lock` resolution with pinned `uv==0.8.17`; dependency ranges in
+`pyproject.toml` cannot silently change a deployed build. Verify the lockfile
+before a release with `uv lock --check --directory backend`.
 
 ## Public links
 

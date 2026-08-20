@@ -181,3 +181,10 @@ before a customer connector exists and prevents a model from manufacturing
 business exposure. Approval also assigns deterministic risk-based due dates to
 owner actions; the closure card and `/api/ops/value-proof` expose overdue work
 without claiming customer ROI.
+
+The production container is reproducible by construction: Cloud Build copies
+`backend/uv.lock`, installs the pinned `uv==0.8.17` bootstrap, and runs
+`uv sync --frozen --no-dev`. A source-only change reuses the dependency layer;
+an attempted dependency drift fails the build instead of silently resolving a
+new runtime. Local release verification uses `uv lock --check` plus the full
+test/lint suite.
