@@ -41,7 +41,7 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `git diff --check` are clean. Desktop/mobile browser QA and the complete
   scan → evidence → artifact → approval → completion → reopen journey passed
   with no console errors or failed requests. Latest verified job is
-  `job-82827e7d8483`, workflow `71703a51-990c-4fac-b1cf-c20173da5512`, recorded
+  `job-75dfb9a8ac41`, workflow `b999c117-8fe7-46e4-b8b6-1a0566ada581`, recorded
   with Gemini 3.5 Flash and Google ADK.
 
 ## 2026-08-20 Exact tenant evidence scope release (superseded snapshot)

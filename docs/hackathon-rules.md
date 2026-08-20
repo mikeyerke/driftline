@@ -45,10 +45,12 @@ be no longer than four minutes; if longer, only the first four minutes are
 evaluated. The video must be publicly visible on YouTube or Vimeo, so Driftline
 will use a public link rather than an unlisted upload.
 
-The optional content bonus requires public content that explicitly says it was
-created for this hackathon. It can add up to 0.6 judging points when the
-required hashtag and disclosure are present. Driftline does not claim that
-bonus unless the post is actually published.
+The optional content bonus includes public build content that explicitly says
+it was created for this hackathon, a separate social post using the required
+`#AllThingsAgenticHackathon` hashtag on the listed social platforms, and
+additional Google AI model integrations. Each contribution is optional and
+scored under the rules; Driftline does not claim any bonus unless the artifact
+is actually published or integrated.
 
 ## Categories and selection
 
@@ -67,6 +69,14 @@ It is a single governed workflow,
 not an enterprise fleet, so the Fortified Enterprise Fleet category is not
 claimed. The entry will not claim Startup Excellence without verified
 incorporation and corporate-email eligibility.
+
+Prize lanes listed by the official rules include Grand Prize, Taskmaster,
+Collaborative Partner, Fortified Enterprise Fleet, Startup Excellence,
+Individual/Hobbyist, Best Architectural Design, Best Multimodal UX, and
+Honorable Mentions. Driftline can truthfully target Taskmaster,
+Individual/Hobbyist if entered as an individual, Best Architectural Design,
+and Best Multimodal UX only if the final implementation and video substantiate
+those claims. Grand Prize is an overall outcome, not a category selection.
 
 ## New-project disclosure
 

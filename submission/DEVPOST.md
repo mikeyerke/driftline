@@ -128,22 +128,23 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current public verification job is `job-8ac5cf45f80e`, with workflow
-  `051817f9-a65e-4c35-ab60-029dab0c2869`. Its persisted audit trail contains
+- The current public verification job is `job-75dfb9a8ac41`, with workflow
+  `b999c117-8fe7-46e4-b8b6-1a0566ada581`. Its persisted audit trail contains
   verified evidence, four mapped artifacts, four drafted updates, a human
   approval, packet creation, and `decision_reopened`; the final state is back
   at the deterministic approval gate.
 - The deployed public path returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and both allowlisted tool calls. Cloud Run revision
-  `driftline-00155-82w` serves 100% of traffic in the isolated project. The
+  `driftline-00168-rjm` serves 100% of traffic in the isolated project. The
   latest browser proof passed desktop and 390px mobile scan, evidence, artifact
   selection, approval, completion, and reopen/undo with no console errors or
   failed requests.
 - The tenant credential data plane is now canonical and fail-closed: durable
   tenant memberships, per-tenant Secret Manager namespaces, impersonated
   service identities, pinned versions, rotation/revocation, operation scopes,
-  and metadata-only access auditing. The public lane never receives those
-  credentials.
+  and metadata-only access auditing. Tenant owners can also set bounded quota
+  and retention policy without a redeploy; the public lane never receives
+  those credentials.
 
 ## Findings and learnings
 
