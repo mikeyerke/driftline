@@ -311,13 +311,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 
 ## 2026-08-20 Hosted tenant-profile fail-closed release
 
-- Source commits: `8603a10` (hosted target fallback disabled) and `1c8ea1d`
-  (context-contract copy), pushed to
+- Source commits: `8603a10` (hosted target fallback disabled), `1c8ea1d`
+  (context-contract copy), and `b6a9ba3` (live ADK source binding), pushed to
   `https://github.com/mikeyerke/driftline`.
-- Cloud Build `4d6f0a88-18b4-4502-a88a-1b6e86ad475b` — `SUCCESS`; Artifact
+- Cloud Build `937bfc45-f501-492e-b007-5efccbc9dd7e` — `SUCCESS`; Artifact
   Registry image digest
-  `sha256:ad661e5c812588aed3309d746c27d88f3cc5b608ea8f90b84f8836d3fa885cdb`.
-- Cloud Run revision `driftline-00115-drx` serves 100% of traffic. The hosted
+  `sha256:2e13374abdb85c0cafb8a3a7a3e1f69088657ab6d54c269b7cc2e31d57d0b338`.
+- Cloud Run revision `driftline-00116-hf4` serves 100% of traffic. The hosted
   environment explicitly reports
   `DRIFTLINE_ALLOW_DEPLOYMENT_CONNECTOR_TARGET_FALLBACK=false`; a signed
   tenant without a durable profile fails closed with
@@ -336,7 +336,15 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   tools `inspect_source_change` and `get_workflow_state`. Public demo approve
   and undo returned all four connector statuses as `prepared_only` with
   `external_write=false`.
-- The local regression suite is `132 passed`; Ruff, frontend production
+- A direct public `POST /api/agent/run` probe on this revision completed in
+  31.56 seconds with `execution_mode=google_adk`, `model=gemini-3.5-flash`,
+  `source_status=needs_approval`, workflow
+  `1fe6e9d6-ebb9-45ac-b56e-3e26d66994d9`, and exactly the allowlisted tools
+  `inspect_source_change` and `get_workflow_state`. The workflow document was
+  confirmed in Firestore collection `driftline_workflows`; no external write
+  occurred. The fix binds placeholder model references only to the workflow
+  created in the same ADK turn and requires an explicit allowlisted `source_id`.
+- The local regression suite is `135 passed`; Ruff, frontend production
   build, and `git diff --check` passed. Salesforce remains
   `oauth_ready` / `awaiting_authorization`; no connected-org claim is made.
 
@@ -560,7 +568,7 @@ not invoked by that public path.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00115-drx` from commit `1c8ea1d` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, and both legacy global credential and hosted deployment-target fallbacks disabled |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00116-hf4` from commit `b6a9ba3` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, and both legacy global credential and hosted deployment-target fallbacks disabled |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
