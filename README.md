@@ -172,7 +172,7 @@ identity-free preview mutations are query-capped and rate-limited to bound
 demo spend. Signed agent calls and workflow mutations use separate per-tenant
 budgets, so one tenant cannot consume another tenant's allowance. The signed
 `GET /api/tenants/usage` endpoint also records durable monthly aggregates for
-agent calls, workflow mutations, and monitor jobs in Firestore. This is
+agent calls, workflow mutations, connector reads, and monitor jobs in Firestore. This is
 control-plane metering for quota and pilot evidence only: billing is disabled,
 content is not included, and the deployment still does not claim a hosted
 subscription system.

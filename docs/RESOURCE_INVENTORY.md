@@ -17,6 +17,28 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Durable connector-read quota fix (live)
+
+- Source commit `2aaca67` registers `connector_calls` in the shared usage and
+  transactional rate-limit metric allowlist. The earlier quota release could
+  reserve agent/workflow slots but rejected connector reservations as an
+  invalid metric; this fix keeps the connector allowance fail-closed without
+  blocking valid reads.
+- Cloud Build `2b46a3fc-b630-42bc-92c1-472b60ead9c8` completed `SUCCESS` and
+  produced image digest
+  `sha256:4f068c46e5233b24c24b90dda32aa2269985157aa5b1db72db956c61d4cdb3db`.
+  Cloud Run revision `driftline-00008-kw6` serves 100% of traffic in the
+  isolated project with the existing scale-to-zero/max-one settings.
+- `/health` returned `200` with Firestore persistence and async jobs. Signed
+  live probes returned `200` for tenant policy, connector binding health, and
+  aggregate connector context. The effective `driftline-demo` policy is
+  `connector_calls_per_window=60` per 3600-second window. The binding health
+  summary reported 4 healthy, 1 not configured (Salesforce), 0 attention, and
+  `credential_values_exposed=false`; the signed usage ledger recorded
+  `connector_calls=3` without credential values.
+- Cloud Logging showed no severity `ERROR` entries after the 00008 rollout.
+  Local regression remains `195 passed`; Ruff and `git diff --check` are clean.
+
 ## 2026-08-20 Canonical tenant credential control plane (live)
 
 - Source commit `3ba7554` is the checked-in tenant-boundary release. Connector
