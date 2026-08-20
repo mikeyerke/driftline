@@ -70,6 +70,9 @@ account, API key, repository, or environment variable is reused.
   jobs; a live dismissal returned `status=dismissed`, stable card
   `card-51b2caa0b18994ae6413`, closure `dismissed`, and zero action items. The
   revision error-log query returned no `ERROR` entries.
+- Newest-revision async ADK smoke `job-4fae77ae92b9` reached
+  `needs_approval` with `gemini-3.5-flash`, `execution_mode=google_adk`, exactly
+  `inspect_source_change` and `get_workflow_state`, and no error.
 
 ## 2026-08-20 Stable Change Card idempotency release
 
