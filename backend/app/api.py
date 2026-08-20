@@ -1727,6 +1727,13 @@ def get_ops_summary(
                 == "firestore"
                 else "process_local"
             ),
+            # Public summaries deliberately omit tenant policy; signed
+            # operators receive only their own bounded control-plane values.
+            "tenant_policy": (
+                load_tenant_policy(identity["tenant_id"])
+                if identity is not None
+                else None
+            ),
         },
         "approval_security": {
             "public_demo_packet_only": True,
