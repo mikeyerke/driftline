@@ -17,6 +17,26 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Artifact-routing override release (current)
+
+- Source commit `11348a5` keeps the copilot's reviewed workflow decision while
+  explicitly clearing a stale copilot option id when an operator changes an
+  artifact route. This makes a deliberate custom packet plan auditable instead
+  of returning a false `409 Artifact decisions do not match` response.
+- Cloud Build `7cb9a192-b403-4f14-aa53-eff9d60ce3e3` completed `SUCCESS`; image
+  digest `sha256:cf2de9ba2390ab6f336e5aa2e352e3b8ca68369ef4eedbbc1d746a108f6555b4`;
+  Cloud Run revision `driftline-00157-ck5` serves 100% of traffic.
+- Public `/health` returned Firestore persistence and async jobs. Headless
+  Chrome at 1440px and 390px passed with no overflow, console errors, or
+  failed requests. The live journey passed scan, evidence, artifact selection,
+  manual `Owner review` routing, approval, packet completion, and reopen/undo;
+  the final browser state was `Decision reopened · no external systems were
+  changed` with `sawNeedsApproval=true`, `sawCompleted=true`, and
+  `sawReopened=true`.
+- Local regression remains `175 passed`; the production frontend build and
+  `git diff --check` are clean. The public lane remains synthetic and
+  packet-only; authenticated connectors remain tenant-scoped and signed.
+
 ## 2026-08-20 Responsive navigation and browser journey release (current)
 
 - Source commit `773b7e6` changes the narrow layout from a partially hidden
