@@ -58,6 +58,15 @@ exception text, or credentials. Persisted jobs, workflows, source observations,
 outcome measurements, and failure markers carry an explicit 30-day TTL by
 default.
 
+Signed agent calls and workflow mutations reserve separate tenant-scoped
+Firestore windows. Owners can read and tune bounded
+`agent_calls_per_window` and `workflow_mutations_per_window` allowances through
+`GET/POST /api/tenants/policy` without a Cloud Run redeploy. Policy fields are
+allowlisted and clamped to safe bounds, changes append a tenant audit event,
+and missing policy metadata falls back to deployment defaults. A hosted policy
+lookup failure fails closed before work is reserved; this is tenant
+control-plane policy and metering, not billing.
+
 The direct `/api/agent/run` path preserves the same boundary in both modes:
 the public judge request is tenantless and packet-safe, while a signed operator
 request verifies its tenant principal before reserving quota and passing that

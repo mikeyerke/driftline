@@ -99,6 +99,7 @@ from .persistence import (
     load_job,
     load_salesforce_connection,
     load_tenant,
+    load_tenant_policy,
     load_tenant_usage,
     load_workflow,
     persist_connector_binding,
@@ -112,6 +113,7 @@ from .persistence import (
     persist_tenant,
     persist_tenant_audit_event,
     persist_tenant_membership,
+    persist_tenant_policy,
     persist_workflow,
     provision_tenant_metadata,
     record_tenant_usage,
@@ -307,6 +309,17 @@ class TenantDeprovisionRequest(BaseModel):
     operator: str = Field(min_length=1, max_length=120)
     tenant_id: str = Field(min_length=3, max_length=63)
     confirmation: str = Field(min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class TenantPolicyRequest(BaseModel):
+    """Owner-managed bounded tenant allowance; never a billing contract."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    agent_calls_per_window: int = Field(default=10, ge=1, le=1000)
+    workflow_mutations_per_window: int = Field(default=30, ge=1, le=1000)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
 
@@ -512,6 +525,25 @@ def _record_tenant_usage(tenant_id: str | None, metric: str) -> None:
         logger.warning("Tenant usage ledger update failed for %s/%s", tenant_id, metric)
 
 
+def _tenant_quota_limit(tenant_id: str | None, metric: str, fallback: int) -> int:
+    """Resolve one tenant's bounded allowance without widening on failure."""
+    if not tenant_id:
+        return fallback
+    policy_key = {
+        "agent_calls": "agent_calls_per_window",
+        "workflow_mutations": "workflow_mutations_per_window",
+    }.get(metric)
+    if policy_key is None:
+        return fallback
+    try:
+        policy = load_tenant_policy(tenant_id, defaults={policy_key: fallback})
+        return max(1, min(int(policy.get(policy_key, fallback)), 1000))
+    except Exception:  # noqa: BLE001 - quota lookup must fail closed hosted.
+        if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
+            return 0
+        return fallback
+
+
 def _reserve_durable_tenant_slot(
     tenant_id: str | None, metric: str, limit: int, window_seconds: int
 ) -> bool | None:
@@ -535,8 +567,11 @@ def _reserve_durable_tenant_slot(
 
 
 def _reserve_agent_call(tenant_id: str | None = None) -> bool:
+    limit = _tenant_quota_limit(tenant_id, "agent_calls", AGENT_MAX_CALLS)
+    if limit < 1:
+        return False
     durable = _reserve_durable_tenant_slot(
-        tenant_id, "agent_calls", AGENT_MAX_CALLS, AGENT_WINDOW_SECONDS
+        tenant_id, "agent_calls", limit, AGENT_WINDOW_SECONDS
     )
     if durable is not None:
         if durable:
@@ -552,7 +587,7 @@ def _reserve_agent_call(tenant_id: str | None = None) -> bool:
         )
         while times and times[0] <= cutoff:
             times.popleft()
-        if len(times) >= AGENT_MAX_CALLS:
+        if len(times) >= limit:
             return False
         times.append(now)
         _record_tenant_usage(tenant_id, "agent_calls")
@@ -560,8 +595,11 @@ def _reserve_agent_call(tenant_id: str | None = None) -> bool:
 
 
 def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
+    limit = _tenant_quota_limit(tenant_id, "workflow_mutations", DEMO_MAX_MUTATIONS)
+    if limit < 1:
+        return False
     durable = _reserve_durable_tenant_slot(
-        tenant_id, "workflow_mutations", DEMO_MAX_MUTATIONS, DEMO_WINDOW_SECONDS
+        tenant_id, "workflow_mutations", limit, DEMO_WINDOW_SECONDS
     )
     if durable is not None:
         if durable:
@@ -577,7 +615,7 @@ def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
         )
         while times and times[0] <= cutoff:
             times.popleft()
-        if len(times) >= DEMO_MAX_MUTATIONS:
+        if len(times) >= limit:
             return False
         times.append(now)
         _record_tenant_usage(tenant_id, "workflow_mutations")
@@ -2633,6 +2671,75 @@ def get_tenant_usage(
             "billing_enabled": False,
             "retention": "control_plane_metadata; no content TTL",
         },
+        "credential_values_exposed": False,
+    }
+
+
+@app.get("/api/tenants/policy")
+def get_tenant_policy(
+    operator: str,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return the caller's effective bounded allowance policy."""
+    identity = _verify_approval_mode(
+        "tenant-policy-read",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    policy = load_tenant_policy(identity["tenant_id"])
+    return {
+        "tenant_id": identity["tenant_id"],
+        "policy": policy,
+        "windows_seconds": {
+            "agent_calls": AGENT_WINDOW_SECONDS,
+            "workflow_mutations": DEMO_WINDOW_SECONDS,
+        },
+        "billing_enabled": False,
+        "metering_only": True,
+        "credential_values_exposed": False,
+    }
+
+
+@app.post("/api/tenants/policy")
+def update_tenant_policy(request: TenantPolicyRequest) -> dict[str, object]:
+    """Update one tenant's bounded quota policy without redeploying the service."""
+    identity = _verify_approval_mode(
+        "tenant-policy-update",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    policy = persist_tenant_policy(
+        identity["tenant_id"],
+        {
+            "agent_calls_per_window": request.agent_calls_per_window,
+            "workflow_mutations_per_window": request.workflow_mutations_per_window,
+        },
+    )
+    audit_event = persist_tenant_audit_event(
+        {
+            "tenant_id": identity["tenant_id"],
+            "event_type": "tenant_policy_updated",
+            "policy_keys": sorted(policy),
+            "actor": identity.get("email") or identity.get("identity"),
+        }
+    )
+    return {
+        "status": "active",
+        "tenant_id": identity["tenant_id"],
+        "policy": policy,
+        "billing_enabled": False,
+        "metering_only": True,
+        "audit_event_id": audit_event["event_id"],
         "credential_values_exposed": False,
     }
 

@@ -214,6 +214,49 @@ def test_signed_tenant_usage_is_aggregate_and_not_billing(monkeypatch) -> None:
     assert payload["credential_values_exposed"] is False
 
 
+def test_owner_can_update_and_read_tenant_quota_policy(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "driftline-demo")
+    secret = "tenant-policy-route-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    actor = "Policy owner"
+    update_token = hmac.new(
+        secret.encode(), f"tenant-policy-update:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+    response = client.post(
+        "/api/tenants/policy",
+        json={
+            "operator": actor,
+            "tenant_id": "driftline-demo",
+            "agent_calls_per_window": 17,
+            "workflow_mutations_per_window": 42,
+            "approval_token": update_token,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["policy"] == {
+        "agent_calls_per_window": 17,
+        "workflow_mutations_per_window": 42,
+    }
+
+    read_token = hmac.new(
+        secret.encode(), f"tenant-policy-read:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+    read = client.get(
+        "/api/tenants/policy",
+        params={
+            "operator": actor,
+            "tenant_id": "driftline-demo",
+            "approval_token": read_token,
+        },
+    )
+    assert read.status_code == 200
+    assert read.json()["policy"]["agent_calls_per_window"] == 17
+    assert read.json()["billing_enabled"] is False
+
+
 def test_signed_job_failure_ledger_is_tenant_filtered_and_redacted(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

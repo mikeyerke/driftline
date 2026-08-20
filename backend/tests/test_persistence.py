@@ -132,6 +132,32 @@ def test_tenant_usage_is_period_scoped_and_aggregate_only(monkeypatch) -> None:
     assert set(current) >= {"tenant_id", "period", "agent_calls"}
 
 
+def test_tenant_policy_is_bounded_and_keeps_defaults_for_missing_fields(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    tenant_id = "policy-acme"
+    persistence.persist_tenant({"tenant_id": tenant_id, "status": "active"})
+
+    assert persistence.load_tenant_policy(tenant_id) == {
+        "agent_calls_per_window": 10,
+        "workflow_mutations_per_window": 30,
+    }
+    policy = persistence.persist_tenant_policy(
+        tenant_id,
+        {
+            "agent_calls_per_window": 5000,
+            "workflow_mutations_per_window": 0,
+            "unexpected": "discarded",
+        },
+    )
+    assert policy == {
+        "agent_calls_per_window": 1000,
+        "workflow_mutations_per_window": 1,
+    }
+    stored = persistence.load_tenant(tenant_id)
+    assert stored["policy"] == policy
+    assert "unexpected" not in stored["policy"]
+
+
 def test_tenant_rate_limit_reservation_is_window_and_tenant_scoped(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     persistence._tenant_rate_limit_memory.clear()

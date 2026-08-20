@@ -176,6 +176,13 @@ agent calls, workflow mutations, and monitor jobs in Firestore. This is
 control-plane metering for quota and pilot evidence only: billing is disabled,
 content is not included, and the deployment still does not claim a hosted
 subscription system.
+Tenant owners can read and tune bounded per-tenant allowances without a
+redeploy through signed `GET/POST /api/tenants/policy`; the policy is limited
+to agent calls and workflow mutations, clamped to safe bounds, and recorded as
+metadata-only audit history. Missing policy metadata falls back to the
+deployment guardrails, while a Firestore policy lookup failure fails closed.
+This is a real tenant control-plane policy, not a billing or subscription
+claim.
 
 Cloud Tasks retries failed jobs at most three times. A terminal failure also
 creates a tenant-filtered metadata marker in `driftline_job_failures`, visible

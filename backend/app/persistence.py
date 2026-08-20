@@ -38,6 +38,10 @@ TENANT_CONNECTOR_PROFILES_COLLECTION = "driftline_tenant_connector_profiles"
 CREDENTIAL_ACCESS_COLLECTION = "driftline_credential_access_events"
 TENANT_CREDENTIALS_SUBCOLLECTION = "credentials"
 TENANT_CREDENTIAL_ENROLLMENTS_SUBCOLLECTION = "credential_enrollments"
+TENANT_POLICY_DEFAULTS: dict[str, int] = {
+    "agent_calls_per_window": 10,
+    "workflow_mutations_per_window": 30,
+}
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _connector_profiles_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenants_memory: dict[str, dict[str, Any]] = {}
@@ -962,6 +966,50 @@ def persist_tenant(payload: dict[str, Any]) -> dict[str, Any]:
     if _enabled():
         _client().collection(TENANTS_COLLECTION).document(tenant_id).set(safe)
     return dict(safe)
+
+
+def _normalise_tenant_policy(
+    payload: dict[str, Any] | None,
+    defaults: dict[str, int] | None = None,
+) -> dict[str, int]:
+    """Return bounded tenant quota policy without accepting arbitrary fields."""
+    effective_defaults = {**TENANT_POLICY_DEFAULTS, **(defaults or {})}
+    policy = dict(effective_defaults)
+    for key, default in effective_defaults.items():
+        value = (payload or {}).get(key, default)
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            value = default
+        policy[key] = max(1, min(value, 1000))
+    return policy
+
+
+def load_tenant_policy(
+    tenant_id: str, *, defaults: dict[str, int] | None = None
+) -> dict[str, int]:
+    """Load the effective quota policy for one tenant.
+
+    Missing policy metadata intentionally resolves to the deployment defaults,
+    which keeps existing tenants compatible while allowing owners to tune
+    their own bounded allowance without changing a Cloud Run revision.
+    """
+    tenant = load_tenant(tenant_id)
+    return _normalise_tenant_policy(
+        tenant.get("policy") if isinstance(tenant, dict) else None,
+        defaults,
+    )
+
+
+def persist_tenant_policy(tenant_id: str, policy: dict[str, Any]) -> dict[str, int]:
+    """Persist only the allowlisted, bounded tenant quota policy."""
+    safe = _normalise_tenant_policy(policy)
+    tenant = load_tenant(tenant_id) or {"tenant_id": tenant_id, "status": "active"}
+    updated = dict(tenant)
+    updated["policy"] = safe
+    updated["updated_at"] = utc_now()
+    persist_tenant(updated)
+    return safe
 
 
 def provision_tenant_metadata(
