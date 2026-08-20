@@ -2865,6 +2865,13 @@ def get_connector_credentials(
             "rotation": "owner_requested_then_version_pinned",
             "revocation": "binding_status_fail_closed",
             "audit_collection": "driftline_credential_access_events",
+            "enrollment": {
+                "start_route": "/api/connectors/{connector}/credential-enrollment",
+                "complete_route": "/api/connectors/{connector}/credential-enrollment/{id}/complete",
+                "session_ttl_seconds": 900,
+                "default_new_scope": ["read_context", "runtime"],
+                "raw_secret_accepted": False,
+            },
         },
         "credential_values_exposed": False,
     }
