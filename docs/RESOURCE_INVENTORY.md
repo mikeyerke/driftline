@@ -1467,12 +1467,15 @@ is no longer needed.
 - Cloud Tasks `driftline-jobs` retry policy is bounded to three attempts with a
   five-second minimum and 60-second maximum backoff, one concurrent dispatch,
   and 0.2 dispatches per second.
-- Job, workflow, source snapshot, and outcome records now carry a bounded
-  `expires_at` retention field. Firestore TTL operations were requested for the
-  relevant collection groups; verify their state before calling retention
-  cleanup complete.
+- Job, workflow, source snapshot, source-failure, and outcome records carry a
+  bounded `expires_at` retention field. Firestore TTL is `ACTIVE` for
+  `driftline_jobs`, `driftline_workflows`, `driftline_source_snapshots`,
+  `driftline_source_failures`, `driftline_outcome_measurements`, and
+  `driftline_salesforce_oauth_states`; tenant control-plane metadata remains
+  owner-retained until explicit deprovisioning.
 - Signed operator requests now resolve a tenant and role from
-  `DRIFTLINE_TENANT_MEMBERS`; the public demo remains packet-only.
+  the durable Firestore membership directory; the public demo remains
+  packet-only.
 
 ## 2026-08-20 Salesforce PKCE and source-alignment release
 

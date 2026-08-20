@@ -25,8 +25,9 @@ Undo follows the same boundary. A demo packet can be reopened without contacting
   are not persisted or injected into public workflow state.
 - Salesforce: tenant-scoped OAuth read-only context for `Product2`, `PricebookEntry`, and `Opportunity`; no write path. The OAuth lane uses a short-lived state record plus PKCE S256 and does not become connected until the real org callback succeeds.
 
-Signed operator identities resolve to a tenant and role from
-`DRIFTLINE_TENANT_MEMBERS`. `viewer` identities can inspect status, while
+Signed operator identities resolve to a tenant and role from the durable
+Firestore membership directory. `DRIFTLINE_TENANT_MEMBERS` remains a local or
+bootstrap compatibility mapping only. `viewer` identities can inspect status, while
 `operator` and `owner` identities can start signed connector work; Salesforce
 OAuth start, disconnect, and binding lifecycle operations require an `owner`.
 The public demo has no tenant authority and
