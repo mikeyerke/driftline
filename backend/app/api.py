@@ -1580,7 +1580,13 @@ def salesforce_oauth_callback(
                 "credential_id": f"cred-{tenant_id}-salesforce",
                 "secret_backend": "google_secret_manager",
                 "secret_reference_scope": "exact_tenant_connector_secret",
-                "allowed_operations": allowed_operations("salesforce"),
+                # Salesforce is deliberately read-only. Do not inherit the
+                # compatibility ``runtime`` scope used by older connectors;
+                # the OAuth callback must mint only the concrete operation
+                # the read probe can request.
+                "allowed_operations": normalize_allowed_operations(
+                    "salesforce", default="read_only"
+                ),
                 "lease_seconds": 300,
                 "secret_version": secret_version,
                 "verified_at": utc_now(),
