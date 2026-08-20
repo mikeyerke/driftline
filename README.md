@@ -144,6 +144,13 @@ agent calls, workflow mutations, and monitor jobs in Firestore. This is
 control-plane metering for quota and pilot evidence only: billing is disabled,
 content is not included, and the deployment still does not claim a hosted
 subscription system.
+
+The direct `POST /api/agent/run` route has an explicit two-lane contract. The
+public judge request is tenantless and limited to an allowlisted source. A
+real operator can add `operator`, `tenant_id`, and a Google OIDC or HMAC
+approval token; Driftline then verifies the principal, reserves that tenant's
+agent quota, and persists the ADK workflow under that tenant. Partial identity
+or unallowlisted-source requests fail before a model call.
 In the Firestore deployment, signed tenant reservations use a transactional
 window counter so concurrent Cloud Run instances cannot race past the same
 limit; local development uses a process-local fallback.
