@@ -4,9 +4,19 @@ import pytest
 
 from app.credential_broker import (
     CredentialBrokerError,
+    normalize_allowed_operations,
     resolve_tenant_credential,
 )
 from app.tenant import tenant_credential_namespace
+
+
+def test_new_enrollment_scope_defaults_read_only_and_rejects_unknown_operations() -> None:
+    assert normalize_allowed_operations("jira", default="read_only") == [
+        "read_context",
+        "runtime",
+    ]
+    with pytest.raises(CredentialBrokerError, match="credential_scope_not_allowlisted"):
+        normalize_allowed_operations("jira", ["delete_project"])
 
 
 def test_resolver_returns_scoped_lease_and_never_accepts_arbitrary_secret_name(

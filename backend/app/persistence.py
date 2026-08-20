@@ -37,6 +37,7 @@ TENANT_RATE_LIMITS_COLLECTION = "driftline_tenant_rate_limits"
 TENANT_CONNECTOR_PROFILES_COLLECTION = "driftline_tenant_connector_profiles"
 CREDENTIAL_ACCESS_COLLECTION = "driftline_credential_access_events"
 TENANT_CREDENTIALS_SUBCOLLECTION = "credentials"
+TENANT_CREDENTIAL_ENROLLMENTS_SUBCOLLECTION = "credential_enrollments"
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _connector_profiles_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenants_memory: dict[str, dict[str, Any]] = {}
@@ -46,6 +47,7 @@ _tenant_usage_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenant_rate_limit_memory: dict[tuple[str, str, int], int] = {}
 _job_failures_memory: dict[str, dict[str, Any]] = {}
 _credential_access_memory: list[dict[str, Any]] = []
+_credential_enrollments_memory: dict[tuple[str, str, str], dict[str, Any]] = {}
 _tenant_provision_lock = Lock()
 
 
@@ -572,6 +574,94 @@ def list_connector_bindings(tenant_id: str) -> list[dict[str, Any]]:
         for (bound_tenant, _), payload in _connector_bindings_memory.items()
         if bound_tenant == tenant_id
     ]
+
+
+def persist_credential_enrollment(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist one tenant-scoped, secret-free credential enrollment session.
+
+    An enrollment is control-plane state: it tells the owner which exact
+    deterministic secret namespace to provision and which operation scopes are
+    requested.  It never accepts or stores a provider credential.  The nested
+    Firestore path keeps enrollment discovery tenant-local instead of creating
+    a global credential work queue.
+    """
+    from .tenant import validate_connector_name, validate_tenant_id
+
+    tenant_id = validate_tenant_id(str(payload["tenant_id"]))
+    connector = validate_connector_name(str(payload["connector"]))
+    enrollment_id = str(payload.get("enrollment_id", "")).strip()
+    if not enrollment_id or len(enrollment_id) > 100:
+        raise ValueError("credential_enrollment_id_invalid")
+    forbidden = {
+        "value",
+        "token",
+        "secret_value",
+        "access_token",
+        "refresh_token",
+        "client_secret",
+    }
+    safe = {
+        key: value
+        for key, value in payload.items()
+        if key not in forbidden
+    }
+    safe.update(
+        {
+            "tenant_id": tenant_id,
+            "connector": connector,
+            "enrollment_id": enrollment_id,
+            "status": str(payload.get("status", "awaiting_secret")),
+            "created_at": payload.get("created_at", utc_now()),
+            "updated_at": payload.get("updated_at", utc_now()),
+        }
+    )
+    if payload.get("expires_at") is None:
+        safe.pop("expires_at", None)
+    _credential_enrollments_memory[(tenant_id, connector, enrollment_id)] = dict(safe)
+    if _enabled():
+        _client().collection(TENANTS_COLLECTION).document(tenant_id).collection(
+            TENANT_CREDENTIAL_ENROLLMENTS_SUBCOLLECTION
+        ).document(enrollment_id).set(safe)
+    return dict(safe)
+
+
+def load_credential_enrollment(
+    tenant_id: str, connector: str, enrollment_id: str
+) -> dict[str, Any] | None:
+    """Load one enrollment only through its tenant/connector namespace."""
+    from .tenant import validate_connector_name, validate_tenant_id
+
+    safe_tenant = validate_tenant_id(tenant_id)
+    safe_connector = validate_connector_name(connector)
+    safe_id = str(enrollment_id).strip()
+    if not safe_id or len(safe_id) > 100:
+        return None
+    if _enabled():
+        snapshot = (
+            _client()
+            .collection(TENANTS_COLLECTION)
+            .document(safe_tenant)
+            .collection(TENANT_CREDENTIAL_ENROLLMENTS_SUBCOLLECTION)
+            .document(safe_id)
+            .get()
+        )
+        if not snapshot.exists:
+            return None
+        payload = snapshot.to_dict() or {}
+    else:
+        payload = _credential_enrollments_memory.get(
+            (safe_tenant, safe_connector, safe_id)
+        )
+        payload = dict(payload) if payload else None
+    if not payload:
+        return None
+    if (
+        str(payload.get("tenant_id", "")) != safe_tenant
+        or str(payload.get("connector", "")) != safe_connector
+        or str(payload.get("enrollment_id", "")) != safe_id
+    ):
+        return None
+    return dict(payload)
 
 
 def persist_credential_access_event(payload: dict[str, Any]) -> dict[str, Any]:

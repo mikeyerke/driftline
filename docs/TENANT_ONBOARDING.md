@@ -49,7 +49,16 @@ out of band and add it to that exact secret. Driftline's hosted release is
 configured with `DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS=true`, so a
 deployment-wide signer cannot authorize a tenant-scoped request.
 
-## 2. Add provider values out of band
+## 2. Start a secret-free enrollment (recommended)
+
+An owner can create a short-lived enrollment session with
+`POST /api/connectors/{connector}/credential-enrollment`. The signed response
+contains the exact tenant secret reference, a 15-minute expiry, and an
+allowlisted operation scope. New sessions default to `runtime` and
+`read_context`; request write operations only when the tenant needs them. The
+session ID is the only value needed for the completion step.
+
+## 3. Add provider values out of band
 
 Use the provider's least-privilege token/OAuth flow to add a version directly
 to the exact tenant secret. Do not paste the value into Driftline requests or
@@ -63,10 +72,12 @@ printf '%s' 'VALUE_FROM_PROVIDER_FLOW' | gcloud secrets versions add \
 The command above is an operator example; provider values and credentials must
 not appear in shell history, logs, screenshots, or source control.
 
-## 3. Bind and verify the connector
+## 4. Bind and verify the connector
 
 An authenticated tenant owner calls
-POST /api/connectors/{connector}/binding. Driftline derives the same
+`POST /api/connectors/{connector}/credential-enrollment/{id}/complete` after
+the secret version exists (or uses the direct legacy-compatible
+`POST /api/connectors/{connector}/binding` route). Driftline derives the same
 deterministic secret name, verifies that a readable version exists, resolves
 its concrete Secret Manager version when available, and stores only metadata
 in the canonical tenant credential path
@@ -110,7 +121,7 @@ non-secret destination profile. It is safe to run repeatedly and returns
 metadata-only `healthy`, `attention`, and `not_configured` results; configured
 field names may be shown, but target values and credentials never are.
 
-## 4. Rotate or offboard
+## 5. Rotate or offboard
 
 For a planned rotation, the owner first POSTs
 `/api/connectors/{connector}/binding/rotate` with a reason. This records an

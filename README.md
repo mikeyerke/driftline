@@ -100,6 +100,15 @@ deterministic Secret Manager secret and activates its metadata-only binding via
 `POST /api/connectors/{connector}/binding`; signed workflow actions then read
 only that tenant's secret. Global connector secrets are disabled in the hosted
 runtime, and `GET /api/connectors/bindings` never returns credential values.
+For SaaS-style onboarding, an owner can start a 15-minute, secret-free handoff
+with `POST /api/connectors/{connector}/credential-enrollment`. Driftline returns
+only the tenant-scoped secret reference and an explicit operation scope (new
+enrollments default to `runtime` and `read_context`). After infrastructure adds
+the provider version out of band, the owner completes the session at
+`POST /api/connectors/{connector}/credential-enrollment/{id}/complete`; the
+runtime verifies the secret, pins its version, activates the binding, and marks
+the enrollment complete. Expired sessions fail closed, and both lifecycle
+events are append-only metadata with no token values.
 Tenant and role metadata is durable in the isolated Firestore control plane;
 signed `GET /api/tenants` exposes only the caller's tenant, while the
 owner-only `GET /api/tenants/members` route exposes role metadata without

@@ -201,6 +201,17 @@ non-secret destination profile. Missing, inactive, or malformed profiles are
 surfaced as attention, and the response never returns a credential or target
 value.
 
+The SaaS onboarding seam is a short-lived, tenant-namespaced enrollment session
+stored at `driftline_tenants/{tenant}/credential_enrollments/{id}`. It carries
+only the deterministic secret reference, expiry, requested connector
+operations, and lifecycle metadata. New sessions default to `runtime` and
+`read_context`; an owner must explicitly grant a write operation. The provider
+secret is added out of band, then the signed completion route verifies the
+tenant's exact secret, pins the concrete version, activates the canonical
+binding, and closes the session. Expired or cross-tenant sessions fail closed.
+This makes onboarding self-service-ready without ever accepting a raw token in
+the browser, API body, Firestore control plane, or audit ledger.
+
 The Change Card is the product's decision unit. It is assembled from verified
 source evidence, the deterministic impact graph, and action lifecycle state.
 Its `change_card_id` is deterministic for an allowlisted source plus evidence

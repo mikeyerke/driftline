@@ -84,6 +84,15 @@ revoked, mismatched, or unreadable bindings are surfaced as attention, while
 the response exposes only profile status and configured field names and never
 includes a credential or target value.
 
+New tenant onboarding uses the signed
+`POST /api/connectors/{connector}/credential-enrollment` route. It creates a
+15-minute enrollment under the tenant document, returns the exact secret
+reference and requested operation scope, and defaults to read-only operations.
+The provider value is still added out of band; the signed
+`.../{enrollment_id}/complete` route verifies that value through the tenant
+identity, pins its version, activates the binding, and records completion.
+Enrollment state is tenant-namespaced, expires, and never stores a raw secret.
+
 Non-secret connector targets are now owner-managed per tenant through
 `POST /api/connectors/{connector}/profile` and the durable
 `driftline_tenant_connector_profiles` collection. The profile accepts only the

@@ -81,6 +81,37 @@ def test_connector_binding_is_control_plane_metadata_not_ttl_content(monkeypatch
     assert "expires_at" not in loaded
 
 
+def test_credential_enrollment_is_tenant_namespaced_and_secret_free(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    enrollment = persistence.persist_credential_enrollment(
+        {
+            "tenant_id": "enrollment-acme",
+            "connector": "jira",
+            "enrollment_id": "enroll-test-1",
+            "status": "awaiting_secret",
+            "secret_name": "driftline-tenant-enrollment-acme-jira",
+            "allowed_operations": ["runtime", "read_context"],
+            "expires_at": "2099-01-01T00:00:00+00:00",
+            "access_token": "must-not-persist",
+        }
+    )
+
+    assert enrollment["tenant_id"] == "enrollment-acme"
+    assert enrollment["status"] == "awaiting_secret"
+    assert "access_token" not in enrollment
+    loaded = persistence.load_credential_enrollment(
+        "enrollment-acme", "jira", "enroll-test-1"
+    )
+    assert loaded is not None
+    assert loaded["secret_name"] == "driftline-tenant-enrollment-acme-jira"
+    assert (
+        persistence.load_credential_enrollment(
+            "other-acme", "jira", "enroll-test-1"
+        )
+        is None
+    )
+
+
 def test_tenant_usage_is_period_scoped_and_aggregate_only(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     first = persistence.record_tenant_usage(

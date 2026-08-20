@@ -65,6 +65,7 @@ from .connectors import (
 from .credential_broker import (
     CredentialBrokerError,
     allowed_operations,
+    normalize_allowed_operations,
     resolve_tenant_credential,
 )
 from .decision_copilot import validate_approval_choice
@@ -94,6 +95,7 @@ from .persistence import (
     list_workflows,
     load_connector_binding,
     load_connector_profile,
+    load_credential_enrollment,
     load_job,
     load_salesforce_connection,
     load_tenant,
@@ -101,6 +103,7 @@ from .persistence import (
     load_workflow,
     persist_connector_binding,
     persist_connector_profile,
+    persist_credential_enrollment,
     persist_job,
     persist_job_failure,
     persist_outcome_measurement,
@@ -250,6 +253,17 @@ class ConnectorBindingRequest(BaseModel):
     """Owner request to register/verify a tenant connector secret binding."""
 
     operator: str = Field(min_length=1, max_length=120)
+    allowed_operations: list[str] | None = Field(default=None, max_length=10)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class ConnectorCredentialEnrollmentRequest(BaseModel):
+    """Owner request for a short-lived, secret-free connector enrollment."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    allowed_operations: list[str] | None = Field(default=None, max_length=10)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
@@ -1814,6 +1828,12 @@ def register_connector_binding(
     if identity.get("role") != "owner":
         raise HTTPException(status_code=403, detail="Tenant owner role is required")
     tenant_id = identity["tenant_id"]
+    try:
+        scoped_operations = normalize_allowed_operations(
+            safe_connector, request.allowed_operations
+        )
+    except CredentialBrokerError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     secret_name = tenant_connector_secret_name(tenant_id, safe_connector)
     existing_binding = load_connector_binding(tenant_id, safe_connector) or {}
     status = "active"
@@ -1862,7 +1882,7 @@ def register_connector_binding(
             or f"cred-{tenant_id}-{safe_connector}",
             "secret_backend": "google_secret_manager",
             "secret_reference_scope": "exact_tenant_connector_secret",
-            "allowed_operations": allowed_operations(safe_connector),
+            "allowed_operations": scoped_operations,
             "lease_seconds": 300,
             "secret_version": secret_version,
             "verified_at": utc_now() if status == "active" else None,
@@ -1905,6 +1925,236 @@ def register_connector_binding(
             if status == "active"
             else "Provision the deterministic secret, then repeat this signed owner request."
         ),
+    }
+
+
+@app.post("/api/connectors/{connector}/credential-enrollment")
+def start_connector_credential_enrollment(
+    connector: str, request: ConnectorCredentialEnrollmentRequest
+) -> dict[str, object]:
+    """Start a short-lived tenant credential enrollment handoff.
+
+    The response is intentionally a provisioning contract, not a credential
+    upload form. The owner provisions the exact deterministic Secret Manager
+    secret out of band, then completes this enrollment to verify and activate
+    the binding. New sessions default to read-only operations so downstream
+    writes require an explicit owner scope grant.
+    """
+    try:
+        safe_connector = validate_connector_name(connector)
+        scoped_operations = normalize_allowed_operations(
+            safe_connector, request.allowed_operations, default="read_only"
+        )
+    except (ValueError, CredentialBrokerError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    identity = _verify_approval_mode(
+        f"credential-enrollment:{safe_connector}",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    tenant_id = identity["tenant_id"]
+    existing = load_connector_binding(tenant_id, safe_connector)
+    if existing and str(existing.get("status", "")).casefold() == "active":
+        raise HTTPException(
+            status_code=409,
+            detail="connector_binding_active_use_rotation",
+        )
+    created_at = datetime.now(UTC)
+    expires_at = created_at.timestamp() + 900
+    enrollment_id = f"enroll-{uuid4().hex}"
+    secret_name = tenant_connector_secret_name(tenant_id, safe_connector)
+    enrollment = persist_credential_enrollment(
+        {
+            "tenant_id": tenant_id,
+            "connector": safe_connector,
+            "enrollment_id": enrollment_id,
+            "status": "awaiting_secret",
+            "secret_name": secret_name,
+            "credential_namespace": (
+                tenant_credential_namespace(tenant_id, safe_connector)
+                if os.getenv("GOOGLE_CLOUD_PROJECT")
+                else None
+            ),
+            "allowed_operations": scoped_operations,
+            "requested_by": identity.get("email") or identity.get("identity"),
+            "created_at": created_at.isoformat(),
+            "expires_at": datetime.fromtimestamp(expires_at, UTC).isoformat(),
+            "updated_at": created_at.isoformat(),
+        }
+    )
+    audit_event = persist_tenant_audit_event(
+        {
+            "tenant_id": tenant_id,
+            "event_type": "credential_enrollment_started",
+            "connector": safe_connector,
+            "enrollment_id": enrollment_id,
+            "status": "awaiting_secret",
+            "allowed_operations": scoped_operations,
+            "secret_name": secret_name,
+            "actor": identity.get("email") or identity.get("identity"),
+        }
+    )
+    return {
+        "status": enrollment["status"],
+        "tenant_id": tenant_id,
+        "connector": safe_connector,
+        "enrollment_id": enrollment_id,
+        "secret_name": secret_name,
+        "credential_namespace": enrollment.get("credential_namespace"),
+        "allowed_operations": scoped_operations,
+        "expires_at": enrollment["expires_at"],
+        "expires_in_seconds": 900,
+        "credential_value_exposed": False,
+        "audit_event_id": audit_event["event_id"],
+        "next_step": (
+            "Provision a version in this exact tenant secret out of band, then "
+            "call the enrollment completion route. The request never accepts a token value."
+        ),
+    }
+
+
+@app.post("/api/connectors/{connector}/credential-enrollment/{enrollment_id}/complete")
+def complete_connector_credential_enrollment(
+    connector: str,
+    enrollment_id: str,
+    request: ConnectorBindingRequest,
+) -> dict[str, object]:
+    """Verify an out-of-band secret and atomically activate its tenant binding."""
+    try:
+        safe_connector = validate_connector_name(connector)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    identity = _verify_approval_mode(
+        f"credential-enrollment-complete:{safe_connector}:{enrollment_id}",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    tenant_id = identity["tenant_id"]
+    enrollment = load_credential_enrollment(tenant_id, safe_connector, enrollment_id)
+    if enrollment is None:
+        raise HTTPException(status_code=404, detail="credential_enrollment_not_found")
+    if str(enrollment.get("status", "")).casefold() == "completed":
+        return {
+            "status": "active",
+            "tenant_id": tenant_id,
+            "connector": safe_connector,
+            "enrollment_id": enrollment_id,
+            "secret_name": enrollment.get("secret_name"),
+            "secret_version": enrollment.get("secret_version", "latest"),
+            "allowed_operations": enrollment.get("allowed_operations", []),
+            "credential_value_exposed": False,
+            "already_completed": True,
+        }
+    try:
+        expiry = datetime.fromisoformat(str(enrollment.get("expires_at", "")))
+    except ValueError:
+        expiry = datetime.min.replace(tzinfo=UTC)
+    if expiry <= datetime.now(UTC):
+        expired = persist_credential_enrollment(
+            {
+                **enrollment,
+                "status": "expired",
+                "updated_at": utc_now(),
+            }
+        )
+        raise HTTPException(
+            status_code=410,
+            detail={
+                "error": "credential_enrollment_expired",
+                "enrollment_id": expired["enrollment_id"],
+            },
+        )
+    secret_name = tenant_connector_secret_name(tenant_id, safe_connector)
+    try:
+        if not _read_tenant_secret(tenant_id, secret_name).strip():
+            raise ConnectorError("credential_empty")
+        try:
+            secret_version = _tenant_secret_version(tenant_id, secret_name)
+        except ConnectorError:
+            secret_version = "latest"
+    except ConnectorError:
+        return {
+            "status": "awaiting_secret",
+            "tenant_id": tenant_id,
+            "connector": safe_connector,
+            "enrollment_id": enrollment_id,
+            "secret_name": secret_name,
+            "allowed_operations": enrollment.get("allowed_operations", []),
+            "credential_value_exposed": False,
+            "next_step": "Add a version to the exact tenant secret, then retry completion.",
+        }
+    try:
+        scoped_operations = normalize_allowed_operations(
+            safe_connector,
+            list(enrollment.get("allowed_operations") or []),
+            default="read_only",
+        )
+    except CredentialBrokerError as exc:
+        raise HTTPException(status_code=409, detail="credential_scope_invalid") from exc
+    now = utc_now()
+    binding = persist_connector_binding(
+        {
+            "tenant_id": tenant_id,
+            "connector": safe_connector,
+            "secret_name": secret_name,
+            "status": "active",
+            "scope": "tenant_bound_connector_credential",
+            "credential_id": f"cred-{tenant_id}-{safe_connector}",
+            "secret_backend": "google_secret_manager",
+            "secret_reference_scope": "exact_tenant_connector_secret",
+            "allowed_operations": scoped_operations,
+            "lease_seconds": 300,
+            "secret_version": secret_version,
+            "enrollment_id": enrollment_id,
+            "verified_at": now,
+            "configured_by": identity.get("email") or identity.get("identity"),
+            "updated_at": now,
+        }
+    )
+    completed = persist_credential_enrollment(
+        {
+            **enrollment,
+            "status": "completed",
+            "secret_version": secret_version,
+            "completed_at": now,
+            "completed_by": identity.get("email") or identity.get("identity"),
+            "updated_at": now,
+        }
+    )
+    audit_event = persist_tenant_audit_event(
+        {
+            "tenant_id": tenant_id,
+            "event_type": "credential_enrollment_completed",
+            "connector": safe_connector,
+            "enrollment_id": enrollment_id,
+            "status": "active",
+            "secret_name": secret_name,
+            "secret_version": secret_version,
+            "allowed_operations": scoped_operations,
+            "actor": identity.get("email") or identity.get("identity"),
+        }
+    )
+    return {
+        "status": binding["status"],
+        "tenant_id": tenant_id,
+        "connector": safe_connector,
+        "enrollment_id": completed["enrollment_id"],
+        "secret_name": binding["secret_name"],
+        "secret_version": binding.get("secret_version", "latest"),
+        "allowed_operations": scoped_operations,
+        "credential_namespace": binding.get("credential_namespace"),
+        "credential_value_exposed": False,
+        "audit_event_id": audit_event["event_id"],
     }
 
 

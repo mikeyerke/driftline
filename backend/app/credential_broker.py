@@ -40,6 +40,8 @@ CONNECTOR_OPERATIONS: dict[str, frozenset[str]] = {
     "salesforce": frozenset({"runtime", "read_context"}),
 }
 
+READ_ONLY_OPERATIONS = frozenset({"runtime", "read_context"})
+
 
 @dataclass(frozen=True)
 class CredentialLease:
@@ -79,6 +81,44 @@ def allowed_operations(connector: str) -> list[str]:
     except ValueError as exc:
         raise CredentialBrokerError("connector_not_allowlisted") from exc
     return sorted(CONNECTOR_OPERATIONS[safe_connector])
+
+
+def normalize_allowed_operations(
+    connector: str,
+    requested: list[str] | tuple[str, ...] | set[str] | None = None,
+    *,
+    default: str = "all",
+) -> list[str]:
+    """Validate a tenant binding's least-privilege operation scope.
+
+    ``default=read_only`` is used by new enrollment sessions so a connector
+    cannot silently gain downstream writes. Existing binding verification
+    keeps ``default=all`` for backwards-compatible migrations; owners can
+    narrow or explicitly expand that scope in a later verification.
+    """
+    try:
+        safe_connector = validate_connector_name(connector)
+    except ValueError as exc:
+        raise CredentialBrokerError("connector_not_allowlisted") from exc
+    if requested is None:
+        operations = (
+            READ_ONLY_OPERATIONS
+            if default == "read_only"
+            else CONNECTOR_OPERATIONS[safe_connector]
+        )
+    else:
+        if not isinstance(requested, (list, tuple, set)):
+            raise CredentialBrokerError("credential_scope_invalid")
+        operations = {
+            str(value).strip().casefold()
+            for value in requested
+            if str(value).strip()
+        }
+        if not operations:
+            raise CredentialBrokerError("credential_scope_empty")
+    if not operations.issubset(CONNECTOR_OPERATIONS[safe_connector]):
+        raise CredentialBrokerError("credential_scope_not_allowlisted")
+    return sorted(operations)
 
 
 def _lease_seconds() -> int:

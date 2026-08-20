@@ -635,6 +635,65 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     assert tenant_metadata.json()["credential_values_exposed"] is False
 
 
+def test_owner_can_enroll_a_tenant_connector_without_submitting_a_secret(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "enrollment-test-secret"
+    tenant_id = "enrollment-route-acme"
+    operator = "Enrollment owner"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+
+    start_token = hmac.new(
+        secret.encode(),
+        b"credential-enrollment:jira:Enrollment owner",
+        hashlib.sha256,
+    ).hexdigest()
+    started = client.post(
+        "/api/connectors/jira/credential-enrollment",
+        json={
+            "operator": operator,
+            "tenant_id": tenant_id,
+            "approval_token": start_token,
+        },
+    )
+    assert started.status_code == 200
+    enrollment = started.json()
+    assert enrollment["status"] == "awaiting_secret"
+    assert enrollment["allowed_operations"] == ["read_context", "runtime"]
+    assert enrollment["secret_name"] == f"driftline-tenant-{tenant_id}-jira"
+    assert enrollment["credential_value_exposed"] is False
+    assert "opaque-token" not in str(enrollment)
+
+    monkeypatch.setattr(api, "_read_tenant_secret", lambda *_args, **_kwargs: "opaque-token")
+    monkeypatch.setattr(api, "_tenant_secret_version", lambda *_args, **_kwargs: "3")
+    enrollment_id = enrollment["enrollment_id"]
+    complete_token = hmac.new(
+        secret.encode(),
+        f"credential-enrollment-complete:jira:{enrollment_id}:Enrollment owner".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    completed = client.post(
+        f"/api/connectors/jira/credential-enrollment/{enrollment_id}/complete",
+        json={
+            "operator": operator,
+            "tenant_id": tenant_id,
+            "approval_token": complete_token,
+        },
+    )
+    assert completed.status_code == 200
+    payload = completed.json()
+    assert payload["status"] == "active"
+    assert payload["secret_version"] == "3"
+    assert payload["allowed_operations"] == ["read_context", "runtime"]
+    assert payload["credential_value_exposed"] is False
+    assert "opaque-token" not in str(payload)
+    assert api.load_connector_binding(tenant_id, "jira")["allowed_operations"] == [
+        "read_context",
+        "runtime",
+    ]
+
+
 def test_owner_can_inspect_credential_broker_inventory_and_access_ledger(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
