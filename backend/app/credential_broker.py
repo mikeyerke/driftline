@@ -97,9 +97,9 @@ def normalize_allowed_operations(
     """Validate a tenant binding's least-privilege operation scope.
 
     ``default=read_only`` is used by new enrollment sessions so a connector
-    cannot silently gain downstream writes. Existing binding verification
-    keeps ``default=all`` for backwards-compatible migrations; owners can
-    narrow or explicitly expand that scope in a later verification.
+    cannot silently gain downstream writes. Explicit operation lists remain
+    available for owner-approved writes; an omitted scope is fail-closed at
+    resolution time and is treated as read-only until the binding is rotated.
     """
     try:
         safe_connector = validate_connector_name(connector)
@@ -243,7 +243,10 @@ def resolve_tenant_credential(
 
     configured_operations = binding.get("allowed_operations")
     if configured_operations is None:
-        configured_operations = list(CONNECTOR_OPERATIONS[safe_connector])
+        # Fail closed for pre-scope bindings. A missing field must never
+        # silently authorize a downstream write; owners must re-enroll or
+        # explicitly rotate the binding with a concrete operation list.
+        configured_operations = list(READ_ONLY_OPERATIONS)
     if not isinstance(configured_operations, (list, tuple, set)):
         raise CredentialBrokerError("credential_scope_invalid")
     normalized_operations = {str(value).strip().casefold() for value in configured_operations}

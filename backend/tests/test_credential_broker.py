@@ -139,6 +139,25 @@ def test_read_only_enrollment_scope_cannot_lease_external_write(monkeypatch) -> 
         )
 
 
+def test_legacy_binding_without_scope_is_read_only_by_default(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.persistence.load_connector_binding",
+        lambda *_args: {
+            "tenant_id": "acme",
+            "connector": "jira",
+            "secret_name": "driftline-tenant-acme-jira",
+            "status": "active",
+        },
+    )
+    with pytest.raises(CredentialBrokerError, match="operation_not_allowed"):
+        resolve_tenant_credential(
+            "acme",
+            "jira",
+            operation="create_issue",
+            secret_reader=lambda *_args, **_kwargs: "should-not-read",
+        )
+
+
 def test_resolver_records_metadata_only_access(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.persistence.load_connector_binding",
