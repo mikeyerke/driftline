@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from urllib.error import URLError
 
 from app import source
 from app.snapshots import InMemorySnapshotStore
@@ -61,6 +62,27 @@ def test_demo_replay_compares_public_body_to_published_baseline(monkeypatch) -> 
     assert result["before"] == "Enterprise includes unlimited audit-log retention."
     assert result["data_mode"] == "public_source"
     assert "demo replay" in str(result["snapshot_label"])
+
+
+def test_monitor_fetch_failure_never_becomes_synthetic_change(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "DRIFTLINE_PUBLIC_SOURCE_URL",
+        "https://raw.githubusercontent.com/mikeyerke/driftline/abc/fixtures/public-pricing-after.txt",
+    )
+    monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+
+    def unavailable(_request, timeout):
+        raise URLError(f"timeout after {timeout}s")
+
+    monkeypatch.setattr(source, "urlopen", unavailable)
+
+    result = source.inspect_allowlisted_source("public/pricing", force_replay=False)
+
+    assert result["status"] == "source_fetch_failed"
+    assert result["change_detected"] is False
+    assert result["data_mode"] == "public_source"
+    assert result["confidence"] == 0.0
+    assert "after" not in result
 
 
 def test_terms_source_is_a_separate_allowlisted_snapshot(monkeypatch) -> None:

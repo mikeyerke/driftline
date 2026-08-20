@@ -130,7 +130,10 @@ The public source registry starts with five pinned raw GitHub fixtures with expl
 Operator fetches also reject common bot/challenge interstitials before recording
 an observation, so a CAPTCHA or “verify you are human” page cannot masquerade as
 a competitor change. The source remains unavailable until a clean page can be
-retrieved. The internal scheduler carries the owning tenant into each monitor
+retrieved. Scheduled monitor runs also return `source_fetch_failed` with
+`change_detected=false` on outages, malformed bodies, or challenge pages; the
+synthetic fallback is reserved for the explicit judge/demo replay path. The
+internal scheduler carries the owning tenant into each monitor
 job and applies the tenant-specific quota; it never turns the registry into a
 cross-tenant public crawl.
 

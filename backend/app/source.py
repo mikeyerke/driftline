@@ -491,7 +491,24 @@ def _public_snapshot(
         )
         result["source_id"] = source_id
         return result
-    except (OSError, UnicodeDecodeError, URLError, ValueError):
+    except (OSError, UnicodeDecodeError, URLError, ValueError) as exc:
+        # A scheduled monitor must never turn an outage, challenge page, or
+        # malformed response into a synthetic business change. Synthetic
+        # replay is reserved for the explicit judge/demo path.
+        if not force_replay:
+            reason = (
+                str(exc)
+                if isinstance(exc, ValueError)
+                else "public_source_unavailable"
+            )
+            return {
+                "status": "source_fetch_failed",
+                "change_detected": False,
+                "reason": reason,
+                "source_url": url,
+                "data_mode": "public_source",
+                "confidence": 0.0,
+            }
         return {
             "status": "synthetic_fallback",
             "change_detected": True,
