@@ -39,8 +39,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   and `sawReopened=true`. The latest durable job is
   `job-9548be0d202b` and workflow `acf228c7-903d-4039-a274-e07239141b58`;
   its Firestore trace records Gemini structured impact analysis and a
-  Gemini structured decision copilot, while the approval event records the
-  explicit custom override and `external_write=false`.
+  Gemini structured decision copilot; the approval and reopen events are
+  persisted with `external_write=false`. The custom-routing path is covered
+  by the local API regression tests and records its option id and reason when
+  exercised.
 - Local regression is `178 passed`; Ruff and the frontend production build
   are clean. The public lane remains synthetic and packet-only; authenticated
   connectors remain tenant-scoped and signed.
