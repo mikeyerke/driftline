@@ -467,7 +467,15 @@ def _tenant_secret_or_env(
         expected = tenant_connector_secret_name(safe_tenant, safe_connector)
         if secret_name != expected:
             raise ConnectorError(f"{safe_connector}_tenant_secret_name_mismatch")
-        return read_secret(secret_name).strip()
+        # An active binding may pin an exact Secret Manager version.  Legacy
+        # bindings without that metadata continue to use ``latest`` until an
+        # owner re-verifies them; rotation always moves the binding to
+        # ``rotation_pending`` first, so no silent credential swap occurs for
+        # version-aware tenants.
+        version = str(binding.get("secret_version", "latest")).strip() or "latest"
+        if version == "latest":
+            return read_secret(secret_name).strip()
+        return read_secret(secret_name, version=version).strip()
     if os.getenv("DRIFTLINE_ALLOW_LEGACY_GLOBAL_CONNECTOR_SECRETS", "false").casefold() == "true":
         return _secret_or_env(env_name)
     raise ConnectorError(f"{safe_connector}_tenant_binding_missing")
@@ -483,8 +491,45 @@ def _workflow_tenant_id(state: Any) -> str:
     return validate_tenant_id(str(tenant_id))
 
 
-def read_secret(secret_name: str) -> str:
+def _validate_secret_version(version: str) -> str:
+    normalized = str(version).strip()
+    if normalized != "latest" and not re.fullmatch(r"[1-9][0-9]*", normalized):
+        raise ConnectorError("secret_version_invalid")
+    return normalized
+
+
+def read_secret(secret_name: str, *, version: str = "latest") -> str:
     """Read one explicitly named isolated Secret Manager secret."""
+    project = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+    safe_version = _validate_secret_version(version)
+    if not project or not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,99}", secret_name):
+        raise ConnectorError("secret_reference_invalid")
+    try:
+        from google.cloud import secretmanager
+
+        client = secretmanager.SecretManagerServiceClient()
+        response = client.access_secret_version(
+            name=f"projects/{project}/secrets/{secret_name}/versions/{safe_version}"
+        )
+        return response.payload.data.decode("utf-8")
+    except Exception as exc:
+        raise ConnectorError("secret_read_failed") from exc
+
+
+def secret_version_for(secret_name: str) -> str:
+    """Return the concrete enabled version behind ``latest`` when available.
+
+    Secret Manager responses include the resolved version name, but local
+    contract tests and emulators may omit it.  Falling back to ``latest`` is
+    safe for those compatibility paths; hosted activation records a concrete
+    version whenever the provider returns one.
+    """
+    _, version = read_secret_with_version(secret_name)
+    return version or "latest"
+
+
+def read_secret_with_version(secret_name: str) -> tuple[str, str]:
+    """Read an isolated secret and return ``(value, resolved_version)``."""
     project = os.getenv("GOOGLE_CLOUD_PROJECT", "")
     if not project or not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,99}", secret_name):
         raise ConnectorError("secret_reference_invalid")
@@ -495,12 +540,16 @@ def read_secret(secret_name: str) -> str:
         response = client.access_secret_version(
             name=f"projects/{project}/secrets/{secret_name}/versions/latest"
         )
-        return response.payload.data.decode("utf-8")
+        resolved_name = str(getattr(response, "name", "") or "")
+        version = resolved_name.rsplit("/", 1)[-1]
+        if not re.fullmatch(r"[1-9][0-9]*", version):
+            version = ""
+        return response.payload.data.decode("utf-8"), version
     except Exception as exc:
         raise ConnectorError("secret_read_failed") from exc
 
 
-def write_secret_version(secret_name: str, value: str) -> None:
+def write_secret_version(secret_name: str, value: str) -> str | None:
     """Add a version to a pre-provisioned isolated secret.
 
     Secret creation is intentionally not attempted at request time. An
@@ -514,10 +563,13 @@ def write_secret_version(secret_name: str, value: str) -> None:
         from google.cloud import secretmanager
 
         client = secretmanager.SecretManagerServiceClient()
-        client.add_secret_version(
+        response = client.add_secret_version(
             parent=f"projects/{project}/secrets/{secret_name}",
             payload={"data": value.encode("utf-8")},
         )
+        name = str(getattr(response, "name", "") or "")
+        version = name.rsplit("/", 1)[-1]
+        return version if re.fullmatch(r"[1-9][0-9]*", version) else None
     except Exception as exc:
         raise ConnectorError("secret_write_failed") from exc
 

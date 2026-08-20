@@ -43,6 +43,13 @@ deterministic Secret Manager name
 credential value nor an arbitrary secret name. An owner activates a binding
 through `POST /api/connectors/{connector}/binding` only after infrastructure
 has provisioned the secret; missing or mismatched bindings fail closed. The
+binding records the resolved Secret Manager version at verification time when
+the provider returns one, and connector calls read that pinned version rather
+than silently following a later `latest` value. Legacy bindings without a
+version remain compatible on `latest` until their next owner verification.
+Rotation therefore has a hard cutover: the owner first moves the binding to
+`rotation_pending`, connector calls fail closed, infrastructure adds the
+replacement version, and the owner re-verifies to pin the new version. The
 owner-only `POST /api/connectors/{connector}/binding/revoke` route marks a
 binding revoked without deleting or returning the secret; connector resolution
 then fails closed until a replacement version is provisioned and the binding is

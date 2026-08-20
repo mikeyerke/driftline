@@ -234,6 +234,34 @@ def test_tenant_connector_secret_resolution_requires_binding(monkeypatch) -> Non
     assert config.token == "tenant-token"
 
 
+def test_tenant_connector_secret_resolution_honors_pinned_version(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
+    monkeypatch.delenv("DRIFTLINE_JIRA_TOKEN", raising=False)
+    monkeypatch.delenv("DRIFTLINE_JIRA_TOKEN_SECRET", raising=False)
+    calls: list[tuple[str, str]] = []
+
+    def read_secret(name: str, *, version: str = "latest") -> str:
+        calls.append((name, version))
+        return "tenant-token-v7"
+
+    monkeypatch.setattr(connector_module, "read_secret", read_secret)
+    monkeypatch.setattr(
+        "app.persistence.load_connector_binding",
+        lambda tenant, connector: {
+            "tenant_id": tenant,
+            "connector": connector,
+            "secret_name": "driftline-tenant-acme-jira",
+            "secret_version": "7",
+            "status": "active",
+        },
+    )
+
+    config = JiraConfig.from_env("acme")
+
+    assert config.token == "tenant-token-v7"
+    assert calls == [("driftline-tenant-acme-jira", "7")]
+
+
 def test_tenant_connector_profile_scopes_non_secret_targets(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
     monkeypatch.setenv("DRIFTLINE_JIRA_BASE_URL", "https://default.atlassian.net")

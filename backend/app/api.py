@@ -58,6 +58,7 @@ from .connectors import (
     reverse_slack_handoff,
     salesforce_authorization_url,
     salesforce_readiness,
+    secret_version_for,
     write_secret_version,
 )
 from .decision_copilot import validate_approval_choice
@@ -1225,7 +1226,7 @@ def salesforce_oauth_callback(
         if str((tenant or {}).get("status", "")).casefold() != "active":
             raise ConnectorError("salesforce_tenant_inactive")
         secret_name = _salesforce_secret_name(tenant_id)
-        write_secret_version(secret_name, refresh_token)
+        secret_version = write_secret_version(secret_name, refresh_token) or "latest"
         binding = persist_connector_binding(
             {
                 "tenant_id": tenant_id,
@@ -1233,6 +1234,8 @@ def salesforce_oauth_callback(
                 "secret_name": secret_name,
                 "status": "active",
                 "scope": "tenant_bound_oauth_refresh_token",
+                "secret_version": secret_version,
+                "verified_at": utc_now(),
                 "configured_by": callback_state.get("email", "") or "salesforce_oauth",
                 "updated_at": utc_now(),
             }
@@ -1684,9 +1687,19 @@ def register_connector_binding(
     tenant_id = identity["tenant_id"]
     secret_name = tenant_connector_secret_name(tenant_id, safe_connector)
     status = "active"
+    secret_version = "latest"
     try:
         if not read_secret(secret_name).strip():
             status = "pending_secret"
+        else:
+            # Pin the binding to the exact Secret Manager version resolved at
+            # verification time. If a local emulator/test double cannot
+            # expose a concrete version, ``latest`` remains an explicit
+            # compatibility marker and the next owner verification can pin it.
+            try:
+                secret_version = secret_version_for(secret_name)
+            except ConnectorError:
+                secret_version = "latest"
     except ConnectorError:
         status = "pending_secret"
     persist_tenant(
@@ -1715,6 +1728,8 @@ def register_connector_binding(
             "secret_name": secret_name,
             "status": status,
             "scope": "tenant_bound_connector_credential",
+            "secret_version": secret_version,
+            "verified_at": utc_now() if status == "active" else None,
             "configured_by": identity.get("email") or identity.get("identity"),
             "updated_at": utc_now(),
         }

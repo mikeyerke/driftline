@@ -63,8 +63,11 @@ not appear in shell history, logs, screenshots, or source control.
 
 An authenticated tenant owner calls
 POST /api/connectors/{connector}/binding. Driftline derives the same
-deterministic secret name, verifies that a readable version exists, and stores
-only metadata in driftline_connector_bindings. The signed
+deterministic secret name, verifies that a readable version exists, resolves
+its concrete Secret Manager version when available, and stores only metadata
+in driftline_connector_bindings. Active connector calls use that pinned
+version; they do not silently follow a later `latest` secret update. The
+signed
 GET /api/connectors/bindings and GET /api/tenants/audit routes expose status
 and lifecycle events without returning credential values.
 
@@ -88,7 +91,8 @@ For a planned rotation, the owner first POSTs
 append-only audit event and moves the binding to `rotation_pending`, so runtime
 connector calls fail closed while the credential is being changed. Add a
 replacement secret version to the deterministic tenant secret, then re-run the
-owner binding verification route and revoke the old provider token. POST
+owner binding verification route; the new version is pinned at that point, and
+revoke the old provider token. POST
 /api/connectors/{connector}/binding/revoke blocks runtime use without deleting
 the recoverable secret. POST /api/tenants/deprovision disables memberships
 and revokes every binding; provider revocation and secret deletion remain
