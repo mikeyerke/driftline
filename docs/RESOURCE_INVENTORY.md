@@ -68,6 +68,25 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   pinned sources `healthy`, `stale=0`, `source_failed=0`, and fresh public
   observations; the fixture boundary remains explicitly disclosed.
 
+## 2026-08-20 API privacy-header hardening (live)
+
+- Source commit `7f9d4eb` adds explicit `Cache-Control: no-store` to every
+  `/api/` response and a restrictive `Permissions-Policy` for camera,
+  microphone, geolocation, payment, and USB. This protects tenant metadata and
+  one-time OAuth responses from intermediary/browser retention and reduces
+  unnecessary browser capability exposure.
+- Local regression is `207 passed` with Ruff and the frontend production build
+  clean. GitHub Actions run `32420758822` completed `success`.
+- Cloud Build `14e49de2-110e-43c3-b71d-65289492d3d4` completed `SUCCESS` with
+  image digest
+  `sha256:6518878b6c419de705bc087092fe9f55a03b6458979835dd5476e63e34bf9783`.
+  Cloud Run revision `driftline-00022-zf4` serves 100% of traffic.
+- Live `/health` returned 200. Public API headers included `cache-control:
+  no-store` and the new Permissions-Policy. A direct anonymous agent canary
+  still returned `execution_mode=google_adk`, `model=gemini-3.5-flash`, only
+  `inspect_source_change` and `get_workflow_state`, and null query/user fields.
+  The active revision has no severity `ERROR` logs.
+
 ## 2026-08-20 Durable connector-read quota fix (live)
 
 - Source commit `2aaca67` registers `connector_calls` in the shared usage and
