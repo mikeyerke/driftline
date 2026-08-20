@@ -18,11 +18,12 @@ from statistics import median
 from threading import Lock
 from time import monotonic
 from typing import Any, Literal
+from urllib.parse import parse_qsl, urlencode
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -221,6 +222,32 @@ async def security_headers(request: Request, call_next):
         "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
     )
     return response
+
+
+@app.middleware("http")
+async def secure_get_auth(request: Request, call_next):
+    """Keep bearer/HMAC credentials out of hosted GET URLs."""
+    if request.method == "GET" and os.getenv(
+        "DRIFTLINE_REJECT_QUERY_AUTH", "false"
+    ).casefold() == "true":
+        pairs = parse_qsl(
+            request.scope.get("query_string", b"").decode(), keep_blank_values=True
+        )
+        if {key for key, _value in pairs} & {"approval_token", "identity_token"}:
+            return JSONResponse(
+                {"detail": "Query authentication is disabled; use request headers."},
+                status_code=400,
+            )
+        additions: list[tuple[str, str]] = []
+        approval = request.headers.get("x-driftline-approval")
+        identity = request.headers.get("authorization")
+        if approval:
+            additions.append(("approval_token", approval))
+        if identity:
+            additions.append(("identity_token", identity))
+        if additions:
+            request.scope["query_string"] = urlencode(pairs + additions).encode()
+    return await call_next(request)
 
 
 class ApprovalRequest(BaseModel):
@@ -3165,7 +3192,7 @@ def get_connector_credentials(
                 "start_route": "/api/connectors/{connector}/credential-enrollment",
                 "complete_route": "/api/connectors/{connector}/credential-enrollment/{id}/complete",
                 "session_ttl_seconds": 900,
-                "default_new_scope": ["read_context", "runtime"],
+                "default_new_scope": ["read_context"],
                 "raw_secret_accepted": False,
             },
         },
@@ -3748,7 +3775,6 @@ def get_source_history(
         raise HTTPException(status_code=404, detail="Source is not allowlisted")
     if (
         definition.get("dynamic") == "true"
-        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
         and not identity
     ):
         raise HTTPException(status_code=403, detail="Tenant-scoped source requires signed approval")

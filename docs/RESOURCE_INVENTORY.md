@@ -10,6 +10,26 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-20 tenant and source security hardening (pending deployment)
+
+- New connector enrollments default to the concrete `read_context` scope only.
+  Connector adapters now request `create_*` or `reverse_*` scopes explicitly
+  for downstream writes, so a read-only enrollment cannot later lease a write
+  credential. The regression suite covers the rejected write attempt.
+- Operator-registered source URLs are fetched through one validated public DNS
+  answer, pinned at the socket connection, with TLS hostname verification and
+  redirects disabled. This closes the DNS-rebinding/TOCTOU SSRF path while
+  retaining exact HTTPS URL allowlisting.
+- Memory-mode custom source definitions and histories are tenant-scoped just
+  like Firestore mode; anonymous `/api/sources`, history, and memory responses
+  expose only the five static demo fixtures.
+- Hosted images set `DRIFTLINE_REJECT_QUERY_AUTH=true`. GET requests carrying
+  `approval_token` or `identity_token` in the URL are rejected; signed operator
+  clients use `X-Driftline-Approval` and `Authorization` headers. Local tests
+  retain query compatibility unless that flag is enabled.
+- This section is intentionally marked pending until the change is deployed
+  and the live health, header, source, and connector smoke probes are rerun.
+
 ## 2026-08-20 API cache-policy enforcement (live)
 
 - Source commit `481c8c7` changed the API security middleware from a default

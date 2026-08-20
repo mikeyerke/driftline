@@ -3,16 +3,24 @@ from __future__ import annotations
 import base64
 import hashlib
 import html
+import http.client
 import ipaddress
 import os
 import re
 import socket
+import ssl
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
-from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+from urllib.request import (
+    HTTPRedirectHandler,
+    HTTPSHandler,
+    Request,
+    build_opener,
+    urlopen,
+)
 
 from .snapshots import (
     FirestoreSnapshotStore,
@@ -225,20 +233,14 @@ def _latest_source_failure(
 def source_definitions(tenant_id: str | None = None) -> dict[str, dict[str, str]]:
     """Return static fixtures plus only the caller's custom sources.
 
-    Local synthetic tests retain the legacy process-local registry behavior.
-    In the durable deployment, custom sources are tenant-scoped and are never
-    included in an unauthenticated public registry response.
+    Custom sources are tenant-scoped in every persistence mode and are never
+    included in an unauthenticated public registry response.  The public
+    console receives only the five deterministic fixtures.
     """
     definitions = {**SOURCE_DEFINITIONS}
     if not _firestore_enabled():
         if tenant_id is None:
-            return {
-                source_id: definition
-                for source_id, definition in SOURCE_DEFINITIONS.items()
-            } | {
-                source_id: definition
-                for (_bound_tenant, source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items()
-            }
+            return definitions
         return {
             source_id: definition
             for source_id, definition in SOURCE_DEFINITIONS.items()
@@ -398,25 +400,80 @@ class _NoRedirect(HTTPRedirectHandler):
         raise HTTPError(req.full_url, code, "redirect_not_allowed", headers, None)
 
 
+def _resolve_public_address(hostname: str) -> str:
+    """Resolve once and return one validated global address for the fetch."""
+    try:
+        addresses = {
+            (family, str(sockaddr[0]))
+            for family, _socktype, _proto, _canonname, sockaddr in socket.getaddrinfo(
+                hostname, 443, type=socket.SOCK_STREAM
+            )
+        }
+    except OSError as exc:
+        raise ValueError("source_url_dns_failed") from exc
+    if not addresses:
+        raise ValueError("source_url_dns_empty")
+    for _family, address in addresses:
+        if not ipaddress.ip_address(address).is_global:
+            raise ValueError("source_url_resolved_address_rejected")
+    # A deterministic address makes retries and evidence reproducible. The
+    # socket below is pinned to this address so a second DNS answer cannot
+    # redirect the request to a private or metadata endpoint.
+    return min(address for _family, address in addresses)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS connection that dials a validated address but verifies the host."""
+
+    def __init__(self, host: str, *, resolved_address: str, **kwargs):
+        self._resolved_address = resolved_address
+        super().__init__(host, **kwargs)
+
+    def connect(self) -> None:
+        self.sock = socket.create_connection(
+            (self._resolved_address, self.port),
+            self.timeout,
+            self.source_address,
+        )
+        if self._tunnel_host:
+            self._tunnel()
+        self.sock = self._context.wrap_socket(
+            self.sock,
+            server_hostname=self._tunnel_host or self.host,
+        )
+
+
+class _PinnedHTTPSHandler(HTTPSHandler):
+    def __init__(self, resolved_address: str):
+        super().__init__(context=ssl.create_default_context())
+        self._resolved_address = resolved_address
+
+    def https_open(self, req):
+        return self.do_open(
+            lambda host, **kwargs: _PinnedHTTPSConnection(
+                host,
+                resolved_address=self._resolved_address,
+                **kwargs,
+            ),
+            req,
+            context=self._context,
+            check_hostname=self._check_hostname,
+        )
+
+
 def _registered_body(definition: Mapping[str, str]) -> str:
     hostname = urlparse(definition["url"]).hostname
     if not hostname:
         raise ValueError("source_url_host_missing")
-    try:
-        addresses = {
-            ipaddress.ip_address(item[4][0])
-            for item in socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
-        }
-    except OSError as exc:
-        raise ValueError("source_url_dns_failed") from exc
-    if not addresses or any(not address.is_global for address in addresses):
-        raise ValueError("source_url_resolved_address_rejected")
+    resolved_address = _resolve_public_address(hostname)
     request = Request(
         definition["url"],
         headers={"User-Agent": "Driftline-source-monitor/1.0"},
         method="GET",
     )
-    with build_opener(_NoRedirect()).open(request, timeout=8) as response:
+    with build_opener(
+        _NoRedirect(), _PinnedHTTPSHandler(resolved_address)
+    ).open(request, timeout=8) as response:
         body = response.read(_MAX_REGISTERED_BODY_BYTES + 1).decode(
             "utf-8", errors="strict"
         )
@@ -755,6 +812,8 @@ def list_source_history(
 
     definition = source_definition(source_id, tenant_id)
     if definition is None:
+        return []
+    if definition.get("dynamic") == "true" and tenant_id is None:
         return []
     history = snapshot_history(
         _snapshot_storage_key(source_id, tenant_id, definition),

@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from urllib.error import URLError
 
+import pytest
+
 from app import source
 from app.snapshots import InMemorySnapshotStore
 
@@ -161,8 +163,10 @@ def test_operator_registered_source_is_exact_url_and_append_only(monkeypatch) ->
         freshness_sla_hours=48,
         parser="html",
         registered_by="Signed operator",
+        tenant_id="tenant-acme",
     )
     monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+    monkeypatch.setattr(source, "_resolve_public_address", lambda _host: "93.184.216.34")
 
     class _Opener:
         def open(self, request, timeout):
@@ -170,16 +174,40 @@ def test_operator_registered_source_is_exact_url_and_append_only(monkeypatch) ->
             assert timeout == 8
             return _Response("<html><body>Pro is now $59</body></html>")
 
-    monkeypatch.setattr(source, "build_opener", lambda _handler: _Opener())
+    monkeypatch.setattr(source, "build_opener", lambda *_handlers: _Opener())
     store = InMemorySnapshotStore()
-    first = source.inspect_allowlisted_source("custom/example-pricing", store=store)
-    second = source.inspect_allowlisted_source("custom/example-pricing", store=store)
+    first = source.inspect_allowlisted_source("custom/example-pricing", tenant_id="tenant-acme", store=store)
+    second = source.inspect_allowlisted_source("custom/example-pricing", tenant_id="tenant-acme", store=store)
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
 
     assert first["status"] == "baseline_established"
     assert second["status"] == "unchanged"
     assert second["data_mode"] == "operator_registered_public"
     assert second["after"] == "Pro is now $59"
+
+
+def test_anonymous_registry_never_lists_tenant_custom_source(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    source.register_operator_source(
+        source_id="custom/private-pricing",
+        name="Private tenant pricing",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://example.com/private-pricing",
+        owner="Tenant PMM",
+        cadence="24h",
+        freshness_sla_hours=48,
+        parser="html",
+        registered_by="Tenant owner",
+        tenant_id="tenant-acme",
+    )
+    try:
+        assert "custom/private-pricing" not in source.source_definitions()
+        assert "custom/private-pricing" in source.source_definitions("tenant-acme")
+        assert source.list_source_history("custom/private-pricing") == []
+    finally:
+        source._CUSTOM_SOURCE_DEFINITIONS.clear()
 
 
 def test_operator_registered_rss_source_normalizes_entries(monkeypatch) -> None:
@@ -194,8 +222,10 @@ def test_operator_registered_rss_source_normalizes_entries(monkeypatch) -> None:
         cadence="24h",
         freshness_sla_hours=48,
         parser="rss",
+        tenant_id="tenant-acme",
     )
     monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+    monkeypatch.setattr(source, "_resolve_public_address", lambda _host: "93.184.216.34")
 
     class _Opener:
         def open(self, request, timeout):
@@ -209,9 +239,9 @@ def test_operator_registered_rss_source_normalizes_entries(monkeypatch) -> None:
                 </channel></rss>"""
             )
 
-    monkeypatch.setattr(source, "build_opener", lambda _handler: _Opener())
+    monkeypatch.setattr(source, "build_opener", lambda *_handlers: _Opener())
     result = source.inspect_allowlisted_source(
-        "custom/example-feed", store=InMemorySnapshotStore()
+        "custom/example-feed", tenant_id="tenant-acme", store=InMemorySnapshotStore()
     )
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
 
@@ -233,19 +263,21 @@ def test_operator_registered_rss_rejects_malformed_xml(monkeypatch) -> None:
         cadence="24h",
         freshness_sla_hours=48,
         parser="rss",
+        tenant_id="tenant-acme",
     )
     monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+    monkeypatch.setattr(source, "_resolve_public_address", lambda _host: "93.184.216.34")
     monkeypatch.setattr(
         source,
         "build_opener",
-        lambda _handler: type(
+        lambda *_handlers: type(
             "_Opener",
             (),
             {"open": lambda self, request, timeout: _Response("<rss>")},
         )(),
     )
     result = source.inspect_allowlisted_source(
-        "custom/bad-feed", store=InMemorySnapshotStore()
+        "custom/bad-feed", tenant_id="tenant-acme", store=InMemorySnapshotStore()
     )
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
 
@@ -303,8 +335,10 @@ def test_operator_source_rejects_challenge_interstitial_without_recording_change
         cadence="24h",
         freshness_sla_hours=48,
         parser="html",
+        tenant_id="tenant-acme",
     )
     monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+    monkeypatch.setattr(source, "_resolve_public_address", lambda _host: "93.184.216.34")
 
     class _Opener:
         def open(self, request, timeout):
@@ -312,9 +346,9 @@ def test_operator_source_rejects_challenge_interstitial_without_recording_change
                 "<html><body>Verify you are human. Enable JavaScript and complete the captcha.</body></html>"
             )
 
-    monkeypatch.setattr(source, "build_opener", lambda _handler: _Opener())
+    monkeypatch.setattr(source, "build_opener", lambda *_handlers: _Opener())
     result = source.inspect_allowlisted_source(
-        "custom/challenge-page", store=InMemorySnapshotStore()
+        "custom/challenge-page", tenant_id="tenant-acme", store=InMemorySnapshotStore()
     )
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
 
@@ -340,6 +374,48 @@ def test_operator_registered_source_rejects_query_and_private_urls() -> None:
             assert "source_url" in str(exc)
         else:  # pragma: no cover - security boundary assertion.
             raise AssertionError("unsafe source URL was accepted")
+
+
+def test_registered_source_dns_resolution_rejects_private_address(monkeypatch) -> None:
+    monkeypatch.setattr(
+        source.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (source.socket.AF_INET, source.socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))
+        ],
+    )
+
+    with pytest.raises(ValueError, match="source_url_resolved_address_rejected"):
+        source._resolve_public_address("attacker.example")
+
+
+def test_pinned_https_connection_dials_validated_address(monkeypatch) -> None:
+    calls: dict[str, object] = {}
+
+    class _Socket:
+        pass
+
+    class _Context:
+        def wrap_socket(self, sock, *, server_hostname):
+            calls["server_hostname"] = server_hostname
+            return sock
+
+    monkeypatch.setattr(
+        source.socket,
+        "create_connection",
+        lambda address, timeout, source_address: calls.update(
+            address=address, timeout=timeout, source_address=source_address
+        ) or _Socket(),
+    )
+    connection = source._PinnedHTTPSConnection(
+        "example.com", resolved_address="93.184.216.34", timeout=8
+    )
+    connection._context = _Context()
+    connection.connect()
+
+    assert calls["address"] == ("93.184.216.34", 443)
+    assert calls["timeout"] == 8
+    assert calls["server_hostname"] == "example.com"
 
 
 class _Response:

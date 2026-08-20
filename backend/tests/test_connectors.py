@@ -315,7 +315,7 @@ def test_tenant_connector_profile_scopes_non_secret_targets(monkeypatch) -> None
     monkeypatch.setattr(
         connector_module,
         "_tenant_secret_or_env",
-        lambda tenant, connector, env_name: "tenant-token",
+        lambda tenant, connector, env_name, **_kwargs: "tenant-token",
     )
 
     config = JiraConfig.from_env("acme")
@@ -348,7 +348,7 @@ def test_durable_tenant_connector_profile_precedes_deployment_defaults(monkeypat
     monkeypatch.setattr(
         connector_module,
         "_tenant_secret_or_env",
-        lambda tenant, connector, env_name: "tenant-token",
+        lambda tenant, connector, env_name, **_kwargs: "tenant-token",
     )
 
     config = JiraConfig.from_env("durable-acme")

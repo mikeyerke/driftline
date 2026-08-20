@@ -847,7 +847,7 @@ def test_owner_can_enroll_a_tenant_connector_without_submitting_a_secret(monkeyp
     assert started.status_code == 200
     enrollment = started.json()
     assert enrollment["status"] == "awaiting_secret"
-    assert enrollment["allowed_operations"] == ["read_context", "runtime"]
+    assert enrollment["allowed_operations"] == ["read_context"]
     assert enrollment["secret_name"] == f"driftline-tenant-{tenant_id}-jira"
     assert enrollment["credential_value_exposed"] is False
     assert "opaque-token" not in str(enrollment)
@@ -872,13 +872,19 @@ def test_owner_can_enroll_a_tenant_connector_without_submitting_a_secret(monkeyp
     payload = completed.json()
     assert payload["status"] == "active"
     assert payload["secret_version"] == "3"
-    assert payload["allowed_operations"] == ["read_context", "runtime"]
+    assert payload["allowed_operations"] == ["read_context"]
     assert payload["credential_value_exposed"] is False
     assert "opaque-token" not in str(payload)
     assert api.load_connector_binding(tenant_id, "jira")["allowed_operations"] == [
         "read_context",
-        "runtime",
     ]
+
+
+def test_hosted_get_rejects_authentication_in_query_string(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_REJECT_QUERY_AUTH", "true")
+    response = client.get("/api/sources?approval_token=redacted")
+    assert response.status_code == 400
+    assert "Query authentication is disabled" in response.json()["detail"]
 
 
 def test_owner_can_inspect_credential_broker_inventory_and_access_ledger(monkeypatch) -> None:

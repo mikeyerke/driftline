@@ -13,7 +13,6 @@ from app.tenant import tenant_credential_namespace
 def test_new_enrollment_scope_defaults_read_only_and_rejects_unknown_operations() -> None:
     assert normalize_allowed_operations("jira", default="read_only") == [
         "read_context",
-        "runtime",
     ]
     with pytest.raises(CredentialBrokerError, match="credential_scope_not_allowlisted"):
         normalize_allowed_operations("jira", ["delete_project"])
@@ -111,6 +110,26 @@ def test_resolver_fails_closed_for_unapproved_operation(monkeypatch) -> None:
         },
     )
 
+    with pytest.raises(CredentialBrokerError, match="operation_not_allowed"):
+        resolve_tenant_credential(
+            "acme",
+            "jira",
+            operation="create_issue",
+            secret_reader=lambda *_args, **_kwargs: "should-not-read",
+        )
+
+
+def test_read_only_enrollment_scope_cannot_lease_external_write(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.persistence.load_connector_binding",
+        lambda *_args: {
+            "tenant_id": "acme",
+            "connector": "jira",
+            "secret_name": "driftline-tenant-acme-jira",
+            "allowed_operations": normalize_allowed_operations("jira", default="read_only"),
+            "status": "active",
+        },
+    )
     with pytest.raises(CredentialBrokerError, match="operation_not_allowed"):
         resolve_tenant_credential(
             "acme",

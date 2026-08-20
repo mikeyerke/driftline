@@ -6,6 +6,7 @@ COPY frontend/ ./
 RUN npm run build
 
 FROM python:3.12-slim
+ENV DRIFTLINE_REJECT_QUERY_AUTH=true
 WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./
 COPY backend/app ./app

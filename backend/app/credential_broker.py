@@ -40,7 +40,12 @@ CONNECTOR_OPERATIONS: dict[str, frozenset[str]] = {
     "salesforce": frozenset({"runtime", "read_context"}),
 }
 
-READ_ONLY_OPERATIONS = frozenset({"runtime", "read_context"})
+# ``runtime`` was an ambiguous compatibility scope: it allowed a read-only
+# enrollment to lease the same credential later used by external writes.
+# New bindings therefore receive only the concrete read operation.  Existing
+# explicit scopes remain valid until rotated, but connector call sites below
+# always request a concrete operation.
+READ_ONLY_OPERATIONS = frozenset({"read_context"})
 
 
 @dataclass(frozen=True)

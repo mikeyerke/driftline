@@ -458,7 +458,7 @@ def _tenant_setting(
 
 
 def _tenant_secret_or_env(
-    tenant_id: str, connector: str, env_name: str
+    tenant_id: str, connector: str, env_name: str, *, operation: str = "read_context"
 ) -> str:
     """Resolve one tenant-bound secret through the credential broker.
 
@@ -485,7 +485,7 @@ def _tenant_secret_or_env(
         lease = resolve_tenant_credential(
             safe_tenant,
             safe_connector,
-            operation="runtime",
+            operation=operation,
             secret_reader=read_scoped_secret,
         )
         return lease.value
@@ -669,7 +669,9 @@ class JiraConfig:
     issue_type: str = "Task"
 
     @classmethod
-    def from_env(cls, tenant_id: str | None = None) -> JiraConfig:
+    def from_env(
+        cls, tenant_id: str | None = None, *, operation: str = "read_context"
+    ) -> JiraConfig:
         enabled = os.getenv("DRIFTLINE_JIRA_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
@@ -679,7 +681,7 @@ class JiraConfig:
             + "/",
             email=_tenant_setting(tenant_id, "jira", "email", "DRIFTLINE_JIRA_EMAIL"),
             token=(
-                _tenant_secret_or_env(tenant_id, "jira", "DRIFTLINE_JIRA_TOKEN")
+                _tenant_secret_or_env(tenant_id, "jira", "DRIFTLINE_JIRA_TOKEN", operation=operation)
                 if enabled and tenant_id
                 else _secret_or_env("DRIFTLINE_JIRA_TOKEN") if enabled else ""
             ),
@@ -900,7 +902,7 @@ def execute_jira_handoff(state: Any) -> dict[str, Any]:
     config = JiraConfig.from_env()
     if not config.enabled:
         return {"jira_status": "not_configured", "external_write": False}
-    config = JiraConfig.from_env(_workflow_tenant_id(state))
+    config = JiraConfig.from_env(_workflow_tenant_id(state), operation="create_issue")
     packet = next(
         (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
         None,
@@ -935,7 +937,7 @@ def reverse_jira_handoff(state: Any) -> dict[str, Any]:
     config = JiraConfig.from_env()
     if not issue_key or not config.enabled:
         return {"jira_status": "not_configured", "external_write": False}
-    config = JiraConfig.from_env(_workflow_tenant_id(state))
+    config = JiraConfig.from_env(_workflow_tenant_id(state), operation="reverse_issue")
     connector = JiraConnector(config)
     result = connector.reverse_issue(
         str(issue_key), str(action.get("action_id", "unknown"))
@@ -957,7 +959,9 @@ class ConfluenceConfig:
     parent_page_id: str = ""
 
     @classmethod
-    def from_env(cls, tenant_id: str | None = None) -> ConfluenceConfig:
+    def from_env(
+        cls, tenant_id: str | None = None, *, operation: str = "read_context"
+    ) -> ConfluenceConfig:
         enabled = os.getenv("DRIFTLINE_CONFLUENCE_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
@@ -973,7 +977,7 @@ class ConfluenceConfig:
             ),
             token=(
                 _tenant_secret_or_env(
-                    tenant_id, "confluence", "DRIFTLINE_CONFLUENCE_TOKEN"
+                    tenant_id, "confluence", "DRIFTLINE_CONFLUENCE_TOKEN", operation=operation
                 )
                 if enabled and tenant_id
                 else _secret_or_env("DRIFTLINE_CONFLUENCE_TOKEN") if enabled else ""
@@ -1226,7 +1230,7 @@ def execute_confluence_handoff(state: Any) -> dict[str, Any]:
             "confluence_prepared_only": True,
             "external_write": False,
         }
-    config = ConfluenceConfig.from_env(_workflow_tenant_id(state))
+    config = ConfluenceConfig.from_env(_workflow_tenant_id(state), operation="create_page")
     packet = next(
         (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
         None,
@@ -1262,7 +1266,7 @@ def reverse_confluence_handoff(state: Any) -> dict[str, Any]:
             "confluence_prepared_only": True,
             "external_write": False,
         }
-    config = ConfluenceConfig.from_env(_workflow_tenant_id(state))
+    config = ConfluenceConfig.from_env(_workflow_tenant_id(state), operation="reverse_page")
     result = ConfluenceConnector(config).reverse_page(
         str(page_id), str(action.get("action_id", "unknown"))
     )
@@ -1277,12 +1281,14 @@ class SlackConfig:
     base_url: str = "https://slack.com/api/"
 
     @classmethod
-    def from_env(cls, tenant_id: str | None = None) -> SlackConfig:
+    def from_env(
+        cls, tenant_id: str | None = None, *, operation: str = "read_context"
+    ) -> SlackConfig:
         enabled = os.getenv("DRIFTLINE_SLACK_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
             token=(
-                _tenant_secret_or_env(tenant_id, "slack", "DRIFTLINE_SLACK_TOKEN")
+                _tenant_secret_or_env(tenant_id, "slack", "DRIFTLINE_SLACK_TOKEN", operation=operation)
                 if enabled and tenant_id
                 else _secret_or_env("DRIFTLINE_SLACK_TOKEN") if enabled else ""
             ),
@@ -1392,7 +1398,7 @@ def execute_slack_handoff(state: Any) -> dict[str, Any]:
     config = SlackConfig.from_env()
     if not config.enabled:
         return {"slack_status": "not_configured", "slack_prepared_only": True, "external_write": False}
-    config = SlackConfig.from_env(_workflow_tenant_id(state))
+    config = SlackConfig.from_env(_workflow_tenant_id(state), operation="post_message")
     packet = next(
         (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
         None,
@@ -1419,7 +1425,7 @@ def reverse_slack_handoff(state: Any) -> dict[str, Any]:
     action_id = str((state.action_record or {}).get("action_id", "unknown"))
     if not config.enabled:
         return {"slack_status": "not_configured", "slack_prepared_only": True, "external_write": False}
-    config = SlackConfig.from_env(_workflow_tenant_id(state))
+    config = SlackConfig.from_env(_workflow_tenant_id(state), operation="reverse_message")
     result = SlackConnector(config).reverse_message(action_id)
     return {"slack_status": result["status"], "slack_message_ts": result.get("message_ts"), "external_write": True}
 
@@ -1433,12 +1439,14 @@ class GitHubConfig:
     api_url: str = "https://api.github.com/"
 
     @classmethod
-    def from_env(cls, tenant_id: str | None = None) -> GitHubConfig:
+    def from_env(
+        cls, tenant_id: str | None = None, *, operation: str = "read_context"
+    ) -> GitHubConfig:
         enabled = os.getenv("DRIFTLINE_GITHUB_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
             token=(
-                _tenant_secret_or_env(tenant_id, "github", "DRIFTLINE_GITHUB_TOKEN")
+                _tenant_secret_or_env(tenant_id, "github", "DRIFTLINE_GITHUB_TOKEN", operation=operation)
                 if enabled and tenant_id
                 else _secret_or_env("DRIFTLINE_GITHUB_TOKEN") if enabled else ""
             ),
@@ -1544,7 +1552,7 @@ def execute_github_handoff(state: Any) -> dict[str, Any]:
     config = GitHubConfig.from_env()
     if not config.enabled:
         return {"github_status": "not_configured", "github_prepared_only": True, "external_write": False}
-    config = GitHubConfig.from_env(_workflow_tenant_id(state))
+    config = GitHubConfig.from_env(_workflow_tenant_id(state), operation="create_issue")
     packet = next(
         (item for item in state.artifact_packets if item.get("status") == "packet_ready"),
         None,
@@ -1574,7 +1582,7 @@ def reverse_github_handoff(state: Any) -> dict[str, Any]:
     config = GitHubConfig.from_env()
     if not config.enabled or issue_number is None:
         return {"github_status": "not_configured", "github_prepared_only": True, "external_write": False}
-    config = GitHubConfig.from_env(_workflow_tenant_id(state))
+    config = GitHubConfig.from_env(_workflow_tenant_id(state), operation="reverse_issue")
     result = GitHubConnector(config).reverse_issue(
         int(issue_number), str(action.get("action_id", "unknown"))
     )
