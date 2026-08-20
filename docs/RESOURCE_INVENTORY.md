@@ -38,12 +38,35 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 - `/health` returned `200` after deploy. Cloud Tasks queue `driftline-jobs` is
   `RUNNING`, max concurrent dispatches `1`, max attempts `3`; a fresh browser
   workflow dispatched through `POST /api/jobs/{id}/run` and persisted a
-  `needs_approval` job. The public URL remains
+  `needs_approval` job (`job-c99775eefb59`, workflow
+  `9441fb8a-7f2a-4924-b25d-a8018c27e58e`). Its 12-event audit trail includes
+  evidence verification, four mapped artifacts, approval, packet creation, and
+  decision reopening. The public URL remains
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - This is a production tenant-scoped credential data-plane foundation, not a
   claim of complete self-serve SaaS: enterprise SSO, customer-managed keys,
   per-tenant billing, automated provider consent, and an independently
   measured customer pilot are still separate gates.
+
+## 2026-08-20 Connector destination SSRF hardening (live)
+
+- Source commit `e13a4ae` validates connector destination profiles before
+  persistence and repeats the check when adapters are constructed. Jira and
+  Confluence accept only Atlassian Cloud/scoped gateway hosts; Slack accepts
+  `slack.com`; GitHub accepts the GitHub API host family; Salesforce accepts
+  Salesforce/Force domains. HTTPS is required and userinfo, query credentials,
+  and fragments are rejected.
+- Cloud Build `811f8d1e-825b-4aab-9898-a0a47fb766ec` completed `SUCCESS`; image
+  digest is
+  `sha256:9b539163daff78ecb03472a1c833082bc723cd9000fea71b50e719436334c116`.
+  Cloud Run revision `driftline-00006-ncb` serves 100% of traffic and `/health`
+  returned `200`.
+- A live unauthenticated malicious Slack profile attempt returned `422
+  connector_profile_url_not_allowlisted`. The signed `driftline-demo` Slack
+  profile was rechecked afterward and remains the intended
+  `https://slack.com/api/` plus channel `C0BRGFUSADA`; no credential value was
+  returned. Post-deploy logs contained zero severity `ERROR` entries.
+- Regression suite is `195 passed`; Ruff and `git diff --check` are clean.
 
 ## 2026-08-20 Tenant quota and privacy policy release (current)
 
