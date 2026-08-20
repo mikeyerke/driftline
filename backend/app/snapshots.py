@@ -39,6 +39,8 @@ class SnapshotRecord:
     retrieved_at: str
     data_mode: str
     snapshot_label: str
+    tenant_id: str | None = None
+    retention_days: int | None = None
 
     @classmethod
     def create(
@@ -50,6 +52,8 @@ class SnapshotRecord:
         data_mode: str,
         snapshot_label: str,
         retrieved_at: str | None = None,
+        tenant_id: str | None = None,
+        retention_days: int | None = None,
     ) -> SnapshotRecord:
         return cls(
             source_id=source_id,
@@ -59,14 +63,12 @@ class SnapshotRecord:
             retrieved_at=retrieved_at or utc_now(),
             data_mode=data_mode,
             snapshot_label=snapshot_label,
+            tenant_id=tenant_id,
+            retention_days=retention_days,
         )
 
-    def to_dict(self) -> dict[str, str]:
-        try:
-            retention_days = int(os.getenv("DRIFTLINE_RETENTION_DAYS", "30"))
-        except ValueError:
-            retention_days = 30
-        retention_days = max(1, min(retention_days, 3650))
+    def to_dict(self) -> dict[str, Any]:
+        retention_days = self.retention_days or retention_days_for_tenant(self.tenant_id)
         return {
             "source_id": self.source_id,
             "body": self.body,
@@ -75,6 +77,8 @@ class SnapshotRecord:
             "retrieved_at": self.retrieved_at,
             "data_mode": self.data_mode,
             "snapshot_label": self.snapshot_label,
+            "tenant_id": self.tenant_id or "",
+            "retention_days": retention_days,
             # Firestore TTL can delete expired snapshots without a scheduled
             # cleanup process. The body remains bounded and append-only until
             # this explicit retention window elapses.
@@ -91,7 +95,32 @@ class SnapshotRecord:
             retrieved_at=str(payload["retrieved_at"]),
             data_mode=str(payload["data_mode"]),
             snapshot_label=str(payload["snapshot_label"]),
+            tenant_id=str(payload.get("tenant_id") or "") or None,
+            retention_days=int(payload.get("retention_days", 0)) or None,
         )
+
+
+def retention_days_for_tenant(tenant_id: str | None = None) -> int:
+    """Resolve the bounded source/audit TTL for one tenant.
+
+    Source history is content-bearing, so tenant policy applies here as well
+    as to workflow and credential metadata. Older records without a tenant
+    policy continue using the deployment default.
+    """
+    try:
+        days = int(os.getenv("DRIFTLINE_RETENTION_DAYS", "30"))
+    except ValueError:
+        days = 30
+    days = max(1, min(days, 3650))
+    if tenant_id and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
+        try:
+            from .persistence import load_tenant_policy
+
+            days = int(load_tenant_policy(tenant_id).get("retention_days", days))
+            days = max(1, min(days, 3650))
+        except Exception:  # noqa: BLE001 - bounded deployment fallback.
+            days = max(1, min(days, 3650))
+    return days
 
 
 class SnapshotStore(Protocol):
@@ -219,6 +248,7 @@ def compare_and_record(
     snapshot_label: str,
     store: SnapshotStore,
     retrieved_at: str | None = None,
+    tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """Record a body and return an honest baseline/unchanged/changed result."""
 
@@ -229,6 +259,8 @@ def compare_and_record(
         data_mode=data_mode,
         snapshot_label=snapshot_label,
         retrieved_at=retrieved_at,
+        tenant_id=tenant_id,
+        retention_days=retention_days_for_tenant(tenant_id),
     )
     previous = store.record(source_id, current)
     if previous is None:

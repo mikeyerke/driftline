@@ -18,6 +18,7 @@ from .snapshots import (
     InMemorySnapshotStore,
     SnapshotStore,
     compare_and_record,
+    retention_days_for_tenant,
     snapshot_history,
 )
 from .workflow import DEMO_AFTER, DEMO_BEFORE, DEMO_SOURCE_URL
@@ -168,7 +169,8 @@ def _record_source_failure(
         "status": "source_fetch_failed",
         "reason": reason[:240],
         "failed_at": failed_at or datetime.now(UTC).isoformat(),
-        "expires_at": datetime.now(UTC) + timedelta(days=30),
+        "expires_at": datetime.now(UTC)
+        + timedelta(days=retention_days_for_tenant(tenant_id)),
     }
     _SOURCE_FAILURES_MEMORY[storage_key] = dict(payload)
     if _firestore_enabled():
@@ -501,6 +503,7 @@ def _public_snapshot(
                 snapshot_label=f"Operator-registered public URL · {source_id}",
                 data_mode="operator_registered_public",
                 store=store or _default_public_store(),
+                tenant_id=tenant_id,
             )
             _clear_source_failure(
                 source_id,
@@ -578,6 +581,7 @@ def _public_snapshot(
             snapshot_label=f"Public GitHub snapshot · allowlisted {source_id}",
             data_mode="public_source",
             store=store or _default_public_store(),
+            tenant_id=tenant_id,
         )
         _clear_source_failure(
             source_id,

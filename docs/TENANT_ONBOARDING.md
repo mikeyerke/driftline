@@ -128,8 +128,8 @@ An owner can inspect the effective per-tenant allowance with signed
 `agent_calls_per_window`, `workflow_mutations_per_window`, and `retention_days`
 are the only accepted policy fields. Allowances are clamped to safe bounds and
 apply to the existing deployment windows without a redeploy. `retention_days`
-controls tenant-owned workflow/job, failure, outcome, and credential-access
-metadata; it never deletes provider secrets. Changes are append-only audit
+controls tenant-owned source observations, workflow/job, failure, outcome, and
+credential-access metadata; it never deletes provider secrets. Changes are append-only audit
 metadata and are metering/privacy controls, not subscription billing. If
 policy metadata is absent, deployment defaults apply; a hosted quota lookup
 failure denies new work rather than widening access, while a retention lookup

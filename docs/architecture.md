@@ -57,9 +57,9 @@ markers through `/api/ops/job-failures` without prompts, source bodies,
 exception text, or credentials. Persisted jobs, workflows, source observations,
 outcome measurements, and failure markers carry an explicit 30-day TTL by
 default. Tenant owners can override the bounded retention window for
-tenant-owned workflow/job, failure, outcome, and credential-access metadata
-through the signed tenant policy route; provider secrets remain in Secret
-Manager and require explicit offboarding.
+tenant-owned source observations, workflow/job, failure, outcome, and
+credential-access metadata through the signed tenant policy route; provider
+secrets remain in Secret Manager and require explicit offboarding.
 
 Signed agent calls and workflow mutations reserve separate tenant-scoped
 Firestore windows. Owners can read and tune bounded

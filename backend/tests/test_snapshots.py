@@ -88,3 +88,25 @@ def test_in_memory_history_is_append_only_and_newest_first() -> None:
 
     history = store.history("public/pricing")
     assert [record.body for record in history] == ["new", "old"]
+
+
+def test_tenant_source_snapshot_carries_privacy_ttl(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+    monkeypatch.setattr(
+        "app.persistence.load_tenant_policy",
+        lambda _tenant_id: {"retention_days": 7},
+    )
+    store = InMemorySnapshotStore()
+    compare_and_record(
+        source_id="tenant/acme/public-pricing",
+        body="tenant evidence",
+        source_url="https://example.test/pricing",
+        data_mode="operator_registered_public",
+        snapshot_label="tenant source",
+        store=store,
+        tenant_id="acme",
+    )
+    record = store.history("tenant/acme/public-pricing")[0]
+    assert record.tenant_id == "acme"
+    assert record.retention_days == 7
+    assert record.to_dict()["retention_days"] == 7
