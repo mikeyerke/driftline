@@ -260,6 +260,11 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   and user identity fields, sending only a fixed allowlisted instruction to
   Gemini. Signed tenant monitor requests retain their explicit query and
   identity contract; the new regression suite is `203 passed`.
+- Commit `e570b87` was deployed by dedicated build
+  `1d1f0213-5796-4d3f-988d-37f516ad0ec1` as revision `driftline-00017-s8x` at
+  100% traffic. A live public request containing a sensitive canary returned
+  `user_id=public-demo` and the fixed allowlisted query; `/health` returned
+  200 and the revision has no severity `ERROR` logs.
 
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
