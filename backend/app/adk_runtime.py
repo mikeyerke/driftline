@@ -29,6 +29,34 @@ from .workflow import workflow_store
 APP_NAME = "driftline"
 
 
+def _agent_trace_payload(
+    *,
+    started_at: str,
+    tool_calls: list[dict[str, str]],
+    event_count: int,
+    analysis_info: dict[str, object],
+    decision_info: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Build the durable, redacted trace shared by API and Firestore state.
+
+    The trace intentionally contains model/tool metadata and structured review
+    outputs only; prompts, connector credentials, and source bodies never
+    enter the workflow record.
+    """
+    payload: dict[str, object] = {
+        "started_at": started_at,
+        "completed_at": datetime.now(UTC).isoformat(),
+        "model": root_agent.model,
+        "execution_mode": "google_adk",
+        "tool_calls": tool_calls,
+        "event_count": event_count,
+        "structured_analysis": analysis_info,
+    }
+    if decision_info is not None:
+        payload["decision_copilot"] = decision_info
+    return payload
+
+
 def _analysis_failure_result(
     *, run_mode: str, reason: str, artifact_count: int | None = None
 ) -> dict[str, object]:
@@ -131,6 +159,15 @@ async def run_agent_task(
             try:
                 structured = await analyze_workflow(state)
                 analysis_info = analysis_trace(structured)
+                # Persist the coordinator and analysis trace before the
+                # decision pass so a later bounded failure still leaves an
+                # auditable record of what ran.
+                state.agent_trace = _agent_trace_payload(
+                    started_at=started_at,
+                    tool_calls=trace,
+                    event_count=event_count,
+                    analysis_info=analysis_info,
+                )
                 persist_workflow(state)
             except AnalysisUnavailable as exc:
                 analysis_info = _analysis_failure_result(
@@ -138,6 +175,13 @@ async def run_agent_task(
                     reason=str(exc),
                     artifact_count=len(state.impacts),
                 )
+                state.agent_trace = _agent_trace_payload(
+                    started_at=started_at,
+                    tool_calls=trace,
+                    event_count=event_count,
+                    analysis_info=analysis_info,
+                )
+                persist_workflow(state)
             try:
                 copilot, policy = await analyze_decision(state)
                 decision_info = decision_trace(copilot, policy)
@@ -151,6 +195,13 @@ async def run_agent_task(
                     mode="deterministic_demo_fallback",
                     reason=str(exc),
                 )
+            state.agent_trace = _agent_trace_payload(
+                started_at=started_at,
+                tool_calls=trace,
+                event_count=event_count,
+                analysis_info=analysis_info,
+                decision_info=decision_info,
+            )
             persist_workflow(state)
     else:
         analysis_info = {
@@ -173,14 +224,11 @@ async def run_agent_task(
         "workflow_id": workflow_id,
         "source_status": source_status,
         "change_detected": change_detected,
-        "agent_trace": {
-            "started_at": started_at,
-            "completed_at": datetime.now(UTC).isoformat(),
-            "model": root_agent.model,
-            "execution_mode": "google_adk",
-            "tool_calls": trace,
-            "event_count": event_count,
-            "structured_analysis": analysis_info,
-            "decision_copilot": decision_info,
-        },
+        "agent_trace": _agent_trace_payload(
+            started_at=started_at,
+            tool_calls=trace,
+            event_count=event_count,
+            analysis_info=analysis_info,
+            decision_info=decision_info,
+        ),
     }
