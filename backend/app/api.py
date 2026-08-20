@@ -34,9 +34,17 @@ except ImportError:  # pragma: no cover - exercised only in a minimal local env.
 from .adk_runtime import run_agent_task
 from .artifacts import persist_action_artifact, persist_operational_output
 from .connectors import (
+    ConfluenceConfig,
+    ConfluenceConnector,
     ConnectorError,
+    GitHubConfig,
+    GitHubConnector,
+    JiraConfig,
+    JiraConnector,
     SalesforceConfig,
     SalesforceReadOnlyClient,
+    SlackConfig,
+    SlackConnector,
     exchange_salesforce_code,
     execute_confluence_handoff,
     execute_github_handoff,
@@ -159,6 +167,15 @@ class DismissRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=240)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_mode: Literal["demo", "signed"] = "demo"
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class ConnectorContextRequest(BaseModel):
+    """Signed operator request for aggregate-only internal context."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
 
@@ -624,6 +641,48 @@ def _connector_handoff_info(
     return result
 
 
+def _connector_context_info() -> dict[str, object]:
+    """Read fixed internal scopes and return aggregate metadata only.
+
+    This lane is deliberately independent of approval-time writes. A bad or
+    unavailable connector produces an explicit status rather than partial raw
+    records, and no connector receives user-supplied paths, JQL, channel IDs,
+    or repository names.
+    """
+    definitions: tuple[tuple[str, Callable[[], object], str], ...] = (
+        ("jira", lambda: JiraConnector(JiraConfig.from_env()).read_context_summary(), "read_only_project"),
+        ("confluence", lambda: ConfluenceConnector(ConfluenceConfig.from_env()).read_context_summary(), "read_only_space"),
+        ("slack", lambda: SlackConnector(SlackConfig.from_env()).read_context_summary(), "read_only_channel"),
+        ("github", lambda: GitHubConnector(GitHubConfig.from_env()).read_context_summary(), "read_only_repository"),
+    )
+    result: dict[str, object] = {}
+    for name, operation, scope in definitions:
+        enabled = os.getenv(f"DRIFTLINE_{name.upper()}_ENABLED", "false").casefold() == "true"
+        if not enabled:
+            result[name] = {
+                "status": "not_configured",
+                "mode": "prepared_only",
+                "scope": scope,
+                "external_read": False,
+                "redaction": "aggregate_metadata_only",
+            }
+            continue
+        try:
+            summary = operation()
+            result[name] = {**summary, "external_read": True}
+        except ConnectorError as exc:
+            logger.warning("%s context read failed: %s", name, exc)
+            result[name] = {
+                "status": "failed",
+                "mode": "read_only_context",
+                "scope": scope,
+                "external_read": False,
+                "reason": str(exc),
+                "redaction": "aggregate_metadata_only",
+            }
+    return result
+
+
 def _transition_workflow(
     workflow_id: str,
     expected_status: str,
@@ -1075,6 +1134,39 @@ def get_ops_summary() -> dict[str, object]:
         },
         "crm": {"salesforce": salesforce_readiness()},
         "source_health": source_health,
+    }
+
+
+@app.post("/api/connectors/context/summary")
+def get_connector_context_summary(request: ConnectorContextRequest) -> dict[str, object]:
+    """Read bounded internal context for an authenticated operator.
+
+    The public demo cannot call this route: it requires the same signed/OIDC
+    boundary used for configured connector writes. Results are aggregate-only
+    and intentionally not copied into public workflow state or model prompts.
+    """
+    identity = _verify_approval_mode(
+        "connector-context-summary",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    summaries = _connector_context_info()
+    return {
+        "status": "ok",
+        "tenant_id": identity["tenant_id"],
+        "role": identity["role"],
+        "generated_at": utc_now(),
+        "context_contract": {
+            "purpose": "ground downstream impact planning with bounded internal workload context",
+            "redaction": "aggregate_metadata_only",
+            "persisted": False,
+            "retention": "request-scoped; no source bodies or message text retained",
+            "user_input_scope": "none; connector targets come only from deployment configuration",
+        },
+        "connectors": summaries,
     }
 
 

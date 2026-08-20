@@ -78,6 +78,15 @@ freshness, baseline, stale, and synthetic-only states from that ledger without
 fetching or mutating a source. `/api/ops/summary` exposes bounded
 job/workflow counts, connector enablement, model and call guardrails, and
 source health for production operations; it never returns secret values.
+The signed-only `/api/connectors/context/summary` route closes the utility
+loop without broadening the crawler: each configured adapter performs one
+fixed, bounded read against its deployment scope and returns aggregate
+metadata only. Jira is limited to open work in the configured project,
+Confluence to page counts in the configured space, Slack to recent message
+volume in the configured channel, and GitHub to open issue/PR counts in the
+configured repository. No user-supplied query, object ID, page body, message
+text, or repository target is accepted. The result is request-scoped, not
+persisted, and never becomes public demo context.
 Reopening a decision restores the approval gate and is not an external undo.
 Connector manifests are deliberately marked `external_write: false` in the
 public demo. A configured connector is callable only after a separately signed

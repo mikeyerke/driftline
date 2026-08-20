@@ -76,6 +76,14 @@ before/after evidence. See
 [`docs/UTILITY_RESEARCH_2026-08-20.md`](docs/UTILITY_RESEARCH_2026-08-20.md)
 for the research-backed scope and deferred work.
 
+For an authenticated operator, `POST /api/connectors/context/summary` adds a
+bounded internal-workload view before approval: fixed-scope Jira, Confluence,
+Slack, and GitHub connectors return aggregate counts only. It is signed-only,
+request-scoped, and never exposes source text or private records to the public
+console. Unconfigured integrations remain explicitly `prepared_only`;
+Salesforce remains a separate read-only OAuth lane pending real tenant
+consent.
+
 Signals do not have to become work. A named reviewer can dismiss a
 needs-approval signal as non-material with a required reason; Driftline records
 that intentional no-op in the workflow, Change Card, packet, and append-only

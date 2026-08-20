@@ -17,6 +17,12 @@ Undo follows the same boundary. A demo packet can be reopened without contacting
 - Confluence: one configured space/page marker; reversal appends a note and preserves history.
 - Slack: one configured channel; marker-based idempotency; reversal posts an audit message.
 - GitHub: one configured repository; marker-based idempotency; reversal adds a label/comment.
+- Internal context read lane: one fixed scope per configured connector. A signed
+  operator can call `POST /api/connectors/context/summary` to retrieve Jira
+  open-work counts, Confluence page counts, Slack recent-message volume, and
+  GitHub issue/PR counts. The request accepts no JQL, page IDs, channel IDs,
+  repository names, or source text; responses are aggregate metadata only and
+  are not persisted or injected into public workflow state.
 - Salesforce: tenant-scoped OAuth read-only context for `Product2`, `PricebookEntry`, and `Opportunity`; no write path. The OAuth lane uses a short-lived state record plus PKCE S256 and does not become connected until the real org callback succeeds.
 
 Signed operator identities resolve to a tenant and role from
@@ -38,5 +44,9 @@ The public source registry starts with five pinned raw GitHub fixtures with expl
 
 - `/api/ops/summary` exposes approval posture and connector readiness without secrets.
 - `/api/ops/value-proof` reports observed deployment counters and lists outcomes that remain unmeasured.
+- `/api/connectors/context/summary` is signed-only and returns the bounded
+  internal workload context contract. Disabled connectors report
+  `not_configured` / `prepared_only`; configured connectors report an explicit
+  read success or failure without returning raw records.
 - `/api/operator/sources` is the only source-registration path and requires a signed or Google-verified operator identity.
 - The signed operator path is exercised separately from public browser QA; its token is never committed or returned by the API.

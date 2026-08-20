@@ -122,6 +122,80 @@ def test_jira_scoped_gateway_url_is_allowed() -> None:
     assert connector.config.base_url.endswith("/jira/cloud-id/")
 
 
+def test_jira_context_summary_is_bounded_and_aggregate_only() -> None:
+    requests = []
+
+    def opener(request, timeout):
+        requests.append(request)
+        return _Response(
+            {
+                "total": 3,
+                "issues": [
+                    {"fields": {"status": {"name": "To Do"}, "priority": {"name": "High"}}},
+                    {"fields": {"status": {"name": "To Do"}, "priority": {"name": "Low"}}},
+                ],
+            }
+        )
+
+    connector = JiraConnector(
+        JiraConfig(enabled=True, base_url="https://example.atlassian.net/", email="a@b.com", token="x", project_key="DRIFT"),
+        opener=opener,
+    )
+    result = connector.read_context_summary()
+
+    assert result["open_issue_count"] == 3
+    assert result["sampled_issue_count"] == 2
+    assert result["by_status"] == {"To Do": 2}
+    assert result["redaction"] == "aggregate_metadata_only"
+    payload = json.loads(requests[0].data)
+    assert payload["maxResults"] == 50
+    assert "summary" not in payload["fields"]
+
+
+def test_confluence_context_summary_does_not_return_page_bodies() -> None:
+    responses = [{"results": [{"id": "space-1"}]}, {"totalSize": 4, "results": [{"id": "page-1", "title": "private"}], "_links": {"next": "/next"}}]
+    connector = ConfluenceConnector(
+        ConfluenceConfig(enabled=True, base_url="https://example.atlassian.net/wiki/", email="a@b.com", token="x", space_key="DRIFT"),
+        opener=lambda request, timeout: _Response(responses.pop(0)),
+    )
+    result = connector.read_context_summary()
+
+    assert result["page_count"] == 4
+    assert result["sampled_page_count"] == 1
+    assert "title" not in result
+    assert result["redaction"] == "aggregate_metadata_only"
+
+
+def test_slack_context_summary_omits_message_text() -> None:
+    connector = SlackConnector(
+        SlackConfig(enabled=True, token="xoxb-test", channel_id="C123"),
+        opener=lambda request, timeout: _Response({"ok": True, "messages": [{"ts": "1", "text": "private"}], "has_more": True}),
+    )
+    result = connector.read_context_summary()
+
+    assert result["recent_message_count"] == 1
+    assert result["has_more"] is True
+    assert "private" not in str(result)
+
+
+def test_github_context_summary_is_repository_scoped() -> None:
+    connector = GitHubConnector(
+        GitHubConfig(enabled=True, token="ghp-test", owner="acme", repo="docs"),
+        opener=lambda request, timeout: _Response(
+            [
+                {"labels": [{"name": "driftline-active"}]},
+                {"pull_request": {"url": "https://api.github.com/pr/1"}, "labels": []},
+            ]
+        ),
+    )
+    result = connector.read_context_summary()
+
+    assert result["open_issue_count"] == 1
+    assert result["open_pull_request_count"] == 1
+    assert result["driftline_active_count"] == 1
+    assert result["scope"] == "repository:acme/docs"
+
+
 def test_unconfigured_confluence_is_explicitly_prepared_only(monkeypatch) -> None:
     monkeypatch.delenv("DRIFTLINE_CONFLUENCE_ENABLED", raising=False)
 

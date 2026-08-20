@@ -600,6 +600,42 @@ class JiraConnector:
         )
         return {"status": "reversed", "issue_key": issue_key}
 
+    def read_context_summary(self) -> dict[str, Any]:
+        """Return bounded, aggregate Jira context without issue text.
+
+        This is intentionally a separate read lane from the approval-gated
+        handoff.  The query is fixed to the configured project and only asks
+        Jira for status/priority metadata; no user-supplied JQL or issue IDs
+        are accepted.
+        """
+        result = self._request(
+            "POST",
+            "/rest/api/3/search/jql",
+            {
+                "jql": f'project = "{self.config.project_key}" AND statusCategory != Done',
+                "maxResults": 50,
+                "fields": ["status", "priority", "updated"],
+            },
+        )
+        issues = result.get("issues") or []
+        by_status: dict[str, int] = {}
+        by_priority: dict[str, int] = {}
+        for issue in issues:
+            fields = issue.get("fields") or {}
+            status = str((fields.get("status") or {}).get("name") or "unknown")
+            priority = str((fields.get("priority") or {}).get("name") or "unknown")
+            by_status[status] = by_status.get(status, 0) + 1
+            by_priority[priority] = by_priority.get(priority, 0) + 1
+        return {
+            "status": "ok",
+            "scope": f"project:{self.config.project_key}",
+            "open_issue_count": int(result.get("total", len(issues)) or 0),
+            "sampled_issue_count": len(issues),
+            "by_status": by_status,
+            "by_priority": by_priority,
+            "redaction": "aggregate_metadata_only",
+        }
+
 
 def execute_jira_handoff(state: Any) -> dict[str, Any]:
     """Create one Jira task for the first approved packet, if explicitly enabled."""
@@ -863,6 +899,31 @@ class ConfluenceConnector:
             )
         return {"status": "reversed", "page_id": page_id, "action_id": action_id}
 
+    def read_context_summary(self) -> dict[str, Any]:
+        """Return bounded space/page counts without page bodies or titles."""
+        space_id = self._space_id()
+        if self._uses_v2_gateway:
+            result = self._request(
+                "GET",
+                "/api/v2/pages",
+                query={"space-id": space_id, "limit": "50", "sort": "-modified-date"},
+            )
+        else:
+            result = self._request(
+                "GET",
+                "/rest/api/content",
+                query={"spaceKey": self.config.space_key, "limit": "50", "expand": "version"},
+            )
+        pages = result.get("results") or []
+        return {
+            "status": "ok",
+            "scope": f"space:{self.config.space_key}",
+            "page_count": int(result.get("totalSize", len(pages)) or 0),
+            "sampled_page_count": len(pages),
+            "has_more": bool(result.get("_links", {}).get("next") or result.get("next")),
+            "redaction": "aggregate_metadata_only",
+        }
+
 
 def execute_confluence_handoff(state: Any) -> dict[str, Any]:
     config = ConfluenceConfig.from_env()
@@ -1000,6 +1061,21 @@ class SlackConnector:
         )
         return {"status": "reversed", "message_ts": result.get("ts")}
 
+    def read_context_summary(self) -> dict[str, Any]:
+        """Return recent message volume for the fixed channel, never message text."""
+        history = self._request(
+            "POST", "conversations.history", {"channel": self.config.channel_id, "limit": 100}
+        )
+        messages = history.get("messages") or []
+        return {
+            "status": "ok",
+            "scope": f"channel:{self.config.channel_id}",
+            "recent_message_count": len(messages),
+            "has_more": bool(history.get("has_more")),
+            "latest_message_ts": messages[0].get("ts") if messages else None,
+            "redaction": "aggregate_metadata_only",
+        }
+
 
 def execute_slack_handoff(state: Any) -> dict[str, Any]:
     config = SlackConfig.from_env()
@@ -1118,6 +1194,27 @@ class GitHubConnector:
         self._request("POST", f"{base}/issues/{issue_number}/labels", {"labels": ["driftline-reversed"]})
         self._request("POST", f"{base}/issues/{issue_number}/comments", {"body": f"Driftline action {action_id} was reversed by a named human reviewer."})
         return {"status": "reversed", "issue_number": issue_number}
+
+    def read_context_summary(self) -> dict[str, Any]:
+        """Return open issue/PR counts for the fixed repository only."""
+        base = f"/repos/{quote(self.config.owner)}/{quote(self.config.repo)}"
+        issues = self._request("GET", f"{base}/issues?state=open&per_page=100")
+        if not isinstance(issues, list):
+            raise ConnectorError("github_context_response_invalid")
+        pull_requests = sum(1 for issue in issues if issue.get("pull_request"))
+        driftline_owned = sum(
+            1
+            for issue in issues
+            if any(str(label.get("name")) == "driftline-active" for label in issue.get("labels") or [])
+        )
+        return {
+            "status": "ok",
+            "scope": f"repository:{self.config.owner}/{self.config.repo}",
+            "open_issue_count": len(issues) - pull_requests,
+            "open_pull_request_count": pull_requests,
+            "driftline_active_count": driftline_owned,
+            "redaction": "aggregate_metadata_only",
+        }
 
 
 def execute_github_handoff(state: Any) -> dict[str, Any]:

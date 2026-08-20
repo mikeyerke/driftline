@@ -67,6 +67,56 @@ def test_outcome_measurements_require_signed_operator(monkeypatch) -> None:
     assert response.status_code == 401
 
 
+def test_connector_context_summary_is_signed_and_redacted(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "context-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setattr(
+        api,
+        "_connector_context_info",
+        lambda: {
+            "jira": {
+                "status": "ok",
+                "scope": "read_only_project",
+                "external_read": True,
+                "open_issue_count": 2,
+                "redaction": "aggregate_metadata_only",
+            }
+        },
+    )
+    token = hmac.new(
+        secret.encode(), b"connector-context-summary:Signed operator", hashlib.sha256
+    ).hexdigest()
+
+    response = client.post(
+        "/api/connectors/context/summary",
+        json={
+            "operator": "Signed operator",
+            "tenant_id": "driftline-demo",
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["tenant_id"] == "driftline-demo"
+    assert payload["context_contract"]["persisted"] is False
+    assert payload["context_contract"]["redaction"] == "aggregate_metadata_only"
+    assert payload["connectors"]["jira"]["open_issue_count"] == 2
+    assert "private" not in str(payload)
+
+
+def test_connector_context_summary_rejects_unsigned_public_request(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    response = client.post(
+        "/api/connectors/context/summary",
+        json={"operator": "Anonymous"},
+    )
+    assert response.status_code == 401
+
+
 def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:
     monkeypatch.setattr(api, "_verify_scheduler_request", lambda request: None)
     monkeypatch.setattr(
