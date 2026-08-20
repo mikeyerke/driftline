@@ -52,6 +52,11 @@ The final UI release was built by Cloud Build
 `execution_mode=google_adk`, and no error. The public deterministic demo
 returned stable Change Card `card-51b2caa0b18994ae6413`; connector writes were
 not invoked by that public path.
+- A final signed context probe on `driftline-00083-pst` returned `status=ok`
+  for all four configured scopes (Jira `KAN`, Confluence `DRIFT`, Slack
+  `C0BRGFUSADA`, GitHub `mikeyerke/driftline`) with
+  `redaction=aggregate_metadata_only`; the newest-revision error query returned
+  zero `ERROR` log entries.
 
 ## Resources
 
