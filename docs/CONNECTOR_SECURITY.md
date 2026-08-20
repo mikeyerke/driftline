@@ -184,9 +184,10 @@ tenant and reads that exact Secret Manager resource; request bodies cannot
 choose a secret name. The hosted deployment requires this tenant signer and
 fails closed when it is missing, so a deployment-wide HMAC token cannot cross
 tenant boundaries. Each signer is labeled with its tenant and is readable only
-by the isolated Driftline runtime service account. Rotate it by adding a new
-version through infrastructure, then retire the old signer; no API response
-returns the value.
+by the derived tenant service identity. The shared Cloud Run runtime can
+impersonate that exact identity but is not a direct Secret Manager reader.
+Rotate it by adding a new version through infrastructure, then retire the old
+signer; no API response returns the value.
 
 The hosted authorization check accepts a signer only for an active tenant in
 the durable Firestore tenant directory. This removes the need to redeploy for
