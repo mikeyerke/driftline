@@ -137,6 +137,18 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   The final browser journey reported 4 rows, 2 selects, approval enabled,
   completed and reopened states, zero console errors, and zero failed requests.
 
+## 2026-08-20 Scheduler fan-out smoke (live)
+
+- The isolated Cloud Scheduler job `driftline-monitor` is enabled on the
+  six-hour cadence `0 */6 * * *` and invokes the service with its dedicated
+  OIDC service account. A manual run at `2026-08-20T19:54:13Z` returned
+  `POST /api/scheduler/tick` HTTP 200.
+- That tick created five bounded monitor jobs for the registered demo sources.
+  All five completed through `execution_mode=google_adk` with
+  `model=gemini-3.5-flash`; no job failures or post-tick severity `ERROR`
+  logs were observed. Cloud Tasks remains bounded at three attempts, one
+  concurrent dispatch, and 0.2 dispatches per second.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
