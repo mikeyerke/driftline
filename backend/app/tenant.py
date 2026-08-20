@@ -88,11 +88,29 @@ def principal_for_claims(
     if binding:
         tenant_id, role = binding
     else:
-        tenant_id = validate_tenant_id(
-            requested_tenant_id
-            or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
-        )
-        role = os.getenv("DRIFTLINE_DEFAULT_TENANT_ROLE", "owner").casefold()
+        persisted = None
+        try:
+            # Lazy import avoids coupling the pure tenant parser to Firestore
+            # during local synthetic runs while allowing durable memberships
+            # to survive environment/configuration rollouts.
+            from .persistence import load_tenant_membership
+
+            persisted_tenant = validate_tenant_id(
+                requested_tenant_id
+                or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
+            )
+            persisted = load_tenant_membership(persisted_tenant, normalized_email)
+        except Exception:  # noqa: BLE001 - auth falls back to explicit bootstrap config.
+            persisted = None
+        if persisted:
+            tenant_id = validate_tenant_id(str(persisted["tenant_id"]))
+            role = str(persisted.get("role", "viewer")).casefold()
+        else:
+            tenant_id = validate_tenant_id(
+                requested_tenant_id
+                or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
+            )
+            role = os.getenv("DRIFTLINE_DEFAULT_TENANT_ROLE", "owner").casefold()
         if role not in _ROLES:
             role = "viewer"
     if requested_tenant_id:

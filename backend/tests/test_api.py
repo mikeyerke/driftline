@@ -178,6 +178,19 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     assert listed.status_code == 200
     assert listed.json()["credential_values_exposed"] is False
     assert listed.json()["bindings"][0]["secret_name"] == payload["secret_name"]
+    tenant_metadata = client.get(
+        "/api/tenants",
+        params={
+            "operator": "Binding owner",
+            "tenant_id": "binding-acme",
+            "approval_token": hmac.new(
+                secret.encode(), b"tenant-metadata:Binding owner", hashlib.sha256
+            ).hexdigest(),
+        },
+    )
+    assert tenant_metadata.status_code == 200
+    assert tenant_metadata.json()["tenant"]["tenant_id"] == "binding-acme"
+    assert tenant_metadata.json()["credential_values_exposed"] is False
 
 
 def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:

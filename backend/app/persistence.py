@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 import time
 from collections.abc import Iterable
@@ -25,7 +26,11 @@ OUTCOMES_COLLECTION = "driftline_outcome_measurements"
 SALESFORCE_COLLECTION = "driftline_salesforce_connections"
 SALESFORCE_OAUTH_STATES_COLLECTION = "driftline_salesforce_oauth_states"
 CONNECTOR_BINDINGS_COLLECTION = "driftline_connector_bindings"
+TENANTS_COLLECTION = "driftline_tenants"
+TENANT_MEMBERSHIPS_COLLECTION = "driftline_tenant_memberships"
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
+_tenants_memory: dict[str, dict[str, Any]] = {}
+_tenant_memberships_memory: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 def _enabled() -> bool:
@@ -390,6 +395,108 @@ def list_connector_bindings(tenant_id: str) -> list[dict[str, Any]]:
     return [
         dict(payload)
         for (bound_tenant, _), payload in _connector_bindings_memory.items()
+        if bound_tenant == tenant_id
+    ]
+
+
+def persist_tenant(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist non-secret control-plane metadata for one tenant."""
+    tenant_id = str(payload["tenant_id"])
+    safe = {
+        key: value
+        for key, value in payload.items()
+        if key
+        not in {
+            "token",
+            "secret_value",
+            "access_token",
+            "refresh_token",
+            "client_secret",
+        }
+    }
+    safe.setdefault("status", "active")
+    safe.setdefault("updated_at", utc_now())
+    # Tenant configuration is retained until an explicit deprovisioning action;
+    # content TTL must never silently remove the tenant control plane.
+    safe.pop("expires_at", None)
+    _tenants_memory[tenant_id] = dict(safe)
+    if _enabled():
+        _client().collection(TENANTS_COLLECTION).document(tenant_id).set(safe)
+    return dict(safe)
+
+
+def load_tenant(tenant_id: str) -> dict[str, Any] | None:
+    """Load one tenant's metadata without connector credentials."""
+    if _enabled():
+        snapshot = _client().collection(TENANTS_COLLECTION).document(tenant_id).get()
+        if snapshot.exists:
+            return snapshot.to_dict()
+    payload = _tenants_memory.get(tenant_id)
+    return dict(payload) if payload else None
+
+
+def persist_tenant_membership(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist one tenant membership and role without identity tokens."""
+    tenant_id = str(payload["tenant_id"])
+    email = str(payload["email"]).strip().casefold()
+    safe = {
+        key: value
+        for key, value in payload.items()
+        if key
+        not in {
+            "token",
+            "secret_value",
+            "access_token",
+            "refresh_token",
+            "identity_token",
+        }
+    }
+    safe["tenant_id"] = tenant_id
+    safe["email"] = email
+    safe.setdefault("status", "active")
+    safe.setdefault("updated_at", utc_now())
+    safe.pop("expires_at", None)
+    key = (tenant_id, email)
+    _tenant_memberships_memory[key] = dict(safe)
+    document_id = base64.urlsafe_b64encode(
+        f"{tenant_id}:{email}".encode()
+    ).decode("ascii").rstrip("=")
+    if _enabled():
+        _client().collection(TENANT_MEMBERSHIPS_COLLECTION).document(document_id).set(
+            safe
+        )
+    return dict(safe)
+
+
+def load_tenant_membership(tenant_id: str, email: str) -> dict[str, Any] | None:
+    """Load one metadata-only tenant membership."""
+    normalized_email = email.strip().casefold()
+    if _enabled():
+        document_id = base64.urlsafe_b64encode(
+            f"{tenant_id}:{normalized_email}".encode()
+        ).decode("ascii").rstrip("=")
+        snapshot = (
+            _client()
+            .collection(TENANT_MEMBERSHIPS_COLLECTION)
+            .document(document_id)
+            .get()
+        )
+        if snapshot.exists:
+            return snapshot.to_dict()
+    payload = _tenant_memberships_memory.get((tenant_id, normalized_email))
+    return dict(payload) if payload else None
+
+
+def list_tenant_memberships(tenant_id: str) -> list[dict[str, Any]]:
+    """Return bounded membership metadata for one authenticated tenant."""
+    if _enabled():
+        query = _client().collection(TENANT_MEMBERSHIPS_COLLECTION).where(
+            "tenant_id", "==", tenant_id
+        )
+        return [snapshot.to_dict() or {} for snapshot in query.stream()]
+    return [
+        dict(payload)
+        for (bound_tenant, _), payload in _tenant_memberships_memory.items()
         if bound_tenant == tenant_id
     ]
 

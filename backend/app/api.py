@@ -78,15 +78,19 @@ from .persistence import (
     list_connector_bindings,
     list_jobs,
     list_outcome_measurements,
+    list_tenant_memberships,
     list_workflows,
     load_job,
     load_salesforce_connection,
+    load_tenant,
     load_workflow,
     persist_connector_binding,
     persist_job,
     persist_outcome_measurement,
     persist_salesforce_connection,
     persist_salesforce_oauth_state,
+    persist_tenant,
+    persist_tenant_membership,
     persist_workflow,
     update_jobs_for_workflow,
 )
@@ -1129,9 +1133,12 @@ def get_ops_summary() -> dict[str, object]:
                 == "true",
                 "binding_route": "/api/connectors/{connector}/binding",
                 "metadata_collection": "driftline_connector_bindings",
+                "tenant_collection": "driftline_tenants",
+                "membership_collection": "driftline_tenant_memberships",
             },
             "tenant_auth": {
                 "configured": bool(os.getenv("DRIFTLINE_TENANT_MEMBERS", "").strip()),
+                "durable_memberships": True,
                 "default_tenant": os.getenv(
                     "DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo"
                 ),
@@ -1227,6 +1234,25 @@ def register_connector_binding(
             status = "pending_secret"
     except ConnectorError:
         status = "pending_secret"
+    persist_tenant(
+        {
+            "tenant_id": tenant_id,
+            "status": "active",
+            "provisioning": "owner_connector_binding",
+            "configured_by": identity.get("email") or identity.get("identity"),
+            "updated_at": utc_now(),
+        }
+    )
+    if identity.get("email"):
+        persist_tenant_membership(
+            {
+                "tenant_id": tenant_id,
+                "email": identity["email"],
+                "role": identity.get("role", "owner"),
+                "status": "active",
+                "source": "verified_operator_binding",
+            }
+        )
     binding = persist_connector_binding(
         {
             "tenant_id": tenant_id,
@@ -1250,6 +1276,74 @@ def register_connector_binding(
             if status == "active"
             else "Provision the deterministic secret, then repeat this signed owner request."
         ),
+    }
+
+
+@app.get("/api/tenants")
+def get_tenant_metadata(
+    operator: str,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return metadata for the caller's tenant, never credentials or secrets."""
+    identity = _verify_approval_mode(
+        "tenant-metadata",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    tenant = load_tenant(identity["tenant_id"]) or {
+        "tenant_id": identity["tenant_id"],
+        "status": "bootstrap_pending",
+    }
+    bindings = list_connector_bindings(identity["tenant_id"])
+    memberships = list_tenant_memberships(identity["tenant_id"])
+    return {
+        "tenant": {
+            key: value
+            for key, value in tenant.items()
+            if key not in {"token", "secret_value", "access_token", "refresh_token"}
+        },
+        "role": identity["role"],
+        "connector_binding_count": len(bindings),
+        "membership_count": len(memberships),
+        "credential_values_exposed": False,
+    }
+
+
+@app.get("/api/tenants/members")
+def get_tenant_members(
+    operator: str,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """List role metadata for one tenant; owners only may inspect membership."""
+    identity = _verify_approval_mode(
+        "tenant-members",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
+    members = list_tenant_memberships(identity["tenant_id"])
+    return {
+        "tenant_id": identity["tenant_id"],
+        "members": [
+            {
+                key: value
+                for key, value in member.items()
+                if key not in {"token", "secret_value", "access_token", "refresh_token"}
+            }
+            for member in members
+        ],
+        "credential_values_exposed": False,
     }
 
 
