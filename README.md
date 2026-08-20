@@ -106,8 +106,10 @@ only that tenant's secret. Global connector secrets are disabled in the hosted
 runtime, and `GET /api/connectors/bindings` never returns credential values.
 For SaaS-style onboarding, an owner can start a 15-minute, secret-free handoff
 with `POST /api/connectors/{connector}/credential-enrollment`. Driftline returns
-only the tenant-scoped secret reference and an explicit operation scope (new
-enrollments default to `runtime` and `read_context`). After infrastructure adds
+only the tenant-scoped secret reference and an explicit operation scope. New
+enrollments default to the concrete `read_context` scope only; write and
+reversal scopes are requested explicitly by the corresponding adapter. After
+infrastructure adds
 the provider version out of band, the owner completes the session at
 `POST /api/connectors/{connector}/credential-enrollment/{id}/complete`; the
 runtime verifies the secret, pins its version, activates the binding, and marks

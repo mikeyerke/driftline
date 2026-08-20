@@ -244,8 +244,8 @@ from becoming an SSRF or bearer-token exfiltration path.
 The SaaS onboarding seam is a short-lived, tenant-namespaced enrollment session
 stored at `driftline_tenants/{tenant}/credential_enrollments/{id}`. It carries
 only the deterministic secret reference, expiry, requested connector
-operations, and lifecycle metadata. New sessions default to `runtime` and
-`read_context`; an owner must explicitly grant a write operation. The provider
+operations, and lifecycle metadata. New sessions default to the concrete
+`read_context` scope only; an owner must explicitly grant a write operation. The provider
 secret is added out of band, then the signed completion route verifies the
 tenant's exact secret, pins the concrete version, activates the canonical
 binding, and closes the session. Expired or cross-tenant sessions fail closed.

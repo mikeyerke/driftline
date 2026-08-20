@@ -10,7 +10,7 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
-## 2026-08-20 tenant and source security hardening (pending deployment)
+## 2026-08-20 tenant and source security hardening (live)
 
 - New connector enrollments default to the concrete `read_context` scope only.
   Connector adapters now request `create_*` or `reverse_*` scopes explicitly
@@ -27,8 +27,27 @@ project number: 724959673622
   `approval_token` or `identity_token` in the URL are rejected; signed operator
   clients use `X-Driftline-Approval` and `Authorization` headers. Local tests
   retain query compatibility unless that flag is enabled.
-- This section is intentionally marked pending until the change is deployed
-  and the live health, header, source, and connector smoke probes are rerun.
+- Cloud Build `a640fa90-79ac-40d8-9574-a3e3a22f5804` completed `SUCCESS` from
+  commit `5ff9c35`; Cloud Run revision `driftline-00026-j25` serves 100% of
+  traffic in the isolated project. `/health` returned 200 and a GET carrying
+  `approval_token` returned 400, while the public API retained `no-store` and
+  HSTS headers.
+- Chrome DevTools loaded the public console at desktop and mobile widths with
+  no console messages. Lighthouse navigation scored 100 for accessibility,
+  best practices, SEO, and agentic browsing on both devices (57/57 audits).
+- A fresh anonymous `/api/agent/run` completed with `persisted=true`,
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, and exactly the
+  allowlisted tool calls `inspect_source_change` and `get_workflow_state`.
+  The returned workflow was re-read from the public API in `needs_approval`
+  state, then a named demo approval and undo were exercised successfully;
+  no external write occurred.
+- A signed live connector context probe completed aggregate-only reads for
+  Jira (`project:KAN`, 18 open issues), Confluence (`space:DRIFT`, 5 pages),
+  Slack (`channel:C0BRGFUSADA`, 27 recent messages), and GitHub
+  (`mikeyerke/driftline`, 0 open issues, 3 open pull requests). Salesforce is
+  intentionally not called live: its status remains `oauth_ready` /
+  `awaiting_authorization` until the Salesforce browser consent callback is
+  completed by the account owner.
 
 ## 2026-08-20 API cache-policy enforcement (live)
 
