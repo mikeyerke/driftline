@@ -15,5 +15,5 @@ The approval creates a reversible Firestore sandbox packet and a versioned priva
 Undo reopens the workflow and writes a rollback marker. No external customer system is changed.
 
 5
-00:00:40,000 --> 00:00:47,000
+00:00:40,000 --> 00:00:43,000
 Public demo: driftline-xvxczqg62a-uc.a.run.app · github.com/mikeyerke/driftline
