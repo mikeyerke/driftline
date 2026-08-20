@@ -35,6 +35,7 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert "guardrails" in ops_payload
     assert ops_payload["crm"]["salesforce"]["mode"] == "prepared_only"
     assert ops_payload["approval_security"]["external_writes_require_signed"] is True
+    assert ops_payload["approval_security"]["credential_model"]["tenant_bound"] is True
 
     value_proof = client.get("/api/ops/value-proof")
     assert value_proof.status_code == 200

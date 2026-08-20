@@ -1118,6 +1118,15 @@ def get_ops_summary() -> dict[str, object]:
                 os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
             ),
             "external_writes_require_signed": True,
+            "credential_model": {
+                "tenant_bound": True,
+                "legacy_global_fallback": os.getenv(
+                    "DRIFTLINE_ALLOW_LEGACY_GLOBAL_CONNECTOR_SECRETS", "false"
+                ).casefold()
+                == "true",
+                "binding_route": "/api/connectors/{connector}/binding",
+                "metadata_collection": "driftline_connector_bindings",
+            },
             "tenant_auth": {
                 "configured": bool(os.getenv("DRIFTLINE_TENANT_MEMBERS", "").strip()),
                 "default_tenant": os.getenv(
