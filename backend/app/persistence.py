@@ -465,6 +465,22 @@ def persist_connector_binding(payload: dict[str, Any]) -> dict[str, Any]:
     return dict(safe)
 
 
+def _strict_credential_namespace_required() -> bool:
+    """Whether hosted reads must use the canonical tenant credential path.
+
+    The flat binding collection is retained as a write-through migration
+    mirror for older revisions, but it must not remain an authorization
+    source once strict namespace validation is enabled.  Keeping this check
+    here makes every binding inventory/resolution read obey the same cutover
+    boundary instead of relying on each caller to remember it.
+    """
+    return (
+        os.getenv("DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE", "false")
+        .casefold()
+        == "true"
+    )
+
+
 def _hydrate_credential_namespace(
     payload: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
@@ -508,6 +524,12 @@ def load_connector_binding(tenant_id: str, connector: str) -> dict[str, Any] | N
         )
         if canonical.exists:
             return _hydrate_credential_namespace(canonical.to_dict())
+        if _strict_credential_namespace_required():
+            # A legacy mirror is not an authorization source after the hosted
+            # namespace cutover.  This prevents stale/mis-migrated records
+            # from reactivating a tenant connector when its canonical record
+            # was deleted or never provisioned.
+            return None
         snapshot = _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
             f"{tenant_id}:{connector}"
         ).get()
@@ -536,6 +558,8 @@ def list_connector_bindings(tenant_id: str) -> list[dict[str, Any]]:
                 _hydrate_credential_namespace(snapshot.to_dict()) or {}
                 for snapshot in canonical
             ]
+        if _strict_credential_namespace_required():
+            return []
         query = _client().collection(CONNECTOR_BINDINGS_COLLECTION).where(
             "tenant_id", "==", tenant_id
         )

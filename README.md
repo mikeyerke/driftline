@@ -208,7 +208,8 @@ verification, so a later provider-token update cannot silently change a live
 tenant. Bindings are stored canonically below the tenant document at
 `driftline_tenants/{tenant}/credentials/{connector}` and carry a versioned
 namespace record naming the exact project Secret Manager resource and tenant
-service identity. The legacy flat collection is only a rolling-migration mirror;
+service identity. The legacy flat collection is only a rolling-migration mirror
+and is not an authorization source in hosted strict namespace mode;
 `scripts/migrate_tenant_credential_bindings.py` backfills this metadata without
 reading or changing a credential value. The hosted runtime also derives a
 collision-resistant per-tenant Google service identity and impersonates it for

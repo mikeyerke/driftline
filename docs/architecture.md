@@ -147,7 +147,8 @@ deterministic Secret Manager secret
 `driftline-tenant-<tenant>-<connector>`. Each binding carries a versioned
 namespace record naming the exact project resource and per-tenant service
 identity; the legacy flat binding collection is only a rolling-migration
-mirror. Only the owner binding route can
+mirror and hosted strict namespace mode never reads it as an authorization
+source. Only the owner binding route can
 activate that reference; arbitrary secret names and raw credential values are
 rejected. Each active binding pins the resolved Secret Manager version when
 available, so adding a new version cannot silently change a live tenant until

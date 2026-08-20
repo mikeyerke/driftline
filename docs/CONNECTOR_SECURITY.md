@@ -41,7 +41,8 @@ deterministic Secret Manager name
 `driftline-tenant-<tenant>-<connector>` from the canonical tenant credential
 namespace (`driftline_tenants/{tenant}/credentials/{connector}`). The older
 `driftline_connector_bindings` collection is a rolling-migration mirror, not a
-second authority. Every migrated binding carries a versioned namespace record
+second authority. Hosted strict namespace mode never reads that mirror as an
+authorization source; a missing canonical record fails closed. Every migrated binding carries a versioned namespace record
 with the exact Secret Manager resource, tenant service identity, connector, and
 schema version. The runtime accepts neither a credential value nor an arbitrary
 secret name. An owner activates a binding through

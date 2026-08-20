@@ -72,7 +72,8 @@ its concrete Secret Manager version when available, and stores only metadata
 in the canonical tenant credential path
 `driftline_tenants/{tenant}/credentials/{connector}`. The legacy
 `driftline_connector_bindings` collection mirrors that record during the
-rolling migration. Active connector calls use that pinned
+rolling migration, but hosted strict namespace mode never reads the mirror as
+an authorization source. Active connector calls use that pinned
 version; they do not silently follow a later `latest` secret update. The
 signed
 GET /api/connectors/bindings and GET /api/tenants/audit routes expose status
