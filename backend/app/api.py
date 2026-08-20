@@ -480,10 +480,26 @@ def _merge_durable_records(
 
 
 def _visible_tenant_record(record: Any, identity: dict[str, str] | None) -> bool:
+    """Apply the public-vs-tenant record visibility contract.
+
+    Anonymous requests are limited to tenantless demo records. Once a caller
+    is authenticated, tenantless records must not be mixed into that tenant's
+    operational counts: they are deployment-wide fixtures, not customer
+    evidence. A signed request therefore requires an exact tenant match.
+    """
     tenant_id = getattr(record, "tenant_id", None)
-    return tenant_id is None or (
-        identity is not None and tenant_id == identity.get("tenant_id")
-    )
+    if identity is None:
+        return tenant_id is None
+    return tenant_id is not None and tenant_id == identity.get("tenant_id")
+
+
+def _count_record_modes(records: list[Any], attribute: str) -> dict[str, int]:
+    """Count a bounded record mode field without leaking record contents."""
+    counts: dict[str, int] = {}
+    for record in records:
+        mode = str(getattr(record, attribute, None) or "unknown")
+        counts[mode] = counts.get(mode, 0) + 1
+    return counts
 
 
 def _record_tenant_usage(tenant_id: str | None, metric: str) -> None:
@@ -3101,14 +3117,8 @@ def get_value_proof(
     change_cards = [state.change_card for state in workflows if state.change_card]
     materiality_cards = [card.get("materiality") or {} for card in change_cards]
     closure_cards = [card.get("closure") or {} for card in change_cards]
-    workflow_data_modes: dict[str, int] = {}
-    for state in workflows:
-        mode = str(state.data_mode or "unknown")
-        workflow_data_modes[mode] = workflow_data_modes.get(mode, 0) + 1
-    job_run_modes: dict[str, int] = {}
-    for job in jobs:
-        mode = str(job.run_mode or "unknown")
-        job_run_modes[mode] = job_run_modes.get(mode, 0) + 1
+    workflow_data_modes = _count_record_modes(workflows, "data_mode")
+    job_run_modes = _count_record_modes(jobs, "run_mode")
     external_writes = sum(
         bool((state.action_record or {}).get("external_write")) for state in workflows
     )

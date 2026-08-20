@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,6 +19,18 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_tenant_metrics_exclude_tenantless_and_other_tenant_records() -> None:
+    tenantless = SimpleNamespace(tenant_id=None)
+    own = SimpleNamespace(tenant_id="acme")
+    other = SimpleNamespace(tenant_id="other-acme")
+
+    assert api._visible_tenant_record(tenantless, None) is True
+    assert api._visible_tenant_record(own, None) is False
+    assert api._visible_tenant_record(tenantless, {"tenant_id": "acme"}) is False
+    assert api._visible_tenant_record(own, {"tenant_id": "acme"}) is True
+    assert api._visible_tenant_record(other, {"tenant_id": "acme"}) is False
 
 
 def test_durable_record_merge_does_not_underreport_after_instance_restart(monkeypatch) -> None:

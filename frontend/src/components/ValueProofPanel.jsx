@@ -36,7 +36,7 @@ export default function ValueProofPanel() {
   return (
     <section className="panel value-proof-panel" aria-labelledby="value-proof-title">
       <header className="panel-header">
-        <div><h2 id="value-proof-title"><Gauge size={17} />Value proof</h2><span className="live-label">Observed records</span></div>
+        <div><h2 id="value-proof-title"><Gauge size={17} />Value proof</h2><span className="live-label">Public sandbox records</span></div>
         <span className="muted">Operational utility, not invented ROI</span>
       </header>
       {loading && <p className="multimodal-empty"><Activity size={15} className="spin" />Reading bounded deployment evidence…</p>}
@@ -72,7 +72,7 @@ export default function ValueProofPanel() {
           </div>
           <p>{metric(observed.tenant_scoped_workflows, " tenant-scoped")} · {metric(observed.tenantless_workflows, " tenantless")} workflow records visible in this scope.</p>
         </div>
-        <p className="value-proof-note">{proof.interpretation || "Counts are direct records from the isolated Driftline deployment."}</p>
+        <p className="value-proof-note">{proof.interpretation || "Counts are direct records from the isolated Driftline deployment."} This public panel is anonymous and intentionally excludes tenant-scoped customer records; signed tenant operators use the tenant-filtered API lane.</p>
       </>}
       {!loading && !proof && <p className="empty-state">Value proof is unavailable; source evidence and workflow audit remain available.</p>}
     </section>
