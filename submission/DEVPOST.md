@@ -136,9 +136,9 @@ created during the contest.
   project-scoped budget guardrail.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `6117327`, deployed through Cloud Build
-  `0e4f1d76-244f-4385-b736-7f9c54c98631` as Cloud Run revision
-  `driftline-00030-kkb` at 100% traffic after local and CI gates passed. The
+  The deployed runtime source is commit `97a3ed8`, deployed through Cloud Build
+  `1cc53c92-d106-46a1-9d51-0d17dac60a9f` as Cloud Run revision
+  `driftline-00031-n7l` at 100% traffic after local and CI gates passed. The
   latest repository verification run `32426734472` passed the backend tests,
   frontend build, and standalone image build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or

@@ -10,6 +10,19 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-20 reproducible isolated deploy identity (live)
+
+- Source commit `97a3ed8` pins `cloudbuild.yaml` to the dedicated
+  `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com`; the
+  checked-in deployment now does not depend on a CLI-only identity override.
+- A deployment submitted without `--service-account` succeeded: Cloud Build
+  `1cc53c92-d106-46a1-9d51-0d17dac60a9f` completed `SUCCESS`, producing Cloud
+  Run revision `driftline-00031-n7l` at 100% traffic. The active gcloud project
+  was `driftline-hackathon-2026`.
+- `/health` returned 200 after rollout. The existing runtime canary, query-auth
+  guard, signed connector reconciliation, and browser quality checks remain
+  the evidence recorded in the immediately preceding release sections.
+
 ## 2026-08-20 final UI copy and live quality gate (live)
 
 - Source commit `6117327` removes a misleading hard-coded “four work items”
