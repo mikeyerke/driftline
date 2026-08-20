@@ -268,7 +268,7 @@ export default function App() {
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
             <span className="workspace-button">Evaluation sandbox<ChevronDown size={15} /></span>
             <span className="run-hint">{runHint}</span>
-            <button className="primary" onClick={runScan} disabled={scanning} type="button" aria-label="Run the live allowlisted monitor">
+            <button className="primary" onClick={runScan} disabled={scanning} type="button">
               <Play size={17} />{scanning ? "Running…" : "Run scan"}
             </button>
           </div>

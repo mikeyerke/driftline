@@ -20,7 +20,7 @@ export default function Sidebar({ selected, onSelect }) {
           </button>
         ))}
       </nav>
-      <button className="profile" type="button" aria-label="Evaluation sandbox operator">
+      <button className="profile" type="button">
         <span className="avatar">DO</span>
         <span><strong>Demo operator</strong><small>Synthetic workspace</small></span>
         <ChevronDown size={16} />

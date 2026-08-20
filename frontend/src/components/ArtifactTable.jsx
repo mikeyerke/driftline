@@ -11,7 +11,7 @@ export default function ArtifactTable({ items, onSelect, selected }) {
       <header className="panel-header simple"><h2>Downstream artifact worklist</h2></header>
       <div className="table-scroll">
         <table>
-          <thead><tr><th>Artifact</th><th>Owner</th><th>Action</th><th>Risk</th><th>Status</th><th /></tr></thead>
+          <thead><tr><th scope="col">Artifact</th><th scope="col">Owner</th><th scope="col">Action</th><th scope="col">Risk</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Details</span></th></tr></thead>
           <tbody>
             {items.map((item, index) => {
               const Icon = artifactIcons[index];
