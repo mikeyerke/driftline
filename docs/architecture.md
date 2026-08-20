@@ -33,7 +33,10 @@ analyst's artifact names, owners, risk values, and evidence hash before using
 the proposals; invalid output fails closed, with a deterministic fallback kept
 only for the explicitly labelled synthetic demo path. Cloud Tasks turns the scan into a durable
 asynchronous job; the task carries an OIDC identity and the worker verifies
-that identity before running. The source adapter starts with five pinned judge
+that identity before running. If Gemini is temporarily quota-limited, only the
+anonymous synthetic judge lane uses a clearly labelled deterministic replay so
+the approval/evidence journey remains reviewable; signed tenant and monitor
+jobs remain fail-closed. The source adapter starts with five pinned judge
 fixtures and can also read exact public HTTPS HTML/text/RSS URLs added by a signed
 operator through `/api/operator/sources`. Those operator sources are bounded
 to an 8-second fetch, 128KB body, no redirects, no query credentials, and no

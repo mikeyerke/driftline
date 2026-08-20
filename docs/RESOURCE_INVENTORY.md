@@ -69,16 +69,39 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   zero severity `ERROR` entries; desktop/mobile audit and the complete
   scan-to-reopen journey pass with no console errors or failed requests.
 
-## 2026-08-20 Tenant RSS/Atom source parser (pending deploy)
+## 2026-08-20 Public demo ADK degradation guardrail (live)
+
+- Source commit `3fe3093` keeps the identity-free synthetic judge lane
+  reviewable when a real Gemini turn is temporarily quota-limited. The narrow
+  fallback creates a labelled `synthetic_demo` workflow with
+  `execution_mode=deterministic_demo_fallback`; signed tenant and monitor runs
+  still fail closed and never receive synthetic state.
+- Cloud Build `b52da696-f041-472b-8d8a-2d27baac31ac` completed `SUCCESS` with
+  image digest
+  `sha256:7d246e7c631149220f644ecaa1f364bf8dd04feef0911d87ade1f2d0bbd7f107`;
+  Cloud Run revision `driftline-00011-mnz` serves 100% of traffic with
+  `allUsers` invoker access, min zero, and max one instance.
+- A live demo job returned `needs_approval` with
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, workflow
+  `ba84dd8c-e571-49a4-8693-733a9a0acc1a`, Firestore-backed `public_source`
+  state, and a redacted ADK trace. The fallback path is covered by a focused
+  regression test; no Gemini or business outcome claim is made when it is
+  used. The deployed browser journey reported 4 artifact rows, 2 selects,
+  needs-approval, completed, and reopened states with zero console errors or
+  failed requests; post-rollout Cloud Logging has zero severity `ERROR` or
+  `WARNING` entries for revision `driftline-00011-mnz`.
+
+## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
   `html` and `text`. It fetches only the caller's exact HTTPS URL, rejects
   redirects/private DNS/challenge pages as before, parses bounded RSS/Atom
   entries, and stores normalized titles, dates, links, and summaries rather
   than raw XML. The source remains tenant-scoped and scheduler-capped.
-- Local regression is `198 passed`; the focused source suite is `14 passed`,
-  Ruff and `git diff --check` are clean. Deployment and live feed evidence are
-  intentionally recorded only after the next Cloud Run rollout.
+- Local regression is `199 passed`; the focused source suite is `14 passed`.
+  Cloud Run revision `driftline-00011-mnz` exposes the OpenAPI parser enum
+  `["html", "text", "rss"]`; `/health` returned 200. No external feed was
+  registered or claimed because no tenant target was supplied.
 
 ## 2026-08-20 Canonical tenant credential control plane (live)
 

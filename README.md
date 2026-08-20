@@ -162,7 +162,10 @@ container, with Firestore as the durable workflow, job, source-history, and
 audit store. Approved sandbox packets, one approved operational output, and
 undo markers are also persisted as private, versioned Cloud Storage objects in
 the isolated project. The
-synthetic replay remains available for predictable judging. Cloud Scheduler
+synthetic replay remains available for predictable judging. If a real Gemini
+turn is temporarily quota-limited, only the anonymous synthetic judge lane
+falls back to a clearly labelled deterministic replay; signed tenant and
+monitor runs remain fail-closed. Cloud Scheduler
 fans out one bounded monitor job per registered source (or a single canary when
 `source_id` is supplied), capped by `DRIFTLINE_MONITOR_MAX_SOURCES`; each source
 is still constrained by the same allowlist and ADK tool policy. The operator
