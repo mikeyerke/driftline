@@ -319,6 +319,7 @@ class TenantPolicyRequest(BaseModel):
     operator: str = Field(min_length=1, max_length=120)
     agent_calls_per_window: int = Field(default=10, ge=1, le=1000)
     workflow_mutations_per_window: int = Field(default=30, ge=1, le=1000)
+    connector_calls_per_window: int = Field(default=60, ge=1, le=1000)
     retention_days: int = Field(default=30, ge=1, le=3650)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
@@ -451,6 +452,13 @@ DEMO_WINDOW_SECONDS = _positive_int("DRIFTLINE_DEMO_WINDOW_SECONDS", 3600)
 _demo_mutation_times: deque[float] = deque()
 _tenant_demo_mutation_times: dict[str, deque[float]] = {}
 _demo_mutation_lock = Lock()
+CONNECTOR_MAX_CALLS = _positive_int("DRIFTLINE_CONNECTOR_MAX_CALLS", 60)
+CONNECTOR_WINDOW_SECONDS = _positive_int(
+    "DRIFTLINE_CONNECTOR_WINDOW_SECONDS", 3600
+)
+_connector_call_times: deque[float] = deque()
+_tenant_connector_call_times: dict[str, deque[float]] = {}
+_connector_call_lock = Lock()
 MAX_JOB_ATTEMPTS = _positive_int("DRIFTLINE_MAX_JOB_ATTEMPTS", 3)
 
 _salesforce_oauth_states: dict[str, dict[str, object]] = {}
@@ -533,6 +541,7 @@ def _tenant_quota_limit(tenant_id: str | None, metric: str, fallback: int) -> in
     policy_key = {
         "agent_calls": "agent_calls_per_window",
         "workflow_mutations": "workflow_mutations_per_window",
+        "connector_calls": "connector_calls_per_window",
     }.get(metric)
     if policy_key is None:
         return fallback
@@ -620,6 +629,37 @@ def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
             return False
         times.append(now)
         _record_tenant_usage(tenant_id, "workflow_mutations")
+        return True
+
+
+def _reserve_connector_call(tenant_id: str | None = None) -> bool:
+    """Reserve one bounded external connector read for the tenant."""
+    limit = _tenant_quota_limit(
+        tenant_id, "connector_calls", CONNECTOR_MAX_CALLS
+    )
+    if limit < 1:
+        return False
+    durable = _reserve_durable_tenant_slot(
+        tenant_id, "connector_calls", limit, CONNECTOR_WINDOW_SECONDS
+    )
+    if durable is not None:
+        if durable:
+            _record_tenant_usage(tenant_id, "connector_calls")
+        return durable
+    now = monotonic()
+    cutoff = now - CONNECTOR_WINDOW_SECONDS
+    with _connector_call_lock:
+        times = (
+            _tenant_connector_call_times.setdefault(tenant_id, deque())
+            if tenant_id
+            else _connector_call_times
+        )
+        while times and times[0] <= cutoff:
+            times.popleft()
+        if len(times) >= limit:
+            return False
+        times.append(now)
+        _record_tenant_usage(tenant_id, "connector_calls")
         return True
 
 
@@ -1467,6 +1507,11 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
         request.identity_token,
         request.tenant_id,
     )
+    if not _reserve_connector_call(identity["tenant_id"]):
+        raise HTTPException(
+            status_code=429,
+            detail="Connector read quota reached; retry later.",
+        )
     tenant_id = identity["tenant_id"]
     connection = load_salesforce_connection(tenant_id)
     binding = load_connector_binding(tenant_id, "salesforce")
@@ -1720,6 +1765,8 @@ def get_ops_summary(
             "agent_max_calls": AGENT_MAX_CALLS,
             "agent_window_seconds": AGENT_WINDOW_SECONDS,
             "demo_max_mutations": DEMO_MAX_MUTATIONS,
+            "connector_max_calls": CONNECTOR_MAX_CALLS,
+            "connector_window_seconds": CONNECTOR_WINDOW_SECONDS,
             "monitor_max_sources": _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5),
             "tenant_quota_enforcement": (
                 "firestore_transaction"
@@ -1848,6 +1895,11 @@ def get_connector_context_summary(request: ConnectorContextRequest) -> dict[str,
         request.identity_token,
         request.tenant_id,
     )
+    if not _reserve_connector_call(identity["tenant_id"]):
+        raise HTTPException(
+            status_code=429,
+            detail="Connector read quota reached; retry later.",
+        )
     summaries = _connector_context_info(identity["tenant_id"])
     return {
         "status": "ok",
@@ -2706,6 +2758,7 @@ def get_tenant_policy(
         "windows_seconds": {
             "agent_calls": AGENT_WINDOW_SECONDS,
             "workflow_mutations": DEMO_WINDOW_SECONDS,
+            "connector_calls": CONNECTOR_WINDOW_SECONDS,
         },
         "billing_enabled": False,
         "metering_only": True,
@@ -2731,6 +2784,7 @@ def update_tenant_policy(request: TenantPolicyRequest) -> dict[str, object]:
         for field in (
             "agent_calls_per_window",
             "workflow_mutations_per_window",
+            "connector_calls_per_window",
             "retention_days",
         )
         if field in request.model_fields_set
@@ -3081,6 +3135,11 @@ def get_connector_binding_health(
         identity_token,
         tenant_id,
     )
+    if not _reserve_connector_call(identity["tenant_id"]):
+        raise HTTPException(
+            status_code=429,
+            detail="Connector read quota reached; retry later.",
+        )
     bound = {
         str(binding.get("connector")): binding
         for binding in list_connector_bindings(identity["tenant_id"])

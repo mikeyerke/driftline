@@ -61,10 +61,12 @@ tenant-owned source observations, workflow/job, failure, outcome, and
 credential-access metadata through the signed tenant policy route; provider
 secrets remain in Secret Manager and require explicit offboarding.
 
-Signed agent calls and workflow mutations reserve separate tenant-scoped
-Firestore windows. Owners can read and tune bounded
-`agent_calls_per_window`, `workflow_mutations_per_window`, and `retention_days`
-allowances through `GET/POST /api/tenants/policy` without a Cloud Run redeploy.
+Signed agent calls, workflow mutations, and connector reads reserve separate
+tenant-scoped Firestore windows. Owners can read and tune bounded
+`agent_calls_per_window`, `workflow_mutations_per_window`,
+`connector_calls_per_window`, and `retention_days` allowances through
+`GET/POST /api/tenants/policy` without a Cloud Run redeploy. External connector
+context and health probes consume `connector_calls_per_window`.
 Policy fields are allowlisted and clamped to safe bounds, changes append a
 tenant audit event, and missing policy metadata falls back to deployment
 defaults. A hosted quota lookup failure fails closed before work is reserved;

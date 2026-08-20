@@ -178,8 +178,10 @@ content is not included, and the deployment still does not claim a hosted
 subscription system.
 Tenant owners can read and tune bounded per-tenant allowances without a
 redeploy through signed `GET/POST /api/tenants/policy`. The policy covers agent
-calls, workflow mutations, and `retention_days` for tenant-owned source
-observations, workflow/job, failure, outcome, and credential-access metadata.
+calls, workflow mutations, connector reads, and `retention_days` for tenant-owned
+source observations, workflow/job, failure, outcome, and credential-access
+metadata. External connector context and health reads consume the connector
+allowance.
 Every field is clamped to a safe range and policy changes are metadata-only
 audit history. Missing policy
 metadata falls back to deployment defaults; a quota lookup failure fails

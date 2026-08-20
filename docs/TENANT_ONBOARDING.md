@@ -126,9 +126,11 @@ field names may be shown, but target values and credentials never are.
 
 An owner can inspect the effective per-tenant allowance with signed
 `GET /api/tenants/policy` and update it with `POST /api/tenants/policy`.
-`agent_calls_per_window`, `workflow_mutations_per_window`, and `retention_days`
-are the only accepted policy fields. Allowances are clamped to safe bounds and
-apply to the existing deployment windows without a redeploy. `retention_days`
+`agent_calls_per_window`, `workflow_mutations_per_window`,
+`connector_calls_per_window`, and `retention_days` are the only accepted policy
+fields. Allowances are clamped to safe bounds and apply to the existing
+deployment windows without a redeploy. External connector context and health
+reads consume `connector_calls_per_window`. `retention_days`
 controls tenant-owned source observations, workflow/job, failure, outcome, and
 credential-access metadata; it never deletes provider secrets. Changes are append-only audit
 metadata and are metering/privacy controls, not subscription billing. If

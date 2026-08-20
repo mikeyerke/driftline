@@ -41,6 +41,7 @@ TENANT_CREDENTIAL_ENROLLMENTS_SUBCOLLECTION = "credential_enrollments"
 TENANT_POLICY_DEFAULTS: dict[str, int] = {
     "agent_calls_per_window": 10,
     "workflow_mutations_per_window": 30,
+    "connector_calls_per_window": 60,
     "retention_days": 30,
 }
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
