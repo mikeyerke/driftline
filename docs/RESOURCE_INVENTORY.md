@@ -187,6 +187,11 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   path returned `authorization_required` with a 600-second PKCE state, while
   signed health correctly returned `409 Salesforce is not connected for this
   tenant`. No Salesforce consent or CRM data access is claimed.
+- Post-deploy live ADK proof used the tenant signer and returned HTTP 200 with
+  `model=gemini-3.5-flash`, `execution_mode=google_adk`, source status
+  `needs_approval`, and exactly `inspect_source_change` plus
+  `get_workflow_state`; Firestore stored workflow
+  `deaad302-bcb9-4dd0-8e11-250408291802` under `tenant_id=driftline-demo`.
 - Regression suite: `146 passed`; Ruff and `git diff --check` are clean.
 
 ## 2026-08-20 Tenant identity and read-isolation releases
