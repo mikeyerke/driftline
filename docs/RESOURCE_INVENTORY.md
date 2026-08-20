@@ -17,6 +17,27 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Durable ADK trace release (current)
+
+- Source commit `25180b8` makes the direct signed `/api/agent/run` path persist
+  its redacted Google ADK/Gemini trace on the tenant workflow itself. The
+  record contains model, execution mode, allowlisted tool calls, structured
+  analysis, and decision-copilot policy metadata; prompts, source bodies, and
+  connector credentials are excluded.
+- Cloud Build `bc2cb13c-84ea-4cfd-8b90-19cae57c14fe` completed `SUCCESS`; image
+  digest `sha256:18c0cc97b274dcfe07abc7c7cd5fd67fbbc5c5810224e5fdee895b620e896d69`;
+  Cloud Run revision `driftline-00139-g5n` serves 100% of traffic.
+- Live proof on the public service: `/health` returned `ok`, root returned
+  HTTP 200, the active revision has zero `severity>=ERROR` log entries, and
+  the tenant-signed ADK run created workflow
+  `e6f52052-5b4b-49f0-a12a-ef9ff0f869d0` with
+  `tenant_id=driftline-demo`, `status=needs_approval`,
+  `data_mode=public_source`, model `gemini-3.5-flash`, execution mode
+  `google_adk`, and only `inspect_source_change` plus `get_workflow_state`.
+  A signed read of that Firestore-backed workflow returned the same trace and
+  five audit events. Local regression is `154 passed`; Ruff and
+  `git diff --check` are clean.
+
 ## 2026-08-20 Tenant credential rotation release
 
 - Source commits `de9480e` and `f1b1e39` expose monitor source-failure counts
