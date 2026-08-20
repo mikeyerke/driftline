@@ -208,7 +208,14 @@ def resolve_tenant_credential(
             )
         except ValueError as exc:
             raise CredentialBrokerError("credential_namespace_invalid") from exc
-        for key in ("tenant_id", "connector", "secret_resource", "service_account"):
+        for key in (
+            "schema_version",
+            "tenant_id",
+            "connector",
+            "secret_resource",
+            "service_account",
+            "isolation",
+        ):
             if str(namespace.get(key, "")) != str(expected_namespace[key]):
                 raise CredentialBrokerError("credential_namespace_mismatch")
     elif (

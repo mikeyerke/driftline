@@ -72,6 +72,33 @@ def test_resolver_fails_closed_for_cross_tenant_secret_reference(monkeypatch) ->
         )
 
 
+def test_resolver_fails_closed_for_namespace_schema_or_isolation_mismatch(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "driftline-hackathon-2026")
+    namespace = tenant_credential_namespace(
+        "acme", "jira", "driftline-hackathon-2026"
+    )
+    namespace["isolation"] = "deployment_shared"
+    monkeypatch.setattr(
+        "app.persistence.load_connector_binding",
+        lambda *_args: {
+            "tenant_id": "acme",
+            "connector": "jira",
+            "secret_name": "driftline-tenant-acme-jira",
+            "credential_namespace": namespace,
+            "status": "active",
+        },
+    )
+
+    with pytest.raises(CredentialBrokerError, match="credential_namespace_mismatch"):
+        resolve_tenant_credential(
+            "acme",
+            "jira",
+            secret_reader=lambda *_args, **_kwargs: "should-not-read",
+        )
+
+
 def test_resolver_fails_closed_for_unapproved_operation(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.persistence.load_connector_binding",
