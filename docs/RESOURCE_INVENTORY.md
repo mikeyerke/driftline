@@ -243,6 +243,20 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 - A post-update `gcloud scheduler jobs describe` confirmed `state=ENABLED`,
   `retryCount=2`, `maxRetryDuration=300s`, and `maxBackoffDuration=60s`.
 
+## 2026-08-20 Anonymous job-history redaction (live)
+
+- Commit `00c9267` adds a tenantless API boundary that removes caller query
+  text, user IDs, raw model responses, failure details, and opaque Cloud Tasks
+  claim IDs from public job history. It replaces them with a bounded status
+  summary; signed tenant jobs retain their complete operational fields. The
+  frontend agent trace and run history now render that safe summary.
+- The local suite is `202 passed` with Ruff and the frontend production build
+  passing. Dedicated build `a4034ca1-00a5-4060-83fd-49fc2452fc6e` completed
+  `SUCCESS` as `driftline-build`, deploying revision `driftline-00016-kqd` at
+  100% traffic. A live canary job submitted with sensitive text returned none
+  of the five redacted fields and exposed only `public_summary`; `/health`
+  returned HTTP 200 and the revision has no severity `ERROR` logs.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
