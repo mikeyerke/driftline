@@ -50,6 +50,46 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert outcomes.json()["status"] == "not_measured"
 
 
+def test_source_registry_and_freshness_can_be_bound_to_signed_tenant(monkeypatch) -> None:
+    """Tenant operators can read only their signed source metadata surface."""
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "source-registry-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    actor = "Tenant reader"
+    tenant_id = "driftline-demo"
+
+    sources_token = hmac.new(
+        secret.encode(), f"sources:list:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+    sources = client.get(
+        "/api/sources",
+        params={
+            "operator": actor,
+            "tenant_id": tenant_id,
+            "approval_token": sources_token,
+        },
+    )
+    assert sources.status_code == 200
+    assert len(sources.json()["sources"]) == 5
+    assert all("token" not in str(item).casefold() for item in sources.json()["sources"])
+
+    registry_token = hmac.new(
+        secret.encode(), f"monitor-registry:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+    registry = client.get(
+        "/api/monitor/registry",
+        params={
+            "operator": actor,
+            "tenant_id": tenant_id,
+            "approval_token": registry_token,
+        },
+    )
+    assert registry.status_code == 200
+    assert registry.json()["summary"]["total"] == 5
+    assert all("token" not in str(item).casefold() for item in registry.json()["sources"])
+
+
 def test_outcome_measurements_require_signed_operator(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

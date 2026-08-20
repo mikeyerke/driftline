@@ -1124,9 +1124,29 @@ def disconnect_salesforce(request: SalesforceConnectRequest) -> dict[str, object
 
 
 @app.get("/api/sources")
-def get_sources() -> dict[str, object]:
-    """Expose the deliberately small source registry to the monitor UI."""
-    return {"sources": list_allowlisted_sources()}
+def get_sources(
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Expose public fixtures or the caller's signed tenant registry."""
+    identity: dict[str, str] | None = None
+    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
+        if not operator or not tenant_id:
+            raise HTTPException(
+                status_code=401, detail="Signed approval is required for tenant sources"
+            )
+        identity = _verify_approval_mode(
+            "sources:list",
+            operator,
+            "signed",
+            approval_token,
+            identity_token,
+            tenant_id,
+        )
+    bound_tenant = identity.get("tenant_id") if identity else None
+    return {"sources": list_allowlisted_sources(bound_tenant)}
 
 
 @app.post("/api/operator/sources")
@@ -1169,9 +1189,30 @@ def onboard_operator_source(request: SourceOnboardingRequest) -> dict[str, objec
 
 
 @app.get("/api/monitor/registry")
-def get_monitor_registry() -> dict[str, object]:
+def get_monitor_registry(
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
     """Return source freshness and allowlist health without fetching sources."""
-    sources = source_registry_health()
+    identity: dict[str, str] | None = None
+    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
+        if not operator or not tenant_id:
+            raise HTTPException(
+                status_code=401, detail="Signed approval is required for monitor registry"
+            )
+        identity = _verify_approval_mode(
+            "monitor-registry",
+            operator,
+            "signed",
+            approval_token,
+            identity_token,
+            tenant_id,
+        )
+    sources = source_registry_health(
+        tenant_id=identity.get("tenant_id") if identity else None
+    )
     return {
         "append_only": True,
         "generated_at": utc_now(),
