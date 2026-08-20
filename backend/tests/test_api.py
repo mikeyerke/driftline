@@ -449,6 +449,7 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     payload = response.json()
     assert payload["status"] == "active"
     assert payload["secret_name"] == "driftline-tenant-binding-acme-jira"
+    assert payload["secret_version"] == "latest"
     assert payload["credential_value_accepted"] is False
     listed = client.get(
         "/api/connectors/bindings",

@@ -1753,6 +1753,8 @@ def register_connector_binding(
         "tenant_id": tenant_id,
         "connector": safe_connector,
         "secret_name": secret_name,
+        "secret_version": binding.get("secret_version", "latest"),
+        "verified_at": binding.get("verified_at"),
         "scope": binding["scope"],
         "credential_value_accepted": False,
         "audit_event_id": audit_event["event_id"],
