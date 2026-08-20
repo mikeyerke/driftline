@@ -17,6 +17,26 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Signed live-mode guard release (current)
+
+- Source commit `155c184` makes a tenant-signed direct ADK run explicitly use
+  `run_mode=live`. A source outage, challenge page, or missing baseline can no
+  longer silently become a synthetic workflow; the public judge lane remains
+  the only path that uses deterministic replay.
+- Cloud Build `dd1d0646-f600-4d5e-bfec-d1e5986dfd96` completed `SUCCESS`; image
+  digest `sha256:dc3d6164c1b71caef3bfa629a32dc4eec9ee3e666cc3a96b70ef15030b70af15`;
+  Cloud Run revision `driftline-00141-jrx` serves 100% of traffic.
+- Live proof: `/health` returned `ok`, root returned HTTP 200, the active
+  revision has zero `severity>=ERROR` log entries, and no static tenant
+  admission bindings are present. A public demo run returned
+  `data_mode=synthetic_demo` as intended. A signed tenant run against the
+  allowlisted `competitor/pricing` source returned
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`,
+  `source_status=baseline_established`, `change_detected=false`, and no
+  workflow, proving the live lane did not fabricate a change when no new
+  observation existed.
+- Local regression is `154 passed`; Ruff and `git diff --check` are clean.
+
 ## 2026-08-20 Durable membership admission release (current)
 
 - Source commit `21dc3f7` removes the hosted deployment-wide
