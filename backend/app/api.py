@@ -8,6 +8,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 from collections import deque
 from collections.abc import Callable
@@ -1284,7 +1285,15 @@ async def _run_job(job_id: str) -> None:
         job.event_count = int(result.get("event_count", 0))
         job.response = result.get("response", "")
         job.error = None
-    except Exception:
+    except Exception as exc:
+        # The public judge console is an explicitly synthetic, identity-free
+        # lane.  Keep it reviewable when a real Gemini turn is temporarily
+        # quota-limited or unavailable, while leaving signed/monitor runs
+        # fail-closed.  The fallback is labelled in the durable job and
+        # workflow records; it never claims a Gemini execution occurred.
+        if _complete_demo_fallback(job, exc):
+            _set_job(job)
+            return
         logger.exception("Async Driftline job failed")
         if job.run_attempts < MAX_JOB_ATTEMPTS:
             # Returning a retriable state lets Cloud Tasks redeliver the same
@@ -1312,6 +1321,49 @@ async def _run_job(job_id: str) -> None:
             except Exception:
                 logger.exception("Unable to persist terminal failure for %s", job.job_id)
     _set_job(job)
+
+
+def _complete_demo_fallback(job: JobState, error: Exception) -> bool:
+    """Create the bounded synthetic replay when the public demo's ADK turn fails.
+
+    This is intentionally narrow: only tenantless ``demo`` jobs with a
+    static allowlisted source can use it.  Signed tenant jobs and monitor
+    runs must surface the real failure instead of hiding an unavailable
+    Gemini/connector execution behind synthetic state.
+    """
+    if job.run_mode != "demo" or job.tenant_id is not None:
+        return False
+    match = re.search(r'allowlisted source_id "([^"]+)"', job.query)
+    source_id = match.group(1) if match else "public/pricing"
+    definition = source_definition(source_id)
+    if not definition or definition.get("dynamic") == "true":
+        return False
+    state = workflow_store.start_demo(
+        source_id=source_id,
+        source_name=definition["name"],
+        source_url=definition["url"],
+        before_text=definition["before"],
+        after_text=definition["after"],
+        snapshot_label=f"Synthetic replay fixture · {source_id}",
+        data_mode="synthetic_demo",
+    )
+    persist_workflow(state)
+    job.status = "needs_approval"
+    job.workflow_id = state.workflow_id
+    job.model = "synthetic"
+    job.execution_mode = "deterministic_demo_fallback"
+    job.tool_calls = []
+    job.event_count = 0
+    job.response = (
+        "Gemini was temporarily unavailable; this is a labelled synthetic "
+        "replay so the approval and evidence workflow remains reviewable."
+    )
+    job.error = None
+    logger.warning(
+        "Demo ADK unavailable; served labelled synthetic replay (%s)",
+        type(error).__name__,
+    )
+    return True
 
 
 def _schedule_local_job(job: JobState) -> None:

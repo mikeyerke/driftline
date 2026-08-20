@@ -2030,6 +2030,34 @@ async def test_monitor_job_completes_without_inventing_a_workflow(monkeypatch) -
     assert result.response == "No material source change was found."
 
 
+@pytest.mark.asyncio
+async def test_public_demo_falls_back_to_labelled_synthetic_replay_on_adk_failure(
+    monkeypatch,
+) -> None:
+    async def unavailable(*args, **kwargs):
+        raise RuntimeError("quota exhausted")
+
+    monkeypatch.setattr(api, "run_agent_task", unavailable)
+    job = JobState(
+        job_id="job-demo-fallback",
+        query='scan the allowlisted source_id "public/pricing"',
+        run_mode="demo",
+    )
+    api._set_job(job)
+
+    await api._run_job(job.job_id)
+
+    result = api._resolve_job(job.job_id)
+    assert result.status == "needs_approval"
+    assert result.execution_mode == "deterministic_demo_fallback"
+    assert result.model == "synthetic"
+    assert result.error is None
+    assert result.workflow_id
+    workflow = api._resolve_workflow(result.workflow_id)
+    assert workflow.data_mode == "synthetic_demo"
+    assert "temporarily unavailable" in result.response
+
+
 def test_approval_requires_explicit_signed_token_when_signed_mode_enabled(
     monkeypatch,
 ) -> None:
