@@ -113,6 +113,22 @@ def principal_for_hmac(requested_tenant_id: str | None = None) -> TenantPrincipa
         requested_tenant_id
         or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
     )
+    configured_tenants: set[str] = set()
+    for raw in os.getenv("DRIFTLINE_HMAC_TENANTS", "").split(","):
+        if not raw.strip():
+            continue
+        try:
+            configured_tenants.add(validate_tenant_id(raw))
+        except ValueError:
+            continue
+    if not configured_tenants:
+        configured_tenants.add(
+            validate_tenant_id(
+                os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
+            )
+        )
+    if tenant_id not in configured_tenants:
+        raise PermissionError("tenant_not_allowlisted")
     return TenantPrincipal(
         tenant_id=tenant_id,
         role="owner",

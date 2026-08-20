@@ -123,6 +123,7 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
     secret = "binding-test-secret"
     monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "binding-acme")
     monkeypatch.setattr(api, "read_secret", lambda name: "tenant-token")
     token = hmac.new(
         secret.encode(), b"connector-binding:jira:Binding owner", hashlib.sha256
