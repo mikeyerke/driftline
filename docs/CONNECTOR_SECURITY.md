@@ -67,8 +67,10 @@ execution into the resulting workflow state. Signed approve, dismiss, and undo
 operations require an exact workflow/tenant match. Tenant-bound job and
 workflow reads (including packets, action items, and scenario previews) use the
 same signed HMAC/OIDC boundary; unauthenticated public history filters those
-records out. The judge-facing synthetic workflow remains deliberately
-tenantless and packet-only.
+records out. Append-only change memory and operator summary counts use the same
+filter, so a public console cannot infer another tenant's workflow details.
+The judge-facing synthetic workflow remains deliberately tenantless and
+packet-only.
 
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
 Operator fetches also reject common bot/challenge interstitials before recording

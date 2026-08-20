@@ -142,9 +142,11 @@ ground truth for a customer's product.
 The isolated deployment includes one real, bounded Jira connector for the free
 `Driftline` Team-managed project (`KAN`). It is restricted to the Atlassian
 Jira gateway for this site and uses a Jira-scoped token with the classic
-`read:jira-work`, `read:jira-user`, and `write:jira-work` scopes. The token is
-mounted from the isolated `driftline-jira-token` Secret Manager secret; it is
-never sent to the browser or committed to this repository.
+`read:jira-work`, `read:jira-user`, and `write:jira-work` scopes. Hosted
+connector calls resolve only the tenant-bound Secret Manager binding
+`driftline-tenant-driftline-demo-jira`; the older deployment-wide secret is
+retained only for recoverable cleanup and is not mounted. No token is ever sent
+to the browser or committed to this repository.
 
 After a signed operator approves a packet, the adapter searches the current
 project for a Driftline action marker before creating one `Task`. A public demo
@@ -161,7 +163,10 @@ Confluence is provisioned on the free plan in the dedicated `DRIFT` space and is
 authenticated through the Atlassian API gateway with a Confluence-scoped token.
 Each connector can be enabled independently with its own project, space, channel,
 or repository scope; a failed connector is recorded as `failed` and never turns
-into a successful claim. Salesforce now has a deployed read-only OAuth lane,
+into a successful claim. Tenant-bound asynchronous jobs, workflows, packets,
+action items, scenario previews, and operator summaries are filtered by the
+same signed identity boundary; the public demo sees only tenantless synthetic
+records. Salesforce now has a deployed read-only OAuth lane,
 tenant-scoped Secret Manager storage, and an allowlist for product, pricebook,
 and opportunity objects. It has no write path and remains disabled until a
 real Salesforce org authorizes the isolated tenant. See
