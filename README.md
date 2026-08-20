@@ -386,6 +386,8 @@ locked frontend production build in GitHub Actions. The workflow has
 read-only repository permissions, does not require cloud credentials, and does
 not deploy; deployment remains an explicit Cloud Build operation after the
 verification gates pass.
+Dependabot monitors the backend lockfile, frontend lockfile, and GitHub Actions
+for reviewable weekly update PRs.
 
 ## Deploy to Google Cloud
 
