@@ -140,18 +140,21 @@ def test_tenant_policy_is_bounded_and_keeps_defaults_for_missing_fields(monkeypa
     assert persistence.load_tenant_policy(tenant_id) == {
         "agent_calls_per_window": 10,
         "workflow_mutations_per_window": 30,
+        "retention_days": 30,
     }
     policy = persistence.persist_tenant_policy(
         tenant_id,
         {
             "agent_calls_per_window": 5000,
             "workflow_mutations_per_window": 0,
+            "retention_days": 5000,
             "unexpected": "discarded",
         },
     )
     assert policy == {
         "agent_calls_per_window": 1000,
         "workflow_mutations_per_window": 1,
+        "retention_days": 3650,
     }
     stored = persistence.load_tenant(tenant_id)
     assert stored["policy"] == policy

@@ -232,6 +232,7 @@ def test_owner_can_update_and_read_tenant_quota_policy(monkeypatch) -> None:
             "tenant_id": "driftline-demo",
             "agent_calls_per_window": 17,
             "workflow_mutations_per_window": 42,
+            "retention_days": 90,
             "approval_token": update_token,
         },
     )
@@ -239,6 +240,7 @@ def test_owner_can_update_and_read_tenant_quota_policy(monkeypatch) -> None:
     assert response.json()["policy"] == {
         "agent_calls_per_window": 17,
         "workflow_mutations_per_window": 42,
+        "retention_days": 90,
     }
 
     read_token = hmac.new(

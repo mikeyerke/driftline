@@ -56,16 +56,20 @@ writes a tenant-filtered, metadata-only terminal marker to
 markers through `/api/ops/job-failures` without prompts, source bodies,
 exception text, or credentials. Persisted jobs, workflows, source observations,
 outcome measurements, and failure markers carry an explicit 30-day TTL by
-default.
+default. Tenant owners can override the bounded retention window for
+tenant-owned workflow/job, failure, outcome, and credential-access metadata
+through the signed tenant policy route; provider secrets remain in Secret
+Manager and require explicit offboarding.
 
 Signed agent calls and workflow mutations reserve separate tenant-scoped
 Firestore windows. Owners can read and tune bounded
-`agent_calls_per_window` and `workflow_mutations_per_window` allowances through
-`GET/POST /api/tenants/policy` without a Cloud Run redeploy. Policy fields are
-allowlisted and clamped to safe bounds, changes append a tenant audit event,
-and missing policy metadata falls back to deployment defaults. A hosted policy
-lookup failure fails closed before work is reserved; this is tenant
-control-plane policy and metering, not billing.
+`agent_calls_per_window`, `workflow_mutations_per_window`, and `retention_days`
+allowances through `GET/POST /api/tenants/policy` without a Cloud Run redeploy.
+Policy fields are allowlisted and clamped to safe bounds, changes append a
+tenant audit event, and missing policy metadata falls back to deployment
+defaults. A hosted quota lookup failure fails closed before work is reserved;
+a retention lookup failure uses the bounded deployment default. This is tenant
+control-plane policy and privacy/metering, not billing.
 
 The direct `/api/agent/run` path preserves the same boundary in both modes:
 the public judge request is tenantless and packet-safe, while a signed operator

@@ -103,8 +103,8 @@ repeat with `--apply` after reviewing the bounded metadata plan. The signed
 `GET /api/connectors/credentials` route exposes the metadata-only inventory,
 while `GET /api/connectors/credentials/access` exposes the tenant-filtered
 append-only lease trail. Neither route returns credential values. Lease audit
-records are retained for the normal 30-day window in
-`driftline_credential_access_events`.
+records use the deployment default or the tenant's bounded `retention_days`
+policy in `driftline_credential_access_events`.
 
 Provision non-secret destinations through the owner-only
 `POST /api/connectors/{connector}/profile` route. It stores only the
@@ -125,12 +125,15 @@ field names may be shown, but target values and credentials never are.
 
 An owner can inspect the effective per-tenant allowance with signed
 `GET /api/tenants/policy` and update it with `POST /api/tenants/policy`.
-`agent_calls_per_window` and `workflow_mutations_per_window` are the only
-accepted policy fields; both are clamped to safe bounds and apply to the
-existing deployment windows without a redeploy. Changes are append-only audit
-metadata and are metering controls, not subscription billing. If policy
-metadata is absent, the deployment defaults apply; a hosted policy lookup
-failure denies new work rather than widening access.
+`agent_calls_per_window`, `workflow_mutations_per_window`, and `retention_days`
+are the only accepted policy fields. Allowances are clamped to safe bounds and
+apply to the existing deployment windows without a redeploy. `retention_days`
+controls tenant-owned workflow/job, failure, outcome, and credential-access
+metadata; it never deletes provider secrets. Changes are append-only audit
+metadata and are metering/privacy controls, not subscription billing. If
+policy metadata is absent, deployment defaults apply; a hosted quota lookup
+failure denies new work rather than widening access, while a retention lookup
+failure uses the bounded deployment default.
 
 ## 6. Rotate or offboard
 

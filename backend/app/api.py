@@ -314,11 +314,12 @@ class TenantDeprovisionRequest(BaseModel):
 
 
 class TenantPolicyRequest(BaseModel):
-    """Owner-managed bounded tenant allowance; never a billing contract."""
+    """Owner-managed bounded tenant allowance and retention; never billing."""
 
     operator: str = Field(min_length=1, max_length=120)
     agent_calls_per_window: int = Field(default=10, ge=1, le=1000)
     workflow_mutations_per_window: int = Field(default=30, ge=1, le=1000)
+    retention_days: int = Field(default=30, ge=1, le=3650)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
@@ -2682,7 +2683,7 @@ def get_tenant_policy(
     approval_token: str | None = None,
     identity_token: str | None = None,
 ) -> dict[str, object]:
-    """Return the caller's effective bounded allowance policy."""
+    """Return the caller's effective bounded quota and retention policy."""
     identity = _verify_approval_mode(
         "tenant-policy-read",
         operator,
@@ -2707,7 +2708,7 @@ def get_tenant_policy(
 
 @app.post("/api/tenants/policy")
 def update_tenant_policy(request: TenantPolicyRequest) -> dict[str, object]:
-    """Update one tenant's bounded quota policy without redeploying the service."""
+    """Update one tenant's bounded quota and retention policy without redeploying."""
     identity = _verify_approval_mode(
         "tenant-policy-update",
         request.operator,
@@ -2723,6 +2724,7 @@ def update_tenant_policy(request: TenantPolicyRequest) -> dict[str, object]:
         {
             "agent_calls_per_window": request.agent_calls_per_window,
             "workflow_mutations_per_window": request.workflow_mutations_per_window,
+            "retention_days": request.retention_days,
         },
     )
     audit_event = persist_tenant_audit_event(

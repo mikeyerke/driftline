@@ -41,6 +41,7 @@ TENANT_CREDENTIAL_ENROLLMENTS_SUBCOLLECTION = "credential_enrollments"
 TENANT_POLICY_DEFAULTS: dict[str, int] = {
     "agent_calls_per_window": 10,
     "workflow_mutations_per_window": 30,
+    "retention_days": 30,
 }
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _connector_profiles_memory: dict[tuple[str, str], dict[str, Any]] = {}
@@ -59,12 +60,32 @@ def _enabled() -> bool:
     return os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
 
 
-def _retention_expiry() -> datetime:
+def _deployment_retention_days() -> int:
     try:
         days = int(os.getenv("DRIFTLINE_RETENTION_DAYS", "30"))
     except ValueError:
         days = 30
-    return datetime.now(UTC) + timedelta(days=max(1, min(days, 3650)))
+    return max(1, min(days, 3650))
+
+
+def _retention_expiry(tenant_id: str | None = None) -> datetime:
+    """Return a bounded TTL, preferring the tenant's privacy policy.
+
+    Tenant policy reads are deliberately best effort for retention: a policy
+    outage must not prevent a bounded write, so the deployment default is used
+    as a safe fallback.  Quota reads remain fail-closed in the API because
+    widening spend and retention are different risk classes.
+    """
+    days = _deployment_retention_days()
+    if tenant_id and _enabled():
+        try:
+            tenant = _client().collection(TENANTS_COLLECTION).document(tenant_id).get()
+            policy = (tenant.to_dict() or {}).get("policy", {}) if tenant.exists else {}
+            candidate = int(policy.get("retention_days", days))
+            days = max(1, min(candidate, 3650))
+        except Exception:  # noqa: BLE001 - safe TTL fallback.
+            days = _deployment_retention_days()
+    return datetime.now(UTC) + timedelta(days=days)
 
 
 def _client() -> firestore.Client:
@@ -118,7 +139,7 @@ def persist_workflow(state: WorkflowState) -> None:
     document = client.collection(COLLECTION).document(state.workflow_id)
     payload = state.to_dict()
     payload["updated_at"] = datetime.now(UTC).isoformat()
-    payload["expires_at"] = _retention_expiry()
+    payload["expires_at"] = _retention_expiry(state.tenant_id)
     document.set(payload)
     _create_audit_events(document.collection("audit_events"), state.events)
 
@@ -162,7 +183,7 @@ def compare_and_set_workflow(state: WorkflowState, expected_status: str) -> bool
     document = client.collection(COLLECTION).document(state.workflow_id)
     payload = state.to_dict()
     payload["updated_at"] = datetime.now(UTC).isoformat()
-    payload["expires_at"] = _retention_expiry()
+    payload["expires_at"] = _retention_expiry(state.tenant_id)
     @firestore.transactional
     def transition(tx: Any) -> bool:
         snapshot = document.get(transaction=tx)
@@ -223,7 +244,7 @@ def persist_job(job: JobState) -> None:
         return
     payload = job.to_dict()
     payload["updated_at"] = datetime.now(UTC).isoformat()
-    payload["expires_at"] = _retention_expiry()
+    payload["expires_at"] = _retention_expiry(job.tenant_id)
     _client().collection(JOBS_COLLECTION).document(job.job_id).set(payload)
 
 
@@ -315,7 +336,7 @@ def persist_job_failure(payload: dict[str, Any]) -> dict[str, Any]:
         "attempts": max(0, int(payload.get("attempts", 0))),
         "error_code": "agent_failed_after_bounded_retries",
         "failed_at": payload.get("failed_at") or utc_now(),
-        "expires_at": _retention_expiry(),
+        "expires_at": _retention_expiry(str(payload.get("tenant_id", "")) or None),
     }
     _job_failures_memory[job_id] = dict(safe)
     if _enabled():
@@ -351,7 +372,9 @@ def persist_outcome_measurement(payload: dict[str, Any]) -> None:
     if not _enabled():
         return
     stored = dict(payload)
-    stored["expires_at"] = _retention_expiry()
+    stored["expires_at"] = _retention_expiry(
+        str(payload.get("tenant_id", "")) or None
+    )
     _client().collection(OUTCOMES_COLLECTION).document(
         str(payload["measurement_id"])
     ).create(stored)
@@ -689,7 +712,9 @@ def persist_credential_access_event(payload: dict[str, Any]) -> dict[str, Any]:
     safe = {key: value for key, value in payload.items() if key not in forbidden}
     safe.setdefault("event_id", f"credential-access-{uuid4().hex}")
     safe.setdefault("created_at", utc_now())
-    safe["expires_at"] = _retention_expiry()
+    safe["expires_at"] = _retention_expiry(
+        str(payload.get("tenant_id", "")) or None
+    )
     _credential_access_memory.append(dict(safe))
     if _enabled():
         _client().collection(CREDENTIAL_ACCESS_COLLECTION).document(
@@ -981,7 +1006,8 @@ def _normalise_tenant_policy(
             value = int(value)
         except (TypeError, ValueError):
             value = default
-        policy[key] = max(1, min(value, 1000))
+        upper_bound = 3650 if key == "retention_days" else 1000
+        policy[key] = max(1, min(value, upper_bound))
     return policy
 
 
