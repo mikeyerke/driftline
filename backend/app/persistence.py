@@ -457,10 +457,11 @@ def persist_tenant_membership(payload: dict[str, Any]) -> dict[str, Any]:
     safe.setdefault("updated_at", utc_now())
     safe.pop("expires_at", None)
     key = (tenant_id, email)
-    _tenant_memberships_memory[key] = dict(safe)
     document_id = base64.urlsafe_b64encode(
         f"{tenant_id}:{email}".encode()
     ).decode("ascii").rstrip("=")
+    safe["membership_id"] = document_id
+    _tenant_memberships_memory[key] = dict(safe)
     if _enabled():
         _client().collection(TENANT_MEMBERSHIPS_COLLECTION).document(document_id).set(
             safe

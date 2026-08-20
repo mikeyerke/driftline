@@ -193,6 +193,37 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     assert tenant_metadata.json()["credential_values_exposed"] is False
 
 
+def test_owner_can_provision_durable_member_without_credentials(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "membership-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "membership-acme")
+    token = hmac.new(
+        secret.encode(),
+        b"tenant-member-provision:Membership owner",
+        hashlib.sha256,
+    ).hexdigest()
+
+    response = client.post(
+        "/api/tenants/members",
+        json={
+            "operator": "Membership owner",
+            "tenant_id": "membership-acme",
+            "email": "operator@example.com",
+            "role": "operator",
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["tenant_id"] == "membership-acme"
+    assert payload["role"] == "operator"
+    assert payload["credential_values_exposed"] is False
+    assert "secret" not in str(payload).casefold()
+
+
 def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:
     monkeypatch.setattr(api, "_verify_scheduler_request", lambda request: None)
     monkeypatch.setattr(
