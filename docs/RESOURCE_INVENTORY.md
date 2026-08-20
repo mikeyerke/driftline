@@ -10,6 +10,31 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-20 API cache-policy enforcement (live)
+
+- Source commit `481c8c7` changed the API security middleware from a default
+  header to an unconditional `Cache-Control: no-store` assignment. This keeps
+  an endpoint-defined cache header from weakening the privacy contract for
+  tenant metadata or one-time OAuth responses. A focused regression test
+  supplies a conflicting `public, max-age=3600` header and verifies it is
+  replaced; the full local suite reports `208 passed` with Ruff clean.
+- GitHub Actions run `32422051597` completed `success`. Cloud Build
+  `658bcb18-dd42-4a16-8068-a78d491d4d5e` completed `SUCCESS`; Cloud Run
+  revision `driftline-00023-w7h` serves 100% of traffic in the isolated
+  project with the existing scale-to-zero and one-instance cap.
+- Live `/health` returned `200` with Firestore persistence and async jobs.
+  The public `/api/ops/value-proof` response returned `200` with
+  `cache-control: no-store`; the current direct value proof reported 50
+  isolated workflows, 50 change cards, five healthy sources, zero external
+  writes, and explicitly labelled all customer-outcome fields
+  `not_measured`.
+- A direct public agent canary on this revision returned
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, exactly the
+  allowlisted tools `inspect_source_change` and `get_workflow_state`,
+  `source_status=needs_approval`, and redacted anonymous query/user fields
+  (`null`). Cloud Logging showed no severity `ERROR` entries for the new
+  revision after rollout.
+
 Before any future mutation, verify the target explicitly:
 
 ```bash
