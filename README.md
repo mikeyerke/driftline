@@ -141,6 +141,9 @@ agent calls, workflow mutations, and monitor jobs in Firestore. This is
 control-plane metering for quota and pilot evidence only: billing is disabled,
 content is not included, and the deployment still does not claim a hosted
 subscription system.
+In the Firestore deployment, signed tenant reservations use a transactional
+window counter so concurrent Cloud Run instances cannot race past the same
+limit; local development uses a process-local fallback.
 
 Operator source onboarding is a separate signed lane: it persists one exact
 public URL in the isolated Firestore registry, then the bounded scheduler can

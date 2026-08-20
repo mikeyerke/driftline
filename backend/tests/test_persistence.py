@@ -39,3 +39,24 @@ def test_tenant_usage_is_period_scoped_and_aggregate_only(monkeypatch) -> None:
     assert current["monitor_jobs"] == 0
     assert other_period["agent_calls"] == 0
     assert set(current) >= {"tenant_id", "period", "agent_calls"}
+
+
+def test_tenant_rate_limit_reservation_is_window_and_tenant_scoped(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    persistence._tenant_rate_limit_memory.clear()
+
+    assert persistence.reserve_tenant_rate_limit(
+        "quota-acme", "agent_calls", 2, 60, now=121
+    )
+    assert persistence.reserve_tenant_rate_limit(
+        "quota-acme", "agent_calls", 2, 60, now=122
+    )
+    assert not persistence.reserve_tenant_rate_limit(
+        "quota-acme", "agent_calls", 2, 60, now=123
+    )
+    assert persistence.reserve_tenant_rate_limit(
+        "quota-other", "agent_calls", 2, 60, now=123
+    )
+    assert persistence.reserve_tenant_rate_limit(
+        "quota-acme", "agent_calls", 2, 60, now=180
+    )

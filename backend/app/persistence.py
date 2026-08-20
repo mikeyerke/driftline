@@ -31,11 +31,13 @@ TENANTS_COLLECTION = "driftline_tenants"
 TENANT_MEMBERSHIPS_COLLECTION = "driftline_tenant_memberships"
 TENANT_AUDIT_COLLECTION = "driftline_tenant_audit_events"
 TENANT_USAGE_COLLECTION = "driftline_tenant_usage"
+TENANT_RATE_LIMITS_COLLECTION = "driftline_tenant_rate_limits"
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenants_memory: dict[str, dict[str, Any]] = {}
 _tenant_memberships_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenant_audit_memory: list[dict[str, Any]] = []
 _tenant_usage_memory: dict[tuple[str, str], dict[str, Any]] = {}
+_tenant_rate_limit_memory: dict[tuple[str, str, int], int] = {}
 
 
 def _enabled() -> bool:
@@ -489,6 +491,64 @@ def record_tenant_usage(
             merge=True,
         )
     return dict(payload)
+
+
+def reserve_tenant_rate_limit(
+    tenant_id: str,
+    metric: str,
+    limit: int,
+    window_seconds: int,
+    *,
+    now: float | None = None,
+) -> bool:
+    """Atomically reserve one tenant quota slot for a fixed time window.
+
+    Firestore deployments use a transaction so multiple Cloud Run instances
+    cannot race past the same tenant limit. Local runs retain a deterministic
+    in-memory fallback for tests and development.
+    """
+    if metric not in _USAGE_METRICS or limit <= 0 or window_seconds <= 0:
+        raise ValueError("rate_limit_arguments_invalid")
+    timestamp = float(now if now is not None else time.time())
+    window_start = int(timestamp // window_seconds) * window_seconds
+    memory_key = (tenant_id, metric, window_start)
+    if not _enabled():
+        current = _tenant_rate_limit_memory.get(memory_key, 0)
+        if current >= limit:
+            return False
+        _tenant_rate_limit_memory[memory_key] = current + 1
+        return True
+
+    document = _client().collection(TENANT_RATE_LIMITS_COLLECTION).document(
+        f"{tenant_id}:{metric}:{window_start}"
+    )
+    transaction = _client().transaction()
+
+    @firestore.transactional
+    def reserve(transaction: firestore.Transaction) -> bool:
+        snapshot = transaction.get(document)
+        current = int((snapshot.to_dict() or {}).get("count", 0)) if snapshot.exists else 0
+        if current >= limit:
+            return False
+        expires_at = datetime.fromtimestamp(
+            window_start + window_seconds, UTC
+        )
+        transaction.set(
+            document,
+            {
+                "tenant_id": tenant_id,
+                "metric": metric,
+                "window_start": window_start,
+                "count": current + 1,
+                "limit": limit,
+                "expires_at": expires_at,
+                "updated_at": utc_now(),
+            },
+            merge=True,
+        )
+        return True
+
+    return bool(reserve(transaction))
 
 
 def load_tenant_usage(tenant_id: str, period: str | None = None) -> dict[str, Any]:

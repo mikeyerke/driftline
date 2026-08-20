@@ -97,6 +97,7 @@ from .persistence import (
     persist_tenant_membership,
     persist_workflow,
     record_tenant_usage,
+    reserve_tenant_rate_limit,
     update_jobs_for_workflow,
 )
 from .simulator import simulate_scenarios
@@ -345,7 +346,7 @@ _background_tasks: set[asyncio.Task[None]] = set()
 
 
 def _record_tenant_usage(tenant_id: str | None, metric: str) -> None:
-    """Best-effort aggregate metering; quota enforcement remains local and fail-safe."""
+    """Best-effort aggregate metering after a quota slot is reserved."""
     if not tenant_id:
         return
     try:
@@ -354,7 +355,36 @@ def _record_tenant_usage(tenant_id: str | None, metric: str) -> None:
         logger.warning("Tenant usage ledger update failed for %s/%s", tenant_id, metric)
 
 
+def _reserve_durable_tenant_slot(
+    tenant_id: str | None, metric: str, limit: int, window_seconds: int
+) -> bool | None:
+    """Reserve a signed tenant slot transactionally when Firestore is active.
+
+    None means local development mode, where the process-local bucket remains
+    authoritative. A Firestore error fails closed instead of silently allowing
+    unmetered tenant work.
+    """
+    if not tenant_id:
+        return None
+    if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() != "firestore":
+        return None
+    try:
+        return reserve_tenant_rate_limit(
+            tenant_id, metric, limit, window_seconds
+        )
+    except Exception:
+        logger.exception("Durable tenant quota reservation failed")
+        return False
+
+
 def _reserve_agent_call(tenant_id: str | None = None) -> bool:
+    durable = _reserve_durable_tenant_slot(
+        tenant_id, "agent_calls", AGENT_MAX_CALLS, AGENT_WINDOW_SECONDS
+    )
+    if durable is not None:
+        if durable:
+            _record_tenant_usage(tenant_id, "agent_calls")
+        return durable
     now = monotonic()
     cutoff = now - AGENT_WINDOW_SECONDS
     with _agent_call_lock:
@@ -373,6 +403,13 @@ def _reserve_agent_call(tenant_id: str | None = None) -> bool:
 
 
 def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
+    durable = _reserve_durable_tenant_slot(
+        tenant_id, "workflow_mutations", DEMO_MAX_MUTATIONS, DEMO_WINDOW_SECONDS
+    )
+    if durable is not None:
+        if durable:
+            _record_tenant_usage(tenant_id, "workflow_mutations")
+        return durable
     now = monotonic()
     cutoff = now - DEMO_WINDOW_SECONDS
     with _demo_mutation_lock:
@@ -1330,6 +1367,12 @@ def get_ops_summary(
             "agent_window_seconds": AGENT_WINDOW_SECONDS,
             "demo_max_mutations": DEMO_MAX_MUTATIONS,
             "monitor_max_sources": _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5),
+            "tenant_quota_enforcement": (
+                "firestore_transaction"
+                if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold()
+                == "firestore"
+                else "process_local"
+            ),
         },
         "approval_security": {
             "public_demo_packet_only": True,
