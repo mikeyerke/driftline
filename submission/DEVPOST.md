@@ -128,14 +128,14 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current public verification job is `job-b5650db09934`, with workflow
-  `907c39d8-e869-4332-87b8-e86823fca116`. Its persisted audit trail contains
+- The current public verification job is `job-dd9c790526a5`, with workflow
+  `d083ea27-fb6f-4bba-aa8c-039689c76bb8`. Its persisted audit trail contains
   verified evidence, four mapped artifacts, four drafted updates, a human
   approval, packet creation, and `decision_reopened`; the final state is back
   at the deterministic approval gate.
 - The deployed public path returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and both allowlisted tool calls. Cloud Run revision
-  `driftline-00169-8cw` serves 100% of traffic in the isolated project. The
+  `driftline-00170-m6c` serves 100% of traffic in the isolated project. The
   latest browser proof passed desktop and 390px mobile scan, evidence, artifact
   selection, approval, completion, and reopen/undo with no console errors or
   failed requests.

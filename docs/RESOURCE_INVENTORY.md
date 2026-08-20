@@ -19,11 +19,11 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 
 ## 2026-08-20 Tenant quota and privacy policy release (current)
 
-- Source commit `4e84551` adds durable, owner-managed tenant policy for
+- Source commit `fcae79c` adds durable, owner-managed tenant policy for
   `agent_calls_per_window`, `workflow_mutations_per_window`, and bounded
   `retention_days` (`1..3650`). Quota values are used by both local and
-  Firestore reservations; tenant workflow/job, failure, outcome, and
-  credential-access metadata now receives the tenant TTL. Missing policy
+  Firestore reservations; tenant source observations, workflow/job, failure,
+  outcome, and credential-access metadata now receive the tenant TTL. Missing policy
   metadata falls back to deployment defaults; a hosted quota lookup failure
   fails closed and a retention lookup failure uses the bounded default.
 - Signed `GET/POST /api/tenants/policy` is live. Anonymous policy access
@@ -32,16 +32,16 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   calls, `30` workflow mutations, `30` retention days), `billing_enabled=false`,
   and `credential_values_exposed=false`. The public Value proof remains
   `observed_driftline_sandbox_records` with `0` tenant-scoped workflows.
-- Cloud Build `017945b6-fc6e-4783-9c24-452c9d7e955a` completed `SUCCESS`; image
+- Cloud Build `aefbb6f3-051c-44ed-8bcc-28b4a5715aaf` completed `SUCCESS`; image
   digest is
-  `sha256:4a2f893b5af485faadb9a6e6044ea4bb1cd558a3f61524feb39801ba5b78d77e`.
-  Cloud Run revision `driftline-00169-8cw` serves 100% of traffic in the
+  `sha256:beeae2d98e182ca7752963eaf55ecc668d05cc89903f00119031d07c07903606`.
+  Cloud Run revision `driftline-00170-m6c` serves 100% of traffic in the
   isolated project and `/health` reports Firestore persistence and async jobs.
-- Full backend suite: `186 passed`; Ruff, frontend production build, and
+- Full backend suite: `187 passed`; Ruff, frontend production build, and
   `git diff --check` are clean. Desktop/mobile browser QA and the complete
   scan → evidence → artifact → approval → completion → reopen journey passed
   with no console errors or failed requests. Latest verified job is
-  `job-b5650db09934`, workflow `907c39d8-e869-4332-87b8-e86823fca116`, recorded
+  `job-dd9c790526a5`, workflow `d083ea27-fb6f-4bba-aa8c-039689c76bb8`, recorded
   with Gemini 3.5 Flash and Google ADK.
 
 ## 2026-08-20 Exact tenant evidence scope release (superseded snapshot)
