@@ -17,6 +17,31 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Bounded internal-context release
+
+- Source commit: `cdb319d` (`Add bounded internal context connector lane`),
+  pushed to `https://github.com/mikeyerke/driftline`.
+- Cloud Build `e044b5ce-2088-4d90-9194-41896a17dfeb` — `SUCCESS`; Artifact
+  Registry image digest
+  `sha256:c1316e787d5340cdba4d7b11dc18805897e086008d0bd40d31b4c141a8f68166`.
+- Cloud Run revision `driftline-00082-bv9` serves 100% of traffic in the
+  isolated project, with the existing min-0/max-1 resource guardrails. The
+  revision readiness condition is `True`; its error-log query returned no
+  `ERROR` entries.
+- `GET /health` returned Firestore persistence and async jobs. The newest
+  revision async smoke `job-5e84b1ea695a` reached `needs_approval` with
+  `model=gemini-3.5-flash`, `execution_mode=google_adk`, and no error.
+- Signed `POST /api/connectors/context/summary` directly returned successful,
+  aggregate-only reads for the fixed scopes: Jira `17` open issues in `KAN`,
+  Confluence `5` pages in `DRIFT`, Slack `20` recent messages in the isolated
+  channel, and GitHub `10` open issues in `mikeyerke/driftline`. The response
+  declared `persisted=false`, `redaction=aggregate_metadata_only`, and no raw
+  text/body fields.
+- Public demo approval/undo on the newest revision remained packet-only:
+  connector statuses were `prepared_only` and `external_write=false` in both
+  directions. Salesforce still reports `oauth_ready` / `awaiting_authorization`,
+  not connected.
+
 ## Resources
 
 | Resource | Name / scope | Verified status | Labels / notes |
