@@ -459,6 +459,12 @@ CONNECTOR_WINDOW_SECONDS = _positive_int(
 _connector_call_times: deque[float] = deque()
 _tenant_connector_call_times: dict[str, deque[float]] = {}
 _connector_call_lock = Lock()
+MULTIMODAL_MAX_CALLS = _positive_int("DRIFTLINE_MULTIMODAL_MAX_CALLS", 10)
+MULTIMODAL_WINDOW_SECONDS = _positive_int(
+    "DRIFTLINE_MULTIMODAL_WINDOW_SECONDS", 3600
+)
+_multimodal_call_times: deque[float] = deque()
+_multimodal_call_lock = Lock()
 MAX_JOB_ATTEMPTS = _positive_int("DRIFTLINE_MAX_JOB_ATTEMPTS", 3)
 
 _salesforce_oauth_states: dict[str, dict[str, object]] = {}
@@ -661,6 +667,35 @@ def _reserve_connector_call(tenant_id: str | None = None) -> bool:
         times.append(now)
         _record_tenant_usage(tenant_id, "connector_calls")
         return True
+
+
+def _reserve_multimodal_call() -> int | None:
+    """Reserve one public visual-analysis call and return retry seconds.
+
+    Visual analysis is deliberately allowlisted, but it still crosses the
+    Vertex/Gemini cost boundary. Keep a process-wide budget and tell clients
+    when the fixed window will reopen instead of leaving them to retry-loop.
+    Cloud Run is configured with one maximum instance, so this guard bounds
+    the public deployment's normal request path without adding tenant data to
+    the identity-free demo lane.
+    """
+    now = monotonic()
+    cutoff = now - MULTIMODAL_WINDOW_SECONDS
+    with _multimodal_call_lock:
+        while _multimodal_call_times and _multimodal_call_times[0] <= cutoff:
+            _multimodal_call_times.popleft()
+        if len(_multimodal_call_times) >= MULTIMODAL_MAX_CALLS:
+            return max(
+                1,
+                int(
+                    _multimodal_call_times[0]
+                    + MULTIMODAL_WINDOW_SECONDS
+                    - now
+                )
+                + 1,
+            )
+        _multimodal_call_times.append(now)
+        return None
 
 
 def _tasks_enabled() -> bool:
@@ -1767,6 +1802,8 @@ def get_ops_summary(
             "demo_max_mutations": DEMO_MAX_MUTATIONS,
             "connector_max_calls": CONNECTOR_MAX_CALLS,
             "connector_window_seconds": CONNECTOR_WINDOW_SECONDS,
+            "multimodal_max_calls": MULTIMODAL_MAX_CALLS,
+            "multimodal_window_seconds": MULTIMODAL_WINDOW_SECONDS,
             "monitor_max_sources": _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5),
             "tenant_quota_enforcement": (
                 "firestore_transaction"
@@ -3658,6 +3695,13 @@ def get_multimodal_evidence(
 @app.post("/api/multimodal/analyze")
 async def analyze_multimodal(request: MultimodalAnalysisRequest) -> dict[str, object]:
     """Run Gemini vision only on the bounded allowlisted visual pair."""
+    retry_after = _reserve_multimodal_call()
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Multimodal analysis quota reached; retry later.",
+            headers={"Retry-After": str(retry_after)},
+        )
     try:
         return await asyncio.to_thread(
             analyze_visual_evidence, request.asset_id, request.mode

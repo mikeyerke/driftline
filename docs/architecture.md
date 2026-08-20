@@ -73,6 +73,13 @@ defaults. A hosted quota lookup failure fails closed before work is reserved;
 a retention lookup failure uses the bounded deployment default. This is tenant
 control-plane policy and privacy/metering, not billing.
 
+The public multimodal analysis route is a separate cost boundary: it accepts
+only the fixed visual registry and is capped at 10 Gemini analyses per
+3600-second process window. Exhaustion returns `429` with `Retry-After`, so a
+client cannot accidentally retry-loop into Vertex spend. This public guard is
+deliberately separate from tenant connector quotas because the judge-safe
+visual fixture lane carries no tenant identity.
+
 The direct `/api/agent/run` path preserves the same boundary in both modes:
 the public judge request is tenantless and packet-safe, while a signed operator
 request verifies its tenant principal before reserving quota and passing that

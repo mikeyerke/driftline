@@ -48,6 +48,17 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   regression remains `195 passed`; Ruff, frontend production build, and
   `git diff --check` are clean.
 
+## 2026-08-20 Multimodal spend guardrail (pending deploy)
+
+- Source change adds a process-wide cap of 10 allowlisted Gemini visual
+  analyses per 3600-second window. Exhaustion returns HTTP `429` with a
+  `Retry-After` header, and `/api/ops/summary` exposes the active bound without
+  exposing request content or credentials.
+- The route remains limited to the fixed repository visual pair and is kept
+  separate from tenant connector quotas because the public visual lane is
+  intentionally tenantless. Local regression covers the accepted call and
+  retryable exhaustion behavior (`196 passed` before deployment).
+
 ## 2026-08-20 Canonical tenant credential control plane (live)
 
 - Source commit `3ba7554` is the checked-in tenant-boundary release. Connector

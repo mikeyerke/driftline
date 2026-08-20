@@ -54,6 +54,32 @@ def test_demo_vision_endpoint_returns_explicit_synthetic_fallback(monkeypatch) -
     assert response.json()["analysis"]["confidence"] == 0.0
 
 
+def test_multimodal_analysis_has_a_bounded_retryable_quota(monkeypatch) -> None:
+    monkeypatch.setattr(api, "MULTIMODAL_MAX_CALLS", 1)
+    monkeypatch.setattr(api, "MULTIMODAL_WINDOW_SECONDS", 3600)
+    api._multimodal_call_times.clear()
+    monkeypatch.setattr(
+        api,
+        "analyze_visual_evidence",
+        lambda _asset_id, _mode: {"mode": "synthetic_demo"},
+    )
+    client = TestClient(api.app)
+
+    first = client.post(
+        "/api/multimodal/analyze",
+        json={"asset_id": "promise-card", "mode": "demo"},
+    )
+    second = client.post(
+        "/api/multimodal/analyze",
+        json={"asset_id": "promise-card", "mode": "demo"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.headers["retry-after"].isdigit()
+    assert "quota" in second.json()["detail"].casefold()
+
+
 def test_scenario_endpoint_returns_no_write_counterfactuals() -> None:
     state = api.workflow_store.start_demo()
     client = TestClient(api.app)
