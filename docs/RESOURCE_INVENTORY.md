@@ -37,7 +37,16 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `credential_values_exposed=false`; the signed usage ledger recorded
   `connector_calls=3` without credential values.
 - Cloud Logging showed no severity `ERROR` entries after the 00008 rollout.
-  Local regression remains `195 passed`; Ruff and `git diff --check` are clean.
+  A direct public `POST /api/agent/run` returned `200` with
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`,
+  `source_status=needs_approval`, `persisted=true`, and workflow
+  `5aff9cca-3cce-494a-ae2b-b8946aabb478`; its Firestore workflow remained
+  tenantless packet-safe state with five events and no credential terms.
+  Browser QA on the deployed URL passed at desktop and 390px widths with no
+  overflow, console errors, or failed requests; the complete journey reported
+  4 rows, 2 selects, needs-approval, completed, and reopened states. Local
+  regression remains `195 passed`; Ruff, frontend production build, and
+  `git diff --check` are clean.
 
 ## 2026-08-20 Canonical tenant credential control plane (live)
 
