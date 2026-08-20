@@ -14,6 +14,7 @@ export default function ChangeCardPanel({ card }) {
         <div>
           <h2 id="change-card-title">Change-to-work card</h2>
           <span className="live-label public"><ShieldCheck size={12} />Evidence-bound decision</span>
+          {card.change_card_id && <code className="change-card-id" title="Stable identity for this source snapshot">{card.change_card_id}</code>}
         </div>
         <span className={`materiality-pill ${materiality.severity || "medium"}`}><AlertTriangle size={13} />{label(materiality.severity)} materiality · {materiality.score || "—"}/100</span>
       </header>

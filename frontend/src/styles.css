@@ -353,6 +353,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .change-card-header { align-items: flex-start; gap: 14px; }
 .change-card-header > div { min-width: 0; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .change-card-header h2 { font-size: 16px; }
+.change-card-id { color: var(--muted); font-size: 10px; letter-spacing: .02em; }
 .materiality-pill { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; border: 1px solid #ffc9ae; border-radius: 999px; padding: 5px 9px; color: var(--orange); background: #fff7f2; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .materiality-pill.medium { color: #8a6200; border-color: #eed28d; background: #fff9e9; }
 .materiality-pill.low { color: var(--green); border-color: #b9dfc9; background: #f1faf5; }
