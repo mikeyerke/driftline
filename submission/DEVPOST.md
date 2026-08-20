@@ -4,8 +4,9 @@
 
 - Hosted application: https://driftline-xvxczqg62a-uc.a.run.app/
 - Source repository: https://github.com/mikeyerke/driftline
-- Demonstration video: pending final live recording; the official rules require a public YouTube/Vimeo upload (not unlisted)
+- Demonstration video: pending final live upload; the official rules require a public YouTube/Vimeo upload (not unlisted)
 - Architecture diagram: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
+- Fresh live evidence frames: [pending approval](https://github.com/mikeyerke/driftline/blob/main/submission/assets/live-pending-approval-2026-08-20.jpg) and [completed workflow](https://github.com/mikeyerke/driftline/blob/main/submission/assets/live-completed-2026-08-20.jpg)
 
 ## Category
 
@@ -47,9 +48,12 @@ appends a reversal comment. The public judge console is packet-only even when
 credentials are present; its named demo actor is not production identity.
 Approval also prepares target-specific Confluence, Slack, GitHub, and
 Salesforce-context manifests. GitHub is authenticated for the isolated
-repository and verified with a reversible issue flow. Confluence and Slack
-remain prepared-only pending separate app authorization. The Salesforce
-contract is read-only and remains pending final tenant consent.
+repository and verified with a reversible issue flow. A signed live context
+probe on the deployed runtime returned aggregate-only reads for Jira (`KAN`,
+18 sampled issues), Confluence (`DRIFT`, 5 pages), Slack (`C0BRGFUSADA`, 27
+recent messages), and GitHub (0 open issues, 3 open pull requests); no source
+text or message bodies were returned or persisted. The Salesforce contract is
+read-only and remains pending final tenant consent.
 
 ## Other data sources used
 
@@ -132,14 +136,16 @@ created during the contest.
   project-scoped budget guardrail.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The latest runtime source is commit `f58065a`, deployed through Cloud Build
-  `8ea58385-0a1d-4f6e-ac42-18ed59ba938c` and the dedicated `driftline-build`
-  identity as Cloud Run revision `driftline-00018-4v9` at 100% traffic after
+  The latest runtime source is commit `2ca52dc`, deployed through Cloud Build
+  `4bf43456-d804-4b99-a1aa-23bd97cadebd` and the dedicated `driftline-build`
+  identity as Cloud Run revision `driftline-00019-7x9` at 100% traffic after
   local and CI gates passed. A live direct-agent canary returned the two
   allowlisted tool calls without echoing anonymous query or user fields. The
-  latest browser proof passed desktop and 390px mobile scan, evidence, artifact
-  selection, approval, completion, and reopen/undo with no console errors or
-  failed requests.
+  signed tenant-filtered pilot report is deployed; the signed report currently
+  returns `not_measured` with zero records, and an unsigned public request
+  returned HTTP 401. Fresh browser QA passed the live scan, evidence, approval,
+  completion, activity log, timeline, and 390px mobile path without console
+  errors.
 - The tenant credential data plane is now canonical and fail-closed: durable
   tenant memberships, per-tenant Secret Manager namespaces, impersonated
   service identities, pinned versions, rotation/revocation, operation scopes,
@@ -158,9 +164,10 @@ created during the contest.
 - A reliable agent must make its limitations visible. Driftline labels
   synthetic data, reports unavailable connectors, preserves raw evidence, and
   separates observed workflow telemetry from unmeasured customer ROI.
-- The current evidence proves operational execution and safety boundaries, not
-  customer revenue lift, hours saved, willingness-to-pay, or a multi-customer
-  pilot. Those remain validation work rather than claims in this entry.
+- The current evidence proves operational execution, live aggregate connector
+  reads, and safety boundaries, not customer revenue lift, hours saved,
+  willingness-to-pay, or a multi-customer pilot. Those remain validation work
+  rather than claims in this entry.
 
 ## Limitations and next steps
 
@@ -170,11 +177,13 @@ integration layer produces bounded, target-specific handoff manifests and
 tracks their prepared state. The signed operator connector lane is deliberately
 limited to the free Driftline Jira project, uses a Jira-scoped token held only
 in Secret Manager, and never deletes Jira work. GitHub is authenticated and
-reversible; Confluence and Slack require separate authorization. Salesforce
-is read-only context preparation pending tenant consent. Customer ROI, hours saved, and
-willingness-to-pay remain unmeasured; see `docs/VALIDATION_PLAN.md`. This is a
-verified multi-tenant control-plane foundation, not a claim of self-serve
-enterprise SSO, commercial billing, or a multi-customer pilot.
+reversible; Confluence and Slack live aggregate reads are verified for the
+isolated tenant, while public writes remain prepared-only. Salesforce is
+read-only context preparation pending tenant consent. Customer ROI, hours
+saved, and willingness-to-pay remain unmeasured; see `docs/PILOT_PLAN.md` and
+the deployed signed `/api/ops/pilot-report`. This is a verified multi-tenant
+control-plane foundation, not a claim of self-serve enterprise SSO, commercial
+billing, or a multi-customer pilot.
 
 ## Official links
 
