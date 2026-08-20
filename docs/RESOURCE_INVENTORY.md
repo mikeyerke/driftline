@@ -408,3 +408,22 @@ is no longer needed.
   cleanup complete.
 - Signed operator requests now resolve a tenant and role from
   `DRIFTLINE_TENANT_MEMBERS`; the public demo remains packet-only.
+
+## 2026-08-20 Salesforce PKCE and source-alignment release
+
+- Source commit: `37cf155` (public privacy/terms pages) on top of `f6a6442`
+  (Salesforce PKCE flow), pushed to `https://github.com/mikeyerke/driftline`.
+- Cloud Build `f967f007-4a96-40a1-84f9-1c89519ed1eb` — `SUCCESS`; Artifact
+  Registry image digest `sha256:8534d03fa25b91bf3df7e0eeb3aaac9e0df9feab8abb8b778c0cc5485501d2f2`.
+- Cloud Run revision `driftline-00073-7jk` serves 100% of traffic at the
+  existing public alias with scale-to-zero and the existing one-instance cap.
+  `/health`, `/privacy.html`, and `/terms.html` were verified after rollout.
+- Salesforce authorization now generates an S256 PKCE challenge and stores
+  only the short-lived verifier in server-side OAuth state. The fresh start
+  response was verified to include `code_challenge_method=S256`, contain no
+  client secret, and expire in 10 minutes.
+- The Salesforce client ID and secret are present only in the isolated project
+  Secret Manager bindings. Salesforce consent/callback is intentionally still
+  pending; no connected-org or CRM read claim is made until the operator
+  completes the browser consent and the callback plus aggregate health probe
+  succeed.
