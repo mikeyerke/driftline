@@ -131,10 +131,20 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   tenant/membership transaction, rather than a read-then-write bootstrap.
   Concurrent platform requests have a single-winner contract; the local
   fallback uses a process lock.
-- The regression suite covers the concurrent single-winner behavior and now
-  reports `143 passed`; Ruff remains clean. This change is queued for the next
-  Cloud Run rollout before any platform tenant is created through the live
-  OIDC route.
+- Cloud Build `dd1b9f65-77fc-48c7-a7a7-965adec403e1` completed `SUCCESS`; image
+  digest `sha256:865a15ddfef33b70d8537dabca032aae56314138817b08262b9ae22f83878223`;
+  Cloud Run revision `driftline-00126-ds5` serves 100% of traffic.
+- Live checks after public-invoker reconciliation: `/health` returned `ok`;
+  unauthenticated platform bootstrap returned `401 Platform identity is
+  required`; the revision produced zero `ERROR` log entries.
+- Existing tenant regression passed: all four signed connector context reads
+  returned `status=ok`, and Gemini 3.5 Flash / Google ADK used only
+  `inspect_source_change` and `get_workflow_state`. Firestore stored workflow
+  `ed2a13e8-8c9a-4265-bced-5032be10d16e` with `tenant_id=driftline-demo` and
+  `status=needs_approval`.
+- The regression suite covers concurrent single-winner behavior and reports
+  `143 passed`; Ruff, frontend production build, and `git diff --check` are
+  clean.
 
 ## 2026-08-20 Tenant identity and read-isolation releases
 
@@ -730,7 +740,7 @@ not invoked by that public path.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00125-zjw` from commit `e7d4f8c` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, tenant-specific break-glass signing, durable Firestore tenant admission, OIDC-only platform tenant bootstrap metadata route, no active deployment-wide signer or HMAC allowlist binding, and strict fail-closed unknown-tenant behavior; both legacy global connector credential and hosted deployment-target fallbacks disabled |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00126-ds5` from commit `432e480` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, tenant-specific break-glass signing, durable Firestore tenant admission, atomic OIDC-only platform tenant bootstrap metadata route, no active deployment-wide signer or HMAC allowlist binding, and strict fail-closed unknown-tenant behavior; both legacy global connector credential and hosted deployment-target fallbacks disabled |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
