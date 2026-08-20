@@ -1202,6 +1202,9 @@ def salesforce_oauth_callback(
         if not refresh_token:
             raise ConnectorError("salesforce_refresh_token_missing")
         tenant_id = validate_tenant_id(str(callback_state["tenant_id"]))
+        tenant = load_tenant(tenant_id)
+        if str((tenant or {}).get("status", "")).casefold() != "active":
+            raise ConnectorError("salesforce_tenant_inactive")
         secret_name = _salesforce_secret_name(tenant_id)
         write_secret_version(secret_name, refresh_token)
         binding = persist_connector_binding(

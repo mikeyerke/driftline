@@ -364,6 +364,42 @@ def test_platform_tenant_provisioning_rejects_duplicate_active_tenant(monkeypatc
     assert response.json()["detail"] == "tenant_already_exists"
 
 
+def test_salesforce_callback_cannot_rebind_deprovisioned_tenant(monkeypatch) -> None:
+    writes: list[str] = []
+    monkeypatch.setattr(
+        api,
+        "_consume_salesforce_state",
+        lambda _state: {
+            "tenant_id": "callback-acme",
+            "email": "owner@example.com",
+            "expires_at": 9_999_999_999,
+            "code_verifier": "verifier",
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "exchange_salesforce_code",
+        lambda *_args, **_kwargs: {
+            "refresh_token": "refresh-token",
+            "instance_url": "https://callback.my.salesforce.com",
+        },
+    )
+    monkeypatch.setattr(api, "load_tenant", lambda _tenant_id: {"status": "disabled"})
+    monkeypatch.setattr(
+        api,
+        "write_secret_version",
+        lambda secret_name, _value: writes.append(secret_name),
+    )
+
+    response = client.get(
+        "/api/connectors/salesforce/oauth/callback",
+        params={"code": "one-time-code", "state": "opaque-state"},
+    )
+
+    assert response.status_code == 503
+    assert writes == []
+
+
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
