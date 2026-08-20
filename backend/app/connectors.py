@@ -384,6 +384,47 @@ def _secret_or_env(env_name: str) -> str:
         raise ConnectorError(f"{env_name.lower()}_secret_read_failed") from exc
 
 
+def _tenant_setting(
+    tenant_id: str | None,
+    connector: str,
+    key: str,
+    env_name: str,
+    default: str = "",
+) -> str:
+    """Resolve non-secret connector targets from an operator-owned profile.
+
+    DRIFTLINE_TENANT_CONNECTOR_CONFIG is optional JSON shaped as
+    {tenant: {connector: {key: value}}}. It carries only bounded target
+    metadata, while credentials and request-supplied targets are rejected.
+    Deployment-wide environment values remain the compatibility fallback.
+    """
+    fallback = os.getenv(env_name, default)
+    if not tenant_id:
+        return fallback
+    raw = os.getenv("DRIFTLINE_TENANT_CONNECTOR_CONFIG", "").strip()
+    if not raw:
+        return fallback
+    try:
+        profiles = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ConnectorError("tenant_connector_config_invalid") from exc
+    if not isinstance(profiles, dict):
+        raise ConnectorError("tenant_connector_config_invalid")
+    try:
+        safe_tenant = validate_tenant_id(tenant_id)
+        safe_connector = validate_connector_name(connector)
+    except ValueError as exc:
+        raise ConnectorError("tenant_connector_config_invalid") from exc
+    profile = profiles.get(safe_tenant, {})
+    if not isinstance(profile, dict):
+        return fallback
+    scoped = profile.get(safe_connector, {})
+    if not isinstance(scoped, dict):
+        return fallback
+    value = scoped.get(key)
+    return str(value).strip() if value is not None else fallback
+
+
 def _tenant_secret_or_env(
     tenant_id: str, connector: str, env_name: str
 ) -> str:
@@ -477,15 +518,22 @@ class JiraConfig:
         enabled = os.getenv("DRIFTLINE_JIRA_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
-            base_url=os.getenv("DRIFTLINE_JIRA_BASE_URL", "").rstrip("/") + "/",
-            email=os.getenv("DRIFTLINE_JIRA_EMAIL", ""),
+            base_url=_tenant_setting(
+                tenant_id, "jira", "base_url", "DRIFTLINE_JIRA_BASE_URL"
+            ).rstrip("/")
+            + "/",
+            email=_tenant_setting(tenant_id, "jira", "email", "DRIFTLINE_JIRA_EMAIL"),
             token=(
                 _tenant_secret_or_env(tenant_id, "jira", "DRIFTLINE_JIRA_TOKEN")
                 if enabled and tenant_id
                 else _secret_or_env("DRIFTLINE_JIRA_TOKEN") if enabled else ""
             ),
-            project_key=os.getenv("DRIFTLINE_JIRA_PROJECT_KEY", ""),
-            issue_type=os.getenv("DRIFTLINE_JIRA_ISSUE_TYPE", "Task"),
+            project_key=_tenant_setting(
+                tenant_id, "jira", "project_key", "DRIFTLINE_JIRA_PROJECT_KEY"
+            ),
+            issue_type=_tenant_setting(
+                tenant_id, "jira", "issue_type", "DRIFTLINE_JIRA_ISSUE_TYPE", "Task"
+            ),
         )
 
     def validate(self) -> None:
@@ -747,8 +795,16 @@ class ConfluenceConfig:
         enabled = os.getenv("DRIFTLINE_CONFLUENCE_ENABLED", "false").casefold() == "true"
         return cls(
             enabled=enabled,
-            base_url=os.getenv("DRIFTLINE_CONFLUENCE_BASE_URL", "").rstrip("/") + "/",
-            email=os.getenv("DRIFTLINE_CONFLUENCE_EMAIL", ""),
+            base_url=_tenant_setting(
+                tenant_id,
+                "confluence",
+                "base_url",
+                "DRIFTLINE_CONFLUENCE_BASE_URL",
+            ).rstrip("/")
+            + "/",
+            email=_tenant_setting(
+                tenant_id, "confluence", "email", "DRIFTLINE_CONFLUENCE_EMAIL"
+            ),
             token=(
                 _tenant_secret_or_env(
                     tenant_id, "confluence", "DRIFTLINE_CONFLUENCE_TOKEN"
@@ -756,8 +812,18 @@ class ConfluenceConfig:
                 if enabled and tenant_id
                 else _secret_or_env("DRIFTLINE_CONFLUENCE_TOKEN") if enabled else ""
             ),
-            space_key=os.getenv("DRIFTLINE_CONFLUENCE_SPACE_KEY", ""),
-            parent_page_id=os.getenv("DRIFTLINE_CONFLUENCE_PARENT_PAGE_ID", ""),
+            space_key=_tenant_setting(
+                tenant_id,
+                "confluence",
+                "space_key",
+                "DRIFTLINE_CONFLUENCE_SPACE_KEY",
+            ),
+            parent_page_id=_tenant_setting(
+                tenant_id,
+                "confluence",
+                "parent_page_id",
+                "DRIFTLINE_CONFLUENCE_PARENT_PAGE_ID",
+            ),
         )
 
     def validate(self) -> None:
@@ -1044,8 +1110,17 @@ class SlackConfig:
                 if enabled and tenant_id
                 else _secret_or_env("DRIFTLINE_SLACK_TOKEN") if enabled else ""
             ),
-            channel_id=os.getenv("DRIFTLINE_SLACK_CHANNEL_ID", ""),
-            base_url=os.getenv("DRIFTLINE_SLACK_BASE_URL", "https://slack.com/api/").rstrip("/") + "/",
+            channel_id=_tenant_setting(
+                tenant_id, "slack", "channel_id", "DRIFTLINE_SLACK_CHANNEL_ID"
+            ),
+            base_url=_tenant_setting(
+                tenant_id,
+                "slack",
+                "base_url",
+                "DRIFTLINE_SLACK_BASE_URL",
+                "https://slack.com/api/",
+            ).rstrip("/")
+            + "/",
         )
 
     def validate(self) -> None:
@@ -1188,9 +1263,15 @@ class GitHubConfig:
                 if enabled and tenant_id
                 else _secret_or_env("DRIFTLINE_GITHUB_TOKEN") if enabled else ""
             ),
-            owner=os.getenv("DRIFTLINE_GITHUB_OWNER", ""),
-            repo=os.getenv("DRIFTLINE_GITHUB_REPO", ""),
-            api_url=os.getenv("DRIFTLINE_GITHUB_API_URL", "https://api.github.com/"),
+            owner=_tenant_setting(tenant_id, "github", "owner", "DRIFTLINE_GITHUB_OWNER"),
+            repo=_tenant_setting(tenant_id, "github", "repo", "DRIFTLINE_GITHUB_REPO"),
+            api_url=_tenant_setting(
+                tenant_id,
+                "github",
+                "api_url",
+                "DRIFTLINE_GITHUB_API_URL",
+                "https://api.github.com/",
+            ),
         )
 
     def validate(self) -> None:

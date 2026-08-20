@@ -234,6 +234,47 @@ def test_tenant_connector_secret_resolution_requires_binding(monkeypatch) -> Non
     assert config.token == "tenant-token"
 
 
+def test_tenant_connector_profile_scopes_non_secret_targets(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_JIRA_BASE_URL", "https://default.atlassian.net")
+    monkeypatch.setenv("DRIFTLINE_JIRA_EMAIL", "default@example.com")
+    monkeypatch.setenv("DRIFTLINE_JIRA_PROJECT_KEY", "DEFAULT")
+    monkeypatch.setenv(
+        "DRIFTLINE_TENANT_CONNECTOR_CONFIG",
+        json.dumps(
+            {
+                "acme": {
+                    "jira": {
+                        "base_url": "https://acme.atlassian.net",
+                        "email": "owner@acme.example",
+                        "project_key": "ACME",
+                        "issue_type": "Task",
+                    }
+                }
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        connector_module,
+        "_tenant_secret_or_env",
+        lambda tenant, connector, env_name: "tenant-token",
+    )
+
+    config = JiraConfig.from_env("acme")
+
+    assert config.base_url == "https://acme.atlassian.net/"
+    assert config.email == "owner@acme.example"
+    assert config.project_key == "ACME"
+    assert config.token == "tenant-token"
+
+
+def test_invalid_tenant_connector_profile_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_TENANT_CONNECTOR_CONFIG", "{not-json")
+
+    with pytest.raises(ConnectorError, match="tenant_connector_config_invalid"):
+        JiraConfig.from_env("acme")
+
+
 def test_tenant_connector_secret_resolution_fails_closed_without_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
     monkeypatch.delenv("DRIFTLINE_JIRA_TOKEN", raising=False)
