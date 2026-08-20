@@ -124,7 +124,9 @@ is still constrained by the same allowlist and ADK tool policy. The operator
 console exposes `/api/monitor/registry` freshness state and `/api/ops/summary`
 runtime/connector guardrails without exposing credentials. Both live and
 identity-free preview mutations are query-capped and rate-limited to bound
-demo spend.
+demo spend. Signed agent calls and workflow mutations use separate per-tenant
+budgets, so one tenant cannot consume another tenant's allowance; this is a
+deployment guardrail, not hosted billing.
 
 Operator source onboarding is a separate signed lane: it persists one exact
 public URL in the isolated Firestore registry, then the bounded scheduler can

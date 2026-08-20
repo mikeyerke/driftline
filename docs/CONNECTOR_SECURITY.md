@@ -72,6 +72,11 @@ filter, so a public console cannot infer another tenant's workflow details.
 The judge-facing synthetic workflow remains deliberately tenantless and
 packet-only.
 
+Agent-call and workflow-mutation budgets are also tenant-scoped in the signed
+lane. A noisy tenant cannot consume another tenant's in-process allowance; the
+public demo and scheduler use separate buckets. These are bounded deployment
+guardrails, not a claim of a hosted billing or usage-metering system.
+
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
 Operator fetches also reject common bot/challenge interstitials before recording
 an observation, so a CAPTCHA or “verify you are human” page cannot masquerade as
