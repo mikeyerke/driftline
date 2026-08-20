@@ -90,6 +90,12 @@ retrieved. The internal scheduler carries the owning tenant into each monitor
 job and applies the tenant-specific quota; it never turns the registry into a
 cross-tenant public crawl.
 
+The registry and freshness endpoints follow the same boundary: unauthenticated
+requests receive only the five judge fixtures, while a signed operator can read
+the exact source metadata and append-only freshness state for its own tenant.
+The endpoint does not return source credentials or bodies, and an unsigned
+request cannot select a tenant by query parameter alone.
+
 ## Operational checks
 
 - `/api/ops/summary` exposes approval posture and connector readiness without secrets.
