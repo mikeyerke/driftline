@@ -2567,6 +2567,35 @@ is no longer needed.
   `104.7s`) instead of an unformatted floating-point value. This is a display
   correction only; it does not change stored telemetry or imply customer ROI.
 
+## 2026-08-20 final live verification on `driftline-00032-fwl`
+
+- Chrome DevTools exercised the public `/api/agent/run` path twice after the
+  rollout. The second direct response was HTTP 200 with `persisted=true`,
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, and an agent trace
+  containing exactly `inspect_source_change` and `get_workflow_state`; the
+  trace recorded Gemini structured analysis and a human approval requirement.
+- Desktop and mobile Lighthouse navigation audits each passed all 57 checks:
+  accessibility 100, best practices 100, SEO 100, and agentic browsing 100.
+  Chrome reported no console messages on the refreshed public console. The
+  snapshot showed the corrected `104.7s` value-proof rendering, explicit
+  synthetic/public-source labels, and the anonymous packet-only guardrail.
+- A tenant-signed live connector binding-health probe returned HTTP 200 with
+  four healthy, namespace-verified connectors (Jira, Confluence, Slack,
+  GitHub), zero attention items, and Salesforce `not_configured`. The response
+  confirmed `credential_values_exposed=false` and returned only profile keys,
+  never secret values.
+- A tenant-signed aggregate context probe returned HTTP 200 for Jira project
+  `KAN` (18 open issues), Confluence space `DRIFT` (5 pages), Slack channel
+  `C0BRGFUSADA` (27 recent messages), and GitHub repository
+  `mikeyerke/driftline` (0 open issues and 0 open pull requests). Its contract
+  remained `aggregate_metadata_only`, `persisted=false`, and no message or
+  document bodies were returned.
+- These are live deployment and connector-read checks, not customer-pilot
+  outcomes. Salesforce still requires the owner to complete the open login and
+  consent handoff; no Salesforce data claim is made. A real pilot still needs a
+  participating team and before/after evidence before any ROI, time-saved,
+  revenue, retention, or willingness-to-pay field can be populated.
+
 ## 2026-08-20 Salesforce PKCE and source-alignment release
 
 - Source commit: `37cf155` (public privacy/terms pages) on top of `f6a6442`
