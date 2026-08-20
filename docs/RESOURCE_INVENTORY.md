@@ -202,6 +202,11 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   its Firestore workflow read showed five events, a 64-character evidence
   hash, and the redacted ADK trace. The new revision has no severity `ERROR`
   Cloud Logging entries.
+- Commit `9030132` adds an explicit `.gcloudignore`; `gcloud meta
+  list-files-for-upload` confirmed that only the two documented example env
+  files are included while local `.env` files, virtualenvs, dependencies,
+  generated bundles, and screenshots are excluded. Final-head GitHub Actions
+  run `32413254910` passed the frozen-lock backend suite and frontend build.
 
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
