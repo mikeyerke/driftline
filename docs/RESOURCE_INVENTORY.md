@@ -184,6 +184,25 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   endpoint still returned HTTP 200 and Cloud Run remained on revision
   `driftline-00013-d9g` at 100% traffic.
 
+## 2026-08-20 Dedicated Cloud Build deployment (live)
+
+- Commit `7bcdb41` adds explicit `CLOUD_LOGGING_ONLY` configuration required
+  for a custom Cloud Build service account and keeps deployment behind the
+  project-guarded `scripts/deploy.sh` wrapper. The wrapper verifies the active
+  gcloud project and selects `driftline-build` instead of the default Compute
+  identity.
+- Build `315a3056-d2fe-4a8b-b44a-9530989ae19a` completed `SUCCESS` as
+  `projects/driftline-hackathon-2026/serviceAccounts/driftline-build@...`,
+  produced image digest
+  `sha256:48e4d5bcdc8ed6ec3ec44f0d1ac4d76a6b18a450529c4efa36fca23b0285cce8`,
+  and deployed revision `driftline-00014-4ws` at 100% traffic.
+- Post-deployment `/health` returned HTTP 200. A direct public agent run
+  returned `execution_mode=google_adk`, `model=gemini-3.5-flash`,
+  `persisted=true`, `data_mode=public_source`, and `source_status=needs_approval`;
+  its Firestore workflow read showed five events, a 64-character evidence
+  hash, and the redacted ADK trace. The new revision has no severity `ERROR`
+  Cloud Logging entries.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
