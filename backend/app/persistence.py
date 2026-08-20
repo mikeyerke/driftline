@@ -526,7 +526,7 @@ def reserve_tenant_rate_limit(
 
     @firestore.transactional
     def reserve(transaction: firestore.Transaction) -> bool:
-        snapshot = transaction.get(document)
+        snapshot = next(iter(transaction.get(document)))
         current = int((snapshot.to_dict() or {}).get("count", 0)) if snapshot.exists else 0
         if current >= limit:
             return False
