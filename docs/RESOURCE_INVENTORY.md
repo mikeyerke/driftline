@@ -17,6 +17,29 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Evidence-mix transparency release (current)
+
+- Source commit `876e98b` adds an explicit evidence-mix breakdown to the public
+  Value proof panel and makes signed value metrics report
+  `observed_tenant_records`. The API separates workflow `data_mode` counts and
+  job run modes, and exposes tenant-scoped versus tenantless record counts.
+  This prevents sandbox activity from being misread as customer traction.
+- Cloud Build `6ee6f0cb-244f-471c-a30d-4e62cd1bb3cb` completed `SUCCESS` after
+  the Cloud Run deploy race settled; image digest
+  `sha256:a0d1602c1f4cc6bb00a132220492442b67060a2b1809e6d25164c51d442f49b6`,
+  Cloud Run revision `driftline-00164-r6r` serves 100% of traffic. The live
+  service remains in project `driftline-hackathon-2026`, with scale-to-zero and
+  max-one settings unchanged.
+- Fresh public value proof reports `39` public-source workflows and `4`
+  synthetic replays, with `0` tenant-scoped and `42` tenantless records in the
+  anonymous scope. These are isolated deployment observations, not customer,
+  revenue, or adoption claims.
+- The final desktop/mobile audit passed with no overflow, console errors, or
+  failed requests. The complete journey passed scan, evidence, artifact
+  selection, approval, completion, and reopen/undo; latest verified job is
+  `job-12c151671648`, workflow `00b6ce22-ab09-421c-a59a-01332cc8a5ab`, with
+  `gemini-3.5-flash` and `google_adk` recorded.
+
 ## 2026-08-20 Tenant credential enrollment release (current)
 
 - Source commits `19d7887` and `dec00ac` add the tenant-scoped credential
