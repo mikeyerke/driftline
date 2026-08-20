@@ -39,6 +39,7 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert ops_payload["crm"]["salesforce"]["mode"] == "prepared_only"
     assert ops_payload["approval_security"]["external_writes_require_signed"] is True
     assert ops_payload["approval_security"]["credential_model"]["tenant_bound"] is True
+    assert ops_payload["jobs"]["dead_lettered"] == 0
 
     value_proof = client.get("/api/ops/value-proof")
     assert value_proof.status_code == 200
@@ -127,6 +128,50 @@ def test_signed_tenant_usage_is_aggregate_and_not_billing(monkeypatch) -> None:
     assert payload["metering"]["durable"] is True
     assert payload["metering"]["billing_enabled"] is False
     assert payload["credential_values_exposed"] is False
+
+
+def test_signed_job_failure_ledger_is_tenant_filtered_and_redacted(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "failure-ledger-secret"
+    actor = "Failure reader"
+    tenant_id = "failure-ledger-acme"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+    api.persist_job_failure(
+        {
+            "job_id": "job-terminal-1",
+            "tenant_id": tenant_id,
+            "attempts": 3,
+            "failed_at": "2026-08-20T00:00:00+00:00",
+            "exception_text": "must never be retained",
+        }
+    )
+    token = hmac.new(
+        secret.encode(), f"job-failures:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+
+    response = client.get(
+        "/api/ops/job-failures",
+        params={
+            "operator": actor,
+            "tenant_id": tenant_id,
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["tenant_id"] == tenant_id
+    assert payload["failures"][0]["status"] == "dead_lettered"
+    assert payload["failures"][0]["attempts"] == 3
+    assert "exception_text" not in str(payload)
+    assert payload["credential_values_exposed"] is False
+
+
+def test_job_failure_ledger_requires_signed_operator() -> None:
+    response = client.get("/api/ops/job-failures")
+    assert response.status_code == 422
 
 
 def test_outcome_measurements_require_signed_operator(monkeypatch) -> None:

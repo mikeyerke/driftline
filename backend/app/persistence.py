@@ -24,6 +24,7 @@ from .models import (
 
 COLLECTION = "driftline_workflows"
 JOBS_COLLECTION = "driftline_jobs"
+JOB_FAILURES_COLLECTION = "driftline_job_failures"
 OUTCOMES_COLLECTION = "driftline_outcome_measurements"
 SALESFORCE_COLLECTION = "driftline_salesforce_connections"
 SALESFORCE_OAUTH_STATES_COLLECTION = "driftline_salesforce_oauth_states"
@@ -41,6 +42,7 @@ _tenant_memberships_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenant_audit_memory: list[dict[str, Any]] = []
 _tenant_usage_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenant_rate_limit_memory: dict[tuple[str, str, int], int] = {}
+_job_failures_memory: dict[str, dict[str, Any]] = {}
 _tenant_provision_lock = Lock()
 
 
@@ -282,6 +284,57 @@ def list_jobs(limit: int = 8) -> list[JobState]:
             )
         )
     return jobs
+
+
+def persist_job_failure(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist one bounded dead-letter-style job failure marker.
+
+    Cloud Tasks removes a task after its retry policy is exhausted. Keeping a
+    separate metadata-only marker lets an operator see that terminal failure,
+    while the normal job record remains the canonical execution history. The
+    marker intentionally excludes prompts, source bodies, credentials, and
+    exception text.
+    """
+    job_id = str(payload.get("job_id", "")).strip()
+    if not job_id:
+        raise ValueError("job_failure_id_required")
+    safe = {
+        "job_id": job_id,
+        "workflow_id": str(payload.get("workflow_id", "")) or None,
+        "tenant_id": str(payload.get("tenant_id", "")) or "",
+        "status": "dead_lettered",
+        "attempts": max(0, int(payload.get("attempts", 0))),
+        "error_code": "agent_failed_after_bounded_retries",
+        "failed_at": payload.get("failed_at") or utc_now(),
+        "expires_at": _retention_expiry(),
+    }
+    _job_failures_memory[job_id] = dict(safe)
+    if _enabled():
+        _client().collection(JOB_FAILURES_COLLECTION).document(job_id).set(safe)
+    return dict(safe)
+
+
+def list_job_failures(
+    tenant_id: str | None = None, limit: int = 50
+) -> list[dict[str, Any]]:
+    """List bounded terminal failures, optionally filtered to one tenant."""
+    bounded_limit = max(1, min(limit, 100))
+    if _enabled():
+        collection = _client().collection(JOB_FAILURES_COLLECTION)
+        query = (
+            collection.where("tenant_id", "==", tenant_id)
+            if tenant_id is not None
+            else collection
+        )
+        failures = [snapshot.to_dict() or {} for snapshot in query.stream()]
+    else:
+        failures = [
+            dict(item)
+            for item in _job_failures_memory.values()
+            if tenant_id is None or item.get("tenant_id") == tenant_id
+        ]
+    failures.sort(key=lambda item: str(item.get("failed_at", "")), reverse=True)
+    return failures[:bounded_limit]
 
 
 def persist_outcome_measurement(payload: dict[str, Any]) -> None:

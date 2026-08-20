@@ -50,8 +50,13 @@ downstream work surfaces, applies the
 approval policy, and records state transitions. Cloud Run hosts the API and
 console; Firestore stores jobs, workflows, snapshot history, and immutable
 audit-event documents. Failed jobs are retried by Cloud Tasks at most three
-times with bounded backoff. Persisted jobs, workflows, source observations, and
-outcome measurements carry an explicit 30-day TTL by default.
+times with bounded backoff. When delivery exhausts that policy, Driftline also
+writes a tenant-filtered, metadata-only terminal marker to
+`driftline_job_failures`; signed operators can inspect those dead-letter-style
+markers through `/api/ops/job-failures` without prompts, source bodies,
+exception text, or credentials. Persisted jobs, workflows, source observations,
+outcome measurements, and failure markers carry an explicit 30-day TTL by
+default.
 
 The direct `/api/agent/run` path preserves the same boundary in both modes:
 the public judge request is tenantless and packet-safe, while a signed operator

@@ -162,6 +162,9 @@ request cannot select a tenant by query parameter alone.
 ## Operational checks
 
 - `/api/ops/summary` exposes approval posture and connector readiness without secrets.
+- `/api/ops/job-failures` is a signed, tenant-filtered dead-letter-style view
+  of jobs that exhausted Cloud Tasks retries; it returns only bounded metadata
+  and follows the configured retention window.
 - `/api/ops/value-proof` reports observed deployment counters and lists outcomes that remain unmeasured.
 - `/api/connectors/context/summary` is signed-only and returns the bounded
   internal workload context contract. Disabled connectors report

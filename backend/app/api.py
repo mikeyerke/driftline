@@ -78,6 +78,7 @@ from .persistence import (
     delete_salesforce_connection,
     list_connector_bindings,
     list_connector_profiles,
+    list_job_failures,
     list_jobs,
     list_outcome_measurements,
     list_tenant_audit_events,
@@ -93,6 +94,7 @@ from .persistence import (
     persist_connector_binding,
     persist_connector_profile,
     persist_job,
+    persist_job_failure,
     persist_outcome_measurement,
     persist_salesforce_connection,
     persist_salesforce_oauth_state,
@@ -1057,6 +1059,18 @@ async def _run_job(job_id: str) -> None:
         else:
             job.status = "failed"
             job.error = "The agent job failed after bounded retries."
+            try:
+                persist_job_failure(
+                    {
+                        "job_id": job.job_id,
+                        "workflow_id": job.workflow_id,
+                        "tenant_id": job.tenant_id,
+                        "attempts": job.run_attempts,
+                        "failed_at": utc_now(),
+                    }
+                )
+            except Exception:
+                logger.exception("Unable to persist terminal failure for %s", job.job_id)
     _set_job(job)
 
 
@@ -1530,6 +1544,11 @@ def get_ops_summary(
     source_health = source_registry_health(
         tenant_id=identity.get("tenant_id") if identity else None
     )
+    job_failures = (
+        list_job_failures(identity["tenant_id"], limit=20)
+        if identity is not None
+        else []
+    )
     connector_names = ("jira", "confluence", "slack", "github")
     return {
         "generated_at": utc_now(),
@@ -1605,6 +1624,7 @@ def get_ops_summary(
         },
         "jobs": {
             "total": len(jobs),
+            "dead_lettered": len(job_failures),
             "by_status": {
                 status: sum(job.status == status for job in jobs)
                 for status in {job.status for job in jobs}
@@ -3077,6 +3097,38 @@ def get_job(
         identity_token=identity_token,
     )
     return _job_payload(job)
+
+
+@app.get("/api/ops/job-failures")
+def get_job_failures(
+    operator: str,
+    tenant_id: str | None = None,
+    limit: int = 50,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return terminal async failures for the caller's tenant only.
+
+    Cloud Tasks removes a task after its bounded retry policy is exhausted;
+    this signed, metadata-only ledger preserves the operational signal without
+    returning prompts, source bodies, exception text, or credentials.
+    """
+    identity = _verify_approval_mode(
+        "job-failures",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    failures = list_job_failures(identity["tenant_id"], limit=limit)
+    return {
+        "status": "ok",
+        "tenant_id": identity["tenant_id"],
+        "failures": failures,
+        "retention": f"bounded_{os.getenv('DRIFTLINE_RETENTION_DAYS', '30')}_days",
+        "credential_values_exposed": False,
+    }
 
 
 @app.post("/api/jobs/{job_id}/run")
