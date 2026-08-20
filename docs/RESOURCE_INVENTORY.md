@@ -222,6 +222,17 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   the live visual route returned public-source metadata with a 64-character
   evidence hash, and the new revision has no severity `ERROR` logs.
 
+## 2026-08-20 Supply-chain maintenance gate (external)
+
+- Repository credential-pattern scan found no committed API keys, private-key
+  blocks, or provider token formats. `npm audit --audit-level=moderate` found
+  zero info/low/moderate/high/critical vulnerabilities across the locked
+  frontend dependency tree.
+- Commit `2931e37` adds weekly Dependabot coverage for the backend `uv.lock`,
+  frontend `package-lock.json`, and GitHub Actions. The final-head hosted
+  verification run `32414028439` passed the frozen-lock backend suite and
+  frontend production build.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
