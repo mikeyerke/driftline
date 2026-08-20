@@ -45,9 +45,12 @@ legacy deployment-wide connector secret fallback is explicitly disabled in
 Cloud Run. Salesforce refresh tokens use the same tenant boundary, while
 Firestore stores only the tenant, instance URL, scopes, and health status—never
 a token. Firestore job, workflow, outcome, source snapshot, and connector
-binding records carry bounded `expires_at` fields for TTL cleanup; the
-configured deployment window is 30 days unless an operator changes it
-deliberately.
+binding records are separate control-plane data: tenant, membership, and
+binding metadata intentionally do not carry the 30-day content TTL and remain
+until an owner explicitly deprovisions them. `/api/tenants` exposes only the
+caller's tenant metadata; `/api/tenants/members` is owner-only. Content records
+continue to use bounded `expires_at` fields for TTL cleanup; the configured
+deployment window is 30 days unless an operator changes it deliberately.
 
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
 

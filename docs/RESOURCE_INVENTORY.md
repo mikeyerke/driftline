@@ -17,6 +17,29 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Durable tenant control-plane release
+
+- Source commit: `6f89e20` (durable tenant and membership metadata, tenant
+  metadata routes, and binding lifecycle correction), pushed to
+  `https://github.com/mikeyerke/driftline`.
+- Cloud Build `a6d33f9d-c1cc-4900-81dc-67bc55fc15ed` — `SUCCESS`; Artifact
+  Registry image digest
+  `sha256:37daa8cbd50984967d132a35ea94de8d742d957f206790d042f183941467da66`.
+- Cloud Run revision `driftline-00091-n64` is ready and serves 100% of traffic.
+  Health, signed context, tenant metadata, signed approval/undo, and the
+  unallowlisted-tenant `403` probe all passed; the newest-revision error query
+  returned no entries.
+- Firestore now has explicit `driftline_tenants` and
+  `driftline_tenant_memberships` control-plane collections, alongside
+  `driftline_connector_bindings`. Tenant and membership metadata never receives
+  the 30-day content TTL; it remains until explicit owner deprovisioning.
+  The four connector bindings were reactivated after deployment to remove the
+  old expiry field.
+- Signed `/api/tenants` returns caller-tenant metadata and binding/member
+  counts; owner-only `/api/tenants/members` returns role metadata only. No
+  credential values or bearer tokens are returned. Durable memberships can
+  authorize OIDC principals in addition to bootstrap environment mappings.
+
 ## 2026-08-20 Tenant allowlist hardening release
 
 - Source commits: `cfffd23` (explicit HMAC tenant allowlist) and `2fe6cb5`
@@ -126,13 +149,13 @@ not invoked by that public path.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00087-n7p` from commit `2fe6cb5` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; connector credentials are tenant-bound through isolated Secret Manager bindings |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00091-n64` from commit `6f89e20` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, timeout 300s; connector credentials are tenant-bound through isolated Secret Manager bindings |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline@sha256:a50375f59bf1fed5e5c334e7e90481266132037695c8b5926b4f958d6a571179` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline@sha256:37daa8cbd50984967d132a35ea94de8d742d957f206790d042f183941467da66` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, and `audit_events` subcollections only |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |

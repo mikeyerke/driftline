@@ -89,6 +89,11 @@ deterministic Secret Manager secret and activates its metadata-only binding via
 `POST /api/connectors/{connector}/binding`; signed workflow actions then read
 only that tenant's secret. Global connector secrets are disabled in the hosted
 runtime, and `GET /api/connectors/bindings` never returns credential values.
+Tenant and role metadata is durable in the isolated Firestore control plane;
+signed `GET /api/tenants` exposes only the caller's tenant, while the
+owner-only `GET /api/tenants/members` route exposes role metadata without
+tokens. Tenant control-plane records are retained until explicit
+deprovisioning rather than expiring with content records.
 
 Signals do not have to become work. A named reviewer can dismiss a
 needs-approval signal as non-material with a required reason; Driftline records
