@@ -146,6 +146,34 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `143 passed`; Ruff, frontend production build, and `git diff --check` are
   clean.
 
+## 2026-08-20 Unified tenant credential lifecycle release
+
+- Source commit `aca16ea` unifies Salesforce refresh-token storage with the
+  shared tenant connector namespace: `driftline-tenant-<tenant>-salesforce`.
+  OAuth callback success now creates the metadata-only Salesforce binding and
+  audit event; aggregate health requires the connection record and an active,
+  exact-name binding. Disconnect revokes the binding and records an audit event
+  without deleting the provider secret.
+- Platform bootstrap now passes its initial audit event into the tenant
+  transaction. Firestore commits tenant, owner membership, and audit metadata
+  together; the in-memory fallback uses the same process lock. This removes the
+  prior rare state where a tenant could exist without a bootstrap audit.
+- Cloud Build `97c9d7ca-712b-49d8-b100-e86324ebf90c` completed `SUCCESS`;
+  image digest `sha256:3ad6e1efd96201f28d08db0ae9b5d96acd36cc674fdfed1e93e71ca81b0369c7`;
+  Cloud Run revision `driftline-00127-d4t` serves 100% of traffic.
+- Live checks: active project remained `driftline-hackathon-2026`; `/health`
+  returned Firestore-backed `ok`; public invoker is present; revision error
+  logs are zero. The public ops summary still reports Salesforce honestly as
+  `oauth_ready` / `awaiting_authorization` because no real Salesforce callback
+  has been completed.
+- Secret Manager `driftline-tenant-driftline-demo-salesforce` was created
+  with Driftline labels and runtime-only accessor plus version-adder IAM. It
+  has no credential version yet; the existing legacy `driftline-sf-driftline-demo`
+  secret remains retained but is no longer the tenant naming path.
+- Full backend suite: `145 passed`; Ruff, compileall, and `git diff --check`
+  are clean. Salesforce remains unconnected until a real org consent callback
+  and read probe succeed; no connected-org claim is made.
+
 ## 2026-08-20 Tenant identity and read-isolation releases
 
 - Source commits `b783a74` (tenant identity propagation through signed monitor
@@ -740,13 +768,13 @@ not invoked by that public path.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00126-ds5` from commit `432e480` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, tenant-specific break-glass signing, durable Firestore tenant admission, atomic OIDC-only platform tenant bootstrap metadata route, no active deployment-wide signer or HMAC allowlist binding, and strict fail-closed unknown-tenant behavior; both legacy global connector credential and hosted deployment-target fallbacks disabled |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00127-d4t` from commit `aca16ea` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, tenant-specific break-glass signing, durable Firestore tenant admission, atomic OIDC-only platform tenant bootstrap metadata + audit transaction, no active deployment-wide signer or HMAC allowlist binding, and strict fail-closed unknown-tenant behavior; Salesforce OAuth refresh tokens use the same tenant connector namespace; both legacy global connector credential and hosted deployment-target fallbacks disabled |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |
 | Cloud Scheduler identity | `driftline-scheduler@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Dedicated `roles/run.invoker` on Driftline Cloud Run only; no reuse of runtime or build identity |
 | Cloud Build identity | `driftline-build@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Build, deploy, service-usage roles; can impersonate only the Driftline runtime identity |
-| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline@sha256:4e8c5b46588c39f9c7a22b19b7c2b216ba51842d2b21e1c7746501822af5302f` |
+| Artifact Registry | `driftline` Docker repo in `us-central1` | Active | Latest verified image: `us-central1-docker.pkg.dev/driftline-hackathon-2026/driftline/driftline@sha256:3ad6e1efd96201f28d08db0ae9b5d96acd36cc674fdfed1e93e71ca81b0369c7` |
 | Firestore database | `(default)` Native in `us-central1` | Active, directly write/read verified | `driftline_jobs`, `driftline_workflows`, `audit_events`, tenant control-plane metadata, `driftline_tenant_audit_events`, `driftline_tenant_usage`, `driftline_tenant_rate_limits`, and `driftline_tenant_connector_profiles`; tenant lifecycle, usage, rate-limit, profile, and binding records are metadata-only and have no content TTL |
 | Cloud Storage artifact bucket | `gs://driftline-artifacts-724959673622` in `us-central1` | Active, uniform access, public access prevention, object versioning enabled | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`; runtime has object creator/viewer only; paths `actions/<workflow>/<action>/packet.md` and `rollback.json` |
 | Cloud Build logs bucket | `gs://724959673622-us-central1-cloudbuild-logs` | Created by regional Cloud Build | Labels: `app=driftline`, `environment=build`, `hackathon=all-things-agentic` |
@@ -765,6 +793,7 @@ not invoked by that public path.
 | Secret Manager | `driftline-tenant-driftline-demo-confluence` | Active, version 1 verified; tenant binding active | Same isolated labels with `connector=confluence`; accessor is the Driftline runtime service account only; no token value is stored in Git or docs |
 | Secret Manager | `driftline-tenant-driftline-demo-slack` | Active, version 1 verified; tenant binding active | Same isolated labels with `connector=slack`; accessor is the Driftline runtime service account only; no token value is stored in Git or docs |
 | Secret Manager | `driftline-tenant-driftline-demo-github` | Active, version 1 verified; tenant binding active | Same isolated labels with `connector=github`; accessor is the Driftline runtime service account only; no token value is stored in Git or docs |
+| Secret Manager | `driftline-tenant-driftline-demo-salesforce` | Active container, no credential version; reserved for tenant OAuth refresh token | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`, `tenant=driftline-demo`, `connector=salesforce`; runtime has accessor and version-adder on this exact secret; no Salesforce consent has completed |
 | Secret Manager | `driftline-tenant-operator-driftline-demo` | Active, version 1 verified; tenant-specific break-glass signer | Labels: `app=driftline`, `environment=production`, `hackathon=all-things-agentic`, `tenant=driftline-demo`, `kind=operator-signing`; accessor is the Driftline runtime service account only; not exposed through Cloud Run environment variables or API responses |
 | Secret Manager | `driftline-tenant-driftline-demo-operator` | Active, version 1; unused recoverable provisioning artifact | Same Driftline/tenant/operator labels; not referenced by the deployed prefix and safe to delete later after review |
 
