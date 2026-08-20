@@ -247,6 +247,11 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   without claiming a second-customer verification.
 - The local regression suite is `127 passed`; Ruff, frontend production
   build, and `git diff --check` passed.
+- `scripts/provision_tenant_connector_secrets.sh` was exercised against the
+  existing `driftline-demo` tenant. It was idempotent, touched only the four
+  deterministic tenant secrets, and re-verified runtime-only Secret Manager
+  access without accepting or printing credential values. The repeatable
+  lifecycle is documented in `docs/TENANT_ONBOARDING.md`.
 
 ## 2026-08-20 Membership status enforcement release
 
