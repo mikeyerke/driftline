@@ -136,16 +136,17 @@ created during the contest.
   project-scoped budget guardrail.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The latest runtime source is commit `2ca52dc`, deployed through Cloud Build
-  `4bf43456-d804-4b99-a1aa-23bd97cadebd` and the dedicated `driftline-build`
-  identity as Cloud Run revision `driftline-00019-7x9` at 100% traffic after
+  The latest runtime source is commit `eb66e30`, deployed through Cloud Build
+  `18b0c587-6636-4540-9fec-498a975acb13` and the dedicated `driftline-build`
+  identity as Cloud Run revision `driftline-00020-w65` at 100% traffic after
   local and CI gates passed. A live direct-agent canary returned the two
   allowlisted tool calls without echoing anonymous query or user fields. The
   signed tenant-filtered pilot report is deployed; the signed report currently
   returns `not_measured` with zero records, and an unsigned public request
-  returned HTTP 401. Fresh browser QA passed the live scan, evidence, approval,
-  completion, activity log, timeline, and 390px mobile path without console
-  errors.
+  returned HTTP 401. The agent trace now updates its public status after
+  approval, reopen, and dismissal. Fresh browser QA passed the live scan,
+  evidence, approval, completion, activity log, timeline, and 390px mobile path
+  without console errors.
 - The tenant credential data plane is now canonical and fail-closed: durable
   tenant memberships, per-tenant Secret Manager namespaces, impersonated
   service identities, pinned versions, rotation/revocation, operation scopes,
