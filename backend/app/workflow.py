@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from .impact import build_impact_graph, integration_targets, profile_for
+from .materiality import build_change_card
 from .models import (
     ActionItemStatus,
     ArtifactImpact,
@@ -67,6 +68,21 @@ class DriftlineWorkflow:
         )
         state.updated_at = self._timestamp()
         return event_id
+
+    @staticmethod
+    def _refresh_change_card(state: WorkflowState) -> None:
+        if state.evidence is None:
+            state.change_card = {}
+            return
+        state.change_card = build_change_card(
+            workflow_id=state.workflow_id,
+            evidence=state.evidence,
+            impacts=state.impacts,
+            impact_graph=state.impact_graph,
+            data_mode=state.data_mode,
+            approval=state.approval,
+            action_items=state.action_items,
+        )
 
     def restore(self, state: WorkflowState) -> WorkflowState:
         """Register a state loaded from durable persistence."""
@@ -139,6 +155,7 @@ class DriftlineWorkflow:
             ],
         )
         state.integration_targets = integration_targets(profile["impacts"])
+        self._refresh_change_card(state)
         self._event(
             state,
             "impact_mapper",
@@ -285,6 +302,7 @@ class DriftlineWorkflow:
             for packet in packets
         ]
         state.action_record["action_item_count"] = len(state.action_items)
+        self._refresh_change_card(state)
         packet_count = sum(
             1 for value in requested_actions.values() if value == "packet"
         )
@@ -339,6 +357,7 @@ class DriftlineWorkflow:
             )
             for i in state.impacts
         ]
+        self._refresh_change_card(state)
         self._event(state, "policy_engine", "decision_reopened")
         state.updated_at = self._timestamp()
         return state
@@ -359,6 +378,15 @@ def packet_markdown(state: WorkflowState) -> str:
         f"- Firestore action record: `{(state.action_record or {}).get('action_id', 'none')}`",
         f"- Action status: `{(state.action_record or {}).get('status', 'none')}`",
         f"- Google Cloud operational output: `{(state.action_record or {}).get('operational_side_effect', 'not yet published')}`",
+        "",
+        "## Materiality and exposure",
+        "",
+        f"- Materiality: `{(state.change_card.get('materiality') or {}).get('severity', 'unknown')}` / `{(state.change_card.get('materiality') or {}).get('score', 'unknown')}/100`",
+        f"- Decision window: {(state.change_card.get('materiality') or {}).get('decision_window', 'Owner review')}",
+        f"- Exposure: {(state.change_card.get('exposure') or {}).get('label', 'Unavailable')}",
+        f"- Evidence confidence: {round(float((state.change_card.get('source_quality') or {}).get('confidence', 0.0)) * 100)}%",
+        f"- Contradiction review: {(state.change_card.get('source_quality') or {}).get('contradiction_status', 'not_checked')}",
+        f"- Closure: {(state.change_card.get('closure') or {}).get('state', 'approval_pending')}",
         "",
         "## Source change",
         "",
@@ -381,6 +409,18 @@ def packet_markdown(state: WorkflowState) -> str:
                 "",
             ]
         )
+    role_packets = state.change_card.get("role_packets") or []
+    if role_packets:
+        lines.extend(["## Role packets", ""])
+        for packet in role_packets:
+            lines.extend(
+                [
+                    f"- **{packet.get('role', 'Owner')}** · {packet.get('artifact', 'Work surface')}",
+                    f"  - Next action: {packet.get('next_action', 'Review the cited evidence')}",
+                    f"  - Status: `{packet.get('status', 'prepared')}` · evidence bound: `{packet.get('evidence_bound', False)}`",
+                ]
+            )
+        lines.append("")
     return "\n".join(lines)
 
 

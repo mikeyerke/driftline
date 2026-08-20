@@ -19,6 +19,7 @@ import IntegrationPanel from "./components/IntegrationPanel";
 import ChangeTimeline from "./components/ChangeTimeline";
 import ScenarioSimulator from "./components/ScenarioSimulator";
 import ChangeGenomePanel from "./components/ChangeGenomePanel";
+import ChangeCardPanel from "./components/ChangeCardPanel";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -215,7 +216,7 @@ export default function App() {
       <Sidebar selected={selectedNav} onSelect={selectNav} />
       <main id="main-content">
         <header className="topbar">
-          <h1>Promise drift operations</h1>
+          <h1>Driftline promise drift operations</h1>
           <div className="topbar-actions">
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
             <span className="workspace-button">Evaluation sandbox<ChevronDown size={15} /></span>
@@ -247,6 +248,8 @@ export default function App() {
               <div><span>Decision scope</span><strong>{workflowState?.impact_graph?.summary?.artifact_count || 4} downstream surfaces</strong><p>Review each mapped owner surface before approving the bounded outputs.</p></div>
               <div><span>Guardrail</span><strong>Human approval required</strong><p>High-risk changes stop here. The agent cannot approve its own action.</p></div>
             </section>
+
+            <ChangeCardPanel card={workflowState?.change_card} />
 
             {structuredAnalysis && (
               <section className={`analysis-brief ${structuredAnalysis.mode === "gemini_structured" ? "verified" : "fallback"}`} aria-label="Structured impact analysis">

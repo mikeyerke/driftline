@@ -48,6 +48,28 @@ The console also compares allowlisted pricing visuals with Gemini vision,
 previews approve/grandfather/defer counterfactuals without writes, and keeps an
 append-only change genome of recurring source transitions and unresolved work.
 
+### The utility wedge: a Change Card, not an alert
+
+Every verified signal becomes a deterministic **Change Card**. It answers four
+operator questions in one place: what changed (hash-bound before/after
+evidence), why it matters now (materiality and decision window), which role
+owns the next move (PMM, Sales/RevOps, Product, CS, Support, or Legal), and
+whether the resulting work actually closed. The card produces role-specific
+packets from one evidence set and carries the same evidence hash into action
+items and rollback markers. In the synthetic demo, CRM opportunity and renewal
+counts are intentionally shown as unavailable; once a permissioned Salesforce
+read-only connection is verified, those fields can be populated without
+changing the policy gate or exposing raw records to the public console.
+
+The product deliberately measures operational proof rather than inventing ROI:
+workflow throughput, approval latency, source observations, owner-action
+completion, reversals, and source health are observable at
+`/api/ops/value-proof`. Hours saved, revenue lift, retention impact, and
+willingness-to-pay remain `not_measured` until a real pilot supplies aggregate
+before/after evidence. See
+[`docs/UTILITY_RESEARCH_2026-08-20.md`](docs/UTILITY_RESEARCH_2026-08-20.md)
+for the research-backed scope and deferred work.
+
 The Google ADK coordinator is configured for the Gemini 3.5 Flash model and a
 strictly allowlisted read/inspect tool set for reasoning. A second ADK task
 performs structured, evidence-hash-bound impact analysis; its JSON is validated

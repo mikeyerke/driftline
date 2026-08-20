@@ -69,6 +69,7 @@ def _state_from_dict(payload: dict[str, Any]) -> WorkflowState:
         action_record=payload.get("action_record"),
         action_items=[dict(item) for item in payload.get("action_items", [])],
         impact_graph=dict(payload.get("impact_graph") or {}),
+        change_card=dict(payload.get("change_card") or {}),
         integration_targets=[
             dict(item) for item in payload.get("integration_targets", [])
         ],

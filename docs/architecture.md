@@ -13,6 +13,8 @@ flowchart TD
     E --> G{Deterministic policy gate}
     G --> H[Named human decision]
     H --> P[Bounded sandbox packet + owner action items]
+    E --> CC[Change Card: materiality, exposure, role packets, closure]
+    CC --> H
     W --> F[(Firestore jobs, workflow + audit events)]
     P --> F
     P --> GCS[(Versioned Cloud Storage action artifacts)]
@@ -97,3 +99,13 @@ disabled until a real org authorizes it. `/api/ops/value-proof` reports
 observed deployment counts, approval latency, and action-item completion while
 explicitly separating those observations from unmeasured customer ROI, time
 saved, revenue lift, and willingness-to-pay.
+
+The Change Card is the product's decision unit. It is assembled from verified
+source evidence, the deterministic impact graph, and action lifecycle state.
+Its internal-exposure block is deliberately capability-aware: synthetic runs
+say “not CRM data” and show unavailable opportunity/renewal counts; only a
+verified, permissioned Salesforce read lane may populate those fields. Role
+packets are generated for the owners already named by the impact profile, not
+for arbitrary recipients. This keeps the high-value change-to-work loop useful
+before a customer connector exists and prevents a model from manufacturing
+business exposure.

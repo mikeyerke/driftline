@@ -53,6 +53,7 @@ from .connectors import (
     write_secret_version,
 )
 from .decision_copilot import validate_approval_choice
+from .materiality import build_change_card
 from .memory import build_memory_summary
 from .models import ActionItemStatus, JobState, WorkflowState, utc_now
 from .multimodal import (
@@ -1048,6 +1049,9 @@ def get_value_proof() -> dict[str, object]:
         workflows = list_workflows(50)
     action_items = [item for state in workflows for item in state.action_items]
     source_health = source_registry_health()
+    change_cards = [state.change_card for state in workflows if state.change_card]
+    materiality_cards = [card.get("materiality") or {} for card in change_cards]
+    closure_cards = [card.get("closure") or {} for card in change_cards]
     external_writes = sum(
         bool((state.action_record or {}).get("external_write")) for state in workflows
     )
@@ -1113,6 +1117,14 @@ def get_value_proof() -> dict[str, object]:
                 if action_items
                 else None
             ),
+            "change_cards": len(change_cards),
+            "high_materiality_cards": sum(
+                item.get("severity") == "high" for item in materiality_cards
+            ),
+            "cards_with_named_owners": sum(
+                bool(card.get("owners")) for card in change_cards
+            ),
+            "cards_closed": sum(item.get("state") == "closed" for item in closure_cards),
         },
         "not_measured": [
             "hours_saved_per_change",
@@ -1542,6 +1554,16 @@ def _action_transition(
         if state.status.value != "complete":
             raise PolicyViolation("Actions are available after approval")
         transition(state, _action_item(state, item_id), cleaned_actor)
+        if state.evidence is not None:
+            state.change_card = build_change_card(
+                workflow_id=state.workflow_id,
+                evidence=state.evidence,
+                impacts=state.impacts,
+                impact_graph=state.impact_graph,
+                data_mode=state.data_mode,
+                approval=state.approval,
+                action_items=state.action_items,
+            )
         return state
 
     return _transition_workflow(workflow_id, "complete", apply).to_dict()

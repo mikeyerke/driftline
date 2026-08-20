@@ -165,6 +165,11 @@ def test_approval_creates_evidence_bound_sandbox_packets() -> None:
     assert len(packet_event_ids) == 4
     assert packet_event_ids.issubset({event["event_id"] for event in result.events})
     assert "External systems changed: **No**" in packet_markdown(result)
+    packet = packet_markdown(result)
+    assert "## Materiality and exposure" in packet
+    assert "## Role packets" in packet
+    assert "not CRM data" in packet
+    assert result.change_card["closure"]["state"] == "in_progress"
 
 
 def test_reopen_is_not_claimed_as_external_undo() -> None:

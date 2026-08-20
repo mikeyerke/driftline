@@ -1,0 +1,53 @@
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock3, ShieldCheck, UsersRound } from "lucide-react";
+
+const label = (value) => (value || "pending").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+export default function ChangeCardPanel({ card }) {
+  if (!card) return null;
+  const materiality = card.materiality || {};
+  const exposure = card.exposure || {};
+  const sourceQuality = card.source_quality || {};
+  const closure = card.closure || {};
+  return (
+    <section className="change-card panel" aria-labelledby="change-card-title">
+      <header className="panel-header change-card-header">
+        <div>
+          <h2 id="change-card-title">Change-to-work card</h2>
+          <span className="live-label public"><ShieldCheck size={12} />Evidence-bound decision</span>
+        </div>
+        <span className={`materiality-pill ${materiality.severity || "medium"}`}><AlertTriangle size={13} />{label(materiality.severity)} materiality · {materiality.score || "—"}/100</span>
+      </header>
+      <div className="change-card-grid">
+        <div className="change-card-block materiality-block">
+          <span className="change-card-kicker">Why now</span>
+          <strong>{materiality.reason || "Owner review is required before this signal becomes work."}</strong>
+          <p>{materiality.decision_window || "Before the next owner review"}</p>
+          <div className="trigger-list">{(materiality.triggers || []).map((trigger) => <span key={trigger}>{label(trigger)}</span>)}</div>
+          <div className="source-quality"><span>Evidence confidence</span><b>{Math.round((sourceQuality.confidence || 0) * 100)}%</b><small>{label(sourceQuality.evidence_type || "unknown")}</small></div>
+        </div>
+        <div className="change-card-block exposure-block">
+          <span className="change-card-kicker"><UsersRound size={13} />Internal exposure</span>
+          <strong>{exposure.available ? "Permissioned business context" : "Awaiting CRM context"}</strong>
+          <p>{exposure.label || "Internal exposure is not available."}</p>
+          <div className="exposure-stats">
+            <span><b>{exposure.opportunity_count ?? "—"}</b> open opportunities</span>
+            <span><b>{exposure.renewal_count ?? "—"}</b> renewals</span>
+            <span><b>{exposure.affected_asset_count ?? 0}</b> assets</span>
+          </div>
+        </div>
+        <div className="change-card-block closure-block">
+          <span className="change-card-kicker"><Clock3 size={13} />Closure</span>
+          <strong>{label(closure.state)}</strong>
+          <p>{closure.next_step || "Review the next step."}</p>
+          <div className="closure-progress"><span style={{ width: `${Math.round((closure.completion_rate || 0) * 100)}%` }} /></div>
+          <small>{closure.completed || 0}/{closure.item_count || 0} owner actions complete</small>
+        </div>
+      </div>
+      <div className="role-packet-strip">
+        <div className="role-packet-title"><CheckCircle2 size={14} />One evidence set, role-specific work</div>
+        <div className="role-packets">{(card.role_packets || []).map((packet) => <div className="role-packet" key={`${packet.role}-${packet.artifact}`}><strong>{packet.role}</strong><span>{packet.artifact}</span><small>{packet.next_action}</small><ArrowUpRight size={13} /></div>)}</div>
+      </div>
+      <footer className="change-card-disclosure">{(card.disclosures || []).map((note) => <span key={note}>{note}</span>)}{sourceQuality.disclosure && <span>{sourceQuality.disclosure}</span>}</footer>
+    </section>
+  );
+}
