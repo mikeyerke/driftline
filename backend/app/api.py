@@ -1132,6 +1132,8 @@ def start_salesforce_connection(request: SalesforceConnectRequest) -> dict[str, 
         request.identity_token,
         request.tenant_id,
     )
+    if identity.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Tenant owner role is required")
     config = SalesforceConfig.from_env()
     try:
         config.validate_oauth()

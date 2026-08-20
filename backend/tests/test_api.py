@@ -400,6 +400,26 @@ def test_salesforce_callback_cannot_rebind_deprovisioned_tenant(monkeypatch) -> 
     assert writes == []
 
 
+def test_salesforce_oauth_start_is_owner_only(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *_args, **_kwargs: {
+            "tenant_id": "salesforce-acme",
+            "role": "operator",
+            "identity": "signed_operator",
+        },
+    )
+
+    response = client.post(
+        "/api/connectors/salesforce/start",
+        json={"operator": "Operator", "tenant_id": "salesforce-acme"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Tenant owner role is required"
+
+
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
