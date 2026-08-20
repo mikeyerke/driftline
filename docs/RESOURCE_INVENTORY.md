@@ -380,6 +380,12 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   isolated project after the build warning: `roles/run.invoker` contains
   `allUsers` and the dedicated scheduler identity; the public alias returns
   the verified health payload.
+- All 12 Driftline Secret Manager resources now carry `app=driftline`,
+  `environment`, and `hackathon=all-things-agentic` labels; tenant secrets
+  additionally carry `tenant=driftline-demo` and their connector label. IAM
+  inspection confirmed the four tenant connector secrets and approval secret
+  grant `roles/secretmanager.secretAccessor` only to
+  `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com`.
 
 ## 2026-08-20 Membership status enforcement release
 
