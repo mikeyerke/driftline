@@ -309,6 +309,37 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   which is disclosed as a latency observation rather than a green synchronous
   latency claim. The public UI uses the bounded asynchronous jobs lane.
 
+## 2026-08-20 Hosted tenant-profile fail-closed release
+
+- Source commits: `8603a10` (hosted target fallback disabled) and `1c8ea1d`
+  (context-contract copy), pushed to
+  `https://github.com/mikeyerke/driftline`.
+- Cloud Build `4d6f0a88-18b4-4502-a88a-1b6e86ad475b` — `SUCCESS`; Artifact
+  Registry image digest
+  `sha256:ad661e5c812588aed3309d746c27d88f3cc5b608ea8f90b84f8836d3fa885cdb`.
+- Cloud Run revision `driftline-00115-drx` serves 100% of traffic. The hosted
+  environment explicitly reports
+  `DRIFTLINE_ALLOW_DEPLOYMENT_CONNECTOR_TARGET_FALLBACK=false`; a signed
+  tenant without a durable profile fails closed with
+  `tenant_connector_profile_missing` instead of inheriting another target.
+- The existing `driftline-demo` profile was completed with its fixed
+  Confluence parent page `720897`; the signed aggregate-only context probe on
+  this revision returned `status=ok` for Jira `KAN`, Confluence `DRIFT`, Slack
+  `C0BRGFUSADA`, and GitHub `mikeyerke/driftline`, with no raw content.
+- `/health` returned Firestore persistence and async jobs; the signed ops
+  summary reported `tenant_quota_enforcement=firestore_transaction`,
+  `legacy_global_fallback=false`, and `deployment_target_fallback=false`.
+  The newest-revision error query returned zero entries.
+- Final async smoke `job-1bf037d1fed3` / workflow
+  `b3950de8-3961-431e-9f58-06e3c038c071` reached `needs_approval` with
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, and the allowlisted
+  tools `inspect_source_change` and `get_workflow_state`. Public demo approve
+  and undo returned all four connector statuses as `prepared_only` with
+  `external_write=false`.
+- The local regression suite is `132 passed`; Ruff, frontend production
+  build, and `git diff --check` passed. Salesforce remains
+  `oauth_ready` / `awaiting_authorization`; no connected-org claim is made.
+
 ## 2026-08-20 Membership status enforcement release
 
 - Source commit: `7c5293b` (durable membership state overrides bootstrap
@@ -529,7 +560,7 @@ not invoked by that public path.
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
 | Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
-| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00113-2g7` from commit `31e3a02` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, and legacy global credential fallback disabled |
+| Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00115-drx` from commit `1c8ea1d` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20, tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials are tenant-bound through isolated Secret Manager bindings with owner-only revocation, append-only lifecycle audit, soft offboarding, durable usage metering, transactional tenant quota reservations, durable per-tenant target profiles, and both legacy global credential and hosted deployment-target fallbacks disabled |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user` |
 | Cloud Tasks queue | `driftline-jobs` in `us-central1` | Active, max 1 concurrent dispatch, 0.2 dispatches/second | OIDC target is the Driftline Cloud Run URL; task worker verifies the dedicated runtime identity |
 | Cloud Scheduler job | `driftline-monitor` in `us-central1` | Enabled, every 6 hours UTC | OIDC calls `/api/scheduler/tick` as the dedicated scheduler identity; monitor mode records historical snapshots and does not invent workflows on no-change |

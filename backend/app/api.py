@@ -255,6 +255,7 @@ class ActionFailureRequest(ActionItemRequest):
 class AgentRunRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
     user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
+    source_id: str = Field(default="public/pricing", min_length=1, max_length=80)
 
 
 class JobStartRequest(BaseModel):
@@ -2662,13 +2663,20 @@ async def run_job(job_id: str, request: Request) -> dict:
 async def run_agent(request: AgentRunRequest) -> dict:
     if not request.query.strip():
         raise HTTPException(status_code=422, detail="Query cannot be empty")
+    definition = source_definition(request.source_id)
+    if definition is None or definition.get("dynamic") == "true":
+        raise HTTPException(status_code=422, detail="Source is not allowlisted")
     if not _reserve_agent_call():
         raise HTTPException(
             status_code=429,
             detail="Live agent demo rate limit reached; retry later.",
         )
+    query = (
+        f"{request.query.strip()} Use the exact allowlisted source_id "
+        f'"{request.source_id}". Do not choose a different source.'
+    )
     try:
-        return await run_agent_task(request.query, request.user_id)
+        return await run_agent_task(query, request.user_id)
     except Exception as exc:
         logger.exception("Live ADK execution failed")
         raise HTTPException(

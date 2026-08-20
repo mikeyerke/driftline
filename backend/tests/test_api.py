@@ -1079,6 +1079,41 @@ def test_live_agent_query_is_bounded_before_execution() -> None:
     assert response.status_code == 422
 
 
+@pytest.mark.asyncio
+async def test_live_agent_route_binds_an_allowlisted_source(monkeypatch) -> None:
+    captured: dict[str, str] = {}
+
+    async def fake_run_agent_task(query: str, user_id: str) -> dict:
+        captured["query"] = query
+        captured["user_id"] = user_id
+        return {"status": "ok"}
+
+    monkeypatch.setattr(api, "run_agent_task", fake_run_agent_task)
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+
+    response = client.post(
+        "/api/agent/run",
+        json={
+            "query": "Inspect the pricing change",
+            "user_id": "operator-1",
+            "source_id": "public/pricing",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["user_id"] == "operator-1"
+    assert 'source_id "public/pricing"' in captured["query"]
+
+
+def test_live_agent_route_rejects_unallowlisted_source() -> None:
+    response = client.post(
+        "/api/agent/run",
+        json={"query": "Inspect it", "source_id": "https://evil.example"},
+    )
+    assert response.status_code == 422
+
+
 def test_packet_endpoint_is_available_after_approval() -> None:
     started = client.post("/api/workflows/demo")
     workflow_id = started.json()["workflow_id"]

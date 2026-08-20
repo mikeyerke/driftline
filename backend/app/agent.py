@@ -17,6 +17,7 @@ os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 
 _run_mode: ContextVar[str] = ContextVar("driftline_run_mode", default="demo")
 _tenant_id: ContextVar[str | None] = ContextVar("driftline_tenant_id", default=None)
+_workflow_id: ContextVar[str | None] = ContextVar("driftline_workflow_id", default=None)
 
 
 def set_run_mode(mode: str) -> Token[str]:
@@ -35,6 +36,15 @@ def set_tenant_id(tenant_id: str | None) -> Token[str | None]:
 
 def reset_tenant_id(token: Token[str | None]) -> None:
     _tenant_id.reset(token)
+
+
+def set_workflow_id(workflow_id: str | None) -> Token[str | None]:
+    """Bind the workflow created by the current source inspection call."""
+    return _workflow_id.set(workflow_id)
+
+
+def reset_workflow_id(token: Token[str | None]) -> None:
+    _workflow_id.reset(token)
 
 
 def inspect_source_change(source_id: str) -> dict:
@@ -65,11 +75,17 @@ def inspect_source_change(source_id: str) -> dict:
         confidence=float(snapshot.get("confidence", 0.99)),
     )
     persist_workflow(state)
+    _workflow_id.set(state.workflow_id)
     return state.to_dict()
 
 
 def get_workflow_state(workflow_id: str) -> dict:
     """Return the evidence, stage, impacts, and audit events for a workflow."""
+    # Models occasionally use a placeholder after a tool response. Resolve it
+    # only to the workflow created in this ADK turn; never select another
+    # tenant's or another request's latest workflow.
+    if workflow_id.strip().casefold() in {"", "default", "current"}:
+        workflow_id = _workflow_id.get() or workflow_id
     try:
         state = workflow_store.get(workflow_id)
     except KeyError:

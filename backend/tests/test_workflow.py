@@ -147,6 +147,17 @@ def test_agent_source_tool_persists_the_created_workflow() -> None:
     assert payload["data_mode"] == "synthetic_demo"
 
 
+def test_agent_resolves_placeholder_workflow_to_current_adk_turn() -> None:
+    token = agent_module.set_workflow_id(None)
+    try:
+        payload = agent_module.inspect_source_change("public/pricing")
+        resolved = agent_module.get_workflow_state("default")
+    finally:
+        agent_module.reset_workflow_id(token)
+
+    assert resolved["workflow_id"] == payload["workflow_id"]
+
+
 def test_approval_creates_evidence_bound_sandbox_packets() -> None:
     workflow = DriftlineWorkflow()
     state = workflow.start_demo()
