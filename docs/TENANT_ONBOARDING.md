@@ -82,9 +82,10 @@ deterministic secret name, verifies that a readable version exists, resolves
 its concrete Secret Manager version when available, and stores only metadata
 in the canonical tenant credential path
 `driftline_tenants/{tenant}/credentials/{connector}`. The legacy
-`driftline_connector_bindings` collection mirrors that record during the
-rolling migration, but hosted strict namespace mode never reads the mirror as
-an authorization source. Active connector calls use that pinned
+`driftline_connector_bindings` collection is a migration artifact only;
+hosted strict mode does not write or read it unless an operator explicitly
+enables a short-lived compatibility window via
+`DRIFTLINE_WRITE_LEGACY_CONNECTOR_MIRROR=true`. Active connector calls use that pinned
 version; they do not silently follow a later `latest` secret update. The
 signed
 GET /api/connectors/bindings and GET /api/tenants/audit routes expose status

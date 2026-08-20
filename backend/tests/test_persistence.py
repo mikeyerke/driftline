@@ -238,3 +238,15 @@ def test_connector_profile_is_bounded_non_secret_metadata(monkeypatch) -> None:
                 "settings": {"token": "must-never-persist"},
             }
         )
+
+
+def test_connector_profile_rejects_invalid_tenant_namespace(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    with pytest.raises(ValueError, match="tenant_id_invalid"):
+        persistence.persist_connector_profile(
+            {
+                "tenant_id": "../other-tenant",
+                "connector": "jira",
+                "settings": {"project_key": "SAFE"},
+            }
+        )

@@ -486,25 +486,35 @@ def persist_connector_binding(payload: dict[str, Any]) -> dict[str, Any]:
         _client().collection(TENANTS_COLLECTION).document(tenant_id).collection(
             TENANT_CREDENTIALS_SUBCOLLECTION
         ).document(connector).set(safe)
-        # Keep the legacy collection in sync during the zero-downtime migration
-        # so an older revision can still read an already-provisioned binding.
-        _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
-            f"{tenant_id}:{connector}"
-        ).set(safe)
+        # The legacy collection is migration-only and opt-in; canonical tenant
+        # documents remain the sole hosted write target by default.
+        if _legacy_connector_mirror_enabled():
+            _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
+                f"{tenant_id}:{connector}"
+            ).set(safe)
     return dict(safe)
 
 
 def _strict_credential_namespace_required() -> bool:
     """Whether hosted reads must use the canonical tenant credential path.
 
-    The flat binding collection is retained as a write-through migration
-    mirror for older revisions, but it must not remain an authorization
-    source once strict namespace validation is enabled.  Keeping this check
-    here makes every binding inventory/resolution read obey the same cutover
-    boundary instead of relying on each caller to remember it.
+    The flat binding collection may exist as a read-only migration artifact,
+    but it must not remain an authorization source once strict namespace
+    validation is enabled. Keeping this check here makes every binding
+    inventory/resolution read obey the same cutover boundary instead of relying
+    on each caller to remember it.
     """
     return (
         os.getenv("DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE", "false")
+        .casefold()
+        == "true"
+    )
+
+
+def _legacy_connector_mirror_enabled() -> bool:
+    """Whether to write the pre-SaaS flat binding mirror during migration."""
+    return (
+        os.getenv("DRIFTLINE_WRITE_LEGACY_CONNECTOR_MIRROR", "false")
         .casefold()
         == "true"
     )
@@ -530,9 +540,10 @@ def _hydrate_credential_namespace(
         _client().collection(TENANTS_COLLECTION).document(tenant_id).collection(
             TENANT_CREDENTIALS_SUBCOLLECTION
         ).document(connector).set(hydrated)
-        _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
-            f"{tenant_id}:{connector}"
-        ).set(hydrated)
+        if _legacy_connector_mirror_enabled():
+            _client().collection(CONNECTOR_BINDINGS_COLLECTION).document(
+                f"{tenant_id}:{connector}"
+            ).set(hydrated)
     return hydrated
 
 
@@ -750,9 +761,13 @@ def persist_connector_profile(payload: dict[str, Any]) -> dict[str, Any]:
     TTL. The validator rejects credentials and arbitrary provider fields before
     anything reaches Firestore.
     """
-    from .tenant import validate_connector_name, validate_connector_profile
+    from .tenant import (
+        validate_connector_name,
+        validate_connector_profile,
+        validate_tenant_id,
+    )
 
-    tenant_id = str(payload["tenant_id"])
+    tenant_id = validate_tenant_id(str(payload["tenant_id"]))
     connector = validate_connector_name(str(payload["connector"]))
     settings = validate_connector_profile(
         connector, dict(payload.get("settings") or {})
@@ -774,8 +789,9 @@ def persist_connector_profile(payload: dict[str, Any]) -> dict[str, Any]:
 
 def load_connector_profile(tenant_id: str, connector: str) -> dict[str, Any] | None:
     """Load one tenant's non-secret destination profile."""
-    from .tenant import validate_connector_name
+    from .tenant import validate_connector_name, validate_tenant_id
 
+    tenant_id = validate_tenant_id(tenant_id)
     safe_connector = validate_connector_name(connector)
     if _enabled():
         snapshot = _client().collection(
@@ -790,6 +806,9 @@ def load_connector_profile(tenant_id: str, connector: str) -> dict[str, Any] | N
 
 def list_connector_profiles(tenant_id: str) -> list[dict[str, Any]]:
     """List one tenant's bounded, non-secret connector profiles."""
+    from .tenant import validate_tenant_id
+
+    tenant_id = validate_tenant_id(tenant_id)
     if _enabled():
         query = _client().collection(TENANT_CONNECTOR_PROFILES_COLLECTION).where(
             "tenant_id", "==", tenant_id

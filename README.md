@@ -237,8 +237,9 @@ verification, so a later provider-token update cannot silently change a live
 tenant. Bindings are stored canonically below the tenant document at
 `driftline_tenants/{tenant}/credentials/{connector}` and carry a versioned
 namespace record naming the exact project Secret Manager resource and tenant
-service identity. The legacy flat collection is only a rolling-migration mirror
-and is not an authorization source in hosted strict namespace mode;
+service identity. The legacy flat collection is a migration artifact only;
+hosted strict mode does not write or read it unless an operator explicitly
+enables a short-lived compatibility window;
 `scripts/migrate_tenant_credential_bindings.py` backfills this metadata without
 reading or changing a credential value. The hosted runtime also derives a
 collision-resistant per-tenant Google service identity and impersonates it for
@@ -246,8 +247,8 @@ Secret Manager access. The shared
 Cloud Run identity has only narrowly scoped `Service Account Token Creator`
 access to each tenant identity; each tenant identity can read only its own
 deterministic secrets and can add Salesforce refresh-token versions only on
-that tenant's Salesforce secret. This is a real tenant credential data plane
-for this deployment, while customer-managed KMS keys, self-serve SSO, billing,
+that tenant's Salesforce secret. This is a real tenant credential data-plane
+foundation for this deployment, while customer-managed KMS keys, self-serve SSO, billing,
 and per-tenant compute remain outside the hackathon release.
 At runtime, adapters resolve credentials through one tenant credential broker:
 the caller supplies only tenant, connector, and an allowlisted operation. The

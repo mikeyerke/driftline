@@ -2991,6 +2991,10 @@ def get_connector_credentials(
             "canonical_binding_path": "driftline_tenants/{tenant}/credentials/{connector}",
             "namespace_schema_version": 1,
             "namespace_migration": "scripts/migrate_tenant_credential_bindings.py",
+            "legacy_flat_mirror_writes": os.getenv(
+                "DRIFTLINE_WRITE_LEGACY_CONNECTOR_MIRROR", "false"
+            ).casefold()
+            == "true",
             "strict_namespace_required": os.getenv(
                 "DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE", "false"
             ).casefold()
@@ -3124,6 +3128,12 @@ def get_connector_binding_health(
     checks: list[dict[str, object]] = []
     for connector in sorted(CONNECTOR_NAMES):
         expected_secret = tenant_connector_secret_name(identity["tenant_id"], connector)
+        try:
+            expected_namespace = tenant_credential_namespace(
+                identity["tenant_id"], connector
+            )
+        except (TypeError, ValueError):
+            expected_namespace = None
         binding = bound.get(connector)
         profile = profile_health(connector)
         if binding is None:
@@ -3136,16 +3146,37 @@ def get_connector_binding_health(
                     "profile_reason": profile["reason"],
                     "profile_configured_keys": profile["configured_keys"],
                     "secret_name": expected_secret,
+                    "namespace_status": "not_configured",
                     "credential_values_exposed": False,
                 }
             )
             continue
         binding_status = str(binding.get("status", "unknown"))
         secret_name = str(binding.get("secret_name", ""))
+        namespace = binding.get("credential_namespace")
+        namespace_status = (
+            "verified"
+            if isinstance(namespace, dict)
+            and isinstance(expected_namespace, dict)
+            and all(namespace.get(key) == expected_namespace.get(key) for key in (
+                "schema_version",
+                "tenant_id",
+                "connector",
+                "secret_resource",
+                "service_account",
+                "isolation",
+            ))
+            else "missing"
+            if expected_namespace is not None and namespace is None
+            else "not_checked"
+            if expected_namespace is None
+            else "mismatch"
+        )
         check: dict[str, object] = {
             "connector": connector,
             "binding_status": binding_status,
             "secret_name": expected_secret,
+            "namespace_status": namespace_status,
             "profile_status": profile["status"],
             "profile_reason": profile["reason"],
             "profile_configured_keys": profile["configured_keys"],
@@ -3153,7 +3184,7 @@ def get_connector_binding_health(
         }
         if secret_name != expected_secret:
             check.update(status="attention", secret_status="name_mismatch")
-        elif binding_status != "active":
+        elif namespace_status in {"missing", "mismatch"} or binding_status != "active":
             check.update(status="attention", secret_status="not_checked")
         else:
             try:

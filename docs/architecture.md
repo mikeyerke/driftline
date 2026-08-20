@@ -169,8 +169,9 @@ in the canonical Firestore namespace
 deterministic Secret Manager secret
 `driftline-tenant-<tenant>-<connector>`. Each binding carries a versioned
 namespace record naming the exact project resource and per-tenant service
-identity; the legacy flat binding collection is only a rolling-migration
-mirror and hosted strict namespace mode never reads it as an authorization
+identity; the legacy flat binding collection is a migration artifact and is
+read-only unless an operator explicitly enables a short-lived write-through
+window. Hosted strict namespace mode never reads it as an authorization
 source. Only the owner binding route can
 activate that reference; arbitrary secret names and raw credential values are
 rejected. Each active binding pins the resolved Secret Manager version when
@@ -191,7 +192,8 @@ each tenant identity; Secret Manager IAM grants the tenant identity access only
 to that tenant's deterministic secrets. Together with durable membership
 discovery, explicit tenant selection, owner/operator/viewer roles, version
 pinning, rotation, revocation, and append-only lease auditing, this is a
-complete tenant-scoped credential data plane for a shared SaaS deployment.
+production tenant-scoped credential data-plane foundation for a shared SaaS
+deployment.
 Customer-managed KMS keys, self-serve billing, and dedicated compute per tenant
 remain optional commercial layers beyond the hackathon release. The
 metadata-only migration is runnable with
@@ -209,8 +211,8 @@ provider responses are excluded. Hosted leases use the derived tenant identity
 when `DRIFTLINE_TENANT_SECRET_IDENTITY_MODE=impersonated`; direct shared-runtime
 reads remain a local compatibility mode. Owners can inspect this inventory through the
 signed `GET /api/connectors/credentials` and its append-only access trail at
-`GET /api/connectors/credentials/access`. This is the same complete
-tenant-scoped credential data plane with least-privilege operation scopes;
+`GET /api/connectors/credentials/access`. This is the same production
+tenant-scoped credential data-plane foundation with least-privilege operation scopes;
 customer-managed KMS keys, self-serve billing, and dedicated compute per tenant
 remain optional commercial layers outside this hackathon release.
 The signed `GET /api/connectors/bindings/health` route is a read-only
