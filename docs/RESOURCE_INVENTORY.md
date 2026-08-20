@@ -58,6 +58,24 @@ to the six explicitly requested application APIs; no Driftline code uses the
 unrelated managed services. No existing project, bucket, database, service
 account, API key, repository, or environment variable is reused.
 
+## 2026-08-20 Stable Change Card idempotency release
+
+- Source commit: `dc2a138` (deterministic Change Card/action identity and
+  evidence-bound artifact paths), pushed to
+  `https://github.com/mikeyerke/driftline`.
+- Cloud Build `7f14cfe6-313e-4094-bd76-282b42563c86` — `SUCCESS`; Artifact
+  Registry image digest `sha256:dd68363ec0f764960185e5d363a17d6b6db378ec6b74c7301039768b3c98aaf2`.
+- Cloud Run revision `driftline-00080-d2v` serves 100% of traffic in the
+  isolated project. `/health` returned Firestore persistence plus async jobs,
+  and the revision error-log query returned no `ERROR` entries.
+- Live idempotency smoke created and approved two independent workflows for
+  the same source snapshot. Both returned Change Card
+  `card-51b2caa0b18994ae6413`, action `action-51b2caa0b18994ae6413`, and
+  stable owner keys beginning `card-51b2caa0b18994ae6413:`.
+- Live async ADK smoke `job-f4681f586805` reached `needs_approval` with
+  `gemini-3.5-flash`, `execution_mode=google_adk`, exactly
+  `inspect_source_change` and `get_workflow_state`, and no error.
+
 ## 2026-08-20 Dismissed-state console polish release
 
 - Source commit: `d61433a` (explicit dismissed-state timeline and connector
