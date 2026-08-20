@@ -168,7 +168,9 @@ or repository scope; a failed connector is recorded as `failed` and never turns
 into a successful claim. Tenant-bound asynchronous jobs, workflows, packets,
 action items, scenario previews, and operator summaries are filtered by the
 same signed identity boundary; the public demo sees only tenantless synthetic
-records. Salesforce now has a deployed read-only OAuth lane,
+records. Claim, complete, fail, retry, and reverse action-item calls use that
+same boundary for tenant-bound workflows. Salesforce now has a deployed
+read-only OAuth lane,
 tenant-scoped Secret Manager storage, and an allowlist for product, pricebook,
 and opportunity objects. It has no write path and remains disabled until a
 real Salesforce org authorizes the isolated tenant. See

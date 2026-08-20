@@ -72,6 +72,11 @@ filter, so a public console cannot infer another tenant's workflow details.
 The judge-facing synthetic workflow remains deliberately tenantless and
 packet-only.
 
+The action-item lifecycle is covered by the same rule: tenant-bound claim,
+complete, fail, retry, and reverse calls require a signed operator for that
+exact tenant. Public action calls are still available only for tenantless
+synthetic demo packets.
+
 Agent-call and workflow-mutation budgets are also tenant-scoped in the signed
 lane. A noisy tenant cannot consume another tenant's in-process allowance; the
 public demo and scheduler use separate buckets. These are bounded deployment
