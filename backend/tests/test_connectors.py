@@ -273,6 +273,18 @@ def test_salesforce_oauth_url_is_scoped_and_does_not_include_secret() -> None:
     assert "refresh_token" in url
 
 
+def test_salesforce_oauth_url_includes_pkce_challenge() -> None:
+    config = SalesforceConfig(
+        enabled=True,
+        client_id="client-id",
+        client_secret="do-not-leak",
+        redirect_uri="https://driftline.example/api/connectors/salesforce/oauth/callback",
+    )
+    url = salesforce_authorization_url(config, "opaque-state", code_challenge="challenge")
+    assert "code_challenge=challenge" in url
+    assert "code_challenge_method=S256" in url
+
+
 def test_salesforce_code_exchange_uses_post_and_redacts_response_surface() -> None:
     requests = []
 
@@ -296,6 +308,23 @@ def test_salesforce_code_exchange_uses_post_and_redacts_response_surface() -> No
     assert result["instance_url"].endswith("salesforce.com")
     assert requests[0][0].method == "POST"
     assert b"one-time-code" in requests[0][0].data
+
+
+def test_salesforce_code_exchange_sends_pkce_verifier() -> None:
+    requests = []
+
+    def opener(request, timeout):
+        requests.append(request)
+        return _Response({"access_token": "access", "refresh_token": "refresh"})
+
+    config = SalesforceConfig(
+        enabled=True,
+        client_id="client-id",
+        client_secret="secret",
+        redirect_uri="https://driftline.example/callback",
+    )
+    exchange_salesforce_code(config, "one-time-code", code_verifier="verifier", opener=opener)
+    assert b"code_verifier=verifier" in requests[0].data
 
 
 def test_salesforce_client_rejects_unallowlisted_object() -> None:

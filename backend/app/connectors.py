@@ -151,21 +151,33 @@ def salesforce_readiness() -> dict[str, object]:
     }
 
 
-def salesforce_authorization_url(config: SalesforceConfig, state: str) -> str:
-    """Build the authorization URL without exposing any secret."""
+def salesforce_authorization_url(
+    config: SalesforceConfig,
+    state: str,
+    *,
+    code_challenge: str | None = None,
+) -> str:
+    """Build the authorization URL without exposing any secret.
+
+    Salesforce requires PKCE for this external client.  The challenge is
+    public by design; the verifier remains in short-lived server-side OAuth
+    state and is supplied only during the token exchange.
+    """
     config.validate_oauth()
+    params = {
+        "response_type": "code",
+        "client_id": config.client_id,
+        "redirect_uri": config.redirect_uri,
+        "scope": config.scope,
+        "state": state,
+        "prompt": "login consent",
+    }
+    if code_challenge:
+        params["code_challenge"] = code_challenge
+        params["code_challenge_method"] = "S256"
     return (
         f"{config.login_url}/services/oauth2/authorize?"
-        + urlencode(
-            {
-                "response_type": "code",
-                "client_id": config.client_id,
-                "redirect_uri": config.redirect_uri,
-                "scope": config.scope,
-                "state": state,
-                "prompt": "login consent",
-            }
-        )
+        + urlencode(params)
     )
 
 
@@ -205,20 +217,24 @@ def exchange_salesforce_code(
     config: SalesforceConfig,
     code: str,
     *,
+    code_verifier: str | None = None,
     opener: Callable[..., Any] = urlopen,
 ) -> dict[str, Any]:
     """Exchange a one-time authorization code for tokens."""
     if not code or len(code) > 4096:
         raise ConnectorError("salesforce_oauth_code_invalid")
+    payload = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": config.client_id,
+        "client_secret": config.client_secret,
+        "redirect_uri": config.redirect_uri,
+    }
+    if code_verifier:
+        payload["code_verifier"] = code_verifier
     return _salesforce_token_request(
         config,
-        {
-            "grant_type": "authorization_code",
-            "code": code,
-            "client_id": config.client_id,
-            "client_secret": config.client_secret,
-            "redirect_uri": config.redirect_uri,
-        },
+        payload,
         opener=opener,
     )
 

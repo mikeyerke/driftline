@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import copy
 import hashlib
 import hmac
@@ -765,6 +766,13 @@ def start_salesforce_connection(request: SalesforceConnectRequest) -> dict[str, 
         config.validate_oauth()
         tenant_id = identity["tenant_id"]
         state = secrets.token_urlsafe(32)
+        # Salesforce enforces PKCE on this External Client App. Keep the
+        # verifier in the expiring server-side state record; only the S256
+        # challenge is sent through the browser.
+        code_verifier = secrets.token_urlsafe(64)
+        code_challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode("ascii")).digest()
+        ).rstrip(b"=").decode("ascii")
         _save_salesforce_state(
             state,
             {
@@ -773,12 +781,15 @@ def start_salesforce_connection(request: SalesforceConnectRequest) -> dict[str, 
                 "subject": identity.get("subject", ""),
                 "email": identity.get("email", ""),
                 "expires_at": datetime.now(UTC).timestamp() + 600,
+                "code_verifier": code_verifier,
             },
         )
         return {
             "status": "authorization_required",
             "tenant_id": tenant_id,
-            "authorize_url": salesforce_authorization_url(config, state),
+            "authorize_url": salesforce_authorization_url(
+                config, state, code_challenge=code_challenge
+            ),
             "expires_in_seconds": 600,
             "scopes": config.scope.split(),
             "disclosure": "The callback stores only a tenant-scoped refresh-token reference in Secret Manager; no Salesforce records are copied.",
@@ -803,7 +814,11 @@ def salesforce_oauth_callback(
         return PlainTextResponse("Salesforce authorization expired or was already used.", status_code=400)
     config = SalesforceConfig.from_env()
     try:
-        result = exchange_salesforce_code(config, code)
+        result = exchange_salesforce_code(
+            config,
+            code,
+            code_verifier=str(callback_state.get("code_verifier", "")),
+        )
         refresh_token = str(result.get("refresh_token", ""))
         if not refresh_token:
             raise ConnectorError("salesforce_refresh_token_missing")

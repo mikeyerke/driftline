@@ -17,7 +17,7 @@ Undo follows the same boundary. A demo packet can be reopened without contacting
 - Confluence: one configured space/page marker; reversal appends a note and preserves history.
 - Slack: one configured channel; marker-based idempotency; reversal posts an audit message.
 - GitHub: one configured repository; marker-based idempotency; reversal adds a label/comment.
-- Salesforce: tenant-scoped OAuth read-only context for `Product2`, `PricebookEntry`, and `Opportunity`; no write path. The OAuth lane is deployed but remains disabled until a real org authorizes it.
+- Salesforce: tenant-scoped OAuth read-only context for `Product2`, `PricebookEntry`, and `Opportunity`; no write path. The OAuth lane uses a short-lived state record plus PKCE S256 and does not become connected until the real org callback succeeds.
 
 Signed operator identities resolve to a tenant and role from
 `DRIFTLINE_TENANT_MEMBERS`. `viewer` identities can inspect status, while

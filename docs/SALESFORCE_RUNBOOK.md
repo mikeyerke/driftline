@@ -7,6 +7,8 @@ provisions a tenant-scoped OAuth client and secret.
 ## What is implemented
 
 - OAuth authorization-code start and one-time state callback.
+- PKCE authorization with an S256 code challenge; the verifier is kept only
+  in the expiring server-side OAuth state and is never sent to the browser.
 - Google OIDC/HMAC signed operator gate before a connection can start.
 - Tenant and role binding (`viewer`, `operator`, `owner`).
 - Refresh-token storage in a dedicated Secret Manager secret named
@@ -43,6 +45,8 @@ provisions a tenant-scoped OAuth client and secret.
 6. Set the corresponding runtime references and deploy a new revision.
 7. Call the signed `/api/connectors/salesforce/start` endpoint. Open the
    returned `authorize_url` in the already-authenticated Salesforce browser.
+   The URL includes `code_challenge_method=S256`; do not reuse an older URL
+   that was created before PKCE was enabled.
 8. After the callback, call signed `/api/connectors/salesforce/health`. The
    response must contain only object counts, field names, and
    `external_write=false`.
