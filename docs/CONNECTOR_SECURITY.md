@@ -53,6 +53,10 @@ continue to use bounded `expires_at` fields for TTL cleanup; the configured
 deployment window is 30 days unless an operator changes it deliberately.
 
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
+Operator fetches also reject common bot/challenge interstitials before recording
+an observation, so a CAPTCHA or “verify you are human” page cannot masquerade as
+a competitor change. The source remains unavailable until a clean page can be
+retrieved.
 
 ## Operational checks
 
