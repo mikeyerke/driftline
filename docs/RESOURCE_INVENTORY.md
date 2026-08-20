@@ -27,14 +27,14 @@ project number: 724959673622
   `approval_token` or `identity_token` in the URL are rejected; signed operator
   clients use `X-Driftline-Approval` and `Authorization` headers. Local tests
   retain query compatibility unless that flag is enabled.
-- Cloud Build `a640fa90-79ac-40d8-9574-a3e3a22f5804` completed `SUCCESS` from
-  commit `5ff9c35`; Cloud Run revision `driftline-00026-j25` serves 100% of
+- Cloud Build `2ac70c0e-d281-4dea-9f48-4a48c33bdf59` completed `SUCCESS` from
+  runtime commit `cba22ea`; Cloud Run revision `driftline-00027-vvn` serves 100% of
   traffic in the isolated project. `/health` returned 200 and a GET carrying
   `approval_token` returned 400, while the public API retained `no-store` and
   HSTS headers.
-- GitHub Actions run `32425880837` completed `success` for the documentation
-  commit that records this live evidence. Cloud Logging returned no severity
-  `ERROR` entries for revision `driftline-00026-j25` after rollout.
+- GitHub Actions run `32425880837` completed `success` for the preceding
+  runtime/docs release. Cloud Logging returned no severity `ERROR` entries for
+  revision `driftline-00027-vvn` after rollout.
 - Chrome DevTools loaded the public console at desktop and mobile widths with
   no console messages. Lighthouse navigation scored 100 for accessibility,
   best practices, SEO, and agentic browsing on both devices (57/57 audits).
@@ -44,6 +44,10 @@ project number: 724959673622
   The returned workflow was re-read from the public API in `needs_approval`
   state, then a named demo approval and undo were exercised successfully;
   no external write occurred.
+- The post-hardening canary on revision `driftline-00027-vvn` again returned
+  `persisted=true`, `google_adk`, `gemini-3.5-flash`, and exactly
+  `inspect_source_change` plus `get_workflow_state`; `/health` returned 200
+  and the query-auth rejection remained active.
 - A signed live connector context probe completed aggregate-only reads for
   Jira (`project:KAN`, 18 open issues), Confluence (`space:DRIFT`, 5 pages),
   Slack (`channel:C0BRGFUSADA`, 27 recent messages), and GitHub
