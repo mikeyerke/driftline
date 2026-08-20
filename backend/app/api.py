@@ -2061,7 +2061,7 @@ def provision_platform_tenant(
         "membership_id": membership_id,
         "secret_references": {
             connector: tenant_connector_secret_name(tenant_id, connector)
-            for connector in ("jira", "confluence", "slack", "github")
+            for connector in ("jira", "confluence", "slack", "github", "salesforce")
         },
         "operator_signing_secret": tenant_operator_signing_secret_name(tenant_id),
         "credential_values_exposed": False,

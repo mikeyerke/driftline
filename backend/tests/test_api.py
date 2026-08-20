@@ -337,6 +337,9 @@ def test_platform_tenant_provisioning_creates_metadata_only_bootstrap(monkeypatc
     assert payload["secret_references"]["jira"] == (
         f"driftline-tenant-{tenant_id}-jira"
     )
+    assert payload["secret_references"]["salesforce"] == (
+        f"driftline-tenant-{tenant_id}-salesforce"
+    )
     assert payload["operator_signing_secret"] == (
         f"driftline-tenant-operator-{tenant_id}"
     )
