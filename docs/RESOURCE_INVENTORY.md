@@ -173,6 +173,17 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   Issues `#1` through `#11` were closed as `not planned`; no source, secrets,
   or customer work were changed. The public open-issue count is now zero.
 
+## 2026-08-20 Project IAM least-privilege audit (live)
+
+- The isolated project-level IAM policy had an unused default Compute Engine
+  service account with `roles/editor`. Driftline Cloud Run uses
+  `driftline-runtime` and Cloud Build uses `driftline-build`, so the default
+  identity was removed with an explicit unconditioned IAM update.
+- A follow-up policy query found no remaining `roles/editor` binding for
+  `724959673622-compute@developer.gserviceaccount.com`. The public health
+  endpoint still returned HTTP 200 and Cloud Run remained on revision
+  `driftline-00013-d9g` at 100% traffic.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
