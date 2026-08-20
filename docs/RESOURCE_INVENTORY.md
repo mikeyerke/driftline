@@ -37,6 +37,31 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   app remains packet-only for anonymous users; configured connector writes
   still require a signed tenant operator.
 
+## 2026-08-20 Credential cutover and slow-ADK journey release (current)
+
+- Source commits `7d34973` and `e1af9a6` harden the shared SaaS credential
+  boundary and the public run path. In hosted strict namespace mode, missing
+  canonical `driftline_tenants/{tenant}/credentials/{connector}` records never
+  fall back to the legacy flat mirror; connector resolution and inventories
+  fail closed until migration is complete. The console also polls durable ADK
+  jobs for up to 126 seconds, inside the 300-second Cloud Run budget, so a
+  slower cold-started Gemini run is not mislabeled as a client timeout.
+- Cloud Build `b6dd62cb-b86a-4d9d-93ac-8e746f8291f6` completed `SUCCESS` for
+  the credential cutover; image digest `sha256:1cdb5754f359f517efc850e78b5101d2cbddfcd47959f5dc6ac7973c22a75849`,
+  Cloud Run revision `driftline-00154-4cv` served 100% of traffic. Cloud Build
+  `2902980a-9c7c-49cd-a4be-909b122c13ad` completed `SUCCESS` for the polling
+  fix; image digest `sha256:7ed187081008bb31150d92c36aa8cc79d1f1201abb18fec84456813bc6e16d43`,
+  Cloud Run revision `driftline-00155-82w` serves 100% of traffic.
+- Live proof on the public alias: `/health` returned Firestore persistence and
+  async jobs; desktop and 390px Chrome journeys had no console errors, failed
+  requests, or document overflow. The final end-to-end journey passed live
+  scan, artifact selection, decision selection, approval, packet completion,
+  and reopen/undo, with `sawNeedsApproval=true`, `sawCompleted=true`, and
+  `sawReopened=true`.
+- Local regression remains `175 passed`; Ruff and the frontend production build
+  pass. The anonymous lane remains a synthetic, packet-only evaluation surface;
+  authenticated connectors remain tenant-scoped and signed.
+
 ## 2026-08-20 Durable tenant discovery and selection release (current)
 
 - Source commit `4aeb73d` adds the identity-only `GET /api/tenants/available`
