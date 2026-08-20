@@ -17,6 +17,26 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Responsive navigation and browser journey release (current)
+
+- Source commit `773b7e6` changes the narrow layout from a partially hidden
+  horizontal navigation strip to a visible 3×2 navigation grid, keeping
+  Overview, Sources, Workflows, Approvals, Activity, and Settings discoverable
+  at first render on mobile widths.
+- Cloud Build `e06778f7-ac2a-47e1-b6b7-60ef619e8927` completed `SUCCESS`; image
+  digest `sha256:04a1f357ba6c13104e049f501b9bc9e6c806f1b501f5e57d0c564f3f9e017440`;
+  Cloud Run revision `driftline-00153-zbz` serves 100% of traffic.
+- Headless Chrome against the public alias passed at 1440px and 390px: no
+  document overflow, console errors, or failed requests; the evidence modal
+  opened at both widths. The full public journey passed scan → artifact row
+  selection → decision selection → approval → reopen/undo, with no console or
+  network errors. The run created a live Firestore workflow and the final UI
+  state visibly returned to `Decision reopened · no external systems were
+  changed`.
+- Local production frontend build and `git diff --check` are clean. The public
+  app remains packet-only for anonymous users; configured connector writes
+  still require a signed tenant operator.
+
 ## 2026-08-20 Durable tenant discovery and selection release (current)
 
 - Source commit `4aeb73d` adds the identity-only `GET /api/tenants/available`
