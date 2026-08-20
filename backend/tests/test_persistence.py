@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -159,6 +161,31 @@ def test_tenant_policy_is_bounded_and_keeps_defaults_for_missing_fields(monkeypa
     stored = persistence.load_tenant(tenant_id)
     assert stored["policy"] == policy
     assert "unexpected" not in stored["policy"]
+
+
+def test_tenant_retention_policy_controls_metadata_ttl(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+
+    class FakeDocument:
+        def get(self):
+            return SimpleNamespace(
+                exists=True,
+                to_dict=lambda: {"policy": {"retention_days": 7}},
+            )
+
+    class FakeCollection:
+        def document(self, _tenant_id):
+            return FakeDocument()
+
+    class FakeClient:
+        def collection(self, _name):
+            return FakeCollection()
+
+    monkeypatch.setattr(persistence, "_client", lambda: FakeClient())
+    now = datetime.now(UTC)
+    expiry = persistence._retention_expiry("ttl-acme")
+    seconds = (expiry - now).total_seconds()
+    assert 6.9 * 86400 < seconds < 7.1 * 86400
 
 
 def test_tenant_rate_limit_reservation_is_window_and_tenant_scoped(monkeypatch) -> None:
