@@ -112,8 +112,13 @@ def _tenant_is_disabled(tenant_id: str) -> bool:
         from .persistence import load_tenant
 
         tenant = load_tenant(tenant_id)
-    except Exception:  # noqa: BLE001 - auth must not break bootstrap paths.
-        return False
+    except Exception:  # noqa: BLE001 - auth must fail closed.
+        # Hosted Firestore is authoritative. If the status check cannot be
+        # completed, fail closed rather than trusting a stale local snapshot.
+        return (
+            os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold()
+            == "firestore"
+        )
     return str((tenant or {}).get("status", "active")).casefold() in {
         "disabled",
         "deprovisioned",

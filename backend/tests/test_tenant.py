@@ -66,6 +66,37 @@ def test_firestore_membership_directory_does_not_fall_back_to_env_mapping(monkey
         raise AssertionError("Firestore auth unexpectedly used environment mapping")
 
 
+def test_firestore_status_check_failure_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+    monkeypatch.delenv("DRIFTLINE_TENANT_MEMBERS", raising=False)
+    monkeypatch.setattr(
+        persistence,
+        "load_tenant_membership",
+        lambda *_args: {
+            "tenant_id": "status-acme",
+            "email": "owner@example.com",
+            "role": "owner",
+            "status": "active",
+        },
+    )
+    monkeypatch.setattr(
+        persistence,
+        "load_tenant",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("firestore unavailable")),
+    )
+
+    try:
+        principal_for_claims(
+            subject="owner-subject",
+            email="owner@example.com",
+            requested_tenant_id="status-acme",
+        )
+    except PermissionError as exc:
+        assert str(exc) == "tenant_disabled"
+    else:  # pragma: no cover - explicit fail-closed assertion
+        raise AssertionError("Firestore status failure unexpectedly authorized")
+
+
 def test_disabled_durable_membership_fails_closed(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     monkeypatch.delenv("DRIFTLINE_TENANT_MEMBERS", raising=False)
