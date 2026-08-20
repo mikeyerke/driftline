@@ -2545,6 +2545,28 @@ is no longer needed.
   the durable Firestore membership directory; the public demo remains
   packet-only.
 
+## 2026-08-20 value-proof display release (live)
+
+- Source commit: `d24d22d` (`Format value proof latency for humans`), pushed to
+  the public `main` branch after the frontend production build and CI run
+  `32429786135` passed.
+- Cloud Build `39c63067-6bda-45de-ab78-0f3d8c84b7fb` — `SUCCESS`; the build
+  used the checked-in `driftline-build` service identity and produced the
+  isolated Artifact Registry image for this commit.
+- Cloud Run revision `driftline-00032-fwl` serves 100% of traffic at the
+  existing public URL with `min=0`, `max=1`, `512Mi`, one CPU, 300-second
+  timeout, and concurrency 20.
+- Live checks after rollout: `/health` returned HTTP 200 with Firestore
+  persistence and async jobs enabled; `/api/jobs/demo` returned a queued demo
+  job; `/api/ops/value-proof` returned the explicitly labelled sandbox scope
+  and `not_measured` customer outcomes. A direct `/api/agent/run` request
+  completed with HTTP 200 in Cloud Run logs and exercised the live ADK path;
+  the endpoint is intentionally not treated as a synchronous low-latency
+  probe because Gemini execution may exceed a short client timeout.
+- The value-proof latency card now renders bounded seconds (for example,
+  `104.7s`) instead of an unformatted floating-point value. This is a display
+  correction only; it does not change stored telemetry or imply customer ROI.
+
 ## 2026-08-20 Salesforce PKCE and source-alignment release
 
 - Source commit: `37cf155` (public privacy/terms pages) on top of `f6a6442`
