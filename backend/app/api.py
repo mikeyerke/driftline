@@ -78,6 +78,7 @@ from .persistence import (
     list_connector_bindings,
     list_jobs,
     list_outcome_measurements,
+    list_tenant_audit_events,
     list_tenant_memberships,
     list_workflows,
     load_connector_binding,
@@ -91,6 +92,7 @@ from .persistence import (
     persist_salesforce_connection,
     persist_salesforce_oauth_state,
     persist_tenant,
+    persist_tenant_audit_event,
     persist_tenant_membership,
     persist_workflow,
     update_jobs_for_workflow,
@@ -1455,6 +1457,20 @@ def register_connector_binding(
             "updated_at": utc_now(),
         }
     )
+    audit_event = persist_tenant_audit_event(
+        {
+            "tenant_id": tenant_id,
+            "event_type": (
+                "connector_binding_activated"
+                if status == "active"
+                else "connector_binding_pending"
+            ),
+            "connector": safe_connector,
+            "status": status,
+            "secret_name": secret_name,
+            "actor": identity.get("email") or identity.get("identity"),
+        }
+    )
     return {
         "status": status,
         "tenant_id": tenant_id,
@@ -1462,6 +1478,7 @@ def register_connector_binding(
         "secret_name": secret_name,
         "scope": binding["scope"],
         "credential_value_accepted": False,
+        "audit_event_id": audit_event["event_id"],
         "next_step": (
             "Binding is active; connector calls will use this tenant secret."
             if status == "active"
@@ -1503,12 +1520,23 @@ def revoke_connector_binding(
             "revoked_by": identity.get("email") or identity.get("identity"),
         }
     )
+    audit_event = persist_tenant_audit_event(
+        {
+            "tenant_id": tenant_id,
+            "event_type": "connector_binding_revoked",
+            "connector": safe_connector,
+            "status": "revoked",
+            "secret_name": revoked["secret_name"],
+            "actor": identity.get("email") or identity.get("identity"),
+        }
+    )
     return {
         "status": "revoked",
         "tenant_id": tenant_id,
         "connector": safe_connector,
         "secret_name": revoked["secret_name"],
         "credential_value_exposed": False,
+        "audit_event_id": audit_event["event_id"],
         "follow_up": (
             "Revoke the provider token and disable or rotate the Secret Manager "
             "version during offboarding; re-run the signed owner binding route "
@@ -1537,6 +1565,7 @@ def get_tenant_metadata(
         "tenant_id": identity["tenant_id"],
         "status": "bootstrap_pending",
     }
+
     bindings = list_connector_bindings(identity["tenant_id"])
     memberships = list_tenant_memberships(identity["tenant_id"])
     return {
@@ -1548,6 +1577,39 @@ def get_tenant_metadata(
         "role": identity["role"],
         "connector_binding_count": len(bindings),
         "membership_count": len(memberships),
+        "credential_values_exposed": False,
+    }
+
+
+@app.get("/api/tenants/audit")
+def get_tenant_audit(
+    operator: str,
+    tenant_id: str | None = None,
+    limit: int = 50,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return append-only tenant control-plane events without credentials."""
+    identity = _verify_approval_mode(
+        "tenant-audit",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    events = list_tenant_audit_events(identity["tenant_id"], limit=limit)
+    return {
+        "append_only": True,
+        "tenant_id": identity["tenant_id"],
+        "events": [
+            {
+                key: value
+                for key, value in event.items()
+                if key not in {"token", "secret_value", "access_token", "refresh_token"}
+            }
+            for event in events
+        ],
         "credential_values_exposed": False,
     }
 

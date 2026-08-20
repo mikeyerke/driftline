@@ -6,6 +6,7 @@ import time
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
 from google.api_core.exceptions import AlreadyExists, InvalidArgument
 from google.cloud import firestore
@@ -28,9 +29,11 @@ SALESFORCE_OAUTH_STATES_COLLECTION = "driftline_salesforce_oauth_states"
 CONNECTOR_BINDINGS_COLLECTION = "driftline_connector_bindings"
 TENANTS_COLLECTION = "driftline_tenants"
 TENANT_MEMBERSHIPS_COLLECTION = "driftline_tenant_memberships"
+TENANT_AUDIT_COLLECTION = "driftline_tenant_audit_events"
 _connector_bindings_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenants_memory: dict[str, dict[str, Any]] = {}
 _tenant_memberships_memory: dict[tuple[str, str], dict[str, Any]] = {}
+_tenant_audit_memory: list[dict[str, Any]] = []
 
 
 def _enabled() -> bool:
@@ -400,6 +403,48 @@ def list_connector_bindings(tenant_id: str) -> list[dict[str, Any]]:
         for (bound_tenant, _), payload in _connector_bindings_memory.items()
         if bound_tenant == tenant_id
     ]
+
+
+def persist_tenant_audit_event(payload: dict[str, Any]) -> dict[str, Any]:
+    """Append one tenant control-plane event without accepting credentials."""
+    safe = {
+        key: value
+        for key, value in payload.items()
+        if key
+        not in {
+            "token",
+            "secret_value",
+            "access_token",
+            "refresh_token",
+            "client_secret",
+        }
+    }
+    safe.setdefault("event_id", f"tenant-audit-{uuid4().hex}")
+    safe.setdefault("created_at", utc_now())
+    _tenant_audit_memory.append(dict(safe))
+    if _enabled():
+        _client().collection(TENANT_AUDIT_COLLECTION).document(
+            str(safe["event_id"])
+        ).create(safe)
+    return dict(safe)
+
+
+def list_tenant_audit_events(tenant_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    """Return bounded metadata-only control-plane events for one tenant."""
+    safe_limit = max(1, min(limit, 200))
+    if _enabled():
+        query = _client().collection(TENANT_AUDIT_COLLECTION).where(
+            "tenant_id", "==", tenant_id
+        )
+        events = [snapshot.to_dict() or {} for snapshot in query.stream()]
+    else:
+        events = [
+            dict(event)
+            for event in _tenant_audit_memory
+            if event.get("tenant_id") == tenant_id
+        ]
+    events.sort(key=lambda event: str(event.get("created_at", "")), reverse=True)
+    return events[:safe_limit]
 
 
 def persist_tenant(payload: dict[str, Any]) -> dict[str, Any]:

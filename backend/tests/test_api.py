@@ -243,6 +243,24 @@ def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
             ).hexdigest(),
         },
     ).json()["bindings"][0]["status"] == "revoked"
+    audit = client.get(
+        "/api/tenants/audit",
+        params={
+            "operator": "Binding owner",
+            "tenant_id": "binding-acme",
+            "approval_token": hmac.new(
+                secret.encode(), b"tenant-audit:Binding owner", hashlib.sha256
+            ).hexdigest(),
+        },
+    )
+    assert audit.status_code == 200
+    assert audit.json()["append_only"] is True
+    assert {event["event_type"] for event in audit.json()["events"]} >= {
+        "connector_binding_activated",
+        "connector_binding_revoked",
+    }
+    assert audit.json()["credential_values_exposed"] is False
+    assert "tenant-token" not in str(audit.json())
     tenant_metadata = client.get(
         "/api/tenants",
         params={
