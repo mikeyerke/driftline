@@ -3126,6 +3126,7 @@ async def run_agent(request: AgentRunRequest) -> dict:
             return await run_agent_task(
                 query,
                 request.user_id,
+                run_mode="live",
                 tenant_id=bound_tenant,
             )
         return await run_agent_task(query, request.user_id)

@@ -1461,9 +1461,18 @@ async def test_live_agent_route_propagates_signed_tenant(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
     async def fake_run_agent_task(
-        query: str, user_id: str, *, tenant_id: str | None = None
+        query: str,
+        user_id: str,
+        run_mode: str = "demo",
+        *,
+        tenant_id: str | None = None,
     ) -> dict:
-        captured.update(query=query, user_id=user_id, tenant_id=tenant_id)
+        captured.update(
+            query=query,
+            user_id=user_id,
+            run_mode=run_mode,
+            tenant_id=tenant_id,
+        )
         return {"status": "ok", "tenant_id": tenant_id}
 
     monkeypatch.setattr(api, "run_agent_task", fake_run_agent_task)
@@ -1497,6 +1506,7 @@ async def test_live_agent_route_propagates_signed_tenant(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert captured["tenant_id"] == tenant_id
+    assert captured["run_mode"] == "live"
     assert 'source_id "public/pricing"' in str(captured["query"])
 
 
