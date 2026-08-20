@@ -389,14 +389,17 @@ Project deletion is irreversible and should be the final reviewed action. The
 free trial closes automatically on 2026-11-17 unless the full paid account is
 activated; do not click the Cloud Console “Activate” upsell while the project
 is no longer needed.
-## 2026-08-19 production hardening additions
+## Production hardening additions
 
-- Salesforce OAuth scaffolding is deployed in code but remains disabled until a
-  real org authorizes it. The callback is
+- Salesforce OAuth scaffolding is deployed in code and remains unconnected
+  until a real org completes consent and the callback. The callback is
   `https://driftline-xvxczqg62a-uc.a.run.app/api/connectors/salesforce/oauth/callback`.
-- Isolated Secret Manager placeholders created: `driftline-sf-client-id`,
-  `driftline-sf-client-secret`, and tenant refresh-token secret
-  `driftline-sf-driftline-demo`. No versions contain user credentials yet.
+- Isolated Secret Manager secrets `driftline-sf-client-id` and
+  `driftline-sf-client-secret` contain the Salesforce External Client App
+  credentials. The tenant refresh-token secret
+  `driftline-sf-driftline-demo` exists but has no version until OAuth consent
+  completes. No credential values are in source control, logs, or browser
+  responses.
 - Runtime service account can access and add versions only to the dedicated
   tenant Salesforce secret; it has no browser-visible credential path.
 - Cloud Tasks `driftline-jobs` retry policy is bounded to three attempts with a
