@@ -218,7 +218,9 @@ class OutcomeMeasurementRequest(BaseModel):
     changes_observed: int = Field(ge=1, le=10000)
     baseline_minutes: float = Field(ge=0, le=1_000_000)
     driftline_minutes: float = Field(ge=0, le=1_000_000)
-    revenue_lift_usd: float | None = Field(default=None, ge=-1_000_000_000, le=1_000_000_000)
+    revenue_lift_usd: float | None = Field(
+        default=None, ge=-1_000_000_000, le=1_000_000_000
+    )
     retention_lift_pct: float | None = Field(default=None, ge=-100, le=100)
     willingness_to_pay_usd: float | None = Field(default=None, ge=0, le=1_000_000)
     evidence_ref: str = Field(min_length=1, max_length=300)
@@ -479,8 +481,7 @@ def _verify_approval_mode(
     """
     configured = os.getenv("DRIFTLINE_APPROVAL_MODE", "demo").casefold()
     signed_enabled = (
-        os.getenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "false").casefold()
-        == "true"
+        os.getenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "false").casefold() == "true"
     )
     # Keep the public judge console in demo mode while allowing a separately
     # signed operator lane to exercise configured connectors.  A deployment
@@ -504,7 +505,9 @@ def _verify_approval_mode(
     if identity_token:
         audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
         if not audience:
-            raise HTTPException(status_code=403, detail="Google operator identity is not enabled")
+            raise HTTPException(
+                status_code=403, detail="Google operator identity is not enabled"
+            )
         try:
             from google.auth.transport.requests import Request as GoogleRequest
             from google.oauth2 import id_token
@@ -515,7 +518,9 @@ def _verify_approval_mode(
                 audience=audience,
             )
         except Exception as exc:  # pragma: no cover - Google-only runtime path.
-            raise HTTPException(status_code=401, detail="Invalid Google operator identity") from exc
+            raise HTTPException(
+                status_code=401, detail="Invalid Google operator identity"
+            ) from exc
         email = str(claims.get("email", "")).casefold()
         allowed = {
             item.strip().casefold()
@@ -523,7 +528,9 @@ def _verify_approval_mode(
             if item.strip()
         }
         if allowed and email not in allowed:
-            raise HTTPException(status_code=403, detail="Google operator is not allowlisted")
+            raise HTTPException(
+                status_code=403, detail="Google operator is not allowlisted"
+            )
         try:
             principal = principal_for_claims(
                 subject=str(claims.get("sub", "")),
@@ -533,7 +540,9 @@ def _verify_approval_mode(
         except (ValueError, PermissionError) as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         if not principal.can("operator"):
-            raise HTTPException(status_code=403, detail="Tenant role cannot perform this operation")
+            raise HTTPException(
+                status_code=403, detail="Tenant role cannot perform this operation"
+            )
         return {
             "mode": "signed",
             "identity": "google_oidc_operator",
@@ -560,7 +569,14 @@ def _verify_approval_mode(
     }
 
 
-_CONNECTOR_HANDOFFS: tuple[tuple[str, Callable[[WorkflowState], dict[str, object]], Callable[[WorkflowState], dict[str, object]]], ...] = (
+_CONNECTOR_HANDOFFS: tuple[
+    tuple[
+        str,
+        Callable[[WorkflowState], dict[str, object]],
+        Callable[[WorkflowState], dict[str, object]],
+    ],
+    ...,
+] = (
     ("jira", execute_jira_handoff, reverse_jira_handoff),
     ("confluence", execute_confluence_handoff, reverse_confluence_handoff),
     ("slack", execute_slack_handoff, reverse_slack_handoff),
@@ -675,7 +691,9 @@ async def _run_job(job_id: str) -> None:
             # run concurrently with the retry.
             job.status = "queued"
             job.claim_id = None
-            job.error = f"Transient agent failure; retry {job.run_attempts}/{MAX_JOB_ATTEMPTS}."
+            job.error = (
+                f"Transient agent failure; retry {job.run_attempts}/{MAX_JOB_ATTEMPTS}."
+            )
         else:
             job.status = "failed"
             job.error = "The agent job failed after bounded retries."
@@ -771,9 +789,13 @@ def start_salesforce_connection(request: SalesforceConnectRequest) -> dict[str, 
         # verifier in the expiring server-side state record; only the S256
         # challenge is sent through the browser.
         code_verifier = secrets.token_urlsafe(64)
-        code_challenge = base64.urlsafe_b64encode(
-            hashlib.sha256(code_verifier.encode("ascii")).digest()
-        ).rstrip(b"=").decode("ascii")
+        code_challenge = (
+            base64.urlsafe_b64encode(
+                hashlib.sha256(code_verifier.encode("ascii")).digest()
+            )
+            .rstrip(b"=")
+            .decode("ascii")
+        )
         _save_salesforce_state(
             state,
             {
@@ -807,12 +829,16 @@ def salesforce_oauth_callback(
 ) -> Response:
     """Consume a one-time callback and persist only safe connection metadata."""
     if error:
-        return PlainTextResponse("Salesforce authorization was declined.", status_code=400)
+        return PlainTextResponse(
+            "Salesforce authorization was declined.", status_code=400
+        )
     if not code or not state:
         return PlainTextResponse("Salesforce callback is incomplete.", status_code=400)
     callback_state = _consume_salesforce_state(state)
     if callback_state is None:
-        return PlainTextResponse("Salesforce authorization expired or was already used.", status_code=400)
+        return PlainTextResponse(
+            "Salesforce authorization expired or was already used.", status_code=400
+        )
     config = SalesforceConfig.from_env()
     try:
         result = exchange_salesforce_code(
@@ -862,7 +888,9 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
     tenant_id = identity["tenant_id"]
     connection = load_salesforce_connection(tenant_id)
     if not connection or connection.get("status") != "connected_read_only":
-        raise HTTPException(status_code=409, detail="Salesforce is not connected for this tenant")
+        raise HTTPException(
+            status_code=409, detail="Salesforce is not connected for this tenant"
+        )
     config = SalesforceConfig.from_env()
     try:
         refresh_token = read_secret(str(connection["secret_name"]))
@@ -876,7 +904,9 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
         return {"tenant_id": tenant_id, **result}
     except ConnectorError as exc:
         logger.warning("Salesforce health probe failed: %s", str(exc))
-        raise HTTPException(status_code=503, detail="Salesforce read probe failed") from exc
+        raise HTTPException(
+            status_code=503, detail="Salesforce read probe failed"
+        ) from exc
 
 
 @app.delete("/api/connectors/salesforce")
@@ -971,7 +1001,10 @@ def get_ops_summary() -> dict[str, object]:
     """Expose bounded operator health, never secrets or raw credentials."""
     with _jobs_lock:
         jobs = list(_jobs.values())
-    if not jobs and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
+    if (
+        not jobs
+        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+    ):
         jobs = list_jobs(20)
     workflows = list(workflow_store._runs.values())
     if (
@@ -1006,7 +1039,9 @@ def get_ops_summary() -> dict[str, object]:
             "external_writes_require_signed": True,
             "tenant_auth": {
                 "configured": bool(os.getenv("DRIFTLINE_TENANT_MEMBERS", "").strip()),
-                "default_tenant": os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo"),
+                "default_tenant": os.getenv(
+                    "DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo"
+                ),
                 "role_model": ["viewer", "operator", "owner"],
             },
         },
@@ -1039,7 +1074,10 @@ def get_value_proof() -> dict[str, object]:
     """Return observed workflow throughput without extrapolating ROI claims."""
     with _jobs_lock:
         jobs = list(_jobs.values())
-    if not jobs and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
+    if (
+        not jobs
+        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+    ):
         jobs = list_jobs(50)
     workflows = list(workflow_store._runs.values())
     if (
@@ -1062,7 +1100,11 @@ def get_value_proof() -> dict[str, object]:
     approval_latencies: list[float] = []
     for state in workflows:
         approval_event = next(
-            (event for event in state.events if event.get("outcome") == "approval_recorded"),
+            (
+                event
+                for event in state.events
+                if event.get("outcome") == "approval_recorded"
+            ),
             None,
         )
         if not approval_event:
@@ -1075,12 +1117,12 @@ def get_value_proof() -> dict[str, object]:
             continue
     approval_latencies.sort()
     p50_latency = (
-        approval_latencies[len(approval_latencies) // 2]
-        if approval_latencies
-        else None
+        approval_latencies[len(approval_latencies) // 2] if approval_latencies else None
     )
     p90_latency = (
-        approval_latencies[min(len(approval_latencies) - 1, int(len(approval_latencies) * 0.9))]
+        approval_latencies[
+            min(len(approval_latencies) - 1, int(len(approval_latencies) * 0.9))
+        ]
         if approval_latencies
         else None
     )
@@ -1110,7 +1152,10 @@ def get_value_proof() -> dict[str, object]:
             },
             "action_item_completion_rate": (
                 round(
-                    sum(item.get("status") == ActionItemStatus.COMPLETED.value for item in action_items)
+                    sum(
+                        item.get("status") == ActionItemStatus.COMPLETED.value
+                        for item in action_items
+                    )
                     / len(action_items),
                     3,
                 )
@@ -1124,7 +1169,12 @@ def get_value_proof() -> dict[str, object]:
             "cards_with_named_owners": sum(
                 bool(card.get("owners")) for card in change_cards
             ),
-            "cards_closed": sum(item.get("state") == "closed" for item in closure_cards),
+            "cards_closed": sum(
+                item.get("state") == "closed" for item in closure_cards
+            ),
+            "overdue_owner_actions": sum(
+                int(item.get("overdue", 0)) for item in closure_cards
+            ),
         },
         "not_measured": [
             "hours_saved_per_change",
@@ -1199,7 +1249,9 @@ def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, 
         persist_outcome_measurement(payload)
     except Exception as exc:  # pragma: no cover - Firestore-only failure path.
         logger.exception("Outcome measurement persistence failed")
-        raise HTTPException(status_code=503, detail="Outcome ledger unavailable") from exc
+        raise HTTPException(
+            status_code=503, detail="Outcome ledger unavailable"
+        ) from exc
     return {
         "status": "recorded",
         "measurement": payload,
@@ -1217,9 +1269,7 @@ def get_source_history(source_id: str, limit: int = 12) -> dict[str, object]:
         "source_id": source_id,
         "append_only": True,
         "observations": observations,
-        "memory": build_memory_summary({source_id: observations}, [])[
-            "sources"
-        ][0],
+        "memory": build_memory_summary({source_id: observations}, [])["sources"][0],
     }
 
 
@@ -1465,8 +1515,12 @@ async def run_job(job_id: str, request: Request) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await _run_job(job_id)
     payload = get_job(job_id)
-    if payload.get("status") == "queued" and payload.get("error", "").startswith("Transient"):
-        raise HTTPException(status_code=503, detail="Transient job failure; Cloud Tasks will retry")
+    if payload.get("status") == "queued" and payload.get("error", "").startswith(
+        "Transient"
+    ):
+        raise HTTPException(
+            status_code=503, detail="Transient job failure; Cloud Tasks will retry"
+        )
     return payload
 
 
@@ -1525,9 +1579,7 @@ def _action_item(state: WorkflowState, item_id: str) -> dict[str, object]:
     return item
 
 
-def _action_event(
-    state: WorkflowState, item_id: str, outcome: str, actor: str
-) -> None:
+def _action_event(state: WorkflowState, item_id: str, outcome: str, actor: str) -> None:
     state.events.append(
         {
             "event_id": f"event-{uuid4().hex[:12]}",
@@ -1572,7 +1624,10 @@ def _action_transition(
 @app.post("/api/workflows/{workflow_id}/actions/{item_id}/claim")
 def claim_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
     try:
-        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+
+        def transition(
+            state: WorkflowState, item: dict[str, object], actor: str
+        ) -> None:
             if item.get("status") == ActionItemStatus.CLAIMED.value:
                 if item.get("claimed_by") == actor:
                     return
@@ -1599,16 +1654,23 @@ def claim_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> 
 @app.post("/api/workflows/{workflow_id}/actions/{item_id}/complete")
 def complete_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
     try:
-        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+
+        def transition(
+            state: WorkflowState, item: dict[str, object], actor: str
+        ) -> None:
             if item.get("status") == ActionItemStatus.COMPLETED.value:
                 if item.get("completed_by") == actor or item.get("claimed_by") == actor:
                     return
-                raise PolicyViolation("Only the claiming actor can complete this action")
+                raise PolicyViolation(
+                    "Only the claiming actor can complete this action"
+                )
             if (
                 item.get("status") != ActionItemStatus.CLAIMED.value
                 or item.get("claimed_by") != actor
             ):
-                raise PolicyViolation("Only the claiming actor can complete this action")
+                raise PolicyViolation(
+                    "Only the claiming actor can complete this action"
+                )
             item.update(
                 {
                     "status": ActionItemStatus.COMPLETED.value,
@@ -1626,14 +1688,18 @@ def complete_action(workflow_id: str, item_id: str, request: ActionItemRequest) 
 
 
 @app.post("/api/workflows/{workflow_id}/actions/{item_id}/fail")
-def fail_action(
-    workflow_id: str, item_id: str, request: ActionFailureRequest
-) -> dict:
+def fail_action(workflow_id: str, item_id: str, request: ActionFailureRequest) -> dict:
     """Record a bounded human-visible failure so a queued retry is possible."""
     try:
-        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+
+        def transition(
+            state: WorkflowState, item: dict[str, object], actor: str
+        ) -> None:
             if item.get("status") == ActionItemStatus.FAILED.value:
-                if item.get("failed_by") == actor and item.get("failure_reason") == request.reason:
+                if (
+                    item.get("failed_by") == actor
+                    and item.get("failure_reason") == request.reason
+                ):
                     return
                 raise PolicyViolation("Action item is already failed")
             if (
@@ -1662,7 +1728,10 @@ def fail_action(
 def retry_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
     """Requeue a failed item; repeat retries by the same actor are idempotent."""
     try:
-        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+
+        def transition(
+            state: WorkflowState, item: dict[str, object], actor: str
+        ) -> None:
             if item.get("status") == ActionItemStatus.QUEUED.value:
                 if item.get("retried_by") in (None, actor):
                     return
@@ -1690,7 +1759,10 @@ def retry_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> 
 def reverse_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
     """Reversibly close an individual action item without deleting its audit."""
     try:
-        def transition(state: WorkflowState, item: dict[str, object], actor: str) -> None:
+
+        def transition(
+            state: WorkflowState, item: dict[str, object], actor: str
+        ) -> None:
             if item.get("status") == ActionItemStatus.REVERSED.value:
                 return
             if item.get("status") not in {
@@ -1838,9 +1910,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         )
         storage_info = persist_action_artifact(state, kind="rollback")
         operational_info = persist_operational_output(state, kind="rollback")
-        connector_info = _connector_handoff_info(
-            state, approval_identity, reverse=True
-        )
+        connector_info = _connector_handoff_info(state, approval_identity, reverse=True)
         state.action_record = {
             **(state.action_record or {}),
             **storage_info,

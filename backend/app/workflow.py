@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from .impact import build_impact_graph, integration_targets, profile_for
@@ -298,6 +298,15 @@ class DriftlineWorkflow:
                 "evidence_hash": packet["evidence_hash"],
                 "idempotency_key": f"{state.workflow_id}:{packet['artifact']}",
                 "created_at": self._timestamp(),
+                "due_at": (
+                    datetime.now(UTC)
+                    + timedelta(
+                        hours={"high": 48, "medium": 96, "low": 168}.get(
+                            packet.get("risk", "medium"), 72
+                        )
+                    )
+                ).isoformat(),
+                "priority": packet.get("risk", "medium"),
             }
             for packet in packets
         ]
@@ -419,6 +428,14 @@ def packet_markdown(state: WorkflowState) -> str:
                     f"  - Next action: {packet.get('next_action', 'Review the cited evidence')}",
                     f"  - Status: `{packet.get('status', 'prepared')}` · evidence bound: `{packet.get('evidence_bound', False)}`",
                 ]
+            )
+        lines.append("")
+    if state.action_items:
+        lines.extend(["## Owner deadlines", ""])
+        for item in state.action_items:
+            lines.append(
+                f"- {item.get('artifact', 'Owner action')} · {item.get('owner', 'Owner')} · "
+                f"priority `{item.get('priority', 'medium')}` · due `{item.get('due_at', 'not set')}`"
             )
         lines.append("")
     return "\n".join(lines)

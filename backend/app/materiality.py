@@ -9,6 +9,7 @@ CRM-backed evidence.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import UTC, datetime
 from typing import Any
 
 _PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
@@ -89,9 +90,21 @@ def _closure(
     action_items: Iterable[dict[str, Any]], approval: dict[str, Any] | None
 ) -> dict[str, Any]:
     items = list(action_items)
+    now = datetime.now(UTC)
     completed = sum(item.get("status") == "completed" for item in items)
     failed = sum(item.get("status") == "failed" for item in items)
     reversed_items = sum(item.get("status") == "reversed" for item in items)
+    overdue = 0
+    for item in items:
+        if item.get("status") in {"completed", "reversed"} or not item.get("due_at"):
+            continue
+        try:
+            due_at = datetime.fromisoformat(str(item["due_at"]))
+            if due_at.tzinfo is None:
+                due_at = due_at.replace(tzinfo=UTC)
+            overdue += due_at < now
+        except (TypeError, ValueError):
+            continue
     if approval is None:
         state = "approval_pending"
     elif not items:
@@ -110,6 +123,7 @@ def _closure(
         "completed": completed,
         "failed": failed,
         "reversed": reversed_items,
+        "overdue": overdue,
         "completion_rate": round(completed / len(items), 3) if items else 0.0,
         "next_step": (
             "Named human approval is required"

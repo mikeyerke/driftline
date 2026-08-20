@@ -40,7 +40,7 @@ export default function ChangeCardPanel({ card }) {
           <strong>{label(closure.state)}</strong>
           <p>{closure.next_step || "Review the next step."}</p>
           <div className="closure-progress"><span style={{ width: `${Math.round((closure.completion_rate || 0) * 100)}%` }} /></div>
-          <small>{closure.completed || 0}/{closure.item_count || 0} owner actions complete</small>
+          <small>{closure.completed || 0}/{closure.item_count || 0} owner actions complete{closure.overdue ? ` · ${closure.overdue} overdue` : ""}</small>
         </div>
       </div>
       <div className="role-packet-strip">

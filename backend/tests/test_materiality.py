@@ -25,6 +25,12 @@ def test_change_card_closure_tracks_completed_owner_work() -> None:
     )
     assert state.change_card["closure"]["state"] == "in_progress"
     assert state.change_card["closure"]["item_count"] == 4
+    assert all(item["due_at"] for item in state.action_items)
+    assert {item["priority"] for item in state.action_items} == {
+        "high",
+        "medium",
+        "low",
+    }
 
     for item in state.action_items:
         item["status"] = "completed"

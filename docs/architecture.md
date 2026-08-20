@@ -108,4 +108,6 @@ verified, permissioned Salesforce read lane may populate those fields. Role
 packets are generated for the owners already named by the impact profile, not
 for arbitrary recipients. This keeps the high-value change-to-work loop useful
 before a customer connector exists and prevents a model from manufacturing
-business exposure.
+business exposure. Approval also assigns deterministic risk-based due dates to
+owner actions; the closure card and `/api/ops/value-proof` expose overdue work
+without claiming customer ROI.

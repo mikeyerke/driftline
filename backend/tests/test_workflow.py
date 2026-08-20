@@ -168,6 +168,7 @@ def test_approval_creates_evidence_bound_sandbox_packets() -> None:
     packet = packet_markdown(result)
     assert "## Materiality and exposure" in packet
     assert "## Role packets" in packet
+    assert "## Owner deadlines" in packet
     assert "not CRM data" in packet
     assert result.change_card["closure"]["state"] == "in_progress"
 

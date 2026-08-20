@@ -56,7 +56,9 @@ evidence), why it matters now (materiality and decision window), which role
 owns the next move (PMM, Sales/RevOps, Product, CS, Support, or Legal), and
 whether the resulting work actually closed. The card produces role-specific
 packets from one evidence set and carries the same evidence hash into action
-items and rollback markers. In the synthetic demo, CRM opportunity and renewal
+items and rollback markers. Approved owner actions receive deterministic,
+risk-based due dates and priority so the queue measures overdue work instead of
+stopping at “packet created.” In the synthetic demo, CRM opportunity and renewal
 counts are intentionally shown as unavailable; once a permissioned Salesforce
 read-only connection is verified, those fields can be populated without
 changing the policy gate or exposing raw records to the public console.

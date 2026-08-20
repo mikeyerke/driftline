@@ -23,7 +23,9 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     registry_payload = registry.json()
     assert registry_payload["append_only"] is True
     assert registry_payload["summary"]["total"] == 5
-    assert all("token" not in str(item).casefold() for item in registry_payload["sources"])
+    assert all(
+        "token" not in str(item).casefold() for item in registry_payload["sources"]
+    )
 
     ops = client.get("/api/ops/summary")
     assert ops.status_code == 200
@@ -40,6 +42,7 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert "willingness_to_pay" in value_proof.json()["not_measured"]
     assert "change_cards" in value_proof.json()["observed"]
     assert "high_materiality_cards" in value_proof.json()["observed"]
+    assert "overdue_owner_actions" in value_proof.json()["observed"]
     outcomes = client.get("/api/ops/outcomes")
     assert outcomes.status_code == 200
     assert outcomes.json()["status"] == "not_measured"
@@ -117,7 +120,9 @@ def test_signed_operator_can_onboard_an_exact_public_source(monkeypatch) -> None
 
     assert response.status_code == 200
     assert response.json()["status"] == "registered"
-    assert response.json()["source"]["allowlist"] == "exact operator-registered HTTPS URL"
+    assert (
+        response.json()["source"]["allowlist"] == "exact operator-registered HTTPS URL"
+    )
 
 
 def test_manual_monitor_job_requires_signed_operator(monkeypatch) -> None:
@@ -208,7 +213,10 @@ def test_demo_approval_never_calls_configured_connectors(monkeypatch) -> None:
     assert not calls
     assert action["external_write"] is False
     assert action["external_write_authorized"] is False
-    assert all(action[f"{name}_status"] == "prepared_only" for name in ("jira", "confluence", "slack", "github"))
+    assert all(
+        action[f"{name}_status"] == "prepared_only"
+        for name in ("jira", "confluence", "slack", "github")
+    )
 
 
 def test_signed_approval_can_cross_connector_boundary_when_enabled(monkeypatch) -> None:
@@ -230,7 +238,9 @@ def test_signed_approval_can_cross_connector_boundary_when_enabled(monkeypatch) 
     started = client.post("/api/workflows/demo")
     workflow_id = started.json()["workflow_id"]
     actor = "Signed operator"
-    token = hmac.new(secret.encode(), f"{workflow_id}:{actor}".encode(), hashlib.sha256).hexdigest()
+    token = hmac.new(
+        secret.encode(), f"{workflow_id}:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
     approved = client.post(
         f"/api/workflows/{workflow_id}/approve",
         json={
