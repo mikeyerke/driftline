@@ -81,8 +81,9 @@ bounded internal-workload view before approval: fixed-scope Jira, Confluence,
 Slack, and GitHub connectors return aggregate counts only. It is signed-only,
 request-scoped, and never exposes source text or private records to the public
 console. Unconfigured integrations remain explicitly `prepared_only`;
-Salesforce remains a separate read-only OAuth lane pending real tenant
-consent.
+Salesforce is a read-only OAuth lane pending real tenant consent, and its
+refresh token follows the same deterministic tenant binding
+(`driftline-tenant-<tenant>-salesforce`) after the callback.
 
 External connector credentials are tenant-bound. An owner provisions the
 deterministic Secret Manager secret and activates its metadata-only binding via
@@ -107,7 +108,9 @@ profiles and validate every URL and destination. The older operator-owned
 `DRIFTLINE_TENANT_CONNECTOR_CONFIG` profile is local-development compatibility
 only; hosted Firestore signed requests fail closed until a durable tenant
 profile exists. Credentials still resolve only from the deterministic tenant
-Secret Manager binding. The current demo deployment has one verified tenant;
+Secret Manager binding. Salesforce health also requires an active tenant
+binding, not just an OAuth client configuration. The current demo deployment
+has one verified tenant;
 a second tenant has not been provisioned or live-verified.
 
 Signals do not have to become work. A named reviewer can dismiss a
