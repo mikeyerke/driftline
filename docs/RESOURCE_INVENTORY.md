@@ -387,6 +387,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   grant `roles/secretmanager.secretAccessor` only to
   `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com`.
 
+Browser QA on the public alias found no horizontal overflow at the default
+desktop viewport (`1280x720`) or a `390x844` mobile viewport; both exposed 22
+focusable controls and the browser console contained zero warnings/errors.
+
 ## 2026-08-20 Membership status enforcement release
 
 - Source commit: `7c5293b` (durable membership state overrides bootstrap
