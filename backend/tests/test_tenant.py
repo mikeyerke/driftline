@@ -4,6 +4,8 @@ from app import persistence
 from app.tenant import (
     principal_for_claims,
     tenant_connector_secret_name,
+    tenant_service_account_email,
+    tenant_service_account_id,
     validate_connector_profile,
 )
 
@@ -129,3 +131,17 @@ def test_salesforce_uses_shared_tenant_secret_namespace() -> None:
     assert validate_connector_profile(
         "salesforce", {"instance_url": "https://acme.my.salesforce.com"}
     )["instance_url"].startswith("https://")
+
+
+def test_tenant_service_identity_is_deterministic_and_bounded(monkeypatch) -> None:
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "driftline-hackathon-2026")
+    first = tenant_service_account_id("a-long-customer-tenant-name")
+    assert first == tenant_service_account_id("a-long-customer-tenant-name")
+    assert len(first) <= 30
+    assert first.startswith("driftline-a-long-custo-")
+    assert tenant_service_account_email("a-long-customer-tenant-name").endswith(
+        "@driftline-hackathon-2026.iam.gserviceaccount.com"
+    )
+    assert tenant_service_account_id("a-long-customer-tenant-name") != tenant_service_account_id(
+        "a-long-customer-tenant-names"
+    )

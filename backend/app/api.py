@@ -59,6 +59,7 @@ from .connectors import (
     salesforce_authorization_url,
     salesforce_readiness,
     secret_version_for,
+    tenant_secret_credentials,
     write_secret_version,
 )
 from .credential_broker import (
@@ -113,6 +114,36 @@ from .persistence import (
     reserve_tenant_rate_limit,
     update_jobs_for_workflow,
 )
+
+
+def _read_tenant_secret(tenant_id: str, secret_name: str, *, version: str = "latest") -> str:
+    """Read through the tenant identity with compatibility for local fakes."""
+    credentials = tenant_secret_credentials(tenant_id)
+    try:
+        return read_secret(secret_name, version=version, credentials=credentials)
+    except TypeError:
+        # Older local test doubles accepted only the secret name. This branch
+        # never runs with the production Secret Manager client.
+        try:
+            return read_secret(secret_name, version=version)
+        except TypeError:
+            return read_secret(secret_name)
+
+
+def _tenant_secret_version(tenant_id: str, secret_name: str) -> str:
+    credentials = tenant_secret_credentials(tenant_id)
+    try:
+        return secret_version_for(secret_name, credentials=credentials)
+    except TypeError:
+        return secret_version_for(secret_name)
+
+
+def _write_tenant_secret(tenant_id: str, secret_name: str, value: str) -> str | None:
+    credentials = tenant_secret_credentials(tenant_id)
+    try:
+        return write_secret_version(secret_name, value, credentials=credentials)
+    except TypeError:
+        return write_secret_version(secret_name, value)
 from .simulator import simulate_scenarios
 from .source import (
     list_allowlisted_sources,
@@ -826,10 +857,11 @@ def _verify_approval_mode(
     )
     if tenant_signing_prefix:
         try:
-            secret = read_secret(
+            secret = _read_tenant_secret(
+                tenant_for_signing,
                 tenant_operator_signing_secret_name(
                     tenant_for_signing, tenant_signing_prefix
-                )
+                ),
             ).strip()
         except (ConnectorError, ValueError):
             if require_tenant_signer:
@@ -1246,7 +1278,7 @@ def salesforce_oauth_callback(
         if str((tenant or {}).get("status", "")).casefold() != "active":
             raise ConnectorError("salesforce_tenant_inactive")
         secret_name = _salesforce_secret_name(tenant_id)
-        secret_version = write_secret_version(secret_name, refresh_token) or "latest"
+        secret_version = _write_tenant_secret(tenant_id, secret_name, refresh_token) or "latest"
         binding = persist_connector_binding(
             {
                 "tenant_id": tenant_id,
@@ -1737,7 +1769,7 @@ def register_connector_binding(
     status = "active"
     secret_version = "latest"
     try:
-        if not read_secret(secret_name).strip():
+        if not _read_tenant_secret(tenant_id, secret_name).strip():
             status = "pending_secret"
         else:
             # Pin the binding to the exact Secret Manager version resolved at
@@ -1745,7 +1777,7 @@ def register_connector_binding(
             # expose a concrete version, ``latest`` remains an explicit
             # compatibility marker and the next owner verification can pin it.
             try:
-                secret_version = secret_version_for(secret_name)
+                secret_version = _tenant_secret_version(tenant_id, secret_name)
             except ConnectorError:
                 secret_version = "latest"
     except ConnectorError:
@@ -2569,7 +2601,7 @@ def get_connector_binding_health(
             check.update(status="attention", secret_status="not_checked")
         else:
             try:
-                readable = bool(read_secret(expected_secret).strip())
+                readable = bool(_read_tenant_secret(tenant_id, expected_secret).strip())
             except Exception:  # noqa: BLE001 - health must not leak provider errors.
                 readable = False
             check.update(

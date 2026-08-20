@@ -195,17 +195,23 @@ rotation, and revocation append metadata-only records readable from the signed
 `/api/tenants/audit` route; lifecycle records never contain the credential
 value. Active bindings pin the concrete Secret Manager version resolved during
 verification, so a later provider-token update cannot silently change a live
-tenant. The current deployment has a real tenant control plane, not a claim of
-self-serve enterprise SSO, customer billing, or IAM-isolated Cloud Run workers
-per tenant; those are the next production SaaS layer beyond this hackathon
-deployment.
+tenant. The hosted runtime also derives a collision-resistant per-tenant Google
+service identity and impersonates it for Secret Manager access. The shared
+Cloud Run identity has only narrowly scoped `Service Account Token Creator`
+access to each tenant identity; each tenant identity can read only its own
+deterministic secrets and can add Salesforce refresh-token versions only on
+that tenant's Salesforce secret. This is a real tenant credential data plane
+for this deployment, while customer-managed KMS keys, self-serve SSO, billing,
+and per-tenant compute remain outside the hackathon release.
 At runtime, adapters resolve credentials through one tenant credential broker:
 the caller supplies only tenant, connector, and an allowlisted operation. The
 broker rejects cross-tenant secret references, revoked/rotating bindings, and
 unapproved operations, then reads the pinned Secret Manager version into a
 short-lived in-process lease. It appends metadata-only lease records to
 `driftline_credential_access_events`; values and provider response bodies never
-enter the ledger. Signed owners can inspect the redacted inventory at
+enter the ledger. Hosted leases read through the derived tenant service identity
+when `DRIFTLINE_TENANT_SECRET_IDENTITY_MODE=impersonated`; direct shared-runtime
+secret reads are reserved for local compatibility. Signed owners can inspect the redacted inventory at
 `/api/connectors/credentials` and access trail at
 `/api/connectors/credentials/access`. This closes the runtime credential seam
 for multiple tenants while leaving customer-managed encryption keys,

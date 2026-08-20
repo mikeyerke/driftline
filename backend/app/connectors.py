@@ -22,7 +22,11 @@ from urllib.parse import quote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from .credential_broker import CredentialBrokerError, resolve_tenant_credential
-from .tenant import validate_connector_name, validate_tenant_id
+from .tenant import (
+    tenant_service_account_email,
+    validate_connector_name,
+    validate_tenant_id,
+)
 
 
 class ConnectorError(RuntimeError):
@@ -458,12 +462,25 @@ def _tenant_secret_or_env(
     """
     safe_tenant = validate_tenant_id(tenant_id)
     safe_connector = validate_connector_name(connector)
+
+    def read_scoped_secret(secret_name: str, *, version: str = "latest") -> str:
+        credentials = tenant_secret_credentials(safe_tenant)
+        try:
+            return read_secret(
+                secret_name, version=version, credentials=credentials
+            )
+        except TypeError:
+            try:
+                return read_secret(secret_name, version=version)
+            except TypeError:
+                return read_secret(secret_name)
+
     try:
         lease = resolve_tenant_credential(
             safe_tenant,
             safe_connector,
             operation="runtime",
-            secret_reader=read_secret,
+            secret_reader=read_scoped_secret,
         )
         return lease.value
     except CredentialBrokerError as exc:
@@ -497,7 +514,38 @@ def _validate_secret_version(version: str) -> str:
     return normalized
 
 
-def read_secret(secret_name: str, *, version: str = "latest") -> str:
+def tenant_secret_credentials(tenant_id: str):
+    """Return credentials for the tenant's isolated Secret Manager identity.
+
+    Hosted SaaS enables impersonation so the shared Cloud Run identity can
+    never directly read another tenant's secret. Local development keeps the
+    default credentials path unless explicitly enabled.
+    """
+    mode = os.getenv("DRIFTLINE_TENANT_SECRET_IDENTITY_MODE", "direct").casefold()
+    if mode != "impersonated":
+        return None
+    safe_tenant = validate_tenant_id(tenant_id)
+    project = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
+    try:
+        from google.auth import default, impersonated_credentials
+
+        source_credentials, _ = default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        target = tenant_service_account_email(safe_tenant, project)
+        return impersonated_credentials.Credentials(
+            source_credentials=source_credentials,
+            target_principal=target,
+            target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            lifetime=600,
+        )
+    except Exception as exc:
+        raise ConnectorError("tenant_secret_identity_unavailable") from exc
+
+
+def read_secret(
+    secret_name: str, *, version: str = "latest", credentials: object | None = None
+) -> str:
     """Read one explicitly named isolated Secret Manager secret."""
     project = os.getenv("GOOGLE_CLOUD_PROJECT", "")
     safe_version = _validate_secret_version(version)
@@ -506,7 +554,8 @@ def read_secret(secret_name: str, *, version: str = "latest") -> str:
     try:
         from google.cloud import secretmanager
 
-        client = secretmanager.SecretManagerServiceClient()
+        kwargs = {"credentials": credentials} if credentials is not None else {}
+        client = secretmanager.SecretManagerServiceClient(**kwargs)
         response = client.access_secret_version(
             name=f"projects/{project}/secrets/{secret_name}/versions/{safe_version}"
         )
@@ -515,7 +564,7 @@ def read_secret(secret_name: str, *, version: str = "latest") -> str:
         raise ConnectorError("secret_read_failed") from exc
 
 
-def secret_version_for(secret_name: str) -> str:
+def secret_version_for(secret_name: str, *, credentials: object | None = None) -> str:
     """Return the concrete enabled version behind ``latest`` when available.
 
     Secret Manager responses include the resolved version name, but local
@@ -523,11 +572,13 @@ def secret_version_for(secret_name: str) -> str:
     safe for those compatibility paths; hosted activation records a concrete
     version whenever the provider returns one.
     """
-    _, version = read_secret_with_version(secret_name)
+    _, version = read_secret_with_version(secret_name, credentials=credentials)
     return version or "latest"
 
 
-def read_secret_with_version(secret_name: str) -> tuple[str, str]:
+def read_secret_with_version(
+    secret_name: str, *, credentials: object | None = None
+) -> tuple[str, str]:
     """Read an isolated secret and return ``(value, resolved_version)``."""
     project = os.getenv("GOOGLE_CLOUD_PROJECT", "")
     if not project or not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,99}", secret_name):
@@ -535,7 +586,8 @@ def read_secret_with_version(secret_name: str) -> tuple[str, str]:
     try:
         from google.cloud import secretmanager
 
-        client = secretmanager.SecretManagerServiceClient()
+        kwargs = {"credentials": credentials} if credentials is not None else {}
+        client = secretmanager.SecretManagerServiceClient(**kwargs)
         response = client.access_secret_version(
             name=f"projects/{project}/secrets/{secret_name}/versions/latest"
         )
@@ -548,7 +600,9 @@ def read_secret_with_version(secret_name: str) -> tuple[str, str]:
         raise ConnectorError("secret_read_failed") from exc
 
 
-def write_secret_version(secret_name: str, value: str) -> str | None:
+def write_secret_version(
+    secret_name: str, value: str, *, credentials: object | None = None
+) -> str | None:
     """Add a version to a pre-provisioned isolated secret.
 
     Secret creation is intentionally not attempted at request time. An
@@ -561,7 +615,8 @@ def write_secret_version(secret_name: str, value: str) -> str | None:
     try:
         from google.cloud import secretmanager
 
-        client = secretmanager.SecretManagerServiceClient()
+        kwargs = {"credentials": credentials} if credentials is not None else {}
+        client = secretmanager.SecretManagerServiceClient(**kwargs)
         response = client.add_secret_version(
             parent=f"projects/{project}/secrets/{secret_name}",
             payload={"data": value.encode("utf-8")},

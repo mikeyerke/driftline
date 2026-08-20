@@ -10,6 +10,7 @@ one customer boundary.  The mapping is intentionally configuration-driven:
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 from dataclasses import dataclass
@@ -89,6 +90,22 @@ def tenant_connector_secret_name(tenant_id: str, connector: str) -> str:
     safe_tenant = validate_tenant_id(tenant_id)
     safe_connector = validate_connector_name(connector)
     return f"driftline-tenant-{safe_tenant}-{safe_connector}"[:100]
+
+
+def tenant_service_account_id(tenant_id: str) -> str:
+    """Return a collision-resistant, deterministic per-tenant SA id."""
+    safe_tenant = validate_tenant_id(tenant_id)
+    digest = hashlib.sha256(safe_tenant.encode("utf-8")).hexdigest()[:7]
+    readable = re.sub(r"[^a-z0-9-]", "-", safe_tenant).strip("-") or "tenant"
+    return f"driftline-{readable[:12].rstrip('-')}-{digest}"[:30]
+
+
+def tenant_service_account_email(tenant_id: str, project_id: str | None = None) -> str:
+    """Return the deterministic per-tenant service identity email."""
+    project = (project_id or os.getenv("GOOGLE_CLOUD_PROJECT", "")).strip()
+    if not re.fullmatch(r"[a-z][a-z0-9-]{4,28}[a-z0-9]", project):
+        raise ValueError("google_project_id_invalid")
+    return f"{tenant_service_account_id(tenant_id)}@{project}.iam.gserviceaccount.com"
 
 
 def tenant_operator_signing_secret_name(tenant_id: str, prefix: str = "driftline-tenant-operator-") -> str:

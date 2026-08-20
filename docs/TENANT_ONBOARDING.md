@@ -31,14 +31,18 @@ other than driftline-hackathon-2026. It creates only:
 - driftline-tenant-acme-salesforce (OAuth refresh token, when enabled)
 
 Each secret is labeled with the tenant and connector and grants
-roles/secretmanager.secretAccessor only to the Driftline runtime service
-account. The Salesforce secret additionally grants the runtime
-`roles/secretmanager.secretVersionAdder` on that exact resource because its
-OAuth callback writes a refresh-token version after the tenant owner consents;
-no other connector receives runtime write permission. The helper never accepts
-a token value.
+`roles/secretmanager.secretAccessor` only to the derived tenant service
+identity. The shared Cloud Run runtime receives only
+`roles/iam.serviceAccountTokenCreator` on that one tenant identity; it is not a
+direct reader of tenant secrets. The Salesforce secret additionally grants the
+tenant identity `roles/secretmanager.secretVersionAdder` on that exact resource
+because its OAuth callback writes a refresh-token version after the tenant owner
+consents. No other connector receives runtime write permission. The helper
+never accepts a token value.
 
-The helper also creates `driftline-tenant-operator-acme`, an empty
+The helper also creates the deterministic service identity
+`driftline-<tenant-prefix>-<hash>@driftline-hackathon-2026.iam.gserviceaccount.com`
+and `driftline-tenant-operator-acme`, an empty
 tenant-specific break-glass signer container. Google OIDC is the preferred
 operator identity; if a signed fallback is needed, generate a random value
 out of band and add it to that exact secret. Driftline's hosted release is

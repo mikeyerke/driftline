@@ -145,8 +145,14 @@ deprovisioning revokes every binding and disables memberships; provider-token
 revocation and secret-version destruction remain explicit infrastructure
 offboarding steps. This keeps two customer tenants from sharing a token even
 when they use the same connector type, while preserving the public packet-only
-lane. The result is a real tenant credential control plane for this deployment,
-not a claim that customer identity, billing, or enterprise SSO is complete.
+lane. The hosted runtime also derives a collision-resistant Google service
+identity per tenant and impersonates it for Secret Manager access. The shared
+Cloud Run identity has only scoped `Service Account Token Creator` access to
+each tenant identity; Secret Manager IAM grants the tenant identity access only
+to that tenant's deterministic secrets. This is a real tenant credential data
+plane for this deployment, while customer-managed KMS keys, self-serve identity
+and billing, and dedicated compute per tenant remain outside the hackathon
+release.
 The credential broker is the runtime seam behind every tenant connector. It
 accepts only `(tenant_id, connector, operation)`, derives the exact
 `driftline-tenant-<tenant>-<connector>` Secret Manager reference, verifies the
@@ -155,12 +161,14 @@ short-lived in-process lease. A connector adapter cannot supply an arbitrary
 secret name or bypass a revoked/rotating binding. Lease metadata (tenant,
 connector, operation, credential ID, pinned version, and expiry) is appended to
 `driftline_credential_access_events`; values, bearer tokens, source bodies, and
-provider responses are excluded. Owners can inspect this inventory through the
+provider responses are excluded. Hosted leases use the derived tenant identity
+when `DRIFTLINE_TENANT_SECRET_IDENTITY_MODE=impersonated`; direct shared-runtime
+reads remain a local compatibility mode. Owners can inspect this inventory through the
 signed `GET /api/connectors/credentials` and its append-only access trail at
 `GET /api/connectors/credentials/access`. This is a real multi-tenant
-credential-control-plane foundation with least-privilege operation scopes; it
-does not pretend to provide customer-managed KMS keys, self-serve billing, or a
-dedicated Cloud Run worker/IAM project for every tenant.
+credential data plane with least-privilege operation scopes; customer-managed
+KMS keys, self-serve identity/billing, and dedicated compute per tenant remain
+outside this hackathon release.
 The signed `GET /api/connectors/bindings/health` route is a read-only
 reconciliation probe across the fixed connector allowlist; it checks active
 bindings against readable Secret Manager state and surfaces attention without
