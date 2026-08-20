@@ -17,7 +17,7 @@ export default function ArtifactDetail({ item, live, decision, onDecisionChange,
       <div className="artifact-detail-body">
         <div className="artifact-meta"><span><strong>Owner</strong>{item.owner}</span><span><strong>Action</strong>{item.action}</span><span><strong>Scope</strong>{item.detail}</span></div>
         <div className="artifact-copy"><div><span className="diff-label removed-label">Current</span><p>{item.before || "Existing claim"}</p></div><div><span className="diff-label added-label">Proposed</span><p>{item.proposed || item.after || "Evidence-linked update"}</p></div></div>
-        {live && item.status?.toLowerCase() === "draft ready" && <label className="decision-select">Action after approval<select value={decision || "owner_review"} onChange={(event) => onDecisionChange(item.name, event.target.value)}>{ACTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>}
+        {live && item.status?.toLowerCase() === "draft ready" && <label className="decision-select">Action after approval<select id={`artifact-action-${item.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`} name="artifact-action" value={decision || "owner_review"} onChange={(event) => onDecisionChange(item.name, event.target.value)}>{ACTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>}
         {item.evidence_hash && <code className="artifact-hash">Evidence: {item.evidence_hash}</code>}
         {packetUrl && <a className="source-link" href={packetUrl} target="_blank" rel="noreferrer">Open the generated change packet <ExternalLink size={14} /></a>}
       </div>
