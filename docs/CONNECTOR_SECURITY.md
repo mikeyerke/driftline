@@ -86,7 +86,9 @@ The public source registry starts with five pinned raw GitHub fixtures with expl
 Operator fetches also reject common bot/challenge interstitials before recording
 an observation, so a CAPTCHA or “verify you are human” page cannot masquerade as
 a competitor change. The source remains unavailable until a clean page can be
-retrieved.
+retrieved. The internal scheduler carries the owning tenant into each monitor
+job and applies the tenant-specific quota; it never turns the registry into a
+cross-tenant public crawl.
 
 ## Operational checks
 

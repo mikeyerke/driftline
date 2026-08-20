@@ -132,7 +132,9 @@ Operator source onboarding is a separate signed lane: it persists one exact
 public URL in the isolated Firestore registry, then the bounded scheduler can
 monitor it alongside the fixtures. Custom source definitions and snapshot
 history are tenant-scoped; the public console exposes only the five pinned
-fixtures. It is an allowlist of sources, not an arbitrary web crawler.
+fixtures. The internal scheduler carries each source's tenant ID into its
+bounded monitor job. It is an allowlist of sources, not an arbitrary web
+crawler.
 
 The deployed registry includes three verified public examples: Crayon's pricing
 inquiry page, Kompyte's competitive-intelligence article, and Visualping's
