@@ -126,7 +126,13 @@ performs structured, evidence-hash-bound impact analysis; its JSON is validated
 again by Driftline before it can replace draft artifacts. Cloud Tasks starts
 the live run asynchronously, so the browser is not holding a model request
 open. A separate deterministic API gate owns high-risk approval; the model is
-not given an approval tool. Cloud Scheduler runs the historical monitor every
+not given an approval tool. Before source text reaches the coordinator,
+structured analyst, decision copilot, or Gemini vision lane, Driftline creates
+a bounded model-visible copy, removes instruction-like lines and control
+characters, and labels the remaining text as quoted untrusted evidence. Raw
+evidence stays unchanged for hashes, audit, and the UI. This is a deterministic
+local guardrail, not a claim that Google Model Armor is configured. Cloud
+Scheduler runs the historical monitor every
 six hours and records `baseline_established`, `unchanged`, or `changed` in a
 Firestore snapshot ledger. Cloud Run serves the API and web console in one
 container, with Firestore as the durable workflow, job, source-history, and

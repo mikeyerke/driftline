@@ -64,6 +64,16 @@ request verifies its tenant principal before reserving quota and passing that
 tenant into ADK source inspection and Firestore workflow persistence. A partial
 identity or non-allowlisted source is rejected before the model is called.
 
+Source bodies are untrusted data, even when fetched from an operator-registered
+URL. Before a source snapshot crosses an ADK tool or Gemini prompt seam,
+Driftline creates a bounded model-visible copy: control characters are
+normalized, instruction-like lines and prompt-boundary markers are replaced,
+and long content is truncated. Raw evidence remains unchanged in the
+hash-bound workflow and operator UI. The coordinator, structured analyst,
+decision copilot, and Gemini vision prompt all receive an explicit quoted-data
+policy and never receive source credentials. This is a deterministic local
+guardrail; it is not a claim that Google Model Armor is configured.
+
 The policy gate is deliberately deterministic. A model cannot self-approve a
 high-risk action, widen its own tool permissions, or call the approval and undo
 endpoints. Approval creates a packet inside Driftline only; it never claims to

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.genai.types import GenerateContentConfig, ThinkingConfig
 
+from .guardrails import model_safe_state, untrusted_evidence_instruction
 from .persistence import load_workflow, persist_workflow
 from .source import inspect_allowlisted_source, source_definition
 from .workflow import workflow_store
@@ -55,9 +56,9 @@ def inspect_source_change(source_id: str) -> dict:
         force_replay=_run_mode.get() == "demo",
     )
     if snapshot.get("status") == "rejected":
-        return snapshot
+        return model_safe_state(snapshot)
     if not snapshot.get("change_detected", True):
-        return snapshot
+        return model_safe_state(snapshot)
     state = workflow_store.start_demo(
         tenant_id=_tenant_id.get(),
         source_id=str(snapshot.get("source_id", source_id)),
@@ -76,7 +77,9 @@ def inspect_source_change(source_id: str) -> dict:
     )
     persist_workflow(state)
     _workflow_id.set(state.workflow_id)
-    return state.to_dict()
+    # The persisted/API state remains raw and hash-bound. Only the copy sent
+    # back across the ADK tool seam is guarded against source prompt injection.
+    return model_safe_state(state.to_dict())
 
 
 def get_workflow_state(workflow_id: str) -> dict:
@@ -93,7 +96,9 @@ def get_workflow_state(workflow_id: str) -> dict:
         if state is None:
             raise KeyError(f"Unknown workflow: {workflow_id}")
         state = workflow_store.restore(state)
-    return state.to_dict()
+    # Never expose raw operator-registered source text to the coordinator. The
+    # UI/API reads the persisted state directly through their own route.
+    return model_safe_state(state.to_dict())
 
 
 root_agent = Agent(
@@ -107,7 +112,9 @@ root_agent = Agent(
         "Autonomous enterprise change operator that turns verified source "
         "changes into bounded, auditable downstream actions."
     ),
-    instruction="""
+    instruction=(
+        untrusted_evidence_instruction()
+        + """
 You are Driftline's change operations coordinator. Work only with approved
 public or synthetic sources. Always gather hash-bound evidence before proposing
 an action. Use tools rather than narrating actions. Never claim an artifact was
@@ -121,14 +128,14 @@ source ID. Operator-registered sources are exact public URLs with bounded
 fetches; they are not a crawler. Ground the response in the returned workflow
 state. Call get_workflow_state with the returned
 workflow_id before the final response so the state read is independently
-verified. For a monitor
-run, if the source tool returns baseline_established or unchanged, do not
-invent a workflow or approval; report that no material change was found. Name
-whether the source was a public snapshot or synthetic replay.
+verified. For a monitor run, if the source tool returns baseline_established or
+unchanged, do not invent a workflow or approval; report that no material change
+was found. Name whether the source was a public snapshot or synthetic replay.
 Keep explanations concise and evidence-grounded.
 Your final response must be a complete plain-text summary of no more than 80
 words. Do not use markdown, tables, backticks, or a workflow ID; end with a
 complete sentence.
-""".strip(),
+""".strip()
+    ),
     tools=[inspect_source_change, get_workflow_state],
 )

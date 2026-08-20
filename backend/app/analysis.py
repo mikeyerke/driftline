@@ -19,6 +19,7 @@ from google.genai import types
 from google.genai.types import GenerateContentConfig, ThinkingConfig
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from .guardrails import guard_evidence_fields, untrusted_evidence_instruction
 from .impact import profile_for
 from .models import ArtifactImpact, WorkflowState
 
@@ -113,15 +114,23 @@ def _analysis_prompt(state: WorkflowState) -> str:
     allowed = ", ".join(
         f"{name} (owner: {owner})" for name, owner in allowed_artifacts.items()
     )
+    safe, safety = guard_evidence_fields(evidence.__dict__)
     return (
-        "Analyze this verified source change. Return the strict JSON output "
+        untrusted_evidence_instruction()
+        + "Analyze this verified source change. Return the strict JSON output "
         "schema, with exactly one artifact entry for each allowed artifact.\n\n"
         f"Source ID: {evidence.source_id}\n"
-        f"Source label: {evidence.snapshot_label}\n"
-        f"Source URL: {evidence.source_url or 'unavailable'}\n"
+        f"Source name: {safe['source_name']}\n"
+        f"Source label: {safe['snapshot_label']}\n"
+        f"Source URL: {safe['source_url'] or 'unavailable'}\n"
         f"Evidence hash: {evidence.evidence_hash}\n"
-        f"Before: {evidence.before}\n"
-        f"After: {evidence.after}\n"
+        "<untrusted_source_before>\n"
+        f"{safe['before']}\n"
+        "</untrusted_source_before>\n"
+        "<untrusted_source_after>\n"
+        f"{safe['after']}\n"
+        "</untrusted_source_after>\n"
+        f"Source guard metadata: {json.dumps(safety, sort_keys=True)}\n"
         f"Allowed artifacts: {allowed}\n\n"
         "The evidence_hash on the top-level result and every artifact must "
         "exactly match the supplied evidence hash. Describe proposed updates "

@@ -19,6 +19,7 @@ from google.genai.types import GenerateContentConfig, ThinkingConfig
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .analysis import AnalysisUnavailable
+from .guardrails import guard_evidence_fields, untrusted_evidence_instruction
 from .models import WorkflowState
 
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3.5-flash")
@@ -116,14 +117,21 @@ def _prompt(state: WorkflowState) -> str:
         for item in state.impacts
     )
     category = state.impact_graph.get("summary", {}).get("category", "Change")
+    safe, safety = guard_evidence_fields(evidence.__dict__)
     return (
-        "Create a decision brief for this verified Driftline change. Return "
+        untrusted_evidence_instruction()
+        + "Create a decision brief for this verified Driftline change. Return "
         "exactly 2 or 3 options and no prose outside JSON.\n\n"
         f"Category: {category}\n"
-        f"Source: {evidence.source_name} ({evidence.source_id})\n"
+        f"Source: {safe['source_name']} ({evidence.source_id})\n"
         f"Evidence hash: {evidence.evidence_hash}\n"
-        f"Before: {evidence.before}\n"
-        f"After: {evidence.after}\n"
+        "<untrusted_source_before>\n"
+        f"{safe['before']}\n"
+        "</untrusted_source_before>\n"
+        "<untrusted_source_after>\n"
+        f"{safe['after']}\n"
+        "</untrusted_source_after>\n"
+        f"Source guard metadata: {json.dumps(safety, sort_keys=True)}\n"
         f"Current artifacts:\n{impacts}\n\n"
         "Every option must include all current artifact names, one of the "
         "allowlisted workflow decisions, tradeoffs, rollback, and a citation "

@@ -148,6 +148,15 @@ state. Supplying only a tenant ID or an unallowlisted source is rejected before
 any model call. This keeps the fast direct ADK path from becoming a credential
 or cross-tenant escape hatch while preserving a reliable public demo.
 
+Source content is treated as untrusted even when its URL was explicitly
+registered by an operator. The ADK tool seam and every Gemini text/vision
+prompt receive a bounded model-visible copy with control-character cleanup,
+instruction-like line redaction, length bounds, and an explicit quoted-data
+policy. Raw source evidence remains available to the hash-bound workflow and
+operator UI; the model-visible copy never contains credentials. This is a
+deterministic Driftline guardrail, not a claim that Google Model Armor is
+configured.
+
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each custom source belongs to the caller's tenant, and its append-only snapshot ledger is stored under a tenant-namespaced key. Each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler. Public registry/history routes expose only the pinned fixtures; signed source history is tenant-scoped.
 Operator fetches also reject common bot/challenge interstitials before recording
 an observation, so a CAPTCHA or “verify you are human” page cannot masquerade as
