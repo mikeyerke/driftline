@@ -136,13 +136,15 @@ created during the contest.
   project-scoped budget guardrail.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `481c8c7`, deployed through Cloud Build
-  `658bcb18-dd42-4a16-8068-a78d491d4d5e` and the dedicated `driftline-build`
-  identity as Cloud Run revision `driftline-00023-w7h` at 100% traffic after
-  local and CI gates passed. The follow-up repository verification run
-  `32423116804` also passed backend tests, frontend build, and the standalone
-  image build. A live direct-agent canary returned the two allowlisted tool
-  calls without echoing anonymous query or user fields. The signed
+  The deployed runtime source is commit `5ff9c35`, deployed through Cloud Build
+  `a640fa90-79ac-40d8-9574-a3e3a22f5804` as Cloud Run revision
+  `driftline-00026-j25` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32425880837` passed the backend tests,
+  frontend build, and standalone image build. A live direct-agent canary
+  returned the two allowlisted tool calls without echoing anonymous query or
+  user fields; a fresh browser run had no console errors and Lighthouse scored
+  100 across accessibility, best practices, SEO, and agentic browsing on both
+  desktop and mobile. The signed
   tenant-filtered pilot report is deployed; the signed report currently
   returns `not_measured` with zero records, and an unsigned public request
   returned HTTP 401. The agent trace now updates its public status after
