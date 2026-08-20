@@ -58,6 +58,9 @@ An owner can provision or update a member role through
 access token, or arbitrary Secret Manager name. OIDC identities without an
 explicit environment mapping or durable membership now fail closed with
 `tenant_membership_required` rather than inheriting the default tenant.
+When a durable membership exists, its role and `active`/`disabled` status take
+precedence over bootstrap configuration; disabled identities fail closed with
+`tenant_membership_inactive`.
 
 The public source registry starts with five pinned raw GitHub fixtures with explicit cadence and freshness SLAs. An authenticated operator can add exact public HTTPS HTML/text URLs through `/api/operator/sources`; each source is bounded by an exact URL, no redirects, no query credentials, DNS-resolved private-address rejection, a 128KB body limit, and a scheduler cap of 25 sources. It is still an allowlist, not a universal web crawler.
 Operator fetches also reject common bot/challenge interstitials before recording
