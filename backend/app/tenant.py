@@ -210,6 +210,27 @@ def principal_for_hmac(requested_tenant_id: str | None = None) -> TenantPrincipa
                 os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
             )
         )
+
+    # Hosted SaaS deployments can make the durable tenant directory the
+    # source of truth instead of redeploying for every new customer. The
+    # tenant must already exist and be active; the tenant-specific signer is
+    # still verified by the API before this principal is returned. Fail closed
+    # if the directory cannot be read so a transient Firestore outage never
+    # widens the HMAC allowlist.
+    durable_directory = (
+        os.getenv("DRIFTLINE_ALLOW_DURABLE_HMAC_TENANTS", "false").casefold()
+        == "true"
+    )
+    if durable_directory:
+        try:
+            from .persistence import load_tenant
+
+            persisted = load_tenant(tenant_id)
+        except Exception as exc:
+            raise PermissionError("tenant_directory_unavailable") from exc
+        if str((persisted or {}).get("status", "")).casefold() == "active":
+            configured_tenants.add(tenant_id)
+
     if tenant_id not in configured_tenants:
         raise PermissionError("tenant_not_allowlisted")
     if _tenant_is_disabled(tenant_id):

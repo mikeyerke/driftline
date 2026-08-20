@@ -164,3 +164,10 @@ tenant boundaries. Each signer is labeled with its tenant and is readable only
 by the isolated Driftline runtime service account. Rotate it by adding a new
 version through infrastructure, then retire the old signer; no API response
 returns the value.
+
+The hosted authorization check accepts a signer only for an active tenant in
+the durable Firestore tenant directory. This removes the need to redeploy for
+every new tenant while preserving a fail-closed response when the directory is
+unavailable or a tenant is disabled. The legacy environment allowlist remains
+as a compatibility bootstrap for the existing demo tenant, not as the sole
+source of SaaS tenant admission.

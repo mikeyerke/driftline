@@ -157,6 +157,9 @@ limit; local development uses a process-local fallback.
 Google OIDC is preferred for operators; the hosted break-glass fallback uses
 the deterministic `driftline-tenant-operator-<tenant>` signer secret and fails
 closed rather than accepting one deployment-wide HMAC key for every tenant.
+The hosted runtime also checks the durable Firestore tenant directory, so an
+active, provisioned tenant can be admitted without editing a deployment-wide
+allowlist; disabled or unreadable tenant records fail closed.
 
 Operator source onboarding is a separate signed lane: it persists one exact
 public URL in the isolated Firestore registry, then the bounded scheduler can

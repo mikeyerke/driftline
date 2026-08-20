@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app import api, source
 from app.api import app
 from app.models import JobState
-from app.tenant import tenant_operator_signing_secret_name
+from app.tenant import principal_for_hmac, tenant_operator_signing_secret_name
 
 client = TestClient(app)
 
@@ -284,6 +284,23 @@ def test_hmac_required_tenant_signer_fails_closed_when_secret_is_missing(monkeyp
     )
     assert response.status_code == 401
     assert response.json()["detail"] == "Tenant signing secret is unavailable"
+
+
+def test_hmac_can_use_the_durable_tenant_directory_without_redeployment(monkeypatch) -> None:
+    tenant_id = "durable-directory-acme"
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DRIFTLINE_ALLOW_DURABLE_HMAC_TENANTS", "true")
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "")
+    api.persist_tenant({"tenant_id": tenant_id, "status": "active"})
+
+    principal = principal_for_hmac(tenant_id)
+
+    assert principal.tenant_id == tenant_id
+    assert principal.role == "owner"
+
+    api.persist_tenant({"tenant_id": tenant_id, "status": "disabled"})
+    with pytest.raises(PermissionError, match="tenant_not_allowlisted"):
+        principal_for_hmac(tenant_id)
 
 
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
