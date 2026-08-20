@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getValueProof } from "../api";
 
 const metric = (value, suffix = "") => (value === null || value === undefined ? "—" : `${value}${suffix}`);
+const seconds = (value) => (value === null || value === undefined ? "—" : `${Number(value).toFixed(1)}s`);
 
 const outcomeLabel = (value) => value
   .replaceAll("_", " ")
@@ -45,7 +46,7 @@ export default function ValueProofPanel() {
           <div><Activity size={16} /><strong>{metric(observed.workflows)}</strong><small>workflows recorded</small></div>
           <div><CheckCircle2 size={16} /><strong>{metric(observed.cards_with_named_owners)}</strong><small>cards with named owners</small></div>
           <div><ShieldCheck size={16} /><strong>{metric(observed.workflows_reversed_or_reopened)}</strong><small>reopened or reversed</small></div>
-          <div><Clock3 size={16} /><strong>{metric(latency.p50, "s")}</strong><small>approval latency p50</small></div>
+          <div><Clock3 size={16} /><strong>{seconds(latency.p50)}</strong><small>approval latency p50</small></div>
         </div>
         <div className="value-proof-details">
           <div>
