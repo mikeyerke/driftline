@@ -302,6 +302,9 @@ def test_hmac_can_use_the_durable_tenant_directory_without_redeployment(monkeypa
     with pytest.raises(PermissionError, match="tenant_not_allowlisted"):
         principal_for_hmac(tenant_id)
 
+    with pytest.raises(PermissionError, match="tenant_not_allowlisted"):
+        principal_for_hmac("directory-missing-acme")
+
 
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")

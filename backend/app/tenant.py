@@ -196,6 +196,10 @@ def principal_for_hmac(requested_tenant_id: str | None = None) -> TenantPrincipa
         requested_tenant_id
         or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
     )
+    durable_directory = (
+        os.getenv("DRIFTLINE_ALLOW_DURABLE_HMAC_TENANTS", "false").casefold()
+        == "true"
+    )
     configured_tenants: set[str] = set()
     for raw in os.getenv("DRIFTLINE_HMAC_TENANTS", "").split(","):
         if not raw.strip():
@@ -204,7 +208,7 @@ def principal_for_hmac(requested_tenant_id: str | None = None) -> TenantPrincipa
             configured_tenants.add(validate_tenant_id(raw))
         except ValueError:
             continue
-    if not configured_tenants:
+    if not configured_tenants and not durable_directory:
         configured_tenants.add(
             validate_tenant_id(
                 os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
@@ -217,10 +221,6 @@ def principal_for_hmac(requested_tenant_id: str | None = None) -> TenantPrincipa
     # still verified by the API before this principal is returned. Fail closed
     # if the directory cannot be read so a transient Firestore outage never
     # widens the HMAC allowlist.
-    durable_directory = (
-        os.getenv("DRIFTLINE_ALLOW_DURABLE_HMAC_TENANTS", "false").casefold()
-        == "true"
-    )
     if durable_directory:
         try:
             from .persistence import load_tenant
