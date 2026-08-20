@@ -17,6 +17,32 @@ gcloud config set project driftline-hackathon-2026
 test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 ```
 
+## 2026-08-20 Durable membership admission release (current)
+
+- Source commit `21dc3f7` removes the hosted deployment-wide
+  `DRIFTLINE_OPERATOR_EMAILS` and `DRIFTLINE_TENANT_MEMBERS` bindings. OIDC
+  tenant admission now relies on the durable Firestore membership directory;
+  adding an active tenant membership no longer requires a Cloud Run redeploy.
+  The static mappings remain supported only for local/bootstrap compatibility.
+- Cloud Build `f396e081-b67b-49ee-8119-13dd0f152adb` completed `SUCCESS`; image
+  digest `sha256:fe048e3d54963201561606c1f0bc913ca1bfd185977ee3508bdc4def89f38281`;
+  Cloud Run revision `driftline-00140-8r2` serves 100% of traffic.
+- Live proof: the active revision has no hosted `DRIFTLINE_OPERATOR_EMAILS` or
+  `DRIFTLINE_TENANT_MEMBERS` environment bindings; `/health` returned `ok`,
+  root returned HTTP 200, public invoker bindings remained present, and the
+  revision has zero `severity>=ERROR` log entries. The tenant-specific HMAC
+  operator lane remains authorized against the durable active tenant directory:
+  signed `/api/ops/summary` reported `membership_source=firestore` and
+  `static_operator_allowlist=false`, while a live signed ADK run created
+  workflow `26fa06b5-bc9c-4d27-871d-fcdba8d3b8eb` with
+  `tenant_id=driftline-demo`, `status=needs_approval`, and a persisted
+  `gemini-3.5-flash` trace using only the two allowlisted tools.
+  A user-account Google OIDC token was not minted by the local gcloud CLI
+  because custom-audience identity tokens require a service account; the OIDC
+  path remains covered by local membership tests and is not claimed as a live
+  browser proof in this release.
+- Local regression is `154 passed`; Ruff and `git diff --check` are clean.
+
 ## 2026-08-20 Durable ADK trace release (current)
 
 - Source commit `25180b8` makes the direct signed `/api/agent/run` path persist
