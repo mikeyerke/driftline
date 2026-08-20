@@ -376,6 +376,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
 - The latest-revision Cloud Logging query returned no entries at `ERROR` or
   above. The local suite is `137 passed`; Ruff, frontend production build, and
   `git diff --check` passed.
+- Cloud Run's public invoker binding was independently reconciled in the
+  isolated project after the build warning: `roles/run.invoker` contains
+  `allUsers` and the dedicated scheduler identity; the public alias returns
+  the verified health payload.
 
 ## 2026-08-20 Membership status enforcement release
 
