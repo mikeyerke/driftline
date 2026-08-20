@@ -52,7 +52,8 @@ to the exact tenant secret. Do not paste the value into Driftline requests or
 commit it:
 
 ~~~bash
-printf '%s' 'VALUE_FROM_PROVIDER_FLOW' | +  gcloud secrets versions add driftline-tenant-acme-jira +  --project=driftline-hackathon-2026 --data-file=-
+printf '%s' 'VALUE_FROM_PROVIDER_FLOW' | gcloud secrets versions add \
+  driftline-tenant-acme-jira --project=driftline-hackathon-2026 --data-file=-
 ~~~
 
 The command above is an operator example; provider values and credentials must

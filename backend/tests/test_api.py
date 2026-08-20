@@ -557,6 +557,18 @@ def test_owner_rotation_fails_closed_until_binding_is_reverified(monkeypatch) ->
     assert payload["rotation_id"].startswith("rotation-")
     assert payload["credential_value_exposed"] is False
     assert api.load_connector_binding(tenant_id, "jira")["status"] == "rotation_pending"
+    repeated = client.post(
+        "/api/connectors/jira/binding/rotate",
+        json={
+            "operator": "Rotation owner",
+            "tenant_id": tenant_id,
+            "reason": "retry after timeout",
+            "approval_token": token,
+        },
+    )
+    assert repeated.status_code == 200
+    assert repeated.json()["already_pending"] is True
+    assert repeated.json()["rotation_id"] == payload["rotation_id"]
     with pytest.raises(ConnectorError, match="jira_tenant_binding_missing"):
         _tenant_secret_or_env(tenant_id, "jira", "DRIFTLINE_JIRA_TOKEN")
 

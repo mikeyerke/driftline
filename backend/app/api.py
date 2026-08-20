@@ -1820,6 +1820,26 @@ def rotate_connector_binding(
     binding = load_connector_binding(tenant_id, safe_connector)
     if binding is None:
         raise HTTPException(status_code=404, detail="connector_binding_not_found")
+    current_status = str(binding.get("status", "")).casefold()
+    if current_status not in {"active", "rotation_pending"}:
+        raise HTTPException(
+            status_code=409,
+            detail="connector_binding_not_rotatable",
+        )
+    if current_status == "rotation_pending" and binding.get("rotation_id"):
+        return {
+            "status": "rotation_pending",
+            "tenant_id": tenant_id,
+            "connector": safe_connector,
+            "rotation_id": binding["rotation_id"],
+            "secret_name": binding["secret_name"],
+            "credential_value_exposed": False,
+            "already_pending": True,
+            "next_step": (
+                "Add a replacement version to this deterministic Secret Manager secret, "
+                "then repeat the signed owner binding request to verify and reactivate it."
+            ),
+        }
     now = utc_now()
     rotation_id = f"rotation-{uuid4().hex}"
     pending = persist_connector_binding(
