@@ -4143,19 +4143,31 @@ async def run_agent(request: AgentRunRequest) -> dict:
             status_code=429,
             detail="Live agent demo rate limit reached; retry later.",
         )
-    query = (
-        f"{request.query.strip()} Use the exact allowlisted source_id "
-        f'"{request.source_id}". Do not choose a different source.'
-    )
+    if bound_tenant is None:
+        # Anonymous direct runs are a judge surface, not a general-purpose
+        # prompt proxy. Keep caller text out of Gemini and the public workflow
+        # ledger while preserving the signed tenant lane for real operators.
+        query = (
+            f"Inspect the allowlisted {request.source_id} change, verify the "
+            "evidence, map affected artifacts, and stop at the human approval "
+            "gate."
+        )
+        user_id = "public-demo"
+    else:
+        query = (
+            f"{request.query.strip()} Use the exact allowlisted source_id "
+            f'"{request.source_id}". Do not choose a different source.'
+        )
+        user_id = request.user_id
     try:
         if bound_tenant:
             return await run_agent_task(
                 query,
-                request.user_id,
+                user_id,
                 run_mode="live",
                 tenant_id=bound_tenant,
             )
-        return await run_agent_task(query, request.user_id)
+        return await run_agent_task(query, user_id)
     except Exception as exc:
         logger.exception("Live ADK execution failed")
         raise HTTPException(

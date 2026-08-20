@@ -201,11 +201,13 @@ default or the tenant's bounded retention policy. The public console never expos
 count.
 
 The direct `POST /api/agent/run` route has an explicit two-lane contract. The
-public judge request is tenantless and limited to an allowlisted source. A
-real operator can add `operator`, `tenant_id`, and a Google OIDC or HMAC
-approval token; Driftline then verifies the principal, reserves that tenant's
-agent quota, and persists the ADK workflow under that tenant. Partial identity
-or unallowlisted-source requests fail before a model call.
+anonymous judge request is tenantless, limited to an allowlisted source, and
+replaced with a fixed safe instruction so caller text never becomes a public
+Gemini prompt or durable ledger field. A real operator can add `operator`,
+`tenant_id`, and a Google OIDC or HMAC approval token; Driftline then verifies
+the principal, reserves that tenant's agent quota, and preserves the operator's
+query in the signed tenant workflow. Partial identity or unallowlisted-source
+requests fail before a model call.
 In the Firestore deployment, signed tenant reservations use a transactional
 window counter so concurrent Cloud Run instances cannot race past the same
 limit; local development uses a process-local fallback.

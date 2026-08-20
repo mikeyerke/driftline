@@ -84,10 +84,12 @@ deliberately separate from tenant connector quotas because the judge-safe
 visual fixture lane carries no tenant identity.
 
 The direct `/api/agent/run` path preserves the same boundary in both modes:
-the public judge request is tenantless and packet-safe, while a signed operator
-request verifies its tenant principal before reserving quota and passing that
-tenant into ADK source inspection and Firestore workflow persistence. A partial
-identity or non-allowlisted source is rejected before the model is called.
+the anonymous judge request is tenantless, packet-safe, and replaced with a
+fixed allowlisted instruction before any model call or durable write, while a
+signed operator request verifies its tenant principal before reserving quota
+and passing the operator's query into ADK source inspection and Firestore
+workflow persistence. A partial identity or non-allowlisted source is rejected
+before the model is called.
 
 Source bodies are untrusted data, even when fetched from an operator-registered
 URL. Before a source snapshot crosses an ADK tool or Gemini prompt seam,

@@ -1868,7 +1868,7 @@ def test_live_agent_query_is_bounded_before_execution() -> None:
 
 
 @pytest.mark.asyncio
-async def test_live_agent_route_binds_an_allowlisted_source(monkeypatch) -> None:
+async def test_public_live_agent_route_uses_fixed_allowlisted_input(monkeypatch) -> None:
     captured: dict[str, str] = {}
 
     async def fake_run_agent_task(query: str, user_id: str) -> dict:
@@ -1890,8 +1890,11 @@ async def test_live_agent_route_binds_an_allowlisted_source(monkeypatch) -> None
     )
 
     assert response.status_code == 200
-    assert captured["user_id"] == "operator-1"
-    assert 'source_id "public/pricing"' in captured["query"]
+    assert captured["user_id"] == "public-demo"
+    assert captured["query"] == (
+        "Inspect the allowlisted public/pricing change, verify the evidence, "
+        "map affected artifacts, and stop at the human approval gate."
+    )
 
 
 @pytest.mark.asyncio
