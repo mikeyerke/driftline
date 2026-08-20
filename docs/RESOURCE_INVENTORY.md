@@ -122,6 +122,21 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   logs have zero severity `ERROR` entries. The deployed desktop/mobile audit
   remains clean with no overflow, console errors, or failed requests.
 
+## 2026-08-20 Final current-revision smoke (live)
+
+- On revision `driftline-00013-d9g`, direct public `POST /api/agent/run`
+  returned `200` with `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, `source_status=needs_approval`,
+  `persisted=true`, workflow `bad5c77e-2730-4d11-8be6-c0e56faae0b5`, and
+  allowlisted tools `inspect_source_change` and `get_workflow_state`.
+  A follow-up workflow read returned Firestore-backed `public_source`,
+  `await_approval`, five events, a 64-character evidence hash, and a redacted
+  ADK trace.
+- The final local suite is `201 passed` with 3 dependency deprecation
+  warnings; Ruff, `git diff --check`, and the frontend production build pass.
+  The final browser journey reported 4 rows, 2 selects, approval enabled,
+  completed and reopened states, zero console errors, and zero failed requests.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
