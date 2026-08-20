@@ -135,6 +135,44 @@ def test_operator_registered_source_is_exact_url_and_append_only(monkeypatch) ->
     assert second["after"] == "Pro is now $59"
 
 
+def test_operator_sources_and_history_are_tenant_scoped() -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    source.register_operator_source(
+        source_id="custom/shared-pricing",
+        name="Acme pricing",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://acme.example/pricing",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        tenant_id="acme",
+    )
+    source.register_operator_source(
+        source_id="custom/shared-pricing",
+        name="Beta pricing",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://beta.example/pricing",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        tenant_id="beta",
+    )
+    assert source.source_definition("custom/shared-pricing", "acme")["url"] == "https://acme.example/pricing"
+    assert source.source_definition("custom/shared-pricing", "beta")["url"] == "https://beta.example/pricing"
+    assert source.source_definition("custom/shared-pricing", "other") is None
+    assert source._snapshot_storage_key(
+        "public/pricing", "acme", source.SOURCE_DEFINITIONS["public/pricing"]
+    ) == "tenant/acme/public/pricing"
+    assert source._snapshot_storage_key(
+        "public/pricing", "beta", source.SOURCE_DEFINITIONS["public/pricing"]
+    ) != source._snapshot_storage_key(
+        "public/pricing", "acme", source.SOURCE_DEFINITIONS["public/pricing"]
+    )
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+
 def test_operator_source_rejects_challenge_interstitial_without_recording_change(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     source.register_operator_source(

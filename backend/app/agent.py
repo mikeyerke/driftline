@@ -41,6 +41,7 @@ def inspect_source_change(source_id: str) -> dict:
     """Detect and verify a material change in an approved source."""
     snapshot = inspect_allowlisted_source(
         source_id,
+        tenant_id=_tenant_id.get(),
         force_replay=_run_mode.get() == "demo",
     )
     if snapshot.get("status") == "rejected":
@@ -50,7 +51,7 @@ def inspect_source_change(source_id: str) -> dict:
     state = workflow_store.start_demo(
         tenant_id=_tenant_id.get(),
         source_id=str(snapshot.get("source_id", source_id)),
-        source_name=(source_definition(source_id) or {}).get(
+        source_name=(source_definition(source_id, _tenant_id.get()) or {}).get(
             "name", "Allowlisted public snapshot"
         ),
         data_mode=snapshot["data_mode"],

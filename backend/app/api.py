@@ -1151,6 +1151,7 @@ def onboard_operator_source(request: SourceOnboardingRequest) -> dict[str, objec
             freshness_sla_hours=request.freshness_sla_hours,
             parser=request.parser,
             registered_by=request.registered_by,
+            tenant_id=approval_identity["tenant_id"],
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1245,7 +1246,9 @@ def get_ops_summary(
             if state.tenant_id is None
             or (identity is not None and state.tenant_id == identity.get("tenant_id"))
         ]
-    source_health = source_registry_health()
+    source_health = source_registry_health(
+        tenant_id=identity.get("tenant_id") if identity else None
+    )
     connector_names = ("jira", "confluence", "slack", "github")
     return {
         "generated_at": utc_now(),
@@ -1627,7 +1630,9 @@ def get_value_proof(
             or (identity is not None and state.tenant_id == identity.get("tenant_id"))
         ]
     action_items = [item for state in workflows for item in state.action_items]
-    source_health = source_registry_health()
+    source_health = source_registry_health(
+        tenant_id=identity.get("tenant_id") if identity else None
+    )
     change_cards = [state.change_card for state in workflows if state.change_card]
     materiality_cards = [card.get("materiality") or {} for card in change_cards]
     closure_cards = [card.get("closure") or {} for card in change_cards]
@@ -1829,11 +1834,40 @@ def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, 
 
 
 @app.get("/api/sources/{source_id:path}/history")
-def get_source_history(source_id: str, limit: int = 12) -> dict[str, object]:
-    if source_definition(source_id) is None:
+def get_source_history(
+    source_id: str,
+    limit: int = 12,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    identity: dict[str, str] | None = None
+    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
+        if not operator or not tenant_id:
+            raise HTTPException(
+                status_code=401, detail="Signed approval is required for source history"
+            )
+        identity = _verify_approval_mode(
+            f"source-history:{source_id}",
+            operator,
+            "signed",
+            approval_token,
+            identity_token,
+            tenant_id,
+        )
+    bound_tenant = identity.get("tenant_id") if identity else None
+    definition = source_definition(source_id, bound_tenant)
+    if definition is None:
         raise HTTPException(status_code=404, detail="Source is not allowlisted")
+    if (
+        definition.get("dynamic") == "true"
+        and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+        and not identity
+    ):
+        raise HTTPException(status_code=403, detail="Tenant-scoped source requires signed approval")
     bounded_limit = max(1, min(limit, 50))
-    observations = list_source_history(source_id, bounded_limit)
+    observations = list_source_history(source_id, bounded_limit, bound_tenant)
     return {
         "source_id": source_id,
         "append_only": True,
@@ -1866,9 +1900,10 @@ def get_memory_summary(
             identity_token,
             tenant_id,
         )
+    source_tenant = identity.get("tenant_id") if identity else None
     source_observations = {
-        source_id: list_source_history(source_id, bounded_limit)
-        for source_id in source_definitions()
+        source_id: list_source_history(source_id, bounded_limit, source_tenant)
+        for source_id in source_definitions(source_tenant)
     }
     with _jobs_lock:
         workflows = [
@@ -1991,9 +2026,6 @@ async def start_demo_job(
     request: JobStartRequest,
     background_tasks: BackgroundTasks,
 ) -> dict:
-    definition = source_definition(request.source_id)
-    if definition is None:
-        raise HTTPException(status_code=422, detail="Source is not allowlisted")
     tenant_id: str | None = None
     if request.run_mode == "monitor":
         monitor_identity = _verify_approval_mode(
@@ -2005,6 +2037,9 @@ async def start_demo_job(
             request.tenant_id,
         )
         tenant_id = monitor_identity["tenant_id"]
+    definition = source_definition(request.source_id, tenant_id)
+    if definition is None:
+        raise HTTPException(status_code=422, detail="Source is not allowlisted")
     if definition.get("dynamic") == "true" and request.run_mode != "monitor":
         raise HTTPException(
             status_code=422,

@@ -23,7 +23,7 @@ from .snapshots import (
 from .workflow import DEMO_AFTER, DEMO_BEFORE, DEMO_SOURCE_URL
 
 _SYNTHETIC_STORE = InMemorySnapshotStore()
-_CUSTOM_SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {}
+_CUSTOM_SOURCE_DEFINITIONS: dict[tuple[str, str], dict[str, str]] = {}
 _SOURCE_REGISTRY_COLLECTION = "driftline_source_registry"
 _MAX_REGISTERED_BODY_BYTES = 128 * 1024
 _CHALLENGE_MARKERS = (
@@ -131,15 +131,49 @@ def _registry_document_id(source_id: str) -> str:
     return base64.urlsafe_b64encode(source_id.encode()).decode().rstrip("=")
 
 
-def source_definitions() -> dict[str, dict[str, str]]:
-    """Return static fixtures plus explicitly operator-registered sources."""
-    definitions = {**SOURCE_DEFINITIONS, **_CUSTOM_SOURCE_DEFINITIONS}
+def _snapshot_storage_key(
+    source_id: str, tenant_id: str | None, definition: Mapping[str, str]
+) -> str:
+    """Namespace signed snapshot ledgers by tenant without changing UI IDs."""
+    if tenant_id:
+        return f"tenant/{tenant_id}/{source_id}"
+    return source_id
+
+
+def source_definitions(tenant_id: str | None = None) -> dict[str, dict[str, str]]:
+    """Return static fixtures plus only the caller's custom sources.
+
+    Local synthetic tests retain the legacy process-local registry behavior.
+    In the durable deployment, custom sources are tenant-scoped and are never
+    included in an unauthenticated public registry response.
+    """
+    definitions = {**SOURCE_DEFINITIONS}
     if not _firestore_enabled():
-        return definitions
+        if tenant_id is None:
+            return {
+                source_id: definition
+                for source_id, definition in SOURCE_DEFINITIONS.items()
+            } | {
+                source_id: definition
+                for (_bound_tenant, source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items()
+            }
+        return {
+            source_id: definition
+            for source_id, definition in SOURCE_DEFINITIONS.items()
+        } | {
+            source_id: definition
+            for (bound_tenant, source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items()
+            if bound_tenant == tenant_id
+        }
     try:
         for snapshot in _registry_client().collection(_SOURCE_REGISTRY_COLLECTION).stream():
             payload = snapshot.to_dict() or {}
-            if payload.get("enabled", True) and payload.get("source_id"):
+            if (
+                payload.get("enabled", True)
+                and payload.get("source_id")
+                and tenant_id
+                and payload.get("tenant_id") == tenant_id
+            ):
                 definitions[str(payload["source_id"])] = {
                     str(key): str(value)
                     for key, value in payload.items()
@@ -151,8 +185,8 @@ def source_definitions() -> dict[str, dict[str, str]]:
     return definitions
 
 
-def source_definition(source_id: str) -> dict[str, str] | None:
-    return source_definitions().get(source_id)
+def source_definition(source_id: str, tenant_id: str | None = None) -> dict[str, str] | None:
+    return source_definitions(tenant_id).get(source_id)
 
 
 def _validate_public_source_url(value: str) -> str:
@@ -194,6 +228,7 @@ def register_operator_source(
     freshness_sla_hours: int,
     parser: str = "html",
     registered_by: str = "signed_operator",
+    tenant_id: str = "demo-tenant",
 ) -> dict[str, str]:
     """Register one exact public URL; no crawler or arbitrary query surface."""
     if not re.fullmatch(r"custom/[a-z0-9][a-z0-9._/-]{0,72}", source_id):
@@ -221,16 +256,17 @@ def register_operator_source(
         "dynamic": "true",
         "enabled": "true",
         "registered_by": registered_by.strip()[:120],
+        "tenant_id": tenant_id,
         "registered_at": datetime.now(UTC).isoformat(),
     }
     if not normalized["name"] or not normalized["category"] or not normalized["owner"]:
         raise ValueError("source_metadata_required")
-    _CUSTOM_SOURCE_DEFINITIONS[source_id] = normalized
+    _CUSTOM_SOURCE_DEFINITIONS[(tenant_id, source_id)] = normalized
     if _firestore_enabled():
         payload: dict[str, object] = dict(normalized)
         payload["enabled"] = True
         _registry_client().collection(_SOURCE_REGISTRY_COLLECTION).document(
-            _registry_document_id(source_id)
+            _registry_document_id(f"{tenant_id}:{source_id}")
         ).set(payload)
     return normalized
 
@@ -320,7 +356,11 @@ def _default_public_store() -> SnapshotStore:
 
 
 def _public_snapshot(
-    source_id: str, *, store: SnapshotStore | None = None, force_replay: bool = False
+    source_id: str,
+    *,
+    tenant_id: str | None = None,
+    store: SnapshotStore | None = None,
+    force_replay: bool = False,
 ) -> dict[str, object]:
     """Read the one explicitly allowlisted public source.
 
@@ -328,20 +368,23 @@ def _public_snapshot(
     cannot reach GitHub, the deterministic fixture remains available, but the
     returned mode makes that fallback visible instead of pretending it was live.
     """
-    definition = source_definition(source_id)
+    definition = source_definition(source_id, tenant_id)
     if definition is None:
         raise KeyError(source_id)
     if definition.get("dynamic") == "true":
         try:
             body = _registered_body(definition)
-            return compare_and_record(
-                source_id=source_id,
+            storage_source_id = _snapshot_storage_key(source_id, tenant_id, definition)
+            result = compare_and_record(
+                source_id=storage_source_id,
                 body=body,
                 source_url=definition["url"],
                 snapshot_label=f"Operator-registered public URL · {source_id}",
                 data_mode="operator_registered_public",
                 store=store or _default_public_store(),
             )
+            result["source_id"] = source_id
+            return result
         except (HTTPError, OSError, UnicodeDecodeError, URLError, ValueError) as exc:
             reason = (
                 str(exc)
@@ -397,14 +440,17 @@ def _public_snapshot(
                 "data_mode": "public_source",
                 "confidence": 0.99,
             }
-        return compare_and_record(
-            source_id=source_id,
+        storage_source_id = _snapshot_storage_key(source_id, tenant_id, definition)
+        result = compare_and_record(
+            source_id=storage_source_id,
             body=body,
             source_url=url,
             snapshot_label=f"Public GitHub snapshot · allowlisted {source_id}",
             data_mode="public_source",
             store=store or _default_public_store(),
         )
+        result["source_id"] = source_id
+        return result
     except (OSError, UnicodeDecodeError, URLError, ValueError):
         return {
             "status": "synthetic_fallback",
@@ -426,9 +472,13 @@ def _public_snapshot(
 
 
 def inspect_allowlisted_source(
-    source_id: str, *, store: SnapshotStore | None = None, force_replay: bool = False
+    source_id: str,
+    *,
+    tenant_id: str | None = None,
+    store: SnapshotStore | None = None,
+    force_replay: bool = False,
 ) -> dict[str, object]:
-    definition = source_definition(source_id)
+    definition = source_definition(source_id, tenant_id)
     if definition is None:
         return {"status": "rejected", "reason": "source_not_allowlisted"}
     if os.getenv("DRIFTLINE_SOURCE_MODE", "synthetic").casefold() != "public":
@@ -456,7 +506,9 @@ def inspect_allowlisted_source(
             "before": definition["before"],
             "confidence": 0.99,
         }
-    snapshot = _public_snapshot(source_id, store=store, force_replay=force_replay)
+    snapshot = _public_snapshot(
+        source_id, tenant_id=tenant_id, store=store, force_replay=force_replay
+    )
     if snapshot.get("status") == "rejected":
         snapshot["source_id"] = source_id
         return snapshot
@@ -464,7 +516,7 @@ def inspect_allowlisted_source(
     return snapshot
 
 
-def list_allowlisted_sources() -> list[dict[str, str]]:
+def list_allowlisted_sources(tenant_id: str | None = None) -> list[dict[str, str]]:
     """Return safe source metadata for the monitor UI, never raw credentials."""
     return [
         {
@@ -480,16 +532,26 @@ def list_allowlisted_sources() -> list[dict[str, str]]:
             "source_kind": definition["source_kind"],
             "allowlist": definition.get("allowlist", "pinned raw GitHub fixture only"),
         }
-        for source_id, definition in source_definitions().items()
+        for source_id, definition in source_definitions(tenant_id).items()
     ]
 
 
-def list_source_history(source_id: str, limit: int = 20) -> list[dict[str, str]]:
+def list_source_history(
+    source_id: str, limit: int = 20, tenant_id: str | None = None
+) -> list[dict[str, str]]:
     """Return append-only observations for one allowlisted source."""
 
-    if source_definition(source_id) is None:
+    definition = source_definition(source_id, tenant_id)
+    if definition is None:
         return []
-    return snapshot_history(source_id, store=_default_public_store(), limit=limit)
+    history = snapshot_history(
+        _snapshot_storage_key(source_id, tenant_id, definition),
+        store=_default_public_store(),
+        limit=limit,
+    )
+    for record in history:
+        record["source_id"] = source_id
+    return history
 
 
 def _parse_iso(value: object) -> datetime | None:
@@ -502,7 +564,9 @@ def _parse_iso(value: object) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def source_registry_health(*, now: datetime | None = None) -> list[dict[str, object]]:
+def source_registry_health(
+    *, now: datetime | None = None, tenant_id: str | None = None
+) -> list[dict[str, object]]:
     """Return bounded freshness/readiness state for every approved source.
 
     This is deliberately derived from the append-only ledger. It never fetches
@@ -511,8 +575,8 @@ def source_registry_health(*, now: datetime | None = None) -> list[dict[str, obj
     """
     current = now or datetime.now(UTC)
     health: list[dict[str, object]] = []
-    for source_id, definition in source_definitions().items():
-        observations = list_source_history(source_id, limit=20)
+    for source_id, definition in source_definitions(tenant_id).items():
+        observations = list_source_history(source_id, limit=20, tenant_id=tenant_id)
         latest = observations[0] if observations else None
         retrieved = _parse_iso(latest.get("retrieved_at") if latest else None)
         sla_hours = int(definition["freshness_sla_hours"])
