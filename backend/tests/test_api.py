@@ -374,6 +374,59 @@ def test_signed_operator_cannot_approve_another_tenant_workflow(monkeypatch) -> 
     assert response.json()["detail"] == "workflow_tenant_mismatch"
 
 
+def test_tenant_bound_reads_require_matching_signed_identity(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "tenant-read-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "driftline-demo,other-acme")
+    state = api.workflow_store.start_demo(tenant_id="driftline-demo")
+    api.persist_workflow(state)
+    job = JobState(job_id="job-tenant-read", tenant_id="driftline-demo")
+    with api._jobs_lock:
+        api._jobs[job.job_id] = job
+
+    public = client.get(f"/api/workflows/{state.workflow_id}")
+    assert public.status_code == 403
+    assert public.json()["detail"] == "Tenant-scoped resource requires signed approval"
+    assert client.get("/api/jobs/job-tenant-read").status_code == 403
+    assert all(item["job_id"] != job.job_id for item in client.get("/api/jobs").json()["jobs"])
+
+    actor = "Tenant reader"
+    token = hmac.new(
+        secret.encode(), f"{state.workflow_id}:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+    signed_params = {
+        "operator": actor,
+        "tenant_id": "driftline-demo",
+        "approval_token": token,
+    }
+    assert client.get(f"/api/workflows/{state.workflow_id}", params=signed_params).status_code == 200
+    assert client.get(
+        f"/api/workflows/{state.workflow_id}/actions", params=signed_params
+    ).status_code == 200
+    assert client.get(
+        f"/api/workflows/{state.workflow_id}/scenarios", params=signed_params
+    ).status_code == 200
+    assert client.get(
+        f"/api/workflows/{state.workflow_id}/packet", params=signed_params
+    ).status_code == 200
+
+    wrong_token = hmac.new(
+        secret.encode(), f"{state.workflow_id}:{actor}".encode(), hashlib.sha256
+    ).hexdigest()
+    wrong = client.get(
+        f"/api/workflows/{state.workflow_id}",
+        params={
+            "operator": actor,
+            "tenant_id": "other-acme",
+            "approval_token": wrong_token,
+        },
+    )
+    assert wrong.status_code == 403
+    assert wrong.json()["detail"] == "workflow_tenant_mismatch"
+
+
 def test_demo_approval_and_undo_round_trip() -> None:
     started = client.post("/api/workflows/demo")
     assert started.status_code == 200

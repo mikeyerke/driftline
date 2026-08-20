@@ -389,6 +389,40 @@ def _authorize_workflow_tenant(
     _enforce_workflow_tenant(state, approval_identity)
 
 
+def _authorize_read_tenant(
+    state: WorkflowState | JobState,
+    *,
+    resource_id: str,
+    operator: str | None,
+    tenant_id: str | None,
+    approval_token: str | None,
+    identity_token: str | None,
+) -> None:
+    """Keep tenant-bound reads behind the same signed operator boundary.
+
+    The public judge console deliberately reads tenantless synthetic fixtures.
+    A real monitor job/workflow, however, can contain connector-derived
+    metadata and must never become readable merely because its identifier is
+    guessed.  Signed callers use the exact same HMAC/OIDC identity path as
+    mutations and are checked against the resource tenant.
+    """
+    if state.tenant_id is None:
+        return
+    if not operator or not tenant_id:
+        raise HTTPException(
+            status_code=403, detail="Tenant-scoped resource requires signed approval"
+        )
+    identity = _verify_approval_mode(
+        resource_id,
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    _enforce_workflow_tenant(state, identity)
+
+
 def _resolve_job(job_id: str) -> JobState:
     with _jobs_lock:
         job = _jobs.get(job_id)
@@ -1742,12 +1776,26 @@ async def analyze_multimodal(request: MultimodalAnalysisRequest) -> dict[str, ob
 
 
 @app.get("/api/workflows/{workflow_id}/scenarios")
-def get_workflow_scenarios(workflow_id: str) -> dict[str, object]:
+def get_workflow_scenarios(
+    workflow_id: str,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
     """Preview approve/grandfather/defer outcomes without making any writes."""
     try:
         state = _resolve_workflow(workflow_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _authorize_read_tenant(
+        state,
+        resource_id=state.workflow_id,
+        operator=operator,
+        tenant_id=tenant_id,
+        approval_token=approval_token,
+        identity_token=identity_token,
+    )
     impacts = [item.__dict__ for item in state.impacts]
     return simulate_scenarios(
         impacts,
@@ -1829,18 +1877,44 @@ async def start_demo_job(
 
 
 @app.get("/api/jobs")
-def get_jobs(limit: int = 8) -> dict[str, object]:
-    """Expose bounded operator history without exposing arbitrary data."""
+def get_jobs(
+    limit: int = 8,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Expose bounded history while filtering tenant-bound jobs by identity."""
     bounded_limit = max(1, min(limit, 20))
+    identity: dict[str, str] | None = None
+    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
+        if not operator or not tenant_id:
+            raise HTTPException(
+                status_code=401, detail="Signed approval is required for tenant jobs"
+            )
+        identity = _verify_approval_mode(
+            "jobs:list",
+            operator,
+            "signed",
+            approval_token,
+            identity_token,
+            tenant_id,
+        )
     with _jobs_lock:
-        jobs = sorted(
+        candidates = sorted(
             _jobs.values(), key=lambda item: item.created_at or "", reverse=True
-        )[:bounded_limit]
+        )
     if (
-        not jobs
+        not candidates
         and os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
     ):
-        jobs = list_jobs(bounded_limit)
+        candidates = list_jobs(20)
+    jobs = [
+        job
+        for job in candidates
+        if job.tenant_id is None
+        or (identity is not None and job.tenant_id == identity.get("tenant_id"))
+    ][:bounded_limit]
     return {"jobs": [job.to_dict() for job in jobs]}
 
 
@@ -1906,12 +1980,7 @@ async def scheduler_tick(
     }
 
 
-@app.get("/api/jobs/{job_id}")
-def get_job(job_id: str) -> dict:
-    try:
-        job = _resolve_job(job_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+def _job_payload(job: JobState) -> dict[str, object]:
     payload = job.to_dict()
     if job.workflow_id:
         try:
@@ -1919,6 +1988,29 @@ def get_job(job_id: str) -> dict:
         except KeyError:
             payload["workflow"] = None
     return payload
+
+
+@app.get("/api/jobs/{job_id}")
+def get_job(
+    job_id: str,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict:
+    try:
+        job = _resolve_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _authorize_read_tenant(
+        job,
+        resource_id=job.job_id,
+        operator=operator,
+        tenant_id=tenant_id,
+        approval_token=approval_token,
+        identity_token=identity_token,
+    )
+    return _job_payload(job)
 
 
 @app.post("/api/jobs/{job_id}/run")
@@ -1929,7 +2021,7 @@ async def run_job(job_id: str, request: Request) -> dict:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await _run_job(job_id)
-    payload = get_job(job_id)
+    payload = _job_payload(_resolve_job(job_id))
     if payload.get("status") == "queued" and payload.get("error", "").startswith(
         "Transient"
     ):
@@ -1959,11 +2051,26 @@ async def run_agent(request: AgentRunRequest) -> dict:
 
 
 @app.get("/api/workflows/{workflow_id}")
-def get_workflow(workflow_id: str) -> dict:
+def get_workflow(
+    workflow_id: str,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict:
     try:
-        return _resolve_workflow(workflow_id).to_dict()
+        state = _resolve_workflow(workflow_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _authorize_read_tenant(
+        state,
+        resource_id=state.workflow_id,
+        operator=operator,
+        tenant_id=tenant_id,
+        approval_token=approval_token,
+        identity_token=identity_token,
+    )
+    return state.to_dict()
 
 
 def _require_action_actor(actor: str) -> str:
@@ -1977,11 +2084,25 @@ def _require_action_actor(actor: str) -> str:
 
 
 @app.get("/api/workflows/{workflow_id}/actions")
-def get_actions(workflow_id: str) -> dict[str, object]:
+def get_actions(
+    workflow_id: str,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
     try:
         state = _resolve_workflow(workflow_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _authorize_read_tenant(
+        state,
+        resource_id=state.workflow_id,
+        operator=operator,
+        tenant_id=tenant_id,
+        approval_token=approval_token,
+        identity_token=identity_token,
+    )
     return {"actions": state.action_items}
 
 
@@ -2204,11 +2325,25 @@ def reverse_action(workflow_id: str, item_id: str, request: ActionItemRequest) -
 
 
 @app.get("/api/workflows/{workflow_id}/packet", response_class=PlainTextResponse)
-def get_packet(workflow_id: str) -> str:
+def get_packet(
+    workflow_id: str,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> str:
     try:
         state = _resolve_workflow(workflow_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _authorize_read_tenant(
+        state,
+        resource_id=state.workflow_id,
+        operator=operator,
+        tenant_id=tenant_id,
+        approval_token=approval_token,
+        identity_token=identity_token,
+    )
     return packet_markdown(state)
 
 
