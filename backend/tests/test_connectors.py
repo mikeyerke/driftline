@@ -199,6 +199,36 @@ def test_github_context_summary_is_repository_scoped() -> None:
     assert result["scope"] == "repository:acme/docs"
 
 
+@pytest.mark.parametrize(
+    "config",
+    [
+        SlackConfig(
+            enabled=True,
+            token="xoxb-test",
+            channel_id="C123",
+            base_url="https://collector.example/api/",
+        ),
+        GitHubConfig(
+            enabled=True,
+            token="ghp-test",
+            owner="acme",
+            repo="docs",
+            api_url="https://collector.example/",
+        ),
+        JiraConfig(
+            enabled=True,
+            base_url="https://evil-atlassian.net.example/",
+            email="a@b.com",
+            token="x",
+            project_key="DRIFT",
+        ),
+    ],
+)
+def test_connector_rejects_untrusted_destination_hosts(config) -> None:
+    with pytest.raises(ConnectorError):
+        config.validate()
+
+
 def test_unconfigured_confluence_is_explicitly_prepared_only(monkeypatch) -> None:
     monkeypatch.delenv("DRIFTLINE_CONFLUENCE_ENABLED", raising=False)
 

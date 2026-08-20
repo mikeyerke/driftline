@@ -14,6 +14,7 @@ import hashlib
 import os
 import re
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 _TENANT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _ROLES = {"viewer", "operator", "owner"}
@@ -35,6 +36,29 @@ CONNECTOR_PROFILE_KEYS: dict[str, frozenset[str]] = {
     # connection metadata. The refresh token remains in the tenant secret.
     "salesforce": frozenset({"instance_url"}),
 }
+
+_PROFILE_URL_KEYS: dict[str, str] = {
+    "jira": "base_url",
+    "confluence": "base_url",
+    "slack": "base_url",
+    "github": "api_url",
+    "salesforce": "instance_url",
+}
+_PROFILE_ALLOWED_HOSTS: dict[str, tuple[str, ...]] = {
+    "jira": ("atlassian.net", "api.atlassian.com"),
+    "confluence": ("atlassian.net", "api.atlassian.com"),
+    "slack": ("slack.com",),
+    "github": ("github.com",),
+    "salesforce": ("salesforce.com", "force.com"),
+}
+
+
+def _profile_host_matches(host: str, allowed: tuple[str, ...]) -> bool:
+    normalized = host.casefold().rstrip(".")
+    return any(
+        normalized == suffix or normalized.endswith(f".{suffix}")
+        for suffix in allowed
+    )
 
 
 @dataclass(frozen=True)
@@ -82,6 +106,20 @@ def validate_connector_profile(
         normalized = value.strip()
         if not normalized or len(normalized) > 500:
             raise ValueError("connector_profile_value_invalid")
+        if key == _PROFILE_URL_KEYS.get(safe_connector):
+            parsed = urlparse(normalized)
+            if (
+                parsed.scheme != "https"
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.query
+                or parsed.fragment
+                or not _profile_host_matches(
+                    parsed.hostname, _PROFILE_ALLOWED_HOSTS[safe_connector]
+                )
+            ):
+                raise ValueError("connector_profile_url_not_allowlisted")
         safe[key] = normalized
     return safe
 

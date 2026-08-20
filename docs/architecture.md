@@ -222,6 +222,11 @@ non-secret destination profile. Missing, inactive, or malformed profiles are
 surfaced as attention, and the response never returns a credential or target
 value.
 
+Profile URLs are validated against provider host allowlists at both the API
+boundary and connector construction. HTTPS, no userinfo/query/fragment, and
+Atlassian/Slack/GitHub/Salesforce host checks prevent a malformed tenant target
+from becoming an SSRF or bearer-token exfiltration path.
+
 The SaaS onboarding seam is a short-lived, tenant-namespaced enrollment session
 stored at `driftline_tenants/{tenant}/credential_enrollments/{id}`. It carries
 only the deterministic secret reference, expiry, requested connector

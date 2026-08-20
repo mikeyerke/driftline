@@ -73,10 +73,16 @@ class SalesforceConfig:
             return
         parsed = urlparse(self.base_url)
         if parsed.scheme != "https" or not (
-            parsed.netloc.endswith(".salesforce.com")
-            or parsed.netloc.endswith(".force.com")
+            parsed.hostname
+            and (
+                parsed.hostname.casefold() == "salesforce.com"
+                or parsed.hostname.casefold().endswith(".salesforce.com")
+                or parsed.hostname.casefold() == "force.com"
+                or parsed.hostname.casefold().endswith(".force.com")
+            )
         ):
             raise ConnectorError("salesforce_base_url_must_be_salesforce_https")
+        _require_https_service_url(self.base_url, "salesforce")
         if not self.token:
             raise ConnectorError("salesforce_read_token_missing")
         if not re.fullmatch(r"v\d+\.\d+", self.api_version):
@@ -630,8 +636,26 @@ def write_secret_version(
 
 def _require_https_service_url(value: str, marker: str) -> str:
     url = value.rstrip("/") + "/"
-    if not url.startswith("https://"):
+    parsed = urlparse(url)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
         raise ConnectorError(f"{marker}_base_url_must_be_https")
+    return url
+
+
+def _require_allowlisted_service_url(
+    value: str, marker: str, allowed_hosts: tuple[str, ...]
+) -> str:
+    url = _require_https_service_url(value, marker)
+    host = (urlparse(url).hostname or "").casefold().rstrip(".")
+    if not any(host == suffix or host.endswith(f".{suffix}") for suffix in allowed_hosts):
+        raise ConnectorError(f"{marker}_base_url_host_not_allowlisted")
     return url
 
 
@@ -670,10 +694,21 @@ class JiraConfig:
     def validate(self) -> None:
         if not self.enabled:
             return
-        is_site_url = "atlassian.net" in self.base_url
-        is_scoped_gateway = self.base_url.startswith("https://api.atlassian.com/ex/jira/")
-        if not self.base_url.startswith("https://") or not (is_site_url or is_scoped_gateway):
+        parsed = urlparse(self.base_url)
+        is_site_url = bool(
+            parsed.hostname
+            and (
+                parsed.hostname.casefold() == "atlassian.net"
+                or parsed.hostname.casefold().endswith(".atlassian.net")
+            )
+        )
+        is_scoped_gateway = (
+            parsed.hostname == "api.atlassian.com"
+            and parsed.path.startswith("/ex/jira/")
+        )
+        if parsed.scheme != "https" or not (is_site_url or is_scoped_gateway):
             raise ConnectorError("jira_base_url_must_be_atlassian_https")
+        _require_https_service_url(self.base_url, "jira")
         if not self.email or not self.token or not self.project_key:
             raise ConnectorError("jira_credentials_or_project_missing")
 
@@ -960,8 +995,18 @@ class ConfluenceConfig:
     def validate(self) -> None:
         if not self.enabled:
             return
-        is_site_url = "atlassian.net" in self.base_url
-        is_scoped_gateway = self.base_url.startswith("https://api.atlassian.com/ex/confluence/")
+        parsed = urlparse(self.base_url)
+        is_site_url = bool(
+            parsed.hostname
+            and (
+                parsed.hostname.casefold() == "atlassian.net"
+                or parsed.hostname.casefold().endswith(".atlassian.net")
+            )
+        )
+        is_scoped_gateway = (
+            parsed.hostname == "api.atlassian.com"
+            and parsed.path.startswith("/ex/confluence/")
+        )
         if not (is_site_url or is_scoped_gateway):
             raise ConnectorError("confluence_base_url_must_be_atlassian")
         _require_https_service_url(self.base_url, "confluence")
@@ -1255,7 +1300,10 @@ class SlackConfig:
         )
 
     def validate(self) -> None:
-        if self.enabled and (not self.token or not self.channel_id):
+        if not self.enabled:
+            return
+        _require_allowlisted_service_url(self.base_url, "slack", ("slack.com",))
+        if not self.token or not self.channel_id:
             raise ConnectorError("slack_token_or_channel_missing")
 
 
@@ -1408,7 +1456,7 @@ class GitHubConfig:
     def validate(self) -> None:
         if not self.enabled:
             return
-        _require_https_service_url(self.api_url, "github")
+        _require_allowlisted_service_url(self.api_url, "github", ("github.com",))
         if not self.token or not re.fullmatch(r"[A-Za-z0-9_.-]+", self.owner) or not re.fullmatch(r"[A-Za-z0-9_.-]+", self.repo):
             raise ConnectorError("github_token_or_repository_missing")
 

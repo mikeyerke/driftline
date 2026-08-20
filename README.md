@@ -269,6 +269,9 @@ connector namespace against the exact Secret Manager binding and reports
 `healthy`, `attention`, or `not_configured` without returning credential
 values. This catches deleted, unreadable, mismatched, or mid-rotation secrets
 before a downstream action is attempted.
+Connector destination profiles are also constrained to HTTPS provider host
+allowlists (Atlassian, Slack, GitHub, and Salesforce) and reject userinfo,
+query credentials, fragments, and untrusted hosts before persistence or use.
 
 The deployed registry includes three verified public examples: Crayon's pricing
 inquiry page, Kompyte's competitive-intelligence article, and Visualping's

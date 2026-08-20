@@ -84,6 +84,14 @@ revoked, mismatched, or unreadable bindings are surfaced as attention, while
 the response exposes only profile status and configured field names and never
 includes a credential or target value.
 
+Destination profiles are host-allowlisted before persistence and again at
+connector construction: Jira and Confluence are limited to Atlassian Cloud or
+the scoped Atlassian gateway, Slack to `slack.com`, GitHub to the public GitHub
+API host family, and Salesforce to Salesforce/Force domains. URLs must be HTTPS
+and cannot contain userinfo, query credentials, or fragments. This prevents a
+tenant profile mistake from turning a bearer credential into an SSRF or
+credential-exfiltration path.
+
 New tenant onboarding uses the signed
 `POST /api/connectors/{connector}/credential-enrollment` route. It creates a
 15-minute enrollment under the tenant document, returns the exact secret

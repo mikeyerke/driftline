@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app import persistence
 from app.tenant import (
     principal_for_claims,
@@ -175,6 +177,22 @@ def test_salesforce_uses_shared_tenant_secret_namespace() -> None:
     assert validate_connector_profile(
         "salesforce", {"instance_url": "https://acme.my.salesforce.com"}
     )["instance_url"].startswith("https://")
+
+
+@pytest.mark.parametrize(
+    ("connector", "key", "value"),
+    [
+        ("jira", "base_url", "https://evil-atlassian.net.example/"),
+        ("slack", "base_url", "https://collector.example/api/"),
+        ("github", "api_url", "https://169.254.169.254/"),
+        ("salesforce", "instance_url", "https://force.com.example/"),
+    ],
+)
+def test_connector_profile_rejects_untrusted_service_hosts(
+    connector: str, key: str, value: str
+) -> None:
+    with pytest.raises(ValueError, match="connector_profile_url_not_allowlisted"):
+        validate_connector_profile(connector, {key: value})
 
 
 def test_tenant_service_identity_is_deterministic_and_bounded(monkeypatch) -> None:
