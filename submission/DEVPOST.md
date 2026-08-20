@@ -49,6 +49,13 @@ Approval also prepares target-specific Confluence, Slack, GitHub, and
 Salesforce-context manifests. The Salesforce contract is read-only and
 prepared-only; it is not authenticated in this deployment.
 
+The agent entry point has the same explicit two-lane boundary: the public judge
+request is tenantless and packet-safe, while a signed operator request carries
+the verified tenant through the ADK turn, quota reservation, and Firestore
+workflow. Durable tenant memberships, connector profiles, Secret Manager
+bindings, revocation metadata, and transactional rate limits are isolated in
+the Driftline project; no deployment-wide connector target fallback is enabled.
+
 The judge-ready workflow uses synthetic data: a public/pricing fixture changes
 Enterprise audit-log retention from unlimited to 365 days. The UI labels this
 fixture and is not connected to a real company, CRM, customer, or billing
@@ -119,6 +126,10 @@ created during the contest.
   created its rollback marker. One of the four owner action items was claimed
   and completed by the named human demo actor. A signed monitor run
   (`job-acc5973e452d`) completed unchanged without inventing a workflow.
+- The latest direct ADK release (`driftline-00117-lp7`) was verified in both
+  lanes: public workflow `cad9bc28-9256-4c72-a367-e73a64d99523` remained
+  tenantless, while signed workflow `896c891f-5d35-4f01-b9eb-e73b01b8bcc7`
+  was confirmed in Firestore with `tenant_id=driftline-demo`.
 
 ## Limitations and next steps
 
@@ -130,7 +141,9 @@ limited to the free Driftline Jira project, uses a Jira-scoped token held only
 in Secret Manager, and never deletes Jira work. Confluence, Slack, and GitHub
 are similarly bounded but require their own isolated configuration. Salesforce
 is read-only context preparation only. Customer ROI, hours saved, and
-willingness-to-pay remain unmeasured; see `docs/VALIDATION_PLAN.md`.
+willingness-to-pay remain unmeasured; see `docs/VALIDATION_PLAN.md`. This is a
+verified multi-tenant control-plane foundation, not a claim of self-serve
+enterprise SSO, commercial billing, or a multi-customer pilot.
 
 ## Official links
 
