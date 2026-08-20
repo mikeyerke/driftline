@@ -2,11 +2,12 @@ import { CheckCircle2, FileText, GitPullRequest, Hash, MessageSquare, TicketChec
 
 const icons = { Jira: TicketCheck, Confluence: FileText, Slack: MessageSquare, GitHub: GitPullRequest };
 
-export default function IntegrationPanel({ targets = [], approved, actionRecord }) {
+export default function IntegrationPanel({ targets = [], approved, dismissed, actionRecord }) {
   if (!targets.length) return null;
   const statusKeys = { Jira: "jira_status", Confluence: "confluence_status", Slack: "slack_status", GitHub: "github_status" };
   const connectorStatuses = new Set(["created", "reused", "reversed"]);
   const statusFor = (target) => {
+    if (dismissed) return { label: "Not created", written: false };
     if (!approved) return { label: "Prepared", written: false };
     const connectorStatus = actionRecord?.[statusKeys[target.system]];
     if (connectorStatus === "created") return { label: "Created", written: true };
@@ -41,6 +42,8 @@ export default function IntegrationPanel({ targets = [], approved, actionRecord 
       <footer className="integration-footer">
         {writes.length
           ? <>Connector writes: <strong>{writes.join(" · ")}</strong>. Each status is idempotent and reversible.</>
+          : dismissed
+            ? <>External writes: <strong>No</strong> · Signal intentionally dismissed; no packet, task, or connector handoff was created.</>
           : <>External writes: <strong>No</strong> · Public demo packets stay prepared-only; signed operator approval is required for configured connectors.</>}
       </footer>
     </section>

@@ -290,7 +290,7 @@ export default function App() {
               </aside>
             </div>
             {approved && <ActionItems workflowId={workflowId} items={workflowState.action_items} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}
-            <IntegrationPanel targets={workflowState?.integration_targets} approved={approved} actionRecord={actionRecord} />
+            <IntegrationPanel targets={workflowState?.integration_targets} approved={approved} dismissed={dismissed} actionRecord={actionRecord} />
             {workflowId && <ScenarioSimulator workflowId={workflowId} />}
             <ChangeTimeline state={workflowState} />
             <WorkflowTimeline state={workflowState} />

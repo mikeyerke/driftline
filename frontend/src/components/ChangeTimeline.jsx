@@ -6,6 +6,7 @@ const labels = {
   impact_mapper: "Business impact mapped",
   content_orchestrator: "Owner packets drafted",
   policy_gate: "Human decision requested",
+  policy_engine: "Signal disposition recorded",
   bounded_packet: "Handoff packet prepared",
   bounded_publisher: "Approved outputs created",
 };
@@ -28,8 +29,8 @@ export default function ChangeTimeline({ state }) {
       </header>
       <div className="change-timeline-list">
         {visible.map((event, index) => {
-          const isComplete = index < visible.length - 1 || state.status === "complete";
-          const label = labels[event.action] || (event.outcome === "decision_reopened" ? "Decision reopened" : "Recorded event");
+          const isComplete = index < visible.length - 1 || ["complete", "dismissed"].includes(state.status);
+          const label = labels[event.action] || (event.outcome === "decision_reopened" ? "Decision reopened" : event.outcome === "signal_dismissed" ? "Signal dismissed" : "Recorded event");
           return (
             <div className={`change-timeline-item ${isComplete ? "complete" : "current"}`} key={event.event_id || `${event.action}-${index}`}>
               <span className="change-timeline-line" />
