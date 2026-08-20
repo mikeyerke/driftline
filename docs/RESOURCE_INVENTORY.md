@@ -38,6 +38,9 @@ project number: 724959673622
 - Cloud Logging returned no severity `ERROR` entries for revision
   `driftline-00028-2nx` after rollout. This is deployment evidence, not a
   customer-outcome or pilot result.
+- Chrome DevTools on the current public revision found no console messages.
+  Lighthouse navigation passed all 57 audits on both desktop and mobile:
+  accessibility 100, best practices 100, SEO 100, and agentic browsing 100.
 
 ## 2026-08-20 tenant and source security hardening (live)
 
