@@ -1737,6 +1737,22 @@ This release adds the signed, tenant-filtered pilot outcome report at
 The historical resource table below is retained as the broader inventory; the
 release sections above record each subsequent deployment and its direct proof.
 
+## 2026-08-20 Live connector context verification
+
+- A signed owner read through the public Cloud Run revision returned HTTP 200
+  for Jira, Confluence, Slack, and GitHub using the isolated tenant bindings;
+  the request used the tenant's break-glass signer in memory and did not expose
+  any credential value.
+- The response was aggregate-only and request-scoped: Jira `project:KAN`
+  returned 18 sampled open issues, Confluence `space:DRIFT` returned 5 pages,
+  Slack `channel:C0BRGFUSADA` returned 27 recent messages, and GitHub
+  `repository:mikeyerke/driftline` returned 0 open issues and 3 open pull
+  requests. No source text or message bodies were persisted or returned.
+- This proves live runtime reads and tenant/secret isolation for the four
+  configured connectors. It does not prove Salesforce authorization; the
+  Salesforce lane remains `oauth_ready` / `awaiting_authorization` and is
+  read-only when enabled.
+
 ## Resources
 
 | Resource | Name / scope | Verified status | Labels / notes |
