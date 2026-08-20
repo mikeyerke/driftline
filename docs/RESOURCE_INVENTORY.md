@@ -36,7 +36,11 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   configured connectors succeeded. Signed credential inventory returned four
   tenant-scoped records with `secret_version=1`, operation scopes, and
   `credential_values_exposed=false`; the signed access trail recorded resolved
-  leases for all four connectors without token values or provider bodies.
+  leases for all four connectors without token values or provider bodies. A
+  signed `/api/agent/run` returned `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, and `source_status=unchanged` without fabricating
+  a workflow; the public demo still returned `data_mode=synthetic_demo` and
+  `status=needs_approval`.
 - New signed routes: `/api/connectors/credentials` (metadata-only inventory)
   and `/api/connectors/credentials/access` (tenant-filtered append-only lease
   audit). Salesforce health uses the same broker seam; OAuth callback binding
