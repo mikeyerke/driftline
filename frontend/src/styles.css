@@ -226,7 +226,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 }
 
 @media (max-width: 560px) {
-  .sidebar nav { justify-content: flex-start; }.nav-item { flex: 0 0 auto; }
+  .sidebar { align-items: stretch; }.sidebar nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 6px; overflow: visible; }.nav-item { min-width: 0; justify-content: center; flex: none; padding: 8px 4px; font-size: 11px; }
   .topbar { height: auto; min-height: 65px; flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 14px; }
   .topbar h1 { min-width: 0; font-size: 19px; }
   .topbar-actions { flex-direction: column; align-items: stretch; gap: 8px; }
