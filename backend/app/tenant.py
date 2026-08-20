@@ -151,6 +151,9 @@ def principal_for_claims(
     normalized_email = email.strip().casefold()
     configured = _configured_members()
     persisted = None
+    durable_persistence = (
+        os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+    )
     try:
         # Lazy import avoids coupling the pure tenant parser to Firestore
         # during local synthetic runs while allowing durable memberships
@@ -162,7 +165,9 @@ def principal_for_claims(
             or os.getenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
         )
         persisted = load_tenant_membership(persisted_tenant, normalized_email)
-    except Exception:  # noqa: BLE001 - auth falls back to explicit bootstrap config.
+    except Exception as exc:
+        if durable_persistence:
+            raise PermissionError("tenant_membership_unavailable") from exc
         persisted = None
     if persisted:
         if str(persisted.get("status", "active")).casefold() != "active":
@@ -170,6 +175,8 @@ def principal_for_claims(
         tenant_id = validate_tenant_id(str(persisted["tenant_id"]))
         role = str(persisted.get("role", "viewer")).casefold()
     else:
+        if durable_persistence:
+            raise PermissionError("tenant_membership_required")
         binding = configured.get(normalized_email)
         if not binding:
             # OIDC identities must be explicitly mapped to a tenant. Falling

@@ -1115,7 +1115,13 @@ def _consume_salesforce_state(state: str) -> dict[str, object] | None:
     with _salesforce_oauth_lock:
         payload = _salesforce_oauth_states.pop(state, None)
     durable = consume_salesforce_oauth_state(state)
-    result = durable or payload
+    # Firestore is authoritative in the hosted deployment. Never resurrect a
+    # consumed/deleted OAuth state from another instance's local memory.
+    result = (
+        durable
+        if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+        else durable or payload
+    )
     if not result or float(result.get("expires_at", 0)) < datetime.now(UTC).timestamp():
         return None
     return result

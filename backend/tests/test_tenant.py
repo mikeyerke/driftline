@@ -49,6 +49,23 @@ def test_unprovisioned_oidc_identity_fails_closed(monkeypatch) -> None:
         raise AssertionError("unprovisioned OIDC identity unexpectedly authorized")
 
 
+def test_firestore_membership_directory_does_not_fall_back_to_env_mapping(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+    monkeypatch.setenv("DRIFTLINE_TENANT_MEMBERS", "owner@example.com=env-acme:owner")
+    monkeypatch.setattr(persistence, "load_tenant_membership", lambda *_args: None)
+
+    try:
+        principal_for_claims(
+            subject="owner-subject",
+            email="owner@example.com",
+            requested_tenant_id="env-acme",
+        )
+    except PermissionError as exc:
+        assert str(exc) == "tenant_membership_required"
+    else:  # pragma: no cover - explicit fail-closed assertion
+        raise AssertionError("Firestore auth unexpectedly used environment mapping")
+
+
 def test_disabled_durable_membership_fails_closed(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     monkeypatch.delenv("DRIFTLINE_TENANT_MEMBERS", raising=False)

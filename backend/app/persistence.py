@@ -395,6 +395,7 @@ def load_connector_binding(tenant_id: str, connector: str) -> dict[str, Any] | N
         ).get()
         if snapshot.exists:
             return snapshot.to_dict()
+        return None
     payload = _connector_bindings_memory.get((tenant_id, connector))
     return dict(payload) if payload else None
 
@@ -453,6 +454,7 @@ def load_connector_profile(tenant_id: str, connector: str) -> dict[str, Any] | N
         ).document(f"{tenant_id}:{safe_connector}").get()
         if snapshot.exists:
             return snapshot.to_dict()
+        return None
     payload = _connector_profiles_memory.get((tenant_id, safe_connector))
     return dict(payload) if payload else None
 
@@ -780,6 +782,7 @@ def load_tenant(tenant_id: str) -> dict[str, Any] | None:
         snapshot = _client().collection(TENANTS_COLLECTION).document(tenant_id).get()
         if snapshot.exists:
             return snapshot.to_dict()
+        return None
     payload = _tenants_memory.get(tenant_id)
     return dict(payload) if payload else None
 
@@ -833,6 +836,7 @@ def load_tenant_membership(tenant_id: str, email: str) -> dict[str, Any] | None:
         )
         if snapshot.exists:
             return snapshot.to_dict()
+        return None
     payload = _tenant_memberships_memory.get((tenant_id, normalized_email))
     return dict(payload) if payload else None
 
