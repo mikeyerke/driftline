@@ -34,6 +34,12 @@ for connector in jira confluence slack github salesforce; do
   fi
   gcloud secrets update "${secret}" --project="${PROJECT}" --update-labels="app=driftline,environment=production,hackathon=all-things-agentic,tenant=${TENANT},connector=${connector}" >/dev/null
   gcloud secrets add-iam-policy-binding "${secret}" --project="${PROJECT}" --member="serviceAccount:${RUNTIME_SA}" --role="roles/secretmanager.secretAccessor" >/dev/null
+  # Salesforce OAuth callbacks write only the provider refresh-token version
+  # to this exact tenant secret. No other connector receives runtime write
+  # permission, and the API still never accepts a credential value.
+  if [[ "${connector}" == "salesforce" ]]; then
+    gcloud secrets add-iam-policy-binding "${secret}" --project="${PROJECT}" --member="serviceAccount:${RUNTIME_SA}" --role="roles/secretmanager.secretVersionAdder" >/dev/null
+  fi
 done
 
 # Optional break-glass signer for this tenant. Normal operators should use

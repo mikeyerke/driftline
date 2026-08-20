@@ -32,7 +32,11 @@ other than driftline-hackathon-2026. It creates only:
 
 Each secret is labeled with the tenant and connector and grants
 roles/secretmanager.secretAccessor only to the Driftline runtime service
-account. The helper never accepts a token value.
+account. The Salesforce secret additionally grants the runtime
+`roles/secretmanager.secretVersionAdder` on that exact resource because its
+OAuth callback writes a refresh-token version after the tenant owner consents;
+no other connector receives runtime write permission. The helper never accepts
+a token value.
 
 The helper also creates `driftline-tenant-operator-acme`, an empty
 tenant-specific break-glass signer container. Google OIDC is the preferred
