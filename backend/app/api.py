@@ -305,11 +305,13 @@ def _positive_int(name: str, default: int) -> int:
 AGENT_MAX_CALLS = _positive_int("DRIFTLINE_AGENT_MAX_CALLS", 10)
 AGENT_WINDOW_SECONDS = _positive_int("DRIFTLINE_AGENT_WINDOW_SECONDS", 3600)
 _agent_call_times: deque[float] = deque()
+_tenant_agent_call_times: dict[str, deque[float]] = {}
 _agent_call_lock = Lock()
 
 DEMO_MAX_MUTATIONS = _positive_int("DRIFTLINE_DEMO_MAX_MUTATIONS", 30)
 DEMO_WINDOW_SECONDS = _positive_int("DRIFTLINE_DEMO_WINDOW_SECONDS", 3600)
 _demo_mutation_times: deque[float] = deque()
+_tenant_demo_mutation_times: dict[str, deque[float]] = {}
 _demo_mutation_lock = Lock()
 MAX_JOB_ATTEMPTS = _positive_int("DRIFTLINE_MAX_JOB_ATTEMPTS", 3)
 
@@ -322,27 +324,37 @@ _workflow_transition_lock = Lock()
 _background_tasks: set[asyncio.Task[None]] = set()
 
 
-def _reserve_agent_call() -> bool:
+def _reserve_agent_call(tenant_id: str | None = None) -> bool:
     now = monotonic()
     cutoff = now - AGENT_WINDOW_SECONDS
     with _agent_call_lock:
-        while _agent_call_times and _agent_call_times[0] <= cutoff:
-            _agent_call_times.popleft()
-        if len(_agent_call_times) >= AGENT_MAX_CALLS:
+        times = (
+            _tenant_agent_call_times.setdefault(tenant_id, deque())
+            if tenant_id
+            else _agent_call_times
+        )
+        while times and times[0] <= cutoff:
+            times.popleft()
+        if len(times) >= AGENT_MAX_CALLS:
             return False
-        _agent_call_times.append(now)
+        times.append(now)
         return True
 
 
-def _reserve_demo_mutation() -> bool:
+def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
     now = monotonic()
     cutoff = now - DEMO_WINDOW_SECONDS
     with _demo_mutation_lock:
-        while _demo_mutation_times and _demo_mutation_times[0] <= cutoff:
-            _demo_mutation_times.popleft()
-        if len(_demo_mutation_times) >= DEMO_MAX_MUTATIONS:
+        times = (
+            _tenant_demo_mutation_times.setdefault(tenant_id, deque())
+            if tenant_id
+            else _demo_mutation_times
+        )
+        while times and times[0] <= cutoff:
+            times.popleft()
+        if len(times) >= DEMO_MAX_MUTATIONS:
             return False
-        _demo_mutation_times.append(now)
+        times.append(now)
         return True
 
 
@@ -1928,7 +1940,7 @@ async def start_demo_job(
             status_code=422,
             detail="Operator-registered sources require run_mode=monitor",
         )
-    if not _reserve_agent_call():
+    if not _reserve_agent_call(tenant_id):
         raise HTTPException(
             status_code=429,
             detail="Live agent demo rate limit reached; retry later.",
@@ -2420,11 +2432,6 @@ def get_packet(
 
 @app.post("/api/workflows/{workflow_id}/approve")
 def approve(workflow_id: str, request: ApprovalRequest) -> dict:
-    if not _reserve_demo_mutation():
-        raise HTTPException(
-            status_code=429,
-            detail="Demo workflow rate limit reached; retry later.",
-        )
     approval_identity = _verify_approval_mode(
         workflow_id,
         request.approver,
@@ -2434,6 +2441,11 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         request.tenant_id,
     )
     _authorize_workflow_tenant(workflow_id, approval_identity)
+    if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
+        raise HTTPException(
+            status_code=429,
+            detail="Workflow mutation rate limit reached for this tenant; retry later.",
+        )
     try:
 
         def apply(current: WorkflowState) -> WorkflowState:
@@ -2503,11 +2515,6 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
 
 @app.post("/api/workflows/{workflow_id}/dismiss")
 def dismiss(workflow_id: str, request: DismissRequest) -> dict:
-    if not _reserve_demo_mutation():
-        raise HTTPException(
-            status_code=429,
-            detail="Demo workflow rate limit reached; retry later.",
-        )
     approval_identity = _verify_approval_mode(
         workflow_id,
         request.actor,
@@ -2517,6 +2524,11 @@ def dismiss(workflow_id: str, request: DismissRequest) -> dict:
         request.tenant_id,
     )
     _authorize_workflow_tenant(workflow_id, approval_identity)
+    if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
+        raise HTTPException(
+            status_code=429,
+            detail="Workflow mutation rate limit reached for this tenant; retry later.",
+        )
     try:
 
         def apply(current: WorkflowState) -> WorkflowState:
@@ -2540,11 +2552,6 @@ def dismiss(workflow_id: str, request: DismissRequest) -> dict:
 
 @app.post("/api/workflows/{workflow_id}/undo")
 def undo(workflow_id: str, request: UndoRequest) -> dict:
-    if not _reserve_demo_mutation():
-        raise HTTPException(
-            status_code=429,
-            detail="Demo workflow rate limit reached; retry later.",
-        )
     approval_identity = _verify_approval_mode(
         workflow_id,
         request.actor,
@@ -2554,6 +2561,11 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         request.tenant_id,
     )
     _authorize_workflow_tenant(workflow_id, approval_identity)
+    if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
+        raise HTTPException(
+            status_code=429,
+            detail="Workflow mutation rate limit reached for this tenant; retry later.",
+        )
     try:
 
         def apply(current: WorkflowState) -> WorkflowState:

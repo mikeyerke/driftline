@@ -442,6 +442,20 @@ def test_tenant_bound_reads_require_matching_signed_identity(monkeypatch) -> Non
     assert wrong.json()["detail"] == "workflow_tenant_mismatch"
 
 
+def test_rate_limits_are_isolated_per_tenant(monkeypatch) -> None:
+    monkeypatch.setattr(api, "AGENT_MAX_CALLS", 1)
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 1)
+    api._tenant_agent_call_times.clear()
+    api._tenant_demo_mutation_times.clear()
+
+    assert api._reserve_agent_call("tenant-a") is True
+    assert api._reserve_agent_call("tenant-a") is False
+    assert api._reserve_agent_call("tenant-b") is True
+    assert api._reserve_demo_mutation("tenant-a") is True
+    assert api._reserve_demo_mutation("tenant-a") is False
+    assert api._reserve_demo_mutation("tenant-b") is True
+
+
 def test_demo_approval_and_undo_round_trip() -> None:
     started = client.post("/api/workflows/demo")
     assert started.status_code == 200
