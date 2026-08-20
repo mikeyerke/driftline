@@ -26,6 +26,13 @@ _SYNTHETIC_STORE = InMemorySnapshotStore()
 _CUSTOM_SOURCE_DEFINITIONS: dict[str, dict[str, str]] = {}
 _SOURCE_REGISTRY_COLLECTION = "driftline_source_registry"
 _MAX_REGISTERED_BODY_BYTES = 128 * 1024
+_CHALLENGE_MARKERS = (
+    "cf-chl-",
+    "challenge-platform",
+    "verify you are human",
+    "access denied by cloudflare",
+    "akamai bot manager",
+)
 
 # The monitor starts with a tiny, reviewable pinned fixture registry. Operator
 # sources are added separately through the signed exact-URL path below; this
@@ -275,7 +282,20 @@ def _registered_body(definition: Mapping[str, str]) -> str:
     body = re.sub(r"\s+", " ", body).strip()
     if not body:
         raise ValueError("source_snapshot_empty")
+    if _looks_like_challenge_page(body):
+        raise ValueError("source_challenge_page_detected")
     return body[:_MAX_REGISTERED_BODY_BYTES]
+
+
+def _looks_like_challenge_page(body: str) -> bool:
+    """Reject common bot/challenge interstitials before they become changes."""
+    normalized = body.casefold()
+    if any(marker in normalized for marker in _CHALLENGE_MARKERS):
+        return True
+    return (
+        "enable javascript" in normalized
+        and ("captcha" in normalized or "security check" in normalized)
+    )
 
 
 def _public_url_is_allowlisted(url: str, fixture: str) -> bool:
@@ -322,11 +342,16 @@ def _public_snapshot(
                 data_mode="operator_registered_public",
                 store=store or _default_public_store(),
             )
-        except (HTTPError, OSError, UnicodeDecodeError, URLError, ValueError):
+        except (HTTPError, OSError, UnicodeDecodeError, URLError, ValueError) as exc:
+            reason = (
+                str(exc)
+                if isinstance(exc, ValueError)
+                else "operator_registered_source_unavailable"
+            )
             return {
                 "status": "source_fetch_failed",
                 "change_detected": False,
-                "reason": "operator_registered_source_unavailable",
+                "reason": reason,
                 "source_id": source_id,
                 "source_url": definition["url"],
                 "data_mode": "operator_registered_public",
@@ -349,6 +374,8 @@ def _public_snapshot(
             body = response.read(4096).decode("utf-8").strip()
         if not body or len(body) > 2048:
             raise ValueError("source_snapshot_out_of_bounds")
+        if _looks_like_challenge_page(body):
+            raise ValueError("source_challenge_page_detected")
         if force_replay:
             # The judge-facing demo is intentionally repeatable. It compares
             # the live public snapshot to the published pre-change baseline

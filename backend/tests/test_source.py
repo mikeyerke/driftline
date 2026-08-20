@@ -135,6 +135,38 @@ def test_operator_registered_source_is_exact_url_and_append_only(monkeypatch) ->
     assert second["after"] == "Pro is now $59"
 
 
+def test_operator_source_rejects_challenge_interstitial_without_recording_change(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    source.register_operator_source(
+        source_id="custom/challenge-page",
+        name="Challenge page",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://example.com/pricing",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        parser="html",
+    )
+    monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+
+    class _Opener:
+        def open(self, request, timeout):
+            return _Response(
+                "<html><body>Verify you are human. Enable JavaScript and complete the captcha.</body></html>"
+            )
+
+    monkeypatch.setattr(source, "build_opener", lambda _handler: _Opener())
+    result = source.inspect_allowlisted_source(
+        "custom/challenge-page", store=InMemorySnapshotStore()
+    )
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert result["status"] == "source_fetch_failed"
+    assert result["reason"] == "source_challenge_page_detected"
+    assert result["change_detected"] is False
+
+
 def test_operator_registered_source_rejects_query_and_private_urls() -> None:
     for url in ("https://example.com/pricing?token=secret", "https://127.0.0.1/pricing"):
         try:

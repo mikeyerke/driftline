@@ -40,7 +40,8 @@ to an 8-second fetch, 128KB body, no redirects, no query credentials, and no
 private or reserved DNS-resolved addresses; this is an allowlist, not arbitrary competitor
 crawling. Failed fixture fetches become an explicitly labelled synthetic
 replay, while a failed operator source is reported unavailable rather than
-fabricated. Cloud Scheduler runs monitor mode every six hours, and a Firestore
+fabricated. Common bot/challenge interstitials (Cloudflare/Akamai/captcha
+pages) are rejected before they can become false source changes. Cloud Scheduler runs monitor mode every six hours, and a Firestore
 snapshot ledger distinguishes a baseline, unchanged source, and a verified
 change. Scheduler fan-out is capped at 25 sources; a signed canary can target
 one source. The deterministic workflow engine—not
