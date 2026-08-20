@@ -1449,6 +1449,9 @@ def get_monitor_registry(
             "synthetic_only": sum(
                 item["status"] == "synthetic_only" for item in sources
             ),
+            "source_failed": sum(
+                item["status"] == "source_failed" for item in sources
+            ),
         },
     }
 
