@@ -115,6 +115,7 @@ from .source import (
     source_registry_health,
 )
 from .tenant import (
+    CONNECTOR_NAMES,
     principal_for_claims,
     principal_for_hmac,
     public_demo_principal,
@@ -2317,6 +2318,88 @@ def get_connector_bindings(
             }
             for binding in bindings
         ],
+        "credential_values_exposed": False,
+    }
+
+
+@app.get("/api/connectors/bindings/health")
+def get_connector_binding_health(
+    operator: str,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Reconcile tenant binding metadata with readable Secret Manager state.
+
+    This is a read-only operator probe. It enumerates the fixed connector
+    allowlist, never accepts a secret name, and never returns a credential
+    value. Active bindings are checked against the exact deterministic secret;
+    pending, revoked, or missing bindings remain fail-closed and are surfaced
+    as attention items rather than being silently treated as healthy.
+    """
+    identity = _verify_approval_mode(
+        "connector-bindings-health",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    bound = {
+        str(binding.get("connector")): binding
+        for binding in list_connector_bindings(identity["tenant_id"])
+        if binding.get("connector")
+    }
+    checks: list[dict[str, object]] = []
+    for connector in sorted(CONNECTOR_NAMES):
+        expected_secret = tenant_connector_secret_name(identity["tenant_id"], connector)
+        binding = bound.get(connector)
+        if binding is None:
+            checks.append(
+                {
+                    "connector": connector,
+                    "status": "not_configured",
+                    "secret_status": "not_configured",
+                    "secret_name": expected_secret,
+                    "credential_values_exposed": False,
+                }
+            )
+            continue
+        binding_status = str(binding.get("status", "unknown"))
+        secret_name = str(binding.get("secret_name", ""))
+        check: dict[str, object] = {
+            "connector": connector,
+            "binding_status": binding_status,
+            "secret_name": expected_secret,
+            "credential_values_exposed": False,
+        }
+        if secret_name != expected_secret:
+            check.update(status="attention", secret_status="name_mismatch")
+        elif binding_status != "active":
+            check.update(status="attention", secret_status="not_checked")
+        else:
+            try:
+                readable = bool(read_secret(expected_secret).strip())
+            except Exception:  # noqa: BLE001 - health must not leak provider errors.
+                readable = False
+            check.update(
+                status="healthy" if readable else "attention",
+                secret_status="readable" if readable else "unreadable",
+            )
+        checks.append(check)
+    return {
+        "status": "ok",
+        "tenant_id": identity["tenant_id"],
+        "generated_at": utc_now(),
+        "summary": {
+            "total": len(checks),
+            "healthy": sum(item["status"] == "healthy" for item in checks),
+            "attention": sum(item["status"] == "attention" for item in checks),
+            "not_configured": sum(
+                item["status"] == "not_configured" for item in checks
+            ),
+        },
+        "checks": checks,
         "credential_values_exposed": False,
     }
 

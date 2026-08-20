@@ -76,6 +76,11 @@ arbitrary target or credential. The older
 `DRIFTLINE_TENANT_CONNECTOR_CONFIG` environment profile is a compatibility
 fallback only, not the preferred multi-tenant path.
 
+After binding or rotation, the signed
+`GET /api/connectors/bindings/health` route reconciles all five fixed connector
+namespaces against readable Secret Manager state. It is safe to run repeatedly
+and returns metadata-only `healthy`, `attention`, and `not_configured` results.
+
 ## 4. Rotate or offboard
 
 For a planned rotation, the owner first POSTs

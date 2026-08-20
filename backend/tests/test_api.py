@@ -603,6 +603,65 @@ def test_owner_rotation_fails_closed_until_binding_is_reverified(monkeypatch) ->
     }
 
 
+def test_connector_binding_health_reconciles_without_exposing_credentials(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "health-test-secret"
+    tenant_id = "health-acme"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+    monkeypatch.setattr(
+        api,
+        "list_connector_bindings",
+        lambda _tenant: [
+            {
+                "tenant_id": tenant_id,
+                "connector": "jira",
+                "secret_name": f"driftline-tenant-{tenant_id}-jira",
+                "status": "active",
+            },
+            {
+                "tenant_id": tenant_id,
+                "connector": "slack",
+                "secret_name": f"driftline-tenant-{tenant_id}-slack",
+                "status": "rotation_pending",
+            },
+        ],
+    )
+    monkeypatch.setattr(api, "read_secret", lambda _name: "token-not-returned")
+    token = hmac.new(
+        secret.encode(),
+        b"connector-bindings-health:Health owner",
+        hashlib.sha256,
+    ).hexdigest()
+
+    response = client.get(
+        "/api/connectors/bindings/health",
+        params={
+            "operator": "Health owner",
+            "tenant_id": tenant_id,
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"] == {
+        "total": 5,
+        "healthy": 1,
+        "attention": 1,
+        "not_configured": 3,
+    }
+    jira = next(item for item in payload["checks"] if item["connector"] == "jira")
+    assert jira["status"] == "healthy"
+    assert jira["secret_status"] == "readable"
+    slack = next(item for item in payload["checks"] if item["connector"] == "slack")
+    assert slack["status"] == "attention"
+    assert slack["secret_status"] == "not_checked"
+    assert "token-not-returned" not in str(payload)
+    assert payload["credential_values_exposed"] is False
+
+
 def test_owner_can_register_non_secret_connector_profile(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

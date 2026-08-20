@@ -137,6 +137,10 @@ offboarding steps. This keeps two customer tenants from sharing a token even
 when they use the same connector type, while preserving the public packet-only
 lane. The result is a real tenant credential control plane for this deployment,
 not a claim that customer identity, billing, or enterprise SSO is complete.
+The signed `GET /api/connectors/bindings/health` route is a read-only
+reconciliation probe across the fixed connector allowlist; it checks active
+bindings against readable Secret Manager state and surfaces attention without
+ever returning a credential value.
 
 The Change Card is the product's decision unit. It is assembled from verified
 source evidence, the deterministic impact graph, and action lifecycle state.

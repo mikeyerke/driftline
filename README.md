@@ -187,6 +187,11 @@ resolution closed until that replacement version is verified. Activation,
 rotation, and revocation append metadata-only records readable from the signed
 `/api/tenants/audit` route; lifecycle records never contain the credential
 value.
+The signed `GET /api/connectors/bindings/health` probe reconciles every fixed
+connector namespace against the exact Secret Manager binding and reports
+`healthy`, `attention`, or `not_configured` without returning credential
+values. This catches deleted, unreadable, mismatched, or mid-rotation secrets
+before a downstream action is attempted.
 
 The deployed registry includes three verified public examples: Crayon's pricing
 inquiry page, Kompyte's competitive-intelligence article, and Visualping's
