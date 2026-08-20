@@ -233,6 +233,16 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   verification run `32414028439` passed the frozen-lock backend suite and
   frontend production build.
 
+## 2026-08-20 Scheduler spend retry bound (live)
+
+- The enabled `driftline-monitor` Cloud Scheduler job previously had an
+  unlimited retry duration. It is now bounded to two retries after the initial
+  attempt (three total attempts), a five-minute retry window, five-second
+  minimum backoff, and 60-second maximum backoff. The six-hour UTC cadence,
+  OIDC identity, and exact `/api/scheduler/tick` target are unchanged.
+- A post-update `gcloud scheduler jobs describe` confirmed `state=ENABLED`,
+  `retryCount=2`, `maxRetryDuration=300s`, and `maxBackoffDuration=60s`.
+
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 
 - Source registry onboarding now accepts the explicit `rss` parser alongside
