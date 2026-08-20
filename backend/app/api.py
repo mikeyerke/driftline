@@ -3864,13 +3864,25 @@ async def start_demo_job(
             status_code=429,
             detail="Live agent demo rate limit reached; retry later.",
         )
-    query = (
-        f"{request.query.strip()} Use the exact allowlisted source_id "
-        f'"{request.source_id}". Do not choose a different source.'
-    )
+    if request.run_mode == "demo" and tenant_id is None:
+        # The anonymous lane is a deterministic judge surface. Do not persist
+        # or send arbitrary caller text to Gemini; otherwise a public visitor
+        # could accidentally submit private material into the demo ledger.
+        query = (
+            f"Inspect the allowlisted {request.source_id} change, verify the "
+            "evidence, map affected artifacts, and stop at the human approval "
+            "gate."
+        )
+        user_id = "public-demo"
+    else:
+        query = (
+            f"{request.query.strip()} Use the exact allowlisted source_id "
+            f'"{request.source_id}". Do not choose a different source.'
+        )
+        user_id = request.user_id
     job = _start_job(
         query=query,
-        user_id=request.user_id,
+        user_id=user_id,
         run_mode=request.run_mode,
         background_tasks=background_tasks,
         tenant_id=tenant_id,

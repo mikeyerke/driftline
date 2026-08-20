@@ -256,6 +256,10 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   100% traffic. A live canary job submitted with sensitive text returned none
   of the five redacted fields and exposed only `public_summary`; `/health`
   returned HTTP 200 and the revision has no severity `ERROR` logs.
+- The anonymous `/api/jobs/demo` lane also now ignores caller-provided query
+  and user identity fields, sending only a fixed allowlisted instruction to
+  Gemini. Signed tenant monitor requests retain their explicit query and
+  identity contract; the new regression suite is `203 passed`.
 
 ## 2026-08-20 Tenant RSS/Atom source parser (live)
 

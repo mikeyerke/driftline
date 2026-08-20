@@ -1281,6 +1281,29 @@ def test_manual_monitor_job_requires_signed_operator(monkeypatch) -> None:
     assert allowed.status_code == 200
 
 
+def test_public_demo_job_uses_fixed_query_and_identity(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_start_job(**kwargs):
+        captured.update(kwargs)
+        return JobState(job_id="job-public-fixed-query")
+
+    monkeypatch.setattr(api, "_start_job", fake_start_job)
+    response = client.post(
+        "/api/jobs/demo",
+        json={
+            "query": "private customer note that must never reach the demo agent",
+            "user_id": "untrusted-public-user",
+            "source_id": "public/pricing",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["user_id"] == "public-demo"
+    assert "private customer note" not in str(captured["query"])
+    assert "allowlisted public/pricing change" in str(captured["query"])
+
+
 def test_signed_monitor_job_carries_authenticated_tenant(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

@@ -314,7 +314,8 @@ or repository scope; a failed connector is recorded as `failed` and never turns
 into a successful claim. Tenant-bound asynchronous jobs, workflows, packets,
 action items, scenario previews, and operator summaries are filtered by the
 same signed identity boundary; the public demo sees only tenantless synthetic
-records. Claim, complete, fail, retry, and reverse action-item calls use that
+records and sends only a fixed allowlisted instruction to Gemini rather than
+persisting arbitrary visitor text. Claim, complete, fail, retry, and reverse action-item calls use that
 same boundary for tenant-bound workflows. Salesforce now has a deployed
 read-only OAuth lane,
 tenant-scoped Secret Manager storage, and an allowlist for product, pricebook,
