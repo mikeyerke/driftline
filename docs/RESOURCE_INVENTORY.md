@@ -35,6 +35,19 @@ project number: 724959673622
   (`null`). Cloud Logging showed no severity `ERROR` entries for the new
   revision after rollout.
 
+## 2026-08-20 Standalone image reproducibility (repository/CI)
+
+- Source commit `70d4540` aligned the checked-in `backend/Dockerfile` with
+  the production image: it copies `backend/uv.lock`, runs the frozen
+  `uv==0.8.17` resolution, and drops to the dedicated non-root `driftline`
+  user. This alternate backend image is not deployed separately; the root
+  Dockerfile remains the Cloud Run artifact.
+- GitHub Actions run `32422871806` completed `success` across backend tests,
+  frontend production build, and the new standalone backend image build.
+- No Cloud Run mutation was needed for this repository-only reproducibility
+  improvement; revision `driftline-00023-w7h` remains the verified live
+  deployment.
+
 Before any future mutation, verify the target explicitly:
 
 ```bash
