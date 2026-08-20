@@ -29,7 +29,9 @@ Signed operator identities resolve to a tenant and role from
 `DRIFTLINE_TENANT_MEMBERS`. `viewer` identities can inspect status, while
 `operator` and `owner` identities can start signed connector work; only an
 `owner` can disconnect Salesforce. The public demo has no tenant authority and
-can only create sandbox packets.
+can only create sandbox packets. The HMAC break-glass path is additionally
+restricted by the explicit `DRIFTLINE_HMAC_TENANTS` allowlist and returns a
+forbidden response for unknown tenants; it is not a wildcard tenant selector.
 
 Connector credentials are now tenant-bound for every external integration.
 Each signed approval resolves a tenant principal first, then loads only the
