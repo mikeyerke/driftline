@@ -27,7 +27,7 @@ export default function ChangeGenomePanel() {
           <span><strong>{memory.work_summary?.workflow_count || 0}</strong>workflows</span>
           <span><strong>{memory.change_genomes?.length || 0}</strong>change genomes</span>
           <span><strong>{memory.work_summary?.unresolved_count || 0}</strong>open owner items</span>
-          <span><strong>{memory.work_summary?.reversed_count || 0}</strong>reversed</span>
+          <span><strong>{memory.work_summary?.reversed_count || 0}</strong>reversed owner items</span>
         </div>
         <div className="genome-grid">
           <div><h3><History size={14} />Recent recurring moves</h3>{(memory.recurring_changes || []).length === 0
