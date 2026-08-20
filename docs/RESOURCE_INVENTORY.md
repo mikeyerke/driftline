@@ -60,6 +60,13 @@ test "$(gcloud config get-value project 2>/dev/null)" = driftline-hackathon-2026
   `code_challenge_method=S256`; no client secret was exposed in the URL. The
   browser handoff remains at Salesforce login, so no OAuth callback or CRM
   record read is claimed.
+- The always-on monitor is not a UI-only claim: Cloud Scheduler job
+  `driftline-monitor` is `ENABLED` on `0 */6 * * *` UTC and targets the
+  scheduler tick endpoint. Cloud Logging shows successful `POST
+  /api/scheduler/tick` responses at 00:00, 06:00, 12:00, 18:00, and 19:54 UTC
+  on the current operating window. The latest registry probe reported all five
+  pinned sources `healthy`, `stale=0`, `source_failed=0`, and fresh public
+  observations; the fixture boundary remains explicitly disclosed.
 
 ## 2026-08-20 Durable connector-read quota fix (live)
 
