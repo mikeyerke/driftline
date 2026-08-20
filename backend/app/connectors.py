@@ -418,6 +418,14 @@ def _tenant_setting(
         if isinstance(settings, dict) and key in settings:
             value = settings.get(key)
             return str(value).strip() if value is not None else fallback
+    if (
+        os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
+        and os.getenv(
+            "DRIFTLINE_ALLOW_DEPLOYMENT_CONNECTOR_TARGET_FALLBACK", "false"
+        ).casefold()
+        != "true"
+    ):
+        raise ConnectorError("tenant_connector_profile_missing")
     raw = os.getenv("DRIFTLINE_TENANT_CONNECTOR_CONFIG", "").strip()
     if not raw:
         return fallback

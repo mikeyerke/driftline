@@ -66,8 +66,10 @@ arbitrary paths, query strings, and provider data are rejected. Connector
 adapters prefer the durable profile and still validate every URL and target
 before a request. The older operator-owned
 `DRIFTLINE_TENANT_CONNECTOR_CONFIG` environment profile remains only as a
-compatibility fallback for tenants that have not yet been provisioned. This
-keeps tenant target scope durable without putting credentials in Firestore.
+local-development compatibility fallback; hosted Firestore signed requests
+fail closed with `tenant_connector_profile_missing` until the profile exists.
+This keeps tenant target scope durable without putting credentials in
+Firestore.
 `POST /api/tenants/deprovision` is an owner-confirmed soft offboarding route:
 it disables memberships and revokes connector bindings, but does not delete
 secrets or provider-side data.

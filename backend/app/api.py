@@ -1409,6 +1409,11 @@ def get_ops_summary(
                 "metadata_collection": "driftline_connector_bindings",
                 "profile_route": "/api/connectors/{connector}/profile",
                 "profile_collection": "driftline_tenant_connector_profiles",
+                "deployment_target_fallback": os.getenv(
+                    "DRIFTLINE_ALLOW_DEPLOYMENT_CONNECTOR_TARGET_FALLBACK",
+                    "false",
+                ).casefold()
+                == "true",
                 "tenant_collection": "driftline_tenants",
                 "membership_collection": "driftline_tenant_memberships",
             },

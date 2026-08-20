@@ -104,11 +104,11 @@ Owner-managed `POST /api/connectors/{connector}/profile` stores only
 connector-specific non-secret targets in the durable
 `driftline_tenant_connector_profiles` collection. Adapters prefer those
 profiles and validate every URL and destination. The older operator-owned
-`DRIFTLINE_TENANT_CONNECTOR_CONFIG` profile remains a compatibility fallback;
-it is not the preferred multi-tenant path. Credentials still resolve only from
-the deterministic tenant Secret Manager binding. The current demo deployment
-keeps its existing single-tenant target defaults; a second tenant profile has
-not been provisioned or live-verified.
+`DRIFTLINE_TENANT_CONNECTOR_CONFIG` profile is local-development compatibility
+only; hosted Firestore signed requests fail closed until a durable tenant
+profile exists. Credentials still resolve only from the deterministic tenant
+Secret Manager binding. The current demo deployment has one verified tenant;
+a second tenant has not been provisioned or live-verified.
 
 Signals do not have to become work. A named reviewer can dismiss a
 needs-approval signal as non-material with a required reason; Driftline records

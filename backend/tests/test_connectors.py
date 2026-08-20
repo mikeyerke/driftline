@@ -300,6 +300,24 @@ def test_durable_tenant_connector_profile_precedes_deployment_defaults(monkeypat
     assert config.project_key == "DUR"
 
 
+def test_firestore_tenant_connector_target_requires_durable_profile(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+    monkeypatch.delenv("DRIFTLINE_TENANT_CONNECTOR_CONFIG", raising=False)
+    monkeypatch.setenv("DRIFTLINE_JIRA_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_JIRA_BASE_URL", "https://default.atlassian.net")
+    monkeypatch.setenv("DRIFTLINE_JIRA_EMAIL", "default@example.com")
+    monkeypatch.setenv("DRIFTLINE_JIRA_PROJECT_KEY", "DEFAULT")
+    monkeypatch.setattr("app.persistence.load_connector_profile", lambda *_args: None)
+    monkeypatch.setattr(
+        connector_module,
+        "_tenant_secret_or_env",
+        lambda tenant, connector, env_name: "tenant-token",
+    )
+
+    with pytest.raises(ConnectorError, match="tenant_connector_profile_missing"):
+        JiraConfig.from_env("missing-profile")
+
+
 def test_invalid_tenant_connector_profile_fails_closed(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_TENANT_CONNECTOR_CONFIG", "{not-json")
 
