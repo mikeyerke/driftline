@@ -28,6 +28,9 @@ returns either `baseline_established` or an explicit fetch failure; the durable
 scheduler then owns recurring observations and retry behavior. Local and public
 synthetic demo modes stay metadata-only for deterministic evaluation.
 
+Every scheduled monitor job also carries the exact registered source ID through
+the durable job record, ADK turn, and append-only observation ledger.
+
 ## Why it is agentic
 
 Driftline is a complete resumable workflow rather than a chat interface:
