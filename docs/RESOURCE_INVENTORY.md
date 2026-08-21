@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T16:37:43Z` with the active gcloud project set to
+Checked `2026-08-21T16:49:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00125-2bl` at 100% traffic. Its immutable serving image is
-  `sha256:8507753c033b6060b3ab3f1dbff0119521883930b5989bf9b6662ba0fa7004d1`.
+  `driftline-00126-zgv` at 100% traffic. Its immutable serving image is
+  `sha256:132a91d8d9c26cf196cc98a88a91e7a4184d1c06209a4314d23cee3494fa179d`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -54,6 +54,25 @@ Checked `2026-08-21T16:37:43Z` with the active gcloud project set to
 - The full local gate passed 250 backend tests, Ruff, frontend production
   build, and diff hygiene. GitHub Actions run `32503511174` passed backend
   tests/lint, frontend build, standalone image build, and repository hygiene.
+
+## 2026-08-21 Google OIDC tenant-discovery fix (live)
+
+- Source commit `4610a22` was deployed by Cloud Build
+  `c17c3151-54a3-430b-931f-036e1630b641` (`SUCCESS`) as Cloud Run revision
+  `driftline-00126-zgv` at 100% traffic. The immutable image digest is
+  `sha256:132a91d8d9c26cf196cc98a88a91e7a4184d1c06209a4314d23cee3494fa179d`.
+- Fixed a real hosted operator defect: the browser's Google Identity Services
+  callback sends its short-lived ID token in `Authorization`, while tenant
+  discovery previously read only a query field. The route now consumes the
+  request-scoped bearer header without placing the token in a URL; a regression
+  test covers the header path.
+- `scripts/verify_production.sh` passed on this revision with zero recent
+  Cloud Run errors. Fresh exact-revision proofs passed: live agent job
+  `job-cb310ff6bb06` / workflow `12b67e30-9575-40fe-8061-ed65c98cd24a`, and
+  approval/undo job `job-d4aa36eea2c1` / workflow
+  `a7a2b536-65ee-4ced-8e0d-d0d486eb1e90`.
+- GitHub Actions run `32504592582` passed 251 backend tests, Ruff, frontend
+  build, standalone image build, and repository hygiene.
 
 ## 2026-08-21 release-proof hardening (live verification)
 
