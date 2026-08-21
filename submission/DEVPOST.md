@@ -134,6 +134,10 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
+- The latest live rollout (`driftline-00036-l8k`, source `16fe23a`, Cloud Build
+  `6a65bed7-429e-4875-9503-e7dd8587c501`) presents the console as a production
+  control plane while keeping the anonymous judging lane explicitly packet-only
+  and isolated from customer writes.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
   The deployed runtime source is commit `f73b067`, deployed through Cloud Build

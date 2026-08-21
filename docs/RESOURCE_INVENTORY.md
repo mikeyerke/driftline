@@ -17,13 +17,15 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00035-htz` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00036-l8k` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `f73b067`; current repository HEAD may be newer
-  documentation-only commits.
+- Deployed runtime source: `16fe23a`; Cloud Build `6a65bed7-429e-4875-9503-e7dd8587c501`.
+- The public console now presents the live service as a production control
+  plane with an explicit public-demo safety mode; anonymous judging remains
+  packet-only and cannot write to customer systems.
 - `/health`: HTTP 200, Firestore persistence enabled, async jobs enabled.
 - Current public registry: five pinned judge fixtures only. No arbitrary
   competitor source is registered.
