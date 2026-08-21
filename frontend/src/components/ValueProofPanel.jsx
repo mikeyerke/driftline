@@ -1,6 +1,7 @@
 import { Activity, AlertTriangle, CheckCircle2, Clock3, Gauge, Layers3, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getValueProof } from "../api";
+import useNearViewport from "../hooks/useNearViewport";
 
 const metric = (value, suffix = "") => (value === null || value === undefined ? "—" : `${value}${suffix}`);
 const seconds = (value) => (value === null || value === undefined ? "—" : `${Number(value).toFixed(1)}s`);
@@ -17,17 +18,19 @@ const modeLabel = (value) => {
 };
 
 export default function ValueProofPanel() {
+  const [panelRef, nearViewport] = useNearViewport();
   const [proof, setProof] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!nearViewport) return undefined;
     let active = true;
     getValueProof()
       .then((payload) => active && setProof(payload))
       .catch(() => active && setProof(null))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, []);
+  }, [nearViewport]);
 
   const observed = proof?.observed || {};
   const latency = observed.approval_latency_seconds || {};
@@ -37,12 +40,13 @@ export default function ValueProofPanel() {
   const workflowModes = Object.entries(observed.workflow_data_modes || {});
 
   return (
-    <section className="panel value-proof-panel" aria-labelledby="value-proof-title">
+    <section ref={panelRef} className="panel value-proof-panel" aria-labelledby="value-proof-title">
       <header className="panel-header">
         <div><h2 id="value-proof-title"><Gauge size={17} />Value proof</h2><span className="live-label">Observed demo telemetry</span></div>
         <span className="muted">Operational utility, not invented ROI</span>
       </header>
-      {loading && <p className="multimodal-empty"><Activity size={15} className="spin" />Reading bounded deployment evidence…</p>}
+      {!nearViewport && <p className="multimodal-empty">Scroll to load observed deployment evidence.</p>}
+      {nearViewport && loading && <p className="multimodal-empty"><Activity size={15} className="spin" />Reading bounded deployment evidence…</p>}
       {!loading && proof && <>
         <div className="value-proof-grid">
           <div><Activity size={16} /><strong>{metric(observed.workflows)}</strong><small>workflows recorded</small></div>

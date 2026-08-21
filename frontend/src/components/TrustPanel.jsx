@@ -1,8 +1,10 @@
 import { Activity, Database, ListChecks, LockKeyhole, Scale, Server, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getOpsSummary } from "../api";
+import useNearViewport from "../hooks/useNearViewport";
 
 export default function TrustPanel({ actionRecord }) {
+  const [panelRef, nearViewport] = useNearViewport();
   const [ops, setOps] = useState(null);
   const jiraWasWritten = ["created", "reused", "reactivated", "reversed"].includes(actionRecord?.jira_status);
   const jiraTrustLabel = actionRecord?.jira_status === "reversed"
@@ -15,6 +17,7 @@ export default function TrustPanel({ actionRecord }) {
           ? "Existing Jira issue linked; other destinations unchanged"
           : "One scoped Jira handoff recorded; other destinations remain unchanged";
   useEffect(() => {
+    if (!nearViewport) return undefined;
     let active = true;
     const refresh = () => getOpsSummary().then((payload) => active && setOps(payload)).catch(() => active && setOps(null));
     refresh();
@@ -23,7 +26,7 @@ export default function TrustPanel({ actionRecord }) {
       active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [nearViewport]);
   const sourceHealth = ops?.source_health || [];
   const healthySources = sourceHealth.filter((source) => source.status === "healthy").length;
   const deadLettered = ops?.jobs?.dead_lettered;
@@ -31,7 +34,7 @@ export default function TrustPanel({ actionRecord }) {
   const connectorLanes = Object.values(ops?.connectors || {}).filter(Boolean).length;
   const runtimeLabel = ops ? `${ops.model || "Agent runtime"} · ${ops.persistence || "persistence unavailable"}` : "Deployment telemetry unavailable";
   return (
-    <section className="panel trust-panel" id="settings-section">
+    <section ref={panelRef} className="panel trust-panel" id="settings-section">
       <header className="panel-header"><div><h2>Trust and deployment posture</h2><span className="live-label">Production deployment</span></div><span className="muted">Public evaluation lane is isolated</span></header>
       <div className="trust-grid">
         <div><Server size={18} /><strong>Google Cloud</strong><small>Cloud Run · Firestore · Cloud Tasks</small></div>

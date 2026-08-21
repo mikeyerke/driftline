@@ -1,5 +1,6 @@
 import { Activity, CheckCircle2, Clock3, RefreshCw, RotateCcw, ShieldAlert, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import useNearViewport from "../hooks/useNearViewport";
 
 const statusLabel = (status) => (status || "queued").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
@@ -11,8 +12,17 @@ function StatusIcon({ status }) {
   return <Clock3 size={15} />;
 }
 
-export default function RunHistory({ jobs, loading, publicMode = false, canRetry = false, onRetry }) {
+export default function RunHistory({ jobs, loading, publicMode = false, canRetry = false, onRetry, onVisible }) {
+  const [panelRef, nearViewport] = useNearViewport();
+  const visibleNotifiedRef = useRef(false);
   const [retryingJobId, setRetryingJobId] = useState(null);
+
+  useEffect(() => {
+    if (nearViewport && !visibleNotifiedRef.current) {
+      visibleNotifiedRef.current = true;
+      onVisible?.();
+    }
+  }, [nearViewport, onVisible]);
   const visibleJobs = publicMode ? jobs.slice(0, 3) : jobs;
   const hiddenCount = Math.max(0, jobs.length - visibleJobs.length);
 
@@ -26,7 +36,7 @@ export default function RunHistory({ jobs, loading, publicMode = false, canRetry
   };
 
   return (
-    <section className="panel run-history" id="history-section">
+    <section ref={panelRef} className="panel run-history" id="history-section">
       <header className="panel-header">
         <div><h2>Run history</h2><span className="live-label">{publicMode ? "Public lane" : "Durable activity"}</span></div>
         <span className="muted">{publicMode ? "Latest tenantless runs · signed history stays scoped" : "Cloud Tasks + Firestore"}</span>

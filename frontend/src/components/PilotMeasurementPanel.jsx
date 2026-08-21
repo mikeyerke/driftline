@@ -1,6 +1,7 @@
 import { ClipboardCheck, Clock3, Gauge, Plus, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getPilotReport, recordOutcomeMeasurement } from "../api";
+import useNearViewport from "../hooks/useNearViewport";
 
 const initialForm = {
   source_type: "pilot_log",
@@ -17,6 +18,7 @@ const initialForm = {
 const numberOrNull = (value) => value === "" ? null : Number(value);
 
 export default function PilotMeasurementPanel({ operatorSession }) {
+  const [panelRef, nearViewport] = useNearViewport();
   const [form, setForm] = useState(initialForm);
   const [report, setReport] = useState(null);
   const [open, setOpen] = useState(false);
@@ -32,8 +34,9 @@ export default function PilotMeasurementPanel({ operatorSession }) {
   };
 
   useEffect(() => {
+    if (!nearViewport) return;
     refresh();
-  }, [operatorSession?.identityToken, operatorSession?.tenantId]);
+  }, [operatorSession?.identityToken, operatorSession?.tenantId, nearViewport]);
 
   if (!operatorSession?.identityToken) return null;
 
@@ -64,7 +67,7 @@ export default function PilotMeasurementPanel({ operatorSession }) {
 
   const measured = report?.record_count > 0;
   return (
-    <section className="panel pilot-panel" aria-labelledby="pilot-title">
+    <section ref={panelRef} className="panel pilot-panel" aria-labelledby="pilot-title">
       <header className="panel-header">
         <div><h2 id="pilot-title"><Gauge size={17} />Pilot measurement</h2><span className="live-label public">Tenant-scoped</span></div>
         <span className="muted">Aggregate evidence only</span>

@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, ExternalLink, Globe2, Hash, History, ShieldCheck } from "lucide-react";
 import { getSourceHistory, registerSource } from "../api";
 import MultimodalEvidencePanel from "./MultimodalEvidencePanel";
+import useNearViewport from "../hooks/useNearViewport";
 
-export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = false, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered }) {
+export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = false, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered, onVisible }) {
+  const [panelRef, nearViewport] = useNearViewport();
+  const visibleNotifiedRef = useRef(false);
   const isPublic = dataMode === "public_source";
   const [history, setHistory] = useState([]);
   const [showRegister, setShowRegister] = useState(false);
@@ -27,12 +30,20 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
         : "Awaiting capture";
 
   useEffect(() => {
+    if (!nearViewport) return undefined;
     let active = true;
     getSourceHistory(selectedSource || evidence?.source_id || "public/pricing")
       .then((payload) => active && setHistory(payload.observations || []))
       .catch(() => active && setHistory([]));
     return () => { active = false; };
-  }, [selectedSource, evidence?.source_id, evidence?.retrieved_at]);
+  }, [selectedSource, evidence?.source_id, evidence?.retrieved_at, nearViewport]);
+
+  useEffect(() => {
+    if (nearViewport && !visibleNotifiedRef.current) {
+      visibleNotifiedRef.current = true;
+      onVisible?.();
+    }
+  }, [nearViewport, onVisible]);
 
   const updateForm = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   const submitRegistration = async (event) => {
@@ -53,7 +64,7 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
   };
 
   return (
-    <section className="panel source-panel" id="sources-section">
+    <section ref={panelRef} className="panel source-panel" id="sources-section">
       <header className="panel-header">
         <div><h2>Allowlisted source</h2><span className={`live-label ${isSyntheticCompetitorFixture || (dataMode !== "public_source" && !isRegisteredPublic) ? "synthetic" : "public"}`}>{sourceBadge}</span></div>
         <span className="muted">Source-level access only</span>
@@ -103,8 +114,10 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
           </form>}
         </div>}
         <div className="source-history" aria-label="Append-only source history">
-          <div className="source-history-heading"><span><History size={14} />Historical observations</span><small>Append-only ledger</small></div>
-          {history.length === 0
+        <div className="source-history-heading"><span><History size={14} />Historical observations</span><small>Append-only ledger</small></div>
+          {!nearViewport
+            ? <p className="empty-state">Scroll to load the append-only source ledger.</p>
+            : history.length === 0
             ? <p className="empty-state">No scheduled observations yet for this source. A demo replay does not rewrite the monitor ledger.</p>
             : <ol>{history.map((observation) => <li key={`${observation.retrieved_at}-${observation.snapshot_hash}`}><span><b>{new Date(observation.retrieved_at).toLocaleString()}</b><small>{observation.snapshot_hash.slice(0, 12)}… · {observation.data_mode.replaceAll("_", " ")}</small></span><code>{observation.body}</code></li>)}</ol>}
         </div>

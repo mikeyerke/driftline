@@ -138,13 +138,11 @@ export default function App() {
 
   useEffect(() => {
     const callbackEpoch = sessionEpochRef.current;
-    refreshHistory(callbackEpoch);
     getSources().then((payload) => {
       if (sessionEpochRef.current === callbackEpoch) setSources(payload.sources || []);
     }).catch(() => {
       if (sessionEpochRef.current === callbackEpoch) setSources([]);
     });
-    refreshSourceHealth(callbackEpoch);
   }, []);
 
   useEffect(() => subscribeOperatorSession((next) => {
@@ -428,11 +426,11 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onRegistered={(payload) => { if (payload?.source?.source_id) setSelectedSource(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) setSelectedSource(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel />
           <ValueProofPanel />
           <PilotMeasurementPanel operatorSession={operatorSession} />
-          <RunHistory jobs={recentJobs} loading={historyLoading} publicMode={!operatorSession.identityToken} canRetry={Boolean(operatorSession.identityToken)} onRetry={retryFailedJob} />
+          <RunHistory jobs={recentJobs} loading={historyLoading} publicMode={!operatorSession.identityToken} canRetry={Boolean(operatorSession.identityToken)} onRetry={retryFailedJob} onVisible={() => refreshHistory()} />
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
           <TrustPanel actionRecord={actionRecord} />

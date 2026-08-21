@@ -1,27 +1,31 @@
 import { useEffect, useState } from "react";
 import { Dna, History, LoaderCircle, RotateCcw, ShieldAlert } from "lucide-react";
 import { getMemorySummary } from "../api";
+import useNearViewport from "../hooks/useNearViewport";
 
 export default function ChangeGenomePanel() {
+  const [panelRef, nearViewport] = useNearViewport();
   const [memory, setMemory] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!nearViewport) return undefined;
     let active = true;
     getMemorySummary()
       .then((payload) => active && setMemory(payload))
       .catch(() => active && setMemory(null))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, []);
+  }, [nearViewport]);
 
   return (
-    <section className="panel genome-panel" aria-labelledby="genome-title">
+    <section ref={panelRef} className="panel genome-panel" aria-labelledby="genome-title">
       <header className="panel-header">
         <div><h2 id="genome-title"><Dna size={17} />Change memory</h2><span className="live-label">Append-only</span></div>
         <span className="muted">Recurring moves and open work</span>
       </header>
-      {loading && <p className="multimodal-empty"><LoaderCircle size={15} className="spin" />Reading the source ledger…</p>}
+      {!nearViewport && <p className="multimodal-empty">Scroll to load append-only change memory.</p>}
+      {nearViewport && loading && <p className="multimodal-empty"><LoaderCircle size={15} className="spin" />Reading the source ledger…</p>}
       {!loading && memory && <>
         <div className="genome-summary">
           <span><strong>{memory.work_summary?.workflow_count || 0}</strong>workflows</span>

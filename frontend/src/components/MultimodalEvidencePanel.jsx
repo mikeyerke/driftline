@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
 import { Eye, FileImage, Hash, LoaderCircle, Sparkles } from "lucide-react";
 import { analyzeMultimodalEvidence, getMultimodalEvidence, multimodalAssetUrl } from "../api";
+import useNearViewport from "../hooks/useNearViewport";
 
 export default function MultimodalEvidencePanel({ assetId = "promise-card", mode = "live" }) {
+  const [panelRef, nearViewport] = useNearViewport();
   const [evidence, setEvidence] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [resolvedMode, setResolvedMode] = useState(mode);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!nearViewport) return undefined;
     let active = true;
     setLoading(true);
     setError("");
@@ -28,7 +31,7 @@ export default function MultimodalEvidencePanel({ assetId = "promise-card", mode
       .catch((requestError) => active && setError(requestError.message || "Visual evidence unavailable"))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [assetId, mode]);
+  }, [assetId, mode, nearViewport]);
 
   const analyze = async () => {
     setAnalyzing(true);
@@ -45,12 +48,13 @@ export default function MultimodalEvidencePanel({ assetId = "promise-card", mode
   };
 
   return (
-    <section className="panel multimodal-panel" aria-labelledby="multimodal-title">
+    <section ref={panelRef} className="panel multimodal-panel" aria-labelledby="multimodal-title">
       <header className="panel-header">
         <div><h2 id="multimodal-title"><FileImage size={17} />Multimodal reference pair</h2><span className={`live-label ${evidence?.data_mode === "public_source" ? "public" : "synthetic"}`}>{evidence?.data_mode === "public_source" ? "Allowlisted bytes" : "Synthetic reference"}</span></div>
         <span className="muted">Before → after</span>
       </header>
-      {loading && <p className="multimodal-empty"><LoaderCircle size={15} className="spin" />Loading allowlisted visual bytes…</p>}
+      {!nearViewport && <p className="multimodal-empty">Scroll to load the bounded visual evidence pair.</p>}
+      {nearViewport && loading && <p className="multimodal-empty"><LoaderCircle size={15} className="spin" />Loading allowlisted visual bytes…</p>}
       {error && <p className="trace-error" role="alert">{error}</p>}
       {evidence && (
         <>
