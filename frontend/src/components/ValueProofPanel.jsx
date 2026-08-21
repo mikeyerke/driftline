@@ -32,6 +32,7 @@ export default function ValueProofPanel() {
   const observed = proof?.observed || {};
   const latency = observed.approval_latency_seconds || {};
   const latencySamples = latency.sample_count || 0;
+  const ownerActionCycle = observed.owner_action_cycle_seconds || {};
   const notMeasured = proof?.not_measured || [];
   const workflowModes = Object.entries(observed.workflow_data_modes || {});
 
@@ -57,6 +58,8 @@ export default function ValueProofPanel() {
               <div><dt>Healthy sources</dt><dd>{metric(observed.healthy_sources)}</dd></div>
               <div><dt>Owner action completion</dt><dd>{observed.action_item_completion_rate === null || observed.action_item_completion_rate === undefined ? "—" : `${Math.round(observed.action_item_completion_rate * 100)}%`}</dd></div>
               <div><dt>Approval latency p90</dt><dd>{seconds(latency.p90)}</dd></div>
+              <div><dt>Owner-action cycle p50 · n={ownerActionCycle.sample_count || 0}</dt><dd>{seconds(ownerActionCycle.p50)}</dd></div>
+              <div><dt>Owner-action cycle p90</dt><dd>{seconds(ownerActionCycle.p90)}</dd></div>
               <div><dt>External writes</dt><dd>{metric(observed.external_write_actions)}</dd></div>
             </dl>
           </div>

@@ -3742,6 +3742,27 @@ def get_value_proof(
         if approval_latencies
         else None
     )
+    owner_action_latencies: list[float] = []
+    for item in action_items:
+        try:
+            created = datetime.fromisoformat(str(item.get("created_at", "")))
+            completed = datetime.fromisoformat(str(item.get("completed_at", "")))
+            owner_action_latencies.append(max(0.0, (completed - created).total_seconds()))
+        except (TypeError, ValueError):
+            continue
+    owner_action_latencies.sort()
+    owner_action_p50 = (
+        owner_action_latencies[len(owner_action_latencies) // 2]
+        if owner_action_latencies
+        else None
+    )
+    owner_action_p90 = (
+        owner_action_latencies[
+            min(len(owner_action_latencies) - 1, int(len(owner_action_latencies) * 0.9))
+        ]
+        if owner_action_latencies
+        else None
+    )
     return {
         "generated_at": utc_now(),
         "scope": (
@@ -3777,6 +3798,11 @@ def get_value_proof(
                 "sample_count": len(approval_latencies),
                 "p50": p50_latency,
                 "p90": p90_latency,
+            },
+            "owner_action_cycle_seconds": {
+                "sample_count": len(owner_action_latencies),
+                "p50": owner_action_p50,
+                "p90": owner_action_p90,
             },
             "action_item_completion_rate": (
                 round(

@@ -300,6 +300,7 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert "high_materiality_cards" in value_proof.json()["observed"]
     assert "cards_dismissed" in value_proof.json()["observed"]
     assert "overdue_owner_actions" in value_proof.json()["observed"]
+    assert "owner_action_cycle_seconds" in value_proof.json()["observed"]
     outcomes = client.get("/api/ops/outcomes")
     assert outcomes.status_code == 200
     assert outcomes.json()["status"] == "not_measured"
