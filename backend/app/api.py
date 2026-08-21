@@ -1840,6 +1840,10 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
         }
     config = SalesforceConfig.from_env()
     try:
+        logger.info(
+            "Salesforce credential resolver identity mode=%s",
+            os.getenv("DRIFTLINE_TENANT_SECRET_IDENTITY_MODE", "direct"),
+        )
         refresh_token = resolve_tenant_credential(
             tenant_id,
             "salesforce",

@@ -294,9 +294,12 @@ class SalesforceReadOnlyClient:
     """
 
     _QUERIES: ClassVar[dict[str, str]] = {
-        "Product2": "SELECT Id,Name,ProductCode,IsActive,Family FROM Product2 LIMIT 25",
-        "PricebookEntry": "SELECT Id,Name,UnitPrice,IsActive,CurrencyIsoCode,Product2Id FROM PricebookEntry LIMIT 25",
-        "Opportunity": "SELECT Id,StageName,Amount,CloseDate,IsClosed FROM Opportunity LIMIT 25",
+        # COUNT() keeps the CRM lane resilient across orgs with different
+        # optional fields/currency settings and guarantees that no record
+        # fields are returned to Driftline at all.
+        "Product2": "SELECT COUNT() FROM Product2",
+        "PricebookEntry": "SELECT COUNT() FROM PricebookEntry",
+        "Opportunity": "SELECT COUNT() FROM Opportunity",
     }
 
     def __init__(
