@@ -2994,3 +2994,29 @@ is no longer needed.
   routes returned HTTP 400 with `Query authentication is disabled; use request
   headers.` The deployed request guard prevents secrets from being accepted
   through URLs or accidentally retained in browser history and access logs.
+
+## 2026-08-21 OIDC-only hosted operator hardening (live)
+
+- Source commit `6897d5c` (`Require Google identity for hosted operator lane`)
+  passed 225 backend tests, Ruff, the frontend production build, and the
+  repository diff check. GitHub Actions run `32446039737` completed `success`.
+- Cloud Build `690dfea8-efe4-4840-b68f-54df2a1ccebb` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00055-lvp` at 100% traffic with image
+  digest `sha256:4ac0dc7d345bad18f39c163d9e5d7ae8bad70ac8f3aef2f33755f7bdad40a88c`.
+  The active project remained `driftline-hackathon-2026`; Cloud Run remains
+  `minScale=0`, `maxScale=1`, 512 MiB, one CPU, 20 concurrency, and 300-second
+  timeout.
+- The deployed environment now has `DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY=true`.
+  A direct signed-route probe without Google identity returned HTTP 401 with
+  `Google operator identity is required for this deployment`; the query-string
+  authentication probe remained HTTP 400. This closes the hosted HMAC
+  break-glass path while preserving it for explicit local/bootstrap use.
+- `/health` returned HTTP 200 and the current-revision Cloud Logging query had
+  no `severity>=ERROR` entries. A fresh public scan reached `needs_approval`
+  with `execution_mode=google_adk`, `model=gemini-3.5-flash`, and exactly the
+  allowlisted tools `inspect_source_change` and `get_workflow_state`.
+- The named demo approval persisted four Firestore-backed packets with
+  `storage_status=persisted`, all connector statuses `prepared_only`, and
+  `external_write=false`; immediate undo persisted the rollback marker and
+  returned the workflow to `needs_approval`. No external provider write is
+  claimed by this public smoke.

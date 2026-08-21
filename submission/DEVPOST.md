@@ -138,18 +138,17 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The current live revision is `driftline-00054-zsp` from source commit
-  `d4ee7ef`, deployed by Cloud Build
-  `38145a16-6eab-46e7-90b5-2b2d4b41d09f`; it serves 100% of traffic with the
+- The current live revision is `driftline-00055-lvp` from source commit
+  `6897d5c`, deployed by Cloud Build
+  `690dfea8-efe4-4840-b68f-54df2a1ccebb`; it serves 100% of traffic with the
   same scale-to-zero and one-instance guardrails.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `d4ee7ef`, deployed through Cloud Build
-  `38145a16-6eab-46e7-90b5-2b2d4b41d09f` as Cloud Run revision
-  `driftline-00054-zsp` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32445110698` passed on the follow-up
-  evidence commit; the
-  local release gate also passed all 224 backend tests, Ruff, and the frontend
+  The deployed runtime source is commit `6897d5c`, deployed through Cloud Build
+  `690dfea8-efe4-4840-b68f-54df2a1ccebb` as Cloud Run revision
+  `driftline-00055-lvp` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32446039737` passed; the
+  local release gate also passed all 225 backend tests, Ruff, and the frontend
   production build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
@@ -195,12 +194,13 @@ created during the contest.
   signed aggregate context probe returned Jira `KAN` (18 issues), Confluence
   `DRIFT` (5 pages), Slack `C0BRGFUSADA` (27 recent messages), and GitHub (0
   open issues and 0 open pull requests) with aggregate-only redaction.
+- The hosted operator lane now requires Google OIDC (`DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY=true`); a direct HMAC probe returned HTTP 401, while the public lane remained packet-only. This keeps the deployed break-glass signer out of normal production authorization.
 - The current responsive release was rechecked at a 390px emulated viewport:
   the document reports `bodyScrollWidth=500`, `documentElement.scrollWidth=500`,
   and `scrollX=0`, while the activity, run-history, and worklist panels retain
   their intentional inner horizontal scroll. Desktop and mobile Lighthouse each
   passed all 57 checks with 100 scores and the browser console had no messages.
-- The anonymous public-source Change Card on the current `driftline-00054-zsp`
+- The anonymous public-source Change Card on the current `driftline-00055-lvp`
   deployment was
   rechecked after a truthfulness fix: it displays `CRM context unavailable`
   and `No CRM context was read in this run`, never `Permissioned business
@@ -210,7 +210,7 @@ created during the contest.
   `external_write=false`. A named Product Marketing demo actor then claimed
   and completed one owner action; the live value endpoint reports this as
   public-demo telemetry only (1 of 24 action items, 4.2%), not customer ROI.
-- The latest public packet proof on `driftline-00054-zsp` contains
+- The latest public packet proof on `driftline-00055-lvp` contains
   `isolated public-demo output` rather than the old sandbox wording; approval
   persisted the packet and undo returned `needs_approval` with both
   `external_write=false` and `external_systems_changed=false`.
