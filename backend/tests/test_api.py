@@ -963,6 +963,29 @@ def test_hosted_get_rejects_authentication_in_query_string(monkeypatch) -> None:
     assert "Query authentication is disabled" in response.json()["detail"]
 
 
+def test_hosted_get_resolves_signed_auth_from_headers_without_query_token(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_REJECT_QUERY_AUTH", "true")
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY", "false")
+    secret = "header-auth-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "driftline-demo")
+    token = hmac.new(
+        secret.encode(), b"sources:list:Header operator", hashlib.sha256
+    ).hexdigest()
+
+    response = client.get(
+        "/api/sources?operator=Header%20operator&tenant_id=driftline-demo",
+        headers={"X-Driftline-Approval": token},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["sources"]
+
+
 def test_owner_can_inspect_credential_broker_inventory_and_access_ledger(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

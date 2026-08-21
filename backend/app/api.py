@@ -12,13 +12,14 @@ import re
 import secrets
 from collections import deque
 from collections.abc import Callable
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from pathlib import Path
 from statistics import median
 from threading import Lock
 from time import monotonic
 from typing import Any, Literal
-from urllib.parse import parse_qsl, urlencode
+from urllib.parse import parse_qsl
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -180,6 +181,9 @@ from .workflow import PolicyViolation, packet_markdown, workflow_store
 
 logger = logging.getLogger("driftline.api")
 app = FastAPI(title="Driftline API", version="0.2.0")
+_request_auth: ContextVar[tuple[str | None, str | None]] = ContextVar(
+    "driftline_request_auth", default=(None, None)
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -229,7 +233,13 @@ async def security_headers(request: Request, call_next):
 
 @app.middleware("http")
 async def secure_get_auth(request: Request, call_next):
-    """Keep bearer/HMAC credentials out of hosted GET URLs."""
+    """Keep bearer/HMAC credentials out of URLs and access logs.
+
+    Endpoint models retain their explicit token fields for local/bootstrap
+    compatibility, but hosted requests resolve credentials from headers via a
+    request-scoped context. Never rewrite the query string with a bearer token:
+    ASGI access logging can record that URL before the endpoint runs.
+    """
     if request.method == "GET" and os.getenv(
         "DRIFTLINE_REJECT_QUERY_AUTH", "false"
     ).casefold() == "true":
@@ -241,16 +251,13 @@ async def secure_get_auth(request: Request, call_next):
                 {"detail": "Query authentication is disabled; use request headers."},
                 status_code=400,
             )
-        additions: list[tuple[str, str]] = []
-        approval = request.headers.get("x-driftline-approval")
-        identity = request.headers.get("authorization")
-        if approval:
-            additions.append(("approval_token", approval))
-        if identity:
-            additions.append(("identity_token", identity))
-        if additions:
-            request.scope["query_string"] = urlencode(pairs + additions).encode()
-    return await call_next(request)
+    auth_token = _request_auth.set(
+        (request.headers.get("x-driftline-approval"), request.headers.get("authorization"))
+    )
+    try:
+        return await call_next(request)
+    finally:
+        _request_auth.reset(auth_token)
 
 
 class ApprovalRequest(BaseModel):
@@ -994,6 +1001,9 @@ def _verify_approval_mode(
     from the dedicated approval secret as an isolated break-glass path;
     unsigned public names are rejected before the workflow policy engine runs.
     """
+    header_approval, header_identity = _request_auth.get()
+    token = token or header_approval
+    identity_token = identity_token or header_identity
     configured = os.getenv("DRIFTLINE_APPROVAL_MODE", "demo").casefold()
     signed_enabled = (
         os.getenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "false").casefold() == "true"
