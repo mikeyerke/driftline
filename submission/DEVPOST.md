@@ -138,17 +138,17 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The current live revision is `driftline-00046-hjc` from source commit
-  `1c5ec8f`, deployed by Cloud Build
-  `af23c2ee-0693-4e09-a454-3df0f8b072a4`; it serves 100% of traffic with the
+- The current live revision is `driftline-00048-j8g` from source commit
+  `76c2a39`, deployed by Cloud Build
+  `c2857f9d-b9c7-4c6a-8033-af5e8274abad`; it serves 100% of traffic with the
   same scale-to-zero and one-instance guardrails.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `1c5ec8f`, deployed through Cloud Build
-  `af23c2ee-0693-4e09-a454-3df0f8b072a4` as Cloud Run revision
-  `driftline-00046-hjc` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32440101155` passed on this commit; the
-  local release gate also passed all 221 backend tests, Ruff, and the frontend
+  The deployed runtime source is commit `76c2a39`, deployed through Cloud Build
+  `c2857f9d-b9c7-4c6a-8033-af5e8274abad` as Cloud Run revision
+  `driftline-00048-j8g` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32440926605` passed on this commit; the
+  local release gate also passed all 222 backend tests, Ruff, and the frontend
   production build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
@@ -168,6 +168,12 @@ created during the contest.
   the Driftline-owned labels to `driftline-reversed`; the issue was retained.
   This proves an operational connector path, not customer ROI or a live
   competitor-monitoring result.
+- A current-revision signed approval/undo canary also exercised all four
+  configured external adapters. Approval returned `reactivated` for Jira,
+  Confluence, Slack, and GitHub; direct provider reads confirmed active versus
+  reversed state transitions, with GitHub unrelated labels preserved. Undo
+  returned all four to reversed state. This is operational connector evidence,
+  not customer ROI or a claim of live competitor data.
 - On 2026-08-21, the preceding `driftline-00038-2gq` revision was rechecked end to
   end: `/health` returned Firestore persistence and async jobs; a direct ADK
   run returned HTTP 200 with `persisted=true`, `model=gemini-3.5-flash`, and

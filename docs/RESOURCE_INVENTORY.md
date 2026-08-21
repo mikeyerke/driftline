@@ -10,6 +10,29 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-21 all-connector reactivation and reversal proof (live)
+
+- Source commit `76c2a39` passed GitHub Actions `32440926605` and the full local
+  gate (222 backend tests, Ruff, and the frontend production build). Cloud
+  Build `c2857f9d-b9c7-4c6a-8033-af5e8274abad` completed `SUCCESS`; Cloud Run
+  revision `driftline-00048-j8g` serves 100% of traffic.
+- On workflow `858ab326-d2fe-45f0-af89-42da12ef60b2`, signed approval on the
+  current revision returned `reactivated` and `idempotent=true` for Jira,
+  Confluence, Slack, and GitHub. The action was tenant-bound to
+  `driftline-demo` and remained reversible.
+- Direct provider reads confirmed the approved state: Jira `KAN-18` had
+  `driftline-active` plus `driftline-approval-gated`; Confluence page `1605654`
+  contained versioned reactivation and reversal markers; Slack contained the
+  corresponding reactivation message in `C0BRGFUSADA`; GitHub issue `#11` had
+  `driftline-active` and `driftline-approval-gated` with no reversed label.
+- Signed undo returned all four connector statuses to `reversed`. Direct reads
+  then confirmed Jira/GitHub had only `driftline-reversed`, Confluence retained
+  both append-only audit markers, and Slack retained the reversal messages.
+  GitHub's unrelated labels are preserved by the atomic label replacement.
+- This is an isolated authenticated fixture canary, not customer data or ROI;
+  the public judge lane remains packet-only and Salesforce remains
+  `not_configured`.
+
 ## 2026-08-21 connector reactivation hardening (live)
 
 - Source commit `1c5ec8f` passed GitHub Actions `32440101155` and the full local
@@ -96,12 +119,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00046-hjc` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00048-j8g` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `1c5ec8f`; Cloud Build `af23c2ee-0693-4e09-a454-3df0f8b072a4`.
+- Deployed runtime source: `76c2a39`; Cloud Build `c2857f9d-b9c7-4c6a-8033-af5e8274abad`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
