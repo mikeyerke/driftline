@@ -111,8 +111,8 @@ VISUAL_DEFINITIONS: dict[str, VisualDefinition] = {
     "promise-card": VisualDefinition(
         asset_id="promise-card",
         name="Promise operations console",
-        before_path="docs/concepts/change-operations-primary.png",
-        after_path="docs/concepts/change-operations-approved.png",
+        before_path="docs/concepts/change-operations-primary.jpg",
+        after_path="docs/concepts/change-operations-approved.jpg",
     ),
 }
 

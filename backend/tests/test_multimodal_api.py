@@ -33,7 +33,7 @@ def test_visual_evidence_and_asset_routes_are_same_origin(monkeypatch) -> None:
     assert evidence.json()["data_mode"] == "public_source"
     assert len(evidence.json()["evidence_hash"]) == 64
     assert asset.status_code == 200
-    assert asset.headers["content-type"].startswith("image/png")
+    assert asset.headers["content-type"].startswith("image/jpeg")
 
 
 def test_demo_vision_endpoint_returns_explicit_synthetic_fallback(monkeypatch) -> None:

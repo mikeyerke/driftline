@@ -35,7 +35,7 @@ def test_public_visual_pair_is_bounded_and_hash_bound(monkeypatch) -> None:
     assert evidence.data_mode == "public_source"
     assert evidence.before.body == b"before-image"
     assert evidence.after.body == b"after-image"
-    assert evidence.before.mime_type == "image/png"
+    assert evidence.before.mime_type == "image/jpeg"
     assert evidence.after.snapshot_hash != evidence.before.snapshot_hash
     assert len(evidence.evidence_hash) == 64
     assert (
