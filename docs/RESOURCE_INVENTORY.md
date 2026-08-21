@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T06:39:49Z` with the active gcloud project set to
+Checked `2026-08-21T06:51:20Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00071-rhd` at 100% traffic.
+  `driftline-00072-lg8` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,25 @@ Checked `2026-08-21T06:39:49Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 registered-source console monitor lane (live)
+
+- Source commit `772139b` passed GitHub Actions `32455807729`, 236 backend
+  tests, Ruff, `git diff --check`, and the frontend production build. Cloud
+  Build `c1a93c09-1bc0-43d5-bcc7-d18870318d6b` completed `SUCCESS`; Cloud Run
+  revision `driftline-00072-lg8` serves 100% of traffic.
+- The authenticated console now detects a tenant's operator-registered
+  `public_only` source and queues `run_mode=monitor` when **Run scan** is
+  pressed. Pinned fixtures continue to use the bounded `tenant_demo` lane.
+  This closes the product loop from source onboarding to a real public fetch,
+  append-only baseline/history, ADK analysis, and deterministic approval; it
+  no longer presents a registered URL in the UI that the backend would reject
+  as a synthetic-only run.
+- Post-deploy probes returned `/health` HTTP 200, the Google OIDC auth config,
+  the public console title, 100% traffic on the new revision, scale-to-zero
+  `maxScale=1`, and zero `severity>=ERROR` Cloud Logging entries for the
+  revision. No external connector write was performed by this UI regression
+  check.
 
 ## 2026-08-21 visual evidence reliability release (live)
 
