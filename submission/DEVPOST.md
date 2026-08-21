@@ -40,20 +40,19 @@ The packet and one approved low-risk operational output are persisted as
 private, versioned Cloud Storage objects inside the isolated Driftline project;
 undo writes separate reversal markers while preserving the original evidence.
 Every step receives an event ID and the evidence hash is carried into the
-approval record and packet. The isolated build has one real, least-privilege
-Jira connector for the free `KAN` / `Driftline` project: only the separately
-authenticated signed-operator lane can create at most one marker-idempotent
-Jira Task, and undo keeps that issue, changes only Driftline-owned labels, and
-appends a reversal comment. The public judge console is packet-only even when
-credentials are present; its named demo actor is not production identity.
-Approval also prepares target-specific Confluence, Slack, GitHub, and
-Salesforce-context manifests. GitHub is authenticated for the isolated
-repository and verified with a reversible issue flow. A signed live context
-probe on the deployed runtime returned aggregate-only reads for Jira (`KAN`,
-18 sampled issues), Confluence (`DRIFT`, 5 pages), Slack (`C0BRGFUSADA`, 27
-recent messages), and GitHub (0 open issues, 0 open pull requests); no source
-text or message bodies were returned or persisted. The Salesforce contract is
-read-only and remains pending final tenant consent.
+approval record and packet. The isolated build has four real, least-privilege
+reversible connectors for the free `KAN` / `Driftline` Jira project, `DRIFT`
+Confluence space, one Slack channel, and the isolated GitHub repository. Only
+the separately authenticated signed-operator lane can execute these
+marker-idempotent handoffs; undo keeps customer work intact where applicable,
+changes only Driftline-owned markers, and appends reversal evidence. The public
+judge console is packet-only even when credentials are present; its named demo
+actor is not production identity. A signed live context probe on the deployed
+runtime returned aggregate-only reads for Jira (`KAN`, 18 sampled issues),
+Confluence (`DRIFT`, 5 pages), Slack (`C0BRGFUSADA`, 27 recent messages), and
+GitHub (0 open issues, 0 open pull requests); no source text or message bodies
+were returned or persisted. The Salesforce contract is read-only and remains
+pending final tenant consent.
 
 ## Other data sources used
 
@@ -128,17 +127,24 @@ created during the contest.
 - Four independently owned downstream artifacts mapped from one source change.
 - Offering impact graph that routes own and competitor changes into Product
   Marketing, enablement, support, customer lifecycle, and planning surfaces.
-- Approval-gated handoff manifests plus one signed-operator-only, reversible
-  Jira Task connector with explicit project and token scope boundaries.
+- Approval-gated handoff manifests plus four signed-operator-only, reversible
+  Jira, Confluence, Slack, and GitHub connectors with explicit target and token
+  scope boundaries.
 - A synthetic, reproducible demonstration that requires no private company data.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
+- The current active release is source commit `9a3f144`, Cloud Build
+  `f40e7210-69e8-4611-a212-9032e3ac62e6`, and Cloud Run revision
+  `driftline-00073-qjm` at 100% traffic. It passed 236 backend tests, Ruff, the
+  frontend production build, and GitHub Actions `32456185723`. The console now
+  routes authenticated operator-registered URLs through the real monitor lane
+  and labels their captured evidence as public rather than synthetic.
 - An earlier live rollout (`driftline-00037-6t9`, source `bb8a437`, Cloud Build
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The latest live revision is `driftline-00061-46f` from source commit
+- A historical live revision was `driftline-00061-46f` from source commit
   `a4f675a`, deployed by Cloud Build
   `dd23aeae-fec2-45e9-b383-9e956367e7d7`; it serves 100% of traffic with the
   same scale-to-zero and one-instance guardrails. Its image digest is
