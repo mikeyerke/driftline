@@ -379,14 +379,14 @@ export default function App() {
         <div className="content">
         <div className="workspace-banner"><strong>Production control plane</strong><span>{operatorSession.identityToken ? `Authenticated tenant lane · ${operatorSession.tenantId} · deterministic human gate` : "Public evaluation lane · live allowlisted sources · deterministic human gate"}</span><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Packet-safe evaluation")}</span></div>
           <section id="overview-section" className="overview-section">
-            <p className="product-orientation">Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval.</p>
+            <p className="product-orientation">{approved ? "Driftline verified the change, recorded the approved operating plan, and is tracking owner closure." : "Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval."}</p>
             <section className="incident-header">
               <span className="incident-icon"><AlertTriangle size={30} /></span>
               <div className="incident-title">
               <h2>{workflowState?.title || (selectedSource === "competitor/pricing" ? "Competitor pricing moved" : selectedSource === "competitor/offerings" ? "Competitor offering changed" : selectedSource === "competitor/blog" ? "Competitor product narrative changed" : "Enterprise plan packaging changed")}</h2>
                 <div className="metadata">
                   <span><strong>Source</strong>{evidence.source_name}</span><i /><span><strong>Detected</strong>{workflowState ? "Just now" : "Awaiting scan"}</span><i />
-                  <span><strong>Confidence</strong>{workflowState ? <><CheckCircle2 className="verified" size={15} />Verified</> : <em className="metadata-preview">Preview</em>}</span><i /><span><strong>{workflowState ? "Severity" : "Scenario risk"}</strong><b className="risk-dot high-dot" />High</span>
+                  <span><strong>Confidence</strong>{workflowState ? <><CheckCircle2 className="verified" size={15} />Verified</> : <em className="metadata-preview">Fixture · scan to verify</em>}</span><i /><span><strong>{workflowState ? "Severity" : "Scenario risk"}</strong><b className="risk-dot high-dot" />High</span>
                 </div>
               </div>
               <button className="secondary incident-details" onClick={() => setShowEvidence(true)} type="button">View source evidence<ChevronDown size={16} /></button>
@@ -432,7 +432,7 @@ export default function App() {
           <ChangeGenomePanel />
           <ValueProofPanel />
           <PilotMeasurementPanel operatorSession={operatorSession} />
-          <RunHistory jobs={recentJobs} loading={historyLoading} canRetry={Boolean(operatorSession.identityToken)} onRetry={retryFailedJob} />
+          <RunHistory jobs={recentJobs} loading={historyLoading} publicMode={!operatorSession.identityToken} canRetry={Boolean(operatorSession.identityToken)} onRetry={retryFailedJob} />
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
           <TrustPanel actionRecord={actionRecord} />

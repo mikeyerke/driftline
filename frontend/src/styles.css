@@ -266,6 +266,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .run-history-row { display: grid; grid-template-columns: 150px 145px 175px minmax(230px, 1fr) 115px 80px; gap: 10px; align-items: center; min-width: 940px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 11px; }
 .run-retry { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
 .run-history-row:last-child { border-bottom: 0; }
+.run-history-note { margin: 0; padding: 10px 16px 12px; color: var(--muted); font-size: 11px; line-height: 1.45; border-top: 1px solid var(--line); }
 .run-kind { display: grid; gap: 3px; min-width: 0; }
 .run-kind small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 9px; }
 .run-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-transform: capitalize; }

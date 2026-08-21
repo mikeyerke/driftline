@@ -11,8 +11,10 @@ function StatusIcon({ status }) {
   return <Clock3 size={15} />;
 }
 
-export default function RunHistory({ jobs, loading, canRetry = false, onRetry }) {
+export default function RunHistory({ jobs, loading, publicMode = false, canRetry = false, onRetry }) {
   const [retryingJobId, setRetryingJobId] = useState(null);
+  const visibleJobs = publicMode ? jobs.slice(0, 3) : jobs;
+  const hiddenCount = Math.max(0, jobs.length - visibleJobs.length);
 
   const handleRetry = async (jobId) => {
     setRetryingJobId(jobId);
@@ -26,14 +28,14 @@ export default function RunHistory({ jobs, loading, canRetry = false, onRetry })
   return (
     <section className="panel run-history" id="history-section">
       <header className="panel-header">
-        <div><h2>Run history</h2><span className="live-label">Durable activity</span></div>
-        <span className="muted">Cloud Tasks + Firestore</span>
+        <div><h2>Run history</h2><span className="live-label">{publicMode ? "Public lane" : "Durable activity"}</span></div>
+        <span className="muted">{publicMode ? "Latest tenantless runs · signed history stays scoped" : "Cloud Tasks + Firestore"}</span>
       </header>
       {loading && <p className="empty-state">Loading the latest durable runs…</p>}
       {!loading && !jobs.length && <p className="empty-state">No runs yet. Start a scan to create the first durable record.</p>}
       {!loading && jobs.length > 0 && (
         <div className="run-history-list">
-          {jobs.map((job) => {
+          {visibleJobs.map((job) => {
             const status = job.status || "queued";
             return (
               <div className="run-history-row" key={job.job_id}>
@@ -46,6 +48,7 @@ export default function RunHistory({ jobs, loading, canRetry = false, onRetry })
               </div>
             );
           })}
+          {hiddenCount > 0 && <p className="run-history-note">Showing the latest {visibleJobs.length} public runs. {hiddenCount} older tenantless records remain available to the deployment audit; signed operators see their own tenant history.</p>}
         </div>
       )}
     </section>
