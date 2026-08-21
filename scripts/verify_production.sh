@@ -4,6 +4,7 @@
 set -euo pipefail
 
 readonly expected_project="driftline-hackathon-2026"
+readonly expected_project_number="724959673622"
 readonly region="us-central1"
 readonly service="driftline"
 readonly public_url="https://driftline-xvxczqg62a-uc.a.run.app"
@@ -33,6 +34,16 @@ health="$(curl --fail --silent --show-error --max-time 20 "${public_url}/health"
 printf '%s\n' "${health}" | jq -e \
   '.status == "ok" and .persistence == "firestore" and .async_jobs == true' >/dev/null
 printf 'Health: %s\n' "${health}"
+
+auth_config="$(curl --fail --silent --show-error --max-time 20 "${public_url}/api/auth/config")"
+printf '%s\n' "${auth_config}" | jq -e --arg prefix "${expected_project_number}-" \
+  '.enabled == true and .mode == "google_oidc" and (.client_id | startswith($prefix)) and .credential_values_exposed == false' >/dev/null
+printf 'Google operator auth: isolated project client, credential values not exposed\n'
+
+ops_summary="$(curl --fail --silent --show-error --max-time 20 "${public_url}/api/ops/summary")"
+printf '%s\n' "${ops_summary}" | jq -e \
+  '.model == "gemini-3.5-flash" and .persistence == "firestore" and ((.source_health // []) | length) >= 5' >/dev/null
+printf 'Agent configuration: Gemini 3.5 Flash, Firestore, five bounded source monitors\n'
 
 read -r scheduler_state scheduler_last_attempt < <(
   gcloud scheduler jobs describe "${scheduler_job}" \
