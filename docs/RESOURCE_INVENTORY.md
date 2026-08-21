@@ -2921,3 +2921,18 @@ is no longer needed.
   Driftline can claim customer time saved, revenue, retention, or willingness
   to pay. Salesforce remains pending the owner-controlled login/consent
   callback; no Salesforce data claim is made.
+
+## 2026-08-21 Artifact Registry retention hardening (live)
+
+- The isolated `driftline` Artifact Registry repository was measured at
+  approximately 13.7 GB across 209 image versions. The active Cloud Run image
+  digest was verified before changing retention controls.
+- `infra/artifact-registry-cleanup-policy.json` now keeps the 10 most recent
+  `driftline` package versions and deletes untagged or tagged versions older
+  than 30 days. The policy was first applied with dry-run enabled, then
+  re-applied with dry-run disabled after the policy shape and rollback window
+  were verified. No manual image deletion was performed in this release.
+- Repository labels remain `app=driftline`, `environment=production`, and
+  `hackathon=all-things-agentic`. Cloud Run remains scale-to-zero with
+  `maxScale=1`; this retention control is isolated to the Driftline project
+  and does not affect any other repository or service.

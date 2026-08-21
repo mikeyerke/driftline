@@ -1,0 +1,17 @@
+[
+  {
+    "name": "keep-latest-10-driftline-images",
+    "action": { "type": "Keep" },
+    "mostRecentVersions": {
+      "packageNamePrefixes": ["driftline"],
+      "keepCount": 10
+    }
+  },
+  {
+    "name": "delete-images-after-30-days",
+    "action": { "type": "Delete" },
+    "condition": {
+      "olderThan": "2592000s"
+    }
+  }
+]
