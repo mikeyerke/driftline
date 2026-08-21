@@ -109,31 +109,29 @@ product truth.
 
 ## Verified release evidence
 
-The current serving release is source commit `8e71062`, Cloud Build
-`993e7216-0077-4099-8957-0d52e103e9e7`, and Cloud Run revision
-`driftline-00123-h4m` at 100% traffic in project `driftline-hackathon-2026`.
+The current serving release is source commit `7747baa`, Cloud Build
+`ea1e7339-533b-4109-8128-7f166efd1603`, and Cloud Run revision
+`driftline-00124-ln5` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:bb39a764f876f0e2fbec1a5efadbafaffa75152cf9155fc15a16d6caa39a5224`.
+`sha256:86769ded2dd5d53d3ad585757c957471e53afdefeca0f3a0b0d6f64ec12ab84d`.
 
 - Local gate: 248 backend tests passed, Ruff passed, and the frontend
-  production build passed (bundle 309.56 kB, gzip 91.53 kB).
-- CI: GitHub Actions run `32498604630` passed the backend suite, Ruff,
-  frontend build, standalone image build, and repository hygiene. The latest
-  docs commit also passed run `32499348603`.
+  production build passed (bundle 309.63 kB, gzip 91.55 kB).
+- CI: GitHub Actions run `32500963459` passed the backend suite, Ruff,
+  frontend build, standalone image build, and repository hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-0058daec0e48` / workflow
-  `693df121-3dc6-484e-bcbb-a7024702b4e1` returned `needs_approval`,
+- Live agent check: fresh job `job-19adf8d0c447` / workflow
+  `4e2d3d26-db4d-48f9-ad59-52c102091877` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
-- Live browser scan: job `job-294bb65b6ed9` / workflow
-  `3b82535d-14a8-48cc-88b3-24e3e6c3c9f8` visibly rendered
+- Current-revision logged-out browser QA visibly rendered
   `Impact analysis · gemini structured`, the Gemini summary/rationale, the
-  Decision Copilot, and the approval gate. The persisted trace recorded policy
-  `pass` and the correct evidence hash.
-- Approval/undo check: fresh job `job-db1aefa92fb8` / workflow
-  `b94c1be2-8118-4d53-841c-439d88bfa400` persisted the packet, reversed the
+  Decision Copilot, and the approval gate; the scripted live proof above is
+  the durable source of the current job/workflow identifiers.
+- Approval/undo check: fresh job `job-00a15eaba608` / workflow
+  `adfb0073-5331-4796-8f54-7e27f66e189b` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Browser QA: desktop and mobile Lighthouse navigation both scored 100 for

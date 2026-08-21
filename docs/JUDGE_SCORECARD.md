@@ -4,8 +4,8 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `8e71062`, Cloud Run `driftline-00123-h4m`, Cloud Build
-`993e7216-0077-4099-8957-0d52e103e9e7`, project
+Current release: source `7747baa`, Cloud Run `driftline-00124-ln5`, Cloud Build
+`ea1e7339-533b-4109-8128-7f166efd1603`, project
 `driftline-hackathon-2026`, 100% traffic.
 
 ## Innovation and operational utility — 40%
@@ -25,13 +25,14 @@ Current release: source `8e71062`, Cloud Run `driftline-00123-h4m`, Cloud Build
 
 ### Live evidence
 
-- Browser scan job `job-294bb65b6ed9` / workflow
-  `3b82535d-14a8-48cc-88b3-24e3e6c3c9f8`: UI showed Gemini structured impact
-  analysis, four artifacts, two options, and the approval gate.
-- `scripts/verify_live_agent.sh`: fresh job `job-0058daec0e48`, workflow
-  `693df121-3dc6-484e-bcbb-a7024702b4e1`, five audit events and four artifacts.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-db1aefa92fb8`,
-  workflow `b94c1be2-8118-4d53-841c-439d88bfa400`, packet persisted and
+- Current-revision logged-out browser QA visibly showed Gemini structured
+  impact analysis, four evidence-bound artifacts, two options, and the
+  deterministic approval gate; the scripted live proof below records the
+  durable job/workflow identifiers.
+- `scripts/verify_live_agent.sh`: fresh job `job-19adf8d0c447`, workflow
+  `4e2d3d26-db4d-48f9-ad59-52c102091877`, five audit events and four artifacts.
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-00a15eaba608`,
+  workflow `adfb0073-5331-4796-8f54-7e27f66e189b`, packet persisted and
   reversed with both external-write flags false. The verifier now also fails
   closed unless the approval journey carries structured Gemini impact/Decision
   Copilot options, passing deterministic policy review, and matching evidence
@@ -61,7 +62,7 @@ Current release: source `8e71062`, Cloud Run `driftline-00123-h4m`, Cloud Build
   IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
   membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
-  `sha256:bb39a764f876f0e2fbec1a5efadbafaffa75152cf9155fc15a16d6caa39a5224`.
+  `sha256:86769ded2dd5d53d3ad585757c957471e53afdefeca0f3a0b0d6f64ec12ab84d`.
 - Signed isolated connector probes are documented in
   [`RESOURCE_INVENTORY.md`](RESOURCE_INVENTORY.md); the anonymous lane remains
   packet-only by design.
@@ -81,7 +82,7 @@ Current release: source `8e71062`, Cloud Run `driftline-00123-h4m`, Cloud Build
 ### Live evidence
 
 - 248 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32498604630`.
+  and repository hygiene pass in GitHub Actions run `32500963459`.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).
 - At 390×844, body and document widths equal the viewport and the browser has no

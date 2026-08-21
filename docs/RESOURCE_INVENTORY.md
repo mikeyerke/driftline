@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T16:00:00Z` with the active gcloud project set to
+Checked `2026-08-21T16:20:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00123-h4m` at 100% traffic. Its immutable serving image is
-  `sha256:bb39a764f876f0e2fbec1a5efadbafaffa75152cf9155fc15a16d6caa39a5224`.
+  `driftline-00124-ln5` at 100% traffic. Its immutable serving image is
+  `sha256:86769ded2dd5d53d3ad585757c957471e53afdefeca0f3a0b0d6f64ec12ab84d`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -34,24 +34,49 @@ Checked `2026-08-21T16:00:00Z` with the active gcloud project set to
   the deployed control plane reports Firestore + async jobs, Google OIDC
   operator auth, durable Firestore tenant membership, tenant-bound credentials,
   no legacy global credential fallback, signed-only external writes, and a
-  read-only Salesforce contract. It passed against `driftline-00123-h4m` with
+  read-only Salesforce contract. It passed against `driftline-00124-ln5` with
   zero recent Cloud Run errors.
 - The packet-safety verifier now requires the same live
   `google_adk`/`gemini-3.5-flash` structured impact and Decision Copilot trace,
   passing deterministic policy review, matching evidence hashes on all four
   artifacts and citations, four reversible packets, and no external write.
-  Fresh run: job `job-db1aefa92fb8` / workflow
-  `b94c1be2-8118-4d53-841c-439d88bfa400`; packet persisted and reversed with
+  Fresh run: job `job-00a15eaba608` / workflow
+  `adfb0073-5331-4796-8f54-7e27f66e189b`; packet persisted and reversed with
   `external_write=false` and `external_systems_changed=false`.
-- A separate fresh live-agent proof passed on job `job-0058daec0e48` /
-  workflow `693df121-3dc6-484e-bcbb-a7024702b4e1` with
+- A separate fresh live-agent proof passed on job `job-19adf8d0c447` /
+  workflow `4e2d3d26-db4d-48f9-ad59-52c102091877` with
   `data_mode=public_source`, `needs_approval`, both allowlisted tools, four
   artifacts, five audit events, and two Decision Copilot options. No
   connector write was attempted.
 - Local verification passed 248 backend tests, Ruff, and the frontend
-  production build. These changes only strengthen reproducibility scripts and
-  documentation; the serving image digest and Cloud Run revision remain the
-  exact release recorded above.
+  production build. The current serving release is recorded above; older
+  release entries below remain append-only historical evidence.
+
+## 2026-08-21 deferred-read UX release (current serving revision)
+
+- Source commit `7747baa` (`Clarify deferred production reads`) was deployed
+  by Cloud Build `ea1e7339-533b-4109-8128-7f166efd1603` (`SUCCESS`, about
+  3m01s) as Cloud Run revision `driftline-00124-ln5` at 100% traffic. The
+  immutable image digest is
+  `sha256:86769ded2dd5d53d3ad585757c957471e53afdefeca0f3a0b0d6f64ec12ab84d`.
+- Below-fold source history, freshness, multimodal evidence, change memory,
+  value proof, run history, and deployment telemetry now state explicitly that
+  their bounded reads load when the panel enters view. This is a copy-level
+  truthfulness improvement; connector, policy, and persistence behavior did
+  not change.
+- `scripts/verify_production.sh` passed on this revision with zero recent
+  Cloud Run errors. `scripts/verify_live_agent.sh` created job
+  `job-19adf8d0c447` / workflow `4e2d3d26-db4d-48f9-ad59-52c102091877` and
+  proved `needs_approval`, `public_source`, Gemini 3.5 Flash, Google ADK, two
+  allowlisted tools, four artifacts, five audit events, and two decision
+  options. `scripts/verify_public_approval_undo.sh` created job
+  `job-00a15eaba608` / workflow `adfb0073-5331-4796-8f54-7e27f66e189b` and
+  proved persisted packet -> reversal with both external-write flags false.
+- GitHub Actions run `32500963459` passed 248 backend tests, Ruff, the
+  frontend production build, standalone image build, and repository hygiene.
+  Desktop and mobile Lighthouse navigation on the public alias passed 100 for
+  accessibility, best practices, SEO, and agentic browsing (53/53 checks,
+  zero failures on each device).
 
 ## 2026-08-21 Gemini structured-impact reliability release (live)
 
