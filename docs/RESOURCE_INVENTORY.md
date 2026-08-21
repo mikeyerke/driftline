@@ -12,11 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T14:53:20Z` with the active gcloud project set to
+Checked `2026-08-21T15:10:10Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00119-xck` at 100% traffic.
+  `driftline-00120-xnw` at 100% traffic. Its immutable serving image is
+  `sha256:a121db3bc7eecbab04c4ec0d884bf61ab77f14ca52bf96f1ef5961ba4d1ef619`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +27,44 @@ Checked `2026-08-21T14:53:20Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 bounded read performance release (live)
+
+- Source commit `8166f64` (`Speed up bounded source health reads`) was deployed
+  by Cloud Build `0487bcd0-0798-4d8a-8ae9-e105aa3384a1` (`SUCCESS`, 3m36s) as
+  Cloud Run revision `driftline-00120-xnw` at 100% traffic. The active gcloud
+  project remained `driftline-hackathon-2026`; no existing project was targeted.
+- Firestore history reads now request only the newest bounded page, and the
+  five-source monitor/memory panels share one client and overlap only their
+  allowlisted reads. Direct public measurements after the rollout were
+  approximately `0.94s` for `/api/monitor/registry`, `0.91s` for
+  `/api/memory/summary?limit=50`, and `0.26s` for the selected source history,
+  compared with the earlier cold-path pressure trace of roughly `4.5s`, `4.3s`,
+  and `2.2s` respectively. The append-only and tenant boundaries are unchanged.
+  `/health` is now explicitly `Cache-Control: no-store`.
+- GitHub Actions run `32495446128` passed for `8166f64` (248 backend tests,
+  Ruff, frontend production build, standalone image, and repository hygiene).
+  `scripts/verify_production.sh` passed against `driftline-00120-xnw`, including
+  IAM, Artifact Registry retention, scheduler, Cloud Tasks, uptime, dashboard,
+  and zero recent Cloud Run errors.
+- Sequential live proofs on this exact revision created job
+  `job-bf4c55cea0f1` / workflow `578e6409-e195-4188-84b6-59c75fd5598a` and
+  proved `needs_approval`, `public_source`, `gemini-3.5-flash`, Google ADK,
+  both allowlisted tools, four artifacts, five audit events, and two structured
+  Decision Copilot options. The separate packet-safety proof created job
+  `job-f198ece08fb3` / workflow `acdceb49-b9c8-4ace-8f3f-3ce1cbd6bebd` and
+  proved persisted packet -> reversal with both external-write flags false.
+- A direct anonymous `POST /api/agent/run` on this revision returned
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`,
+  `data_mode=public_source`, `persisted=true`, the two allowlisted tools,
+  `gemini_structured` analysis and Decision Copilot traces, policy `pass`, and
+  two options (workflow `2155fec0-d09d-48b6-8861-fa7715768d82`).
+- Fresh Chrome QA on the public alias found no console messages. Lighthouse
+  navigation remained 100 for accessibility, best practices, SEO, and agentic
+  browsing with 58/58 checks passed; at a 390px emulated viewport document and
+  body widths both equaled the viewport and horizontal overflow remained
+  clipped. The public lane stayed packet-only and no external connector was
+  called.
 
 ## 2026-08-21 final live pressure pass (current revision)
 

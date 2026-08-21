@@ -137,10 +137,20 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `d9cbba4`, Cloud Build
-  `7ab4cf4e-89ad-4feb-a3e5-77d205d3db09`, and Cloud Run revision
-  `driftline-00119-xck` at 100% traffic. It passed 247 backend tests, Ruff,
+- The current active release is source commit `8166f64`, Cloud Build
+  `0487bcd0-0798-4d8a-8ae9-e105aa3384a1`, and Cloud Run revision
+  `driftline-00120-xnw` at 100% traffic. It passed 248 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
+  now reads only the visible bounded source-history page and overlaps the five
+  allowlisted monitor ledgers, reducing direct cold-path registry/memory reads
+  to approximately 0.94s/0.91s while preserving the append-only and tenant
+  boundaries. `/health` is explicitly `Cache-Control: no-store`.
+  The current live proofs created jobs `job-bf4c55cea0f1` and
+  `job-f198ece08fb3`, proving Google ADK + Gemini 3.5 Flash, the two
+  allowlisted tools, the deterministic `needs_approval` gate, persisted packet,
+  and reversible undo with both external-write flags false. A direct anonymous
+  `POST /api/agent/run` on this exact revision also returned `persisted=true`,
+  structured Gemini analysis and Decision Copilot policy `pass`. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
   expose a signed aggregate pilot-measurement flow without claiming customer
