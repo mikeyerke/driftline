@@ -114,21 +114,21 @@ product truth.
 
 ## Verified release evidence
 
-The current serving release is source commit `c41b8dc`, Cloud Build
-`bb7442af-0893-4f3c-8a4a-570b3b59f180`, and Cloud Run revision
-`driftline-00132-ldk` at 100% traffic in project `driftline-hackathon-2026`.
+The current serving release is source commit `2ed984a`, Cloud Build
+`cfc8ad87-78c4-48be-9168-9e1ba4592027`, and Cloud Run revision
+`driftline-00133-clc` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:9882f48fac7db8bc9ab090d98ff03459308b489b0690900a4b1a006a06801310`.
+`sha256:eb05baa0ff2348d7ce95d2d14d481832b907f46cad0377b4195f2f71057bcf6c`.
 
-- Local gate: 253 backend tests passed, Ruff passed, and the frontend
-  production build passed (bundle 316.74 kB, gzip 93.09 kB).
-- CI: GitHub Actions run `32519809024` passed the backend suite, Ruff,
+- Local gate: 256 backend tests passed, Ruff passed, and the frontend
+  production build passed (bundle 317.12 kB, gzip 93.24 kB).
+- CI: GitHub Actions run `32521205835` passed the backend suite, Ruff,
   frontend build, standalone image build, and repository hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-063b75f4c617` / workflow
-  `2f1ce3f7-d6e3-4d4c-9bed-b9445b3b6c50` returned `needs_approval`,
+- Live agent check: fresh job `job-26c1f709be05` / workflow
+  `e8228bee-ed23-4e63-b05d-1b7009ed91a7` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -140,8 +140,9 @@ The immutable image digest is
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: the same deduplicated fresh job/workflow persisted the
-  packet, reversed the operational output, and returned `external_write=false` and
+- Approval/undo check: fresh job `job-a3712845c7c2` / workflow
+  `09d097bc-66f1-43f8-a796-1112ed5a819c` persisted the packet, reversed the
+  operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
   manually triggered and Cloud Logging recorded an OIDC-authenticated HTTP 200

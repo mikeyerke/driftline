@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T19:46Z` with the active gcloud project set to
+Checked `2026-08-21T20:03Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00132-ldk` at 100% traffic. Its immutable serving image is
-  `sha256:9882f48fac7db8bc9ab090d98ff03459308b489b0690900a4b1a006a06801310`.
+  `driftline-00133-clc` at 100% traffic. Its immutable serving image is
+  `sha256:eb05baa0ff2348d7ce95d2d14d481832b907f46cad0377b4195f2f71057bcf6c`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -32,6 +32,28 @@ Checked `2026-08-21T19:46Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 Salesforce context release
+
+- Source commit `2ed984a` deployed successfully through Cloud Build
+  `cfc8ad87-78c4-48be-9168-9e1ba4592027` (`SUCCESS`, 2m48s) as revision
+  `driftline-00133-clc` at 100% traffic. The serving image is pinned to
+  `sha256:eb05baa0ff2348d7ce95d2d14d481832b907f46cad0377b4195f2f71057bcf6c`.
+- The signed internal context summary now includes a fifth Salesforce card. It
+  remains `not_configured`/`authorization_required` until the owner completes
+  the OAuth callback; after connection it reads only the fixed CRM object
+  aggregates and preserves `external_read=false` before consent.
+- Local verification passed 256 backend tests, Ruff, frontend build
+  (`317.12 kB`, `93.24 kB` gzip), and `git diff --check`. GitHub Actions run
+  `32521205835` passed all repository gates.
+- `scripts/verify_production.sh` passed; fresh live proof returned job
+  `job-26c1f709be05` / workflow `e8228bee-ed23-4e63-b05d-1b7009ed91a7` with
+  `needs_approval`, public-source evidence, Gemini 3.5 Flash, Google ADK,
+  two allowlisted tools, four artifacts, five audit events, and two options.
+- `scripts/verify_public_approval_undo.sh` passed with job
+  `job-a3712845c7c2` / workflow `09d097bc-66f1-43f8-a796-1112ed5a819c`:
+  packet persisted, output reversed, `external_write=false`, and
+  `external_systems_changed=false`.
 
 ## 2026-08-21 Salesforce control-surface release
 

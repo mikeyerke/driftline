@@ -506,11 +506,11 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `c41b8dc`, Cloud Build
-`bb7442af-0893-4f3c-8a4a-570b3b59f180`, and Cloud Run revision
-`driftline-00132-ldk` at 100% traffic. Its immutable image digest is
-`sha256:9882f48fac7db8bc9ab090d98ff03459308b489b0690900a4b1a006a06801310`.
-GitHub Actions run `32519809024` passed 253 backend tests, Ruff, the frontend
+The current serving release is source commit `2ed984a`, Cloud Build
+`cfc8ad87-78c4-48be-9168-9e1ba4592027`, and Cloud Run revision
+`driftline-00133-clc` at 100% traffic. Its immutable image digest is
+`sha256:eb05baa0ff2348d7ce95d2d14d481832b907f46cad0377b4195f2f71057bcf6c`.
+GitHub Actions run `32521205835` passed 256 backend tests, Ruff, the frontend
 production build, a standalone image build, and repository-hygiene checks.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
@@ -527,8 +527,9 @@ The latest proof refresh also exercised the real background delivery path:
 Cloud Scheduler sent an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick` on the serving revision and cadence rules deferred
 healthy sources that were not due. Fresh repeatable proof identifiers are
-`job-063b75f4c617` / `2f1ce3f7-d6e3-4d4c-9bed-b9445b3b6c50` for both
-deduplicated live-agent and approval/undo proofs. Artifact Registry retains the
+`job-26c1f709be05` / `e8228bee-ed23-4e63-b05d-1b7009ed91a7` for the live agent
+and `job-a3712845c7c2` / `09d097bc-66f1-43f8-a796-1112ed5a819c` for the
+approval/undo proof. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
 removed from this isolated project. The signed browser client sends its
 short-lived Google ID token only in the `Authorization` header, with a CI guard
