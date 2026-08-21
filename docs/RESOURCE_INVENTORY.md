@@ -3154,3 +3154,24 @@ is no longer needed.
   four observations, latest data mode `operator_registered_public`, and the
   stable snapshot hash. This closes the source-selection gap between scheduler
   fan-out, ADK execution, and the append-only ledger.
+
+## 2026-08-21 durable monitor source identity (live)
+
+- Source commit `cfa77f0` (`Persist source IDs on monitor jobs`) passed GitHub
+  Actions run `32451032570` (`success`) with the complete 230-test suite, Ruff,
+  frontend production build, and standalone image build.
+- Cloud Build `edc7669a-2766-4e8d-b608-70cd161bffb3` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00063-sz6` at 100% traffic. The image
+  digest is
+  `sha256:ebf6450c9b69be38c25be139adf2e2262aa8a7f93a81c529b63329a6361097fb`.
+  `/health` returned HTTP 200 with Firestore persistence and async jobs.
+- A new Cloud Scheduler invocation created monitor job `job-7d20de5a8866`.
+  Its durable API record explicitly contains `source_id=custom/driftline-readme`,
+  `run_mode=monitor`, `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, and one `inspect_source_change` tool call. It
+  completed unchanged with no workflow, while the signed monitor registry
+  advanced the custom source to five observations and `healthy`. Earlier jobs
+  created before this release are retained as historical records; new jobs no
+  longer require source inference from free-text query fields.
+- A post-run Cloud Logging query for the active revision returned no
+  `severity>=ERROR` entries after the canary window.
