@@ -130,6 +130,11 @@ The immutable image digest is
   `Impact analysis · gemini structured`, the Gemini summary/rationale, the
   Decision Copilot, and the approval gate; the scripted live proof above is
   the durable source of the current job/workflow identifiers.
+- Current-revision browser journey (job `job-f1bfaa9665c9`, workflow
+  `38da400c-5581-47cc-9210-5126061006bc`) completed scan -> approval -> undo.
+  The undo response persisted action record
+  `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
+  all returned `external_write=false` in the public packet-safe lane.
 - Approval/undo check: fresh job `job-00a15eaba608` / workflow
   `adfb0073-5331-4796-8f54-7e27f66e189b` persisted the packet, reversed the
   operational output, and returned `external_write=false` and

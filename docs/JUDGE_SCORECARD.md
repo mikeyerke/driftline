@@ -29,6 +29,12 @@ Current release: source `7747baa`, Cloud Run `driftline-00124-ln5`, Cloud Build
   impact analysis, four evidence-bound artifacts, two options, and the
   deterministic approval gate; the scripted live proof below records the
   durable job/workflow identifiers.
+- Current-revision browser journey (job `job-f1bfaa9665c9`, workflow
+  `38da400c-5581-47cc-9210-5126061006bc`) completed scan -> approval -> undo.
+  The UI rendered the change card, Decision Copilot, four owner actions,
+  packet record, and timeline; the undo response persisted
+  `action-63355af11e1c35cb5150` as `reversed` with all connector external-write
+  flags false.
 - `scripts/verify_live_agent.sh`: fresh job `job-19adf8d0c447`, workflow
   `4e2d3d26-db4d-48f9-ad59-52c102091877`, five audit events and four artifacts.
 - `scripts/verify_public_approval_undo.sh`: fresh job `job-00a15eaba608`,

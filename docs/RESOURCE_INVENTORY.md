@@ -77,6 +77,12 @@ Checked `2026-08-21T16:20:00Z` with the active gcloud project set to
   Desktop and mobile Lighthouse navigation on the public alias passed 100 for
   accessibility, best practices, SEO, and agentic browsing (53/53 checks,
   zero failures on each device).
+- A current-revision browser journey (job `job-f1bfaa9665c9`, workflow
+  `38da400c-5581-47cc-9210-5126061006bc`) completed scan -> approval -> undo.
+  The UI rendered the change card, Decision Copilot, four owner actions,
+  packet record, and timeline. The undo response persisted
+  `action-63355af11e1c35cb5150` as `reversed`, with Jira, Confluence, and
+  Slack `external_write=false` in the public packet-safe lane.
 
 ## 2026-08-21 Gemini structured-impact reliability release (live)
 
