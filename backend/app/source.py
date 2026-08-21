@@ -682,7 +682,7 @@ def _public_snapshot(
                 "after": body,
                 "source_id": source_id,
                 "source_url": url,
-                "snapshot_label": "Public GitHub snapshot · demo replay baseline",
+                "snapshot_label": "Pinned synthetic fixture · demo replay baseline",
                 "snapshot_hash": hashlib.sha256(body.encode("utf-8")).hexdigest(),
                 "previous_snapshot_hash": hashlib.sha256(
                     definition["before"].encode("utf-8")
