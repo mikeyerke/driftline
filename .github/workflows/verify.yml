@@ -71,3 +71,19 @@ jobs:
 
       - name: Build lockfile-pinned backend image
         run: docker build --file backend/Dockerfile --tag driftline-backend:ci backend
+
+  repository-hygiene:
+    name: Repository hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Validate shell release helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in scripts/*.sh; do
+            bash -n "$script"
+          done
+          git diff --check
