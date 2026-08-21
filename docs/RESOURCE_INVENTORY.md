@@ -3130,3 +3130,27 @@ is no longer needed.
   competitor-monitoring claims.
 - A post-canary Cloud Logging query for revision `driftline-00061-46f` after
   `2026-08-21T05:14:00Z` returned no `severity>=ERROR` entries.
+
+## 2026-08-21 exact-source monitor binding hardening (live)
+
+- Source commit `6244197` (`Bind monitor jobs to exact source IDs`) passed
+  GitHub Actions run `32450568459` (`success`), the complete 230-test backend
+  suite, Ruff, frontend production build, and standalone image build.
+- Cloud Build `0eca42b4-8477-496b-9f27-580f947d9236` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00062-p6h` at 100% traffic. The image
+  digest is
+  `sha256:b7f88a16e5de610f44f87978c452ab51d160ec8d695fd06963eb6bd2056d7c3a`.
+  The active project remained `driftline-hackathon-2026`; `/health` returned
+  HTTP 200 and the service retained scale-to-zero/max-one guardrails.
+- The exact existing Cloud Scheduler job `driftline-monitor` was invoked
+  through Google Scheduler's own OIDC identity and returned HTTP 200. Its
+  fan-out created the tenant-bound monitor job
+  `job-23366d759170` for `custom/driftline-readme`; the job completed with
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, exactly one tool call
+  (`inspect_source_change`), and no workflow because the source was unchanged.
+  The monitor response explicitly named `custom/driftline-readme`, proving the
+  model could not silently substitute another source.
+- The signed monitor registry then reported the custom source `healthy` with
+  four observations, latest data mode `operator_registered_public`, and the
+  stable snapshot hash. This closes the source-selection gap between scheduler
+  fan-out, ADK execution, and the append-only ledger.
