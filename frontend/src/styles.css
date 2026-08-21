@@ -406,6 +406,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .value-proof-mix-grid p, .value-proof-mix > p { margin: 9px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .value-proof-note { margin: 0; padding: 10px 16px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.5; }
  .multimodal-panel, .scenario-panel { margin: 14px 16px 0; background: var(--surface); }
+ .multimodal-disclosure { margin: 0 16px 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
  .genome-panel { margin: 14px 16px 0; background: var(--surface); }
  .genome-panel .panel-header h2 { display: inline-flex; align-items: center; gap: 7px; }
  .genome-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 14px 16px 12px; }

@@ -47,13 +47,14 @@ export default function MultimodalEvidencePanel({ assetId = "promise-card", mode
   return (
     <section className="panel multimodal-panel" aria-labelledby="multimodal-title">
       <header className="panel-header">
-        <div><h2 id="multimodal-title"><FileImage size={17} />Visual evidence</h2><span className={`live-label ${evidence?.data_mode === "public_source" ? "public" : "synthetic"}`}>{evidence?.data_mode === "public_source" ? "Public bytes" : "Demo fallback"}</span></div>
+        <div><h2 id="multimodal-title"><FileImage size={17} />Multimodal reference pair</h2><span className={`live-label ${evidence?.data_mode === "public_source" ? "public" : "synthetic"}`}>{evidence?.data_mode === "public_source" ? "Allowlisted bytes" : "Synthetic reference"}</span></div>
         <span className="muted">Before → after</span>
       </header>
       {loading && <p className="multimodal-empty"><LoaderCircle size={15} className="spin" />Loading allowlisted visual bytes…</p>}
       {error && <p className="trace-error" role="alert">{error}</p>}
       {evidence && (
         <>
+          <p className="multimodal-disclosure">This bounded visual pair demonstrates Gemini vision on an allowlisted reference asset; the selected source's text evidence and hash remain authoritative above.</p>
           <div className="multimodal-grid">
             {["before", "after"].map((side) => {
               const item = evidence[side];
