@@ -140,10 +140,10 @@ created during the contest.
   and isolated from customer writes.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `bb8a437`, deployed through Cloud Build
-  `db3305b1-7770-4cec-a7f3-e468eb4210f5` as Cloud Run revision
-  `driftline-00037-6t9` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32435761464` passed the backend tests,
+  The deployed runtime source is commit `1c71473`, deployed through Cloud Build
+  `bfc15321-f8f2-40d8-bf02-e3ba96ab5d7b` as Cloud Run revision
+  `driftline-00038-2gq` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32436210206` passed the backend tests,
   frontend build, and standalone image build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
@@ -155,7 +155,7 @@ created during the contest.
   approval, reopen, and dismissal. Fresh browser QA passed the live scan,
   evidence, approval, completion, activity log, timeline, and 390px mobile path
   without console errors.
-- On 2026-08-21, the current `driftline-00037-6t9` revision was rechecked end to
+- On 2026-08-21, the current `driftline-00038-2gq` revision was rechecked end to
   end: `/health` returned Firestore persistence and async jobs; a direct ADK
   run returned HTTP 200 with `persisted=true`, `model=gemini-3.5-flash`, and
   exactly `inspect_source_change` plus `get_workflow_state`; a public demo
@@ -167,7 +167,7 @@ created during the contest.
   signed aggregate context probe returned Jira `KAN` (18 issues), Confluence
   `DRIFT` (5 pages), Slack `C0BRGFUSADA` (27 recent messages), and GitHub (0
   open issues and 0 open pull requests) with aggregate-only redaction.
-- The anonymous public-source Change Card on `driftline-00037-6t9` was
+- The anonymous public-source Change Card on `driftline-00038-2gq` was
   rechecked after a truthfulness fix: it displays `CRM context unavailable`
   and `No CRM context was read in this run`, never `Permissioned business
   context` without a connected Salesforce tenant.
@@ -176,6 +176,10 @@ created during the contest.
   `external_write=false`. A named Product Marketing demo actor then claimed
   and completed one owner action; the live value endpoint reports this as
   sandbox telemetry only (1 of 32 action items, 3.1%), not customer ROI.
+- The latest public packet proof on `driftline-00038-2gq` contains
+  `isolated public-demo output` rather than the old sandbox wording; approval
+  persisted the packet and undo returned `needs_approval` with both
+  `external_write=false` and `external_systems_changed=false`.
 - The signed source registry read returned only the five pinned fixtures. The
   research references in the README are not registered live competitor
   sources.

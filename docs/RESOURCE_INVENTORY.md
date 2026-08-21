@@ -22,6 +22,15 @@ project number: 724959673622
   `persisted=true`, `execution_mode=google_adk`, `model=gemini-3.5-flash`, and
   `data_mode=public_source`. No external connector write was performed.
 
+## 2026-08-21 packet-language rollout (live)
+
+- Source commit `1c71473` passed GitHub Actions `32436210206` and Cloud Build
+  `bfc15321-f8f2-40d8-bf02-e3ba96ab5d7b` completed `SUCCESS`.
+- Cloud Run revision `driftline-00038-2gq` serves 100% of traffic. A fresh public
+  ADK/Gemini run persisted a workflow, approval persisted the private packet,
+  and the packet now says `isolated public-demo output`; the same workflow was
+  undone with `external_write=false` and `external_systems_changed=false`.
+
 ## Current state snapshot (authoritative)
 
 Checked after the latest live verification on 2026-08-21 UTC. The release
@@ -29,12 +38,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00037-6t9` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00038-2gq` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `bb8a437`; Cloud Build `db3305b1-7770-4cec-a7f3-e468eb4210f5`.
+- Deployed runtime source: `1c71473`; Cloud Build `bfc15321-f8f2-40d8-bf02-e3ba96ab5d7b`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
