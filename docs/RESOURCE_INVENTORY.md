@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T11:55:15Z` with the active gcloud project set to
+Checked `2026-08-21T12:06:30Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00104-8vc` at 100% traffic.
+  `driftline-00105-cw4` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,30 @@ Checked `2026-08-21T11:55:15Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 production-lane and judge-proof release (live)
+
+- Source commit `efc37db` was deployed by Cloud Build
+  `ab382c57-979e-4db0-99ee-5818575daa49` (`SUCCESS`, 3m03s) as Cloud Run
+  revision `driftline-00105-cw4` at 100% traffic. The active gcloud project
+  was verified as `driftline-hackathon-2026` before deployment.
+- The public evaluation lane now exposes the production-facing
+  `public_evaluation_packet_only` scope and records the durable output as a
+  `firestore_change_packet`; legacy sandbox scope values remain accepted only
+  for backwards-compatible persisted/local identities. This is a naming and
+  contract clarity change, not a claim of third-party writes.
+- `scripts/verify_production.sh` passed with Firestore persistence, async jobs,
+  scheduler/tasks, monitoring, and zero recent Cloud Run errors. A fresh
+  `scripts/verify_live_agent.sh` run proved job `job-46795fbe6b7b` /
+  workflow `4df6bb1b-6122-4573-92aa-4be0c0330fb2` reached `needs_approval`
+  through `gemini-3.5-flash`, Google ADK, both allowlisted tools, four
+  artifacts, and five audit events. A public approval on that workflow
+  persisted `firestore_change_packet` with `storage_status=persisted`,
+  `external_write=false`, and `external_systems_changed=false`.
+- GitHub Actions run `32479849233` passed all repository checks for this exact
+  source commit. The new [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md)
+  maps the official 40/30/30 judging weights to the live journey and exact
+  release commands.
 
 ## 2026-08-21 immutable fixture release (live)
 
