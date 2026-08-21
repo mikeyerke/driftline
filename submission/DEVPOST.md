@@ -1,486 +1,198 @@
-# Driftline — change should trigger action, not another meeting
+# Driftline — when the market moves, the work moves
 
 ## Submission links
 
 - Hosted application: https://driftline-xvxczqg62a-uc.a.run.app/
-- Source repository: https://github.com/mikeyerke/driftline
-- Demonstration video: pending final live upload; the official rules require a public YouTube/Vimeo upload (not unlisted)
+- Public source repository: https://github.com/mikeyerke/driftline
 - Architecture diagram: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
-- Fresh live evidence frames: [pending approval](https://github.com/mikeyerke/driftline/blob/main/submission/assets/live-pending-approval-2026-08-20.jpg) and [completed workflow](https://github.com/mikeyerke/driftline/blob/main/submission/assets/live-completed-2026-08-20.jpg)
+- Cloud/resource evidence: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
+- Rules and eligibility evidence: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
+- Demonstration video: held for final owner review; no upload or submission has been made
+- Pending-approval frame: [`live-pending-approval-2026-08-20.jpg`](assets/live-pending-approval-2026-08-20.jpg)
+- Completed frame: [`live-completed-2026-08-20.jpg`](assets/live-completed-2026-08-20.jpg)
 
 ## Category
 
-**Taskmaster.** Driftline completes a messy, multi-step change-management
-workflow and takes bounded action, rather than acting as a chatbot. It is not
-being entered as Fortified Enterprise Fleet because this build intentionally
-does not claim a multi-agent registry, enterprise identity gateway, Model Armor,
-or cross-department production data plane.
+**Taskmaster.** Driftline turns a monitored change into a coordinated,
+evidence-bound work package and pauses for a human decision before anything
+can be published. It is a complete asynchronous workflow, not a chat surface.
+It is not claiming Fortified Enterprise Fleet: the public build does not claim
+that track's enterprise agent registry, Model Armor, or cross-department
+production data plane.
 
-## Inspiration
+## The problem
 
-A competitor changes one pricing sentence. Within hours, the comparison map,
-deal-desk guardrails, sales battlecard, and executive narrative can all be out
-of sync. Product Marketing does not lack alerts; it lacks a reliable way to
-turn observed market movement into evidence-bound, coordinated action.
+A competitor changes one pricing sentence. Product Marketing sees the alert,
+but the comparison map, battlecard, deal-desk guidance, enablement notes, and
+executive narrative drift out of sync. The expensive work is not detecting the
+sentence; it is proving what changed, deciding what it means, coordinating the
+owners, and making a reversible update without inventing a claim.
 
-## What it does
+## The solution
 
-Driftline runs a resumable change-to-action workflow across five allowlisted
-public source types: own pricing, own terms, competitor pricing, competitor
-offerings, and competitor product narratives. Cloud Tasks starts the scan
-asynchronously; the ADK coordinator verifies evidence, maps the affected
-offering and business domains, and drafts updates for each downstream work
-surface. When a change touches a contractual expectation,
-deterministic policy pauses the workflow and requests a named human decision.
-After approval, Driftline creates an evidence-linked public-demo packet, an owner
-review item, or a queued item per artifact. Each artifact also receives a
-durable human-owned action item with an idempotency key and evidence hash; a
-named reviewer can claim and complete it without giving the model write access.
-The packet and one approved low-risk operational output are persisted as
-private, versioned Cloud Storage objects inside the isolated Driftline project;
-undo writes separate reversal markers while preserving the original evidence.
-Every step receives an event ID and the evidence hash is carried into the
-approval record and packet. The isolated build has four real, least-privilege
-reversible connectors for the free `KAN` / `Driftline` Jira project, `DRIFT`
-Confluence space, one Slack channel, and the isolated GitHub repository. Only
-the separately authenticated signed-operator lane can execute these
-marker-idempotent handoffs; undo keeps customer work intact where applicable,
-changes only Driftline-owned markers, and appends reversal evidence. The public
-judge console is packet-only even when credentials are present; its named demo
-actor is not production identity. A signed live context probe on the deployed
-runtime returned aggregate-only reads for Jira (`KAN`, 18 sampled issues),
-Confluence (`DRIFT`, 5 pages), Slack (`C0BRGFUSADA`, 27 recent messages), and
-GitHub (0 open issues, 0 open pull requests); no source text or message bodies
-were returned or persisted. Authenticated operators can trigger that same
-request-scoped check from the console's **Refresh context** control before
-approving a handoff. The Salesforce contract is read-only and remains pending
-final tenant consent.
+Driftline is a change-to-action control plane for Product Marketing and revenue
+operations. It monitors a bounded set of own-product and competitor change
+surfaces, creates an append-only evidence record, maps the affected offering
+and business domains, and asks Gemini to propose owner-ready updates. A
+deterministic policy engine—not Gemini—decides whether the workflow may cross
+the human gate.
 
-## Other data sources used
+One observed price change produces four named surfaces in the demo:
 
-The public judge flow uses only five bounded source definitions: two Driftline
-own-product fixtures (pricing and terms) and three explicitly labelled
-synthetic competitor fixtures (pricing, offering, and product narrative). The
-live public pricing fixture is a pinned raw GitHub text file. No private company
-data, customer records, CRM objects, credentials, or arbitrary web crawl are
-used by the anonymous demo. Authenticated connector lanes are present only for
-separately provisioned tenant identities and are not part of the public demo.
+1. Comparison map — Product Marketing — re-score price/value.
+2. Pricing battlecard — Product Marketing — draft the response.
+3. Deal-desk guidance — RevOps — review the discount guardrail.
+4. Executive weekly brief — Product Marketing — add the market signal.
 
-The agent entry point has the same explicit two-lane boundary: the public judge
-request is tenantless and packet-safe, while a signed operator request carries
-the verified tenant through the ADK turn, quota reservation, and Firestore
-workflow. Durable tenant memberships, connector profiles, Secret Manager
-bindings, revocation metadata, and transactional rate limits are isolated in
-the Driftline project; no deployment-wide connector target fallback is enabled.
+Each surface carries the source evidence hash, risk, owner, proposed text,
+tradeoffs, citations, and rollback plan. The operator can approve a bounded
+packet, claim/complete owner work, or reopen/undo. The public evaluation lane
+is intentionally packet-safe; it never pretends that an anonymous judge wrote
+to a third-party system.
 
-The judge-ready default workflow uses synthetic data: a competitor pricing
-fixture moves Competitor Pro from $49 to $59 per seat per month. The UI labels
-this fixture and is not connected to a real company, CRM, customer, or billing
-system. Own-product pricing and terms remain available as separate bounded
-scenarios.
+## What the agent actually does
+
+1. Cloud Tasks starts a durable asynchronous scan.
+2. A Google ADK coordinator uses only `inspect_source_change` and
+   `get_workflow_state` to verify the source and persist Firestore state.
+3. Gemini 3.5 Flash returns a strict, evidence-hash-bound impact analysis for
+   all four artifacts.
+4. A second Gemini 3.5 Flash Decision Copilot returns two bounded options with
+   tradeoffs, citations, rollback, and artifact decisions.
+5. Deterministic policy checks the evidence hash, artifact allowlist, risk, and
+   human-approval requirement. The model cannot approve itself.
+6. Approval persists a versioned packet and append-only audit events. Undo
+   appends a reversal marker and returns the workflow to the decision state.
+
+The public fixture moves `Competitor Pro` from `$49` to `$59` per seat per
+month. It is synthetic and visibly labelled as such. The console also exposes
+the append-only source ledger, recurring change memory, a bounded Gemini vision
+before/after pair, owner-action telemetry, and deployment health.
 
 ## Google technology
 
-- Gemini 3.5 Flash through Vertex AI for evidence-grounded interpretation and
-  bounded drafting. A second task-mode ADK analyst returns a strict JSON impact
-  contract; Driftline validates every artifact owner, risk, and evidence hash.
-- Google Agent Development Kit for the coordinator, structured analyst, session
-  runner, and allowlisted tools.
-- Cloud Tasks for durable asynchronous job dispatch.
-- Cloud Scheduler for the six-hour historical monitor and signed monitor calls.
-- Cloud Run for the public API and operational console with scale-to-zero.
-- Firestore for workflow documents, the source snapshot ledger, and
-  audit_events subcollections.
-- Cloud Storage for private, versioned action packets and rollback markers.
-- Artifact Registry and Cloud Build for the isolated deployment.
+- Gemini 3.5 Flash through Vertex AI for evidence-grounded analysis and
+  Decision Copilot options.
+- Google Agent Development Kit (ADK) for the coordinator, task-mode analysts,
+  session runners, and allowlisted tools.
+- Cloud Run for the FastAPI + React service, configured scale-to-zero and
+  max-one instance for the isolated hackathon project.
+- Firestore for durable workflows, source history, tenant state, and audit
+  events.
+- Cloud Tasks for asynchronous dispatch and bounded retries.
+- Cloud Scheduler for the signed monitor cycle.
+- Cloud Storage for private, versioned packets and reversal markers.
+- Cloud Build and Artifact Registry for the reproducible container release.
 
-The model can inspect an allowlisted source and read workflow state. It cannot
-approve, resume, widen its own permissions, or publish a high-risk action. The
-separate API policy gate requires an exact allowlisted decision. Public demo
-approvals are packet-only; configured connector writes require a signed
-operator token. The public demonstration does not include production identity
-authentication, so its named actor is not an enterprise IAM claim.
+## Architecture and safety
 
-## Architecture and state
+The React console and FastAPI API share one Cloud Run service. A scan creates a
+Firestore job; Cloud Tasks sends an OIDC-authenticated request to the worker;
+ADK records the model/tool trace; Firestore restores the workflow across
+process restarts. The deterministic workflow engine owns approval, idempotency,
+connector scope, and reversal state.
 
-The React console calls FastAPI on the same Cloud Run service. A scan creates a
-Firestore job, Cloud Tasks dispatches an OIDC-authenticated worker request, and
-the ADK run records its model/tool trace against the resulting workflow. The
-deterministic workflow engine creates evidence, impact records, approval
-interrupts, public-demo packets, and audit events. Firestore persists the job,
-whole workflow, source history, and each audit event. A workflow loaded after a
-process restart is restored into the policy engine before approval or reopening
-is accepted. Cloud Scheduler's monitor path records a baseline or no-change
-result without inventing a workflow.
+The public lane is anonymous, tenantless, and packet-only. Signed operator
+requests are a separate tenant boundary. Connector credentials are held in
+tenant-specific Secret Manager namespaces and are never returned to the
+browser, source control, or logs. The isolated signed lane has been exercised
+against Driftline-owned Jira, Confluence, Slack, and GitHub targets with
+aggregate-only context reads and reversible marker operations. Those probes are
+not customer data or customer ROI. Salesforce is a read-only OAuth contract and
+remains pending final tenant consent.
 
-## Disclosure of prior work
+The source adapter accepts pinned fixtures and exact operator-registered public
+URLs only. It rejects redirects, query credentials, private addresses, and
+unbounded bodies. Competitor content is an observed signal, not verified
+product truth.
 
-The contest rules require new projects to be created during the submission
-period and require disclosure of pre-existing work. Driftline continues an
-earlier concept conversation and incorporates the supplied source package. The
-implementation, cloud configuration, verification, documentation, and
-submission materials in this entry were completed or materially changed during
-the submission period. This entry does not claim that the earlier ideation was
-created during the contest.
+## Verified release evidence
 
-## Accomplishments
+The current serving release is source commit `8e71062`, Cloud Build
+`993e7216-0077-4099-8957-0d52e103e9e7`, and Cloud Run revision
+`driftline-00123-h4m` at 100% traffic in project `driftline-hackathon-2026`.
+The immutable image digest is
+`sha256:bb39a764f876f0e2fbec1a5efadbafaffa75152cf9155fc15a16d6caa39a5224`.
 
-- Full asynchronous change-to-action workflow with resumable human approval.
-- SHA-256 evidence attached to the approval decision.
-- Four independently owned downstream artifacts mapped from one source change.
-- Offering impact graph that routes own and competitor changes into Product
-  Marketing, enablement, support, customer lifecycle, and planning surfaces.
-- Approval-gated handoff manifests plus four signed-operator-only, reversible
-  Jira, Confluence, Slack, and GitHub connectors with explicit target and token
-  scope boundaries.
-- A synthetic, reproducible demonstration that requires no private company data.
-- A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
-  dedicated runtime identity, scale-to-zero configuration, and a
-  project-scoped budget guardrail.
-- The current active release is source commit `8e71062`, Cloud Build
-  `993e7216-0077-4099-8957-0d52e103e9e7`, and Cloud Run revision
-  `driftline-00123-h4m` at 100% traffic. It passed 248 backend tests, Ruff,
-  the frontend production build, and isolated deployment probes. The impact
-  analyst now has a bounded 2,400-token ceiling, and a fresh logged-out scan
-  visibly rendered Gemini structured impact analysis for all four evidence-bound
-  artifacts rather than the deterministic fallback. Below-fold history,
-  monitor freshness, multimodal evidence, change memory, value proof, run
-  history, and deployment telemetry still defer until their panels approach
-  the viewport; the latest desktop/mobile Lighthouse navigation passed 100 for
-  accessibility, best practices, SEO, and agentic browsing. The current live
-  proofs created jobs `job-34d426fd0971` and `job-9737925000a9`, proving Google
-  ADK + Gemini 3.5 Flash, the two allowlisted tools, the deterministic
-  `needs_approval` gate, persisted packet, and reversible undo with both
-  external-write flags false. The console
-  and signed direct-agent API route authenticate operator-registered URLs
-  through the real monitor lane, support bounded HTML/text/RSS onboarding, and
-  expose a signed aggregate pilot-measurement flow without claiming customer
-  ROI. Signed tenant operators can also retry terminally failed jobs from Run
-  history; retries preserve the original tenant/source/query boundary and use
-  a durable idempotency link, while public jobs remain packet-only.
-  The scheduled monitor also deduplicates queued/running source jobs across
-  duplicate deliveries and reports explicit in-flight no-ops instead of
-  creating duplicate model work.
-  The current release adds a session-generation guard across asynchronous
-  browser reads and writes. Slow results from a prior tenant or signed-out
-  session are discarded, preventing cross-tenant workflow, history, source,
-  and decision state from reappearing after an operator switch.
-  The current release also includes the CSP fix for the Google Identity
-  Services stylesheet and a project-owned Web OAuth client with the Cloud Run
-  origin registered. The public lane remains packet-safe; completing Google
-  account consent and tenant-token issuance is an external identity step, not
-  a claim of authenticated customer data.
-  Google Identity Services is lazy-loaded only after an explicit sign-in
-  action, so anonymous first paint does not send a provider request or set a
-  third-party cookie; the click path still renders the real provider button.
-  The responsive judge-surface pass also removed the 1440px desktop
-  Google-Identity/workspace collision and changed the mobile impact graph from
-  an undiscoverable horizontal scroller to a readable vertical sequence.
-  Logged-out Chrome QA at 1440×900 and 390×844 found no document overflow or
-  application console errors; the dense worklist table remains an intentional
-  horizontal-scroll region. Lighthouse navigation audits remain 100 for
-  accessibility, best practices, SEO, and agentic browsing on both desktop
-  and mobile (58/58 checks).
-  A fresh browser pressure test caught one intermittent Gemini response shape
-  that correctly surfaced the deterministic fallback. The final release now
-  retries strictly twice and unwraps only a known single-key text envelope on
-  the third bounded attempt before applying the unchanged evidence and
-  artifact validator; unknown shapes still fail closed. Two fresh scans on the
-  current revision both showed real Gemini impact analysis and a Gemini
-  Decision Copilot.
-  A fresh identity-free `scripts/verify_live_agent.sh` run against that exact
-  revision created job `job-35d0bad97d36` / workflow
-  `8aea1601-0a83-4763-9b44-aa2ea73b2ad1` and directly proved the live
-  `gemini-3.5-flash` + Google ADK path, structured analysis, both allowlisted
-  tools, four artifacts, five audit events, and the deterministic
-  `needs_approval` gate. The script is checked in so judges can reproduce the
-  proof without credentials.
-  A second live run on that deployment completed approval, persisted four
-  owner-review action items and a private packet, then executed undo; the
-  workflow returned to `needs_approval` with a rollback marker and
-  `external_systems_changed=false`. This is the demonstrated reversible
-  change-to-action loop, not a claim of an external connector write.
-  The final release proof was rerun after the public-console clarity patch and
-  public-quota hardening:
-  `scripts/verify_production.sh` reported Firestore persistence, scheduler and
-  task health, enabled monitoring, and zero recent Cloud Run errors; a fresh
-  `scripts/verify_live_agent.sh` run created job `job-1fbf4e290e68` /
-  workflow `58972084-55c9-46a9-b443-613d951ea9bc` and proved the live
-  coordinator, Gemini impact analyst, Gemini decision copilot (2 options),
-  Google ADK path, both allowlisted tools, four artifacts, five audit events,
-  and `needs_approval`. The credential-free
-  `scripts/verify_public_approval_undo.sh` separately created job
-  `job-f9979a4981c4` / workflow `2ec4f44a-4349-4011-996c-dae2b0ae1b71` and
-  proved persisted packet → durable undo with both external-write flags false.
-  GitHub Actions run `32485900320` passed source `e68b55b` across backend
-  tests/lint, frontend build, image build, and shell hygiene; that paragraph
-  records the earlier quota-hardening runtime, not the current serving
-  revision above.
-  The current serving revision was independently checked by GitHub Actions
-  run `32491820540` for source `d9cbba4` and by the exact production,
-  live-agent, and approval/undo scripts recorded in the resource inventory.
-  A live public multimodal probe on that revision returned
-  `data_mode=public_source` for the pinned before/after visual pair and
-  `mode=gemini_vision`, `model=gemini-3.5-flash`, `material_change=true`, and
-  `confidence=1.0` for the combined evidence hash. This is the evidence-bound
-  visual diff shown in the console, not an unverified image caption.
-  The current console release labels deterministic pre-run fixtures clearly,
-  limits the anonymous history view to the latest three tenantless runs, and
-  makes owner-action closure visible after approval. The live verifier now
-  retries a permitted anonymous deterministic fallback for up to three
-  bounded runs but fails unless a real Gemini structured turn is proven.
-  A fresh pass on this release created job `job-0bdc79f38683` / workflow
-  `08342970-299c-480f-8827-bb68582c91ac`; the approval → persisted packet →
-  undo proof returned `external_write=false` and
+- Local gate: 248 backend tests passed, Ruff passed, and the frontend
+  production build passed (bundle 309.56 kB, gzip 91.53 kB).
+- CI: GitHub Actions run `32498604630` passed the backend suite, Ruff,
+  frontend build, standalone image build, and repository hygiene. The latest
+  docs commit also passed run `32499348603`.
+- Production check: `scripts/verify_production.sh` passed Firestore,
+  Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
+  and zero recent Cloud Run errors.
+- Live agent check: job `job-34d426fd0971` / workflow
+  `7c9d1281-299b-461f-b393-70334205c9bb` returned `needs_approval`,
+  `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
+  four artifacts, five audit events, and two decision options.
+- Live browser scan: job `job-294bb65b6ed9` / workflow
+  `3b82535d-14a8-48cc-88b3-24e3e6c3c9f8` visibly rendered
+  `Impact analysis · gemini structured`, the Gemini summary/rationale, the
+  Decision Copilot, and the approval gate. The persisted trace recorded policy
+  `pass` and the correct evidence hash.
+- Approval/undo check: job `job-9737925000a9` / workflow
+  `b5f6b828-7cd1-4541-b947-bdbb6cbdab52` persisted the packet, reversed the
+  operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-  The public scan endpoint also deduplicates an in-flight source job, so a
-  refresh cannot queue duplicate Gemini work behind the one-concurrent Cloud
-  Tasks worker. A fresh live second request for `public/terms` reused job
-  `job-f19c5ab37d65` and returned `deduplicated=true`; the subsequent live
-  verifier reached the human gate through Gemini 3.5 Flash and Google ADK.
-  Production source URLs are also pinned to immutable fixture commits so the
-  judge path cannot silently change when the repository's `main` branch moves.
-  The latest live agent proof on the serving revision created job
-  `job-280ccb206fb2` / workflow `2072fcea-2360-47c5-9769-1d258769d57e`; the
-  latest credential-free approval/undo proof created job
-  `job-d7b39f3a9e44` / workflow `7067534b-9f5f-4245-b219-b786ef2ed1ab` and
-  retained both external-write flags as false.
-  The latest live verifier created job `job-934ea8ae11a7` / workflow
-  `4f5bbaf9-d3a7-4372-857f-ae3cd52821ea` and again proved the model, ADK,
-  allowlisted tools, four artifacts, and deterministic gate.
-  The preceding production-lane release `efc37db` was revision
-  `driftline-00105-cw4` and its
-  verifier created job `job-46795fbe6b7b` / workflow
-  `4df6bb1b-6122-4573-92aa-4be0c0330fb2`. A public approval on that exact
-  workflow persisted `firestore_change_packet` and a Cloud Storage artifact
-  with `external_write=false` and `external_systems_changed=false`; the new
-  judge scorecard maps this proof directly to the official rubric.
-  The current revision also exposes a plain-language allowlisted-work rail in
-  the Agent run panel, making the two read/state tool calls visible as
-  completed work rather than leaving the judge to infer them from raw names.
-  A fresh logged-out Chrome pass at a 390px mobile viewport showed that rail
-  with no console warnings/errors, no horizontal document overflow, and
-  Lighthouse snapshot scores of 100 for accessibility, best practices, SEO,
-  and agentic browsing.
-  The pre-scan evidence link is pinned to the same immutable fixture commit as
-  the deployed runtime, so the first-load judge path is reproducible too. A
-  fresh live verifier on this revision created job `job-4f477d45abd4` /
-  workflow `706f0b5c-b70e-4978-9663-bd4a97dda88c` and proved the same Gemini,
-  ADK, tool, artifact, and deterministic-gate contract.
-  The current immutable-default release created job `job-d76dae51ef94` /
-  workflow `4e2d9523-9834-4778-93f7-de991d3ac93c` and persisted the pinned
-  `19fc1e2` source URL in its evidence record.
-  The current UI release also makes the pre-run timeline truthful: it presents
-  `Ready to start` until a durable scan job exists. A fresh live verifier on
-  this revision created job `job-2f590b23212c` /
-  workflow `5016d631-d63d-49f2-9ff0-6b1e1bc428fb` and reached the same
-  deterministic approval gate.
-  It also includes a recoverable frontend error boundary so a render failure
-  cannot present a blank console or imply that persisted workflow state was
-  lost.
-- The trust panel now states precisely when a Jira handoff was created, reused,
-  reactivated, or reversed, and says that other destinations remain unchanged.
-  Connector telemetry is labeled as deployment availability rather than proof
-  of tenant credentials or external writes. This prevents the public lane from
-  overstating prepared-only integrations.
-- The source registry now shows each allowlisted source's last observation and
-  next scheduled observation from the append-only freshness ledger. This makes
-  the always-on monitor behavior inspectable in the live console without
-  claiming that a future fetch has already happened.
-- The value-proof endpoint and public console now show owner-action cycle time
-  p50/p90 from recorded lifecycle timestamps. These are deployment operations
-  telemetry only; customer time saved and business outcomes remain explicitly
-  unmeasured until a real pilot.
-- Source freshness now has an explicit loading and unavailable state, so the
-  public console never presents an in-flight monitor request as a false
-  `needs_baseline` condition. The settled browser view shows all five current
-  sources healthy with their observed and next-due timestamps.
-- The multimodal before/after evidence images are browser-lazy-loaded so the
-  live console does not eagerly download below-fold visual bytes before a
-  reviewer requests that evidence. Production browser verification confirmed
-  `loading=lazy` for both images with no console errors.
-- The public console now labels the live anonymous surface `Public evaluation
-  lane` and `Packet-safe evaluation` to distinguish production deployment from
-  authenticated connector authority without implying that an unauthenticated
-  judge can mutate an external system.
-- A fresh browser-driven run on the deployed revision (`job-5f77824896c1`,
-  workflow `794877e3-3794-464d-812b-2c3938c3da79`) completed the public
-  scan → Gemini/ADK evidence verification → deterministic approval → persisted
-  packet → undo journey. The action record retained its evidence hash,
-  reported `external_systems_changed=false`, and recorded an append-only
-  `decision_reopened` event with a durable reversal marker. This is direct
-  production-path evidence; it does not claim a third-party connector write
-  from the anonymous lane.
-- The same workflow then exercised owner follow-through: Product Marketing
-  claimed and completed the `Pricing battlecard` action. The durable record
-  reports four action items, one completed, zero failed, and a 25% closure rate;
-  the append-only audit contains both claim and completion events. This is an
-  observed deployment metric, not a customer outcome or ROI claim.
-- Continuing that canary, the remaining Customer Success, Support, and RevOps
-  actions were each claimed and completed once. The durable closure state
-  reached `closed` with 4/4 actions complete, 0 failed, and 0 overdue. This
-  demonstrates the full change-to-closed-work loop while remaining explicitly
-  separate from customer ROI evidence.
-  Multimodal evidence is pinned to an immutable asset commit and served as
-  smaller JPEG bytes; fingerprinted frontend bundles are immutable-cacheable.
-  The public console also avoids a render-blocking third-party font request;
-  the fresh production Lighthouse run measured 0.81 performance with no
-  console or inspector issues.
-- An earlier live rollout (`driftline-00037-6t9`, source `bb8a437`, Cloud Build
-  `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
-  control plane while keeping the anonymous judging lane explicitly packet-only
-  and isolated from customer writes.
-- A historical live revision was `driftline-00061-46f` from source commit
-  `a4f675a`, deployed by Cloud Build
-  `dd23aeae-fec2-45e9-b383-9e956367e7d7`; it serves 100% of traffic with the
-  same scale-to-zero and one-instance guardrails. Its image digest is
-  `sha256:8cdd40105bd51c275e42f2af3cc1d99a9be92e22181c44b56c8f68351d4a2a14`.
-- The deployed public path has returned `execution_mode=google_adk`,
-  `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `a4f675a`, deployed through Cloud Build
-  `dd23aeae-fec2-45e9-b383-9e956367e7d7` as Cloud Run revision
-  `driftline-00061-46f` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32449633360` passed; the
-  local release gate also passed all 225 backend tests, Ruff, and the frontend
-  production build. A live direct-agent canary
-  returned the two allowlisted tool calls without echoing anonymous query or
-  user fields; a fresh browser run had no console errors and Lighthouse scored
-  100 across accessibility, best practices, SEO, and agentic browsing on both
-  desktop and mobile. The signed
-  tenant-filtered pilot report is deployed; the signed report currently
-  returns `not_measured` with zero records, and an unsigned public request
-  returned HTTP 401. The agent trace now updates its public status after
-  approval, reopen, and dismissal. Fresh browser QA passed the live scan,
-  evidence, approval, completion, activity log, timeline, and 390px mobile path
-  without console errors.
-- The final smoke workflow `de3f6c7f-4a59-4005-ad24-4968bf3a50c4` reached
-  `needs_approval` on this revision; signed public-demo approval persisted four
-  packets with `external_write=false`, and immediate undo persisted the
-  reversal marker. Current-revision logs contained no `ERROR` entries.
-- A signed `tenant_demo` fixture pilot on the current revision carried tenant
-  `driftline-demo` through real ADK/Gemini into Firestore as
-  `synthetic_tenant_demo`. After named human approval, the isolated Jira
-  connector reactivated the prior marker-scoped `KAN-18` task and a direct Jira
-  API read confirmed Driftline's active labels. Signed undo then changed only
-  the Driftline-owned labels to `driftline-reversed`; the issue was retained.
-  This proves an operational connector path, not customer ROI or a live
-  competitor-monitoring result.
-- The GitHub adapter fails closed when a matching issue is human-closed:
-  `blocked_closed` performs no automatic reopen or relabel. This preserves
-  operator control over external task lifecycle while keeping the connector
-  auditable and reversible.
-- A current-revision signed approval/undo canary also exercised all four
-  configured external adapters. Approval returned `reactivated` for Jira,
-  Confluence, Slack, and GitHub; direct provider reads confirmed active versus
-  reversed state transitions, with GitHub unrelated labels preserved. Undo
-  returned all four to reversed state. This is operational connector evidence,
-  not customer ROI or a claim of live competitor data.
-- On 2026-08-21, the preceding `driftline-00038-2gq` revision was rechecked end to
-  end: `/health` returned Firestore persistence and async jobs; a direct ADK
-  run returned HTTP 200 with `persisted=true`, `model=gemini-3.5-flash`, and
-  exactly `inspect_source_change` plus `get_workflow_state`; a public demo
-  approval completed to a persisted packet and a named demo undo returned it
-  to `needs_approval` with a reversal marker. Fresh desktop and 390px mobile
-  Lighthouse navigation audits passed all 57 checks with no console warnings
-  or errors. The signed connector binding-health probe returned four healthy,
-  namespace-verified connectors (Jira, Confluence, Slack, GitHub), while the
-  signed aggregate context probe returned Jira `KAN` (18 issues), Confluence
-  `DRIFT` (5 pages), Slack `C0BRGFUSADA` (27 recent messages), and GitHub (0
-  open issues and 0 open pull requests) with aggregate-only redaction.
-- The hosted operator lane now requires Google OIDC (`DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY=true`); a direct HMAC probe returned HTTP 401, while the public lane remained packet-only. This keeps the deployed break-glass signer out of normal production authorization.
-- The newest revision repaired an incomplete tenant bootstrap safely: an
-  existing tenant with no memberships can receive exactly one owner membership
-  through the platform bootstrap route, while an already-membered tenant still
-  returns a conflict. The live OIDC directory then returned the isolated
-  `driftline-demo` owner membership, aggregate connector context, and binding
-  health without exposing credential values.
-- A current authenticated `tenant_demo` run (`b6332414-3bc3-4eb4-b5fc-43041abe35d3`)
-  carried `driftline-demo` through Gemini/ADK into Firestore and stopped at
-  `needs_approval`. OIDC approval reactivated the existing marker-scoped Jira
-  task `KAN-18` (idempotent, no duplicate issue); the same approval also
-  reactivated the tenant's Confluence, Slack, and GitHub markers. OIDC undo
-  changed the Driftline-owned Jira label to `driftline-reversed`, appended the
-  reversal comment, and returned the workflow to `needs_approval` while
-  retaining the issue and append-only audit record. This is direct production
-  connector evidence for reversible operations, not a customer-ROI claim.
-- The current public console also exposes this OIDC boundary as a real operator
-  experience: Google sign-in stays in memory, tenant memberships are discovered
-  from the signed identity, and the selected tenant is carried through scan,
-  approval, action-item, and undo calls. Logged-out judges still receive the
-  packet-safe demo with no credential prompt.
-- The current responsive release was rechecked at a 390px emulated viewport:
-  the document reports `bodyScrollWidth=500`, `documentElement.scrollWidth=500`,
-  and `scrollX=0`, while the activity, run-history, and worklist panels retain
-  their intentional inner horizontal scroll. Desktop and mobile Lighthouse each
-  passed all 57 checks with 100 scores and the browser console had no messages.
-- The anonymous public-source Change Card on the current `driftline-00061-46f`
-  deployment was
-  rechecked after a truthfulness fix: it displays `CRM context unavailable`
-  and `No CRM context was read in this run`, never `Permissioned business
-  context` without a connected Salesforce tenant.
-- A fresh public-demo run selected the reviewed Gemini copilot option,
-  persisted its private packet, and kept every connector `prepared_only` with
-  `external_write=false`. A named Product Marketing demo actor then claimed
-  and completed one owner action; the live value endpoint reports this as
-  public-demo telemetry only (1 of 24 action items, 4.2%), not customer ROI.
-- The latest public packet proof on `driftline-00061-46f` contains
-  `isolated public-demo output` rather than the old sandbox wording; approval
-  persisted the packet and undo returned `needs_approval` with both
-  `external_write=false` and `external_systems_changed=false`.
-- The signed source registry read returned the five pinned fixtures plus the
-  verified operator-registered own-product source
-  `custom/driftline-readme`. The research references in the README are not
-  registered live competitor sources; no competitor target was invented.
-- The tenant credential data plane is now canonical and fail-closed: durable
-  tenant memberships, per-tenant Secret Manager namespaces, impersonated
-  service identities, pinned versions, rotation/revocation, operation scopes,
-  and metadata-only access auditing. Tenant owners can also set bounded quota
-  and retention policy without a redeploy; the public lane never receives
-  those credentials.
+- Browser QA: desktop and mobile Lighthouse navigation both scored 100 for
+  accessibility, best practices, SEO, and agentic browsing (53/53 checks,
+  zero failures). At 390×844, body and document widths equal the viewport and
+  the console has no application messages. Below-fold ledger, monitor,
+  multimodal, memory, value-proof, run-history, and telemetry reads load when
+  their panels approach the viewport.
 
-## Findings and learnings
+## Four-minute demo plan
 
-- The highest-value unit is not an alert; it is a source-hash-bound Change Card
-  that names the affected offering, owners, risk, proposed update, and rollback
-  path before anything is published.
-- Deterministic policy is more trustworthy than a model-generated approval:
-  Gemini interprets and drafts, while the policy engine owns the approval gate,
-  idempotency, and reversal state.
-- A reliable agent must make its limitations visible. Driftline labels
-  synthetic data, reports unavailable connectors, preserves raw evidence, and
-  separates observed workflow telemetry from unmeasured customer ROI.
-- The current evidence proves operational execution, live aggregate connector
-  reads, and safety boundaries, not customer revenue lift, hours saved,
-  willingness-to-pay, or a multi-customer pilot. Those remain validation work
-  rather than claims in this entry.
+1. State the problem: one competitor change creates multiple stale internal
+   surfaces.
+2. Click **Run scan** on the deployed URL.
+3. Show the evidence diff, source hash, synthetic-data label, Gemini/ADK trace,
+   four downstream owners, and the Gemini Decision Copilot options.
+4. Open one artifact and the evidence modal; point out the citation and
+   rollback.
+5. Approve the bounded plan; show the persisted packet, owner work, timeline,
+   and audit events.
+6. Reopen/undo; show the reversal marker and the unchanged external-write
+   flags. Scroll to the append-only history and multimodal evidence.
+7. Briefly show Cloud Run/Firestore proof and the public repository.
 
-## Limitations and next steps
+The video must be public on YouTube or Vimeo and no longer than four minutes;
+it is intentionally held until the final product review is complete.
 
-The current public build intentionally stops at approved public or synthetic
-sources and does not perform live writes from the public console. The
-integration layer produces bounded, target-specific handoff manifests and
-tracks their prepared state. The signed operator connector lane is deliberately
-limited to the free Driftline Jira project, uses a Jira-scoped token held only
-in Secret Manager, and never deletes Jira work. GitHub is authenticated and
-reversible; Confluence and Slack live aggregate reads are verified for the
-isolated tenant, while public writes remain prepared-only. Salesforce is
-read-only context preparation pending tenant consent. Customer ROI, hours
-saved, and willingness-to-pay remain unmeasured; see `docs/PILOT_PLAN.md` and
-the deployed signed `/api/ops/pilot-report`. This is a verified multi-tenant
-control-plane foundation, not a claim of self-serve enterprise SSO, commercial
-billing, or a multi-customer pilot.
+## Findings, limitations, and honest claims
 
-## Official links
+Driftline's strongest differentiated unit is not an alert. It is a
+source-hash-bound Change Card that names the affected offering, owners, risk,
+proposed update, citations, and rollback before anyone acts. The product has
+real operational utility for a Product Marketing or competitive-intelligence
+team that repeatedly reconciles public changes with internal enablement work.
 
-See [docs/hackathon-rules.md](https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md)
-for the rules, dates, required technology, video limit, category definitions,
-and eligibility disclosures verified from the official Devpost rules page.
+What is proven: live Gemini/ADK execution, durable asynchronous state, strict
+evidence binding, deterministic approval, append-only audit, reversible packet
+behavior, isolated Cloud Run/Firestore architecture, and signed connector
+boundaries.
 
-Official live references:
+What is not claimed: customer revenue lift, hours saved, retention impact,
+willingness-to-pay, a multi-customer pilot, arbitrary competitor crawling,
+Salesforce execution, self-serve enterprise billing/SSO, or an anonymous
+third-party write. The public demo uses five pinned fixtures; a real pilot and
+before/after business outcomes remain the highest-value commercial validation.
+
+## Official links and eligibility
 
 - [Hackathon overview](https://allthingsagentichackathon.devpost.com/)
 - [Official rules](https://allthingsagentichackathon.devpost.com/rules)
 - [Official judging criteria](https://allthingsagentichackathon.devpost.com/details/judging-criteria)
 - [Official submission requirements](https://allthingsagentichackathon.devpost.com/details#what-to-submit)
-- Submission deadline: **2026-09-01 00:00 UTC** (2026-08-31 7:00 PM Central / 5:00 PM Pacific)
-- Required video: approximately four minutes maximum, public on YouTube or Vimeo, English or subtitled, showing the working agent and Google Cloud proof.
+- [Verified local rules record](https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md)
+
+The current official deadline is **August 31, 2026 at 5:00 PM PDT** (September
+1, 2026 at 00:00 UTC). The entry is designed around the Taskmaster track and
+the official judging weights: operational utility 40%, architectural
+discipline and technology 30%, and demo/production readiness 30%.
+
+The project discloses that Driftline continues an earlier concept conversation
+and incorporates the supplied source package; the current implementation,
+deployment, verification, and documentation work was completed or materially
+changed during the submission period.
