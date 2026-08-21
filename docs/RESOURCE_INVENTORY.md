@@ -42,6 +42,21 @@ Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
   gate passed: 241 backend tests, Ruff, `git diff --check`, and the frontend
   production build.
 
+## 2026-08-21 always-on monitor canary (live)
+
+- The isolated Cloud Scheduler job `driftline-monitor` is `ENABLED` on the
+  `0 */6 * * *` UTC schedule and targets `/api/scheduler/tick` with the
+  dedicated `driftline-scheduler` OIDC identity.
+- A manual canary at `2026-08-21T08:38:11Z` returned HTTP 200. Cloud Logging
+  recorded the Scheduler request and Cloud Tasks worker deliveries, and all
+  five bounded monitor jobs (`public/pricing`, `public/terms`,
+  `competitor/pricing`, `competitor/offerings`, `competitor/blog`) completed
+  with no terminal failures. This is direct evidence of the background path,
+  not a UI-only simulation.
+- The monitor remains intentionally bounded to the five pinned public fixtures
+  in the public console; arbitrary competitor crawling and private source
+  access are not claimed.
+
 ## 2026-08-21 fontless console performance release (live)
 
 - Source commit `02b2e41` passed the full 240-test suite, Ruff,
