@@ -87,3 +87,11 @@ jobs:
             bash -n "$script"
           done
           git diff --check
+          if git ls-files | grep -E '(^|/)\.env(\.|$)' | grep -vE '(^|/)\.env\.example$'; then
+            echo 'Tracked environment files other than .env.example are forbidden.' >&2
+            exit 1
+          fi
+          if git ls-files | grep -E '(^|/)(credentials|service-account)[^/]*\.(json|pem|p12|pfx|key)$'; then
+            echo 'Tracked credential material is forbidden.' >&2
+            exit 1
+          fi
