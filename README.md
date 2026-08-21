@@ -538,10 +538,12 @@ The deployment is isolated in the new `driftline-hackathon-2026` Google Cloud
 project. Cloud Run is configured with zero minimum instances and a revision
 maximum of one instance. Cloud Tasks is limited to one concurrent dispatch and 0.2
 dispatches per second. A $10 monthly billing budget is filtered to this project with
-25%, 50%, 75%, 90%, and 100% current-spend thresholds. The Google Cloud free
+10%, 25%, 50%, 75%, 90%, and 100% current-spend thresholds. The Google Cloud free
 trial started 2026-08-18 and ends 2026-11-17; the full paid-account activation
 control is intentionally not enabled. See `docs/RESOURCE_INVENTORY.md` for
-the complete cleanup inventory and exact image digest.
+the complete cleanup inventory and exact image digest. Reapply the guardrail
+with `./scripts/update_budget_guardrail.sh`; it refuses to target another
+gcloud project.
 
 Cloud Monitoring also owns the production liveness check: `driftline-health`
 checks `/health` every five minutes from three regions and requires HTTP 200 plus

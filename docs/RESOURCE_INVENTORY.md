@@ -587,12 +587,15 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00054-zsp` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00092-9cn` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
-  with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `d4ee7ef`; Cloud Build `38145a16-6eab-46e7-90b5-2b2d4b41d09f`.
+  with 10%, 25%, 50%, 75%, 90%, and 100% current-spend thresholds; default
+  billing-account recipients remain enabled and no custom notification channel
+  is configured.
+- Deployed runtime source: `2b14abe`; Cloud Build
+  `1d76c3b6-3e1c-450c-bc37-45917b81b52f`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
@@ -2653,7 +2656,7 @@ release sections above record each subsequent deployment and its direct proof.
 | --- | --- | --- | --- |
 | Google Cloud project | `driftline-hackathon-2026` (`724959673622`) | Active, created 2026-08-18 | `app=driftline`, `environment=hackathon`, `hackathon=all-things-agentic` |
 | Billing account | `billingAccounts/01B9B8-321AE7-ECA02B` | Free trial linked and billing enabled | Trial credit `$300`, start 2026-08-18, end 2026-11-17; paid-account activation was not enabled |
-| Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 25%, 50%, 75%, 90%, 100%; no custom notification channel created |
+| Billing budget | `77e23b49-d3b8-45de-91b7-f0c6172dfd9b` | Active `$10 USD` monthly guardrail filtered to project 724959673622 | Current-spend thresholds 10%, 25%, 50%, 75%, 90%, 100%; default billing-account recipients enabled; no custom notification channel created; reapply with `scripts/update_budget_guardrail.sh` |
 | Cloud Run service | `driftline` in `us-central1` | Ready, latest revision `driftline-00020-w65` from commit `eb66e30` | Public URL: https://driftline-xvxczqg62a-uc.a.run.app/; min 0, service and revision max 1, 1 CPU, 512 MiB, concurrency 20; agent trace now refreshes after approval/reopen/dismissal; signed tenant-filtered pilot report added; unsigned pilot report returned HTTP 401; tenant-bound sources/reads/writes/action-lifecycle/quotas require signed identity; connector credentials use canonical tenant credential paths, exact Secret Manager resources, namespace schema validation, operation scopes, pinned versions, short-lived leases, owner-only lifecycle, metadata-only lease audit, and impersonated per-tenant service identities; untrusted source content is guarded only in model-visible copies; shared runtime has no direct live-tenant secret grants; Salesforce OAuth refresh tokens use the same broker namespace; both legacy global connector credential and hosted deployment-target fallbacks disabled |
 | Cloud Run runtime identity | `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created | Project roles: `roles/aiplatform.user`, `roles/datastore.user`; `roles/iam.serviceAccountTokenCreator` only on derived tenant identities |
 | Tenant data-plane identity | `driftline-driftline-de-7f8fce0@driftline-hackathon-2026.iam.gserviceaccount.com` | Active, no key created; `driftline-demo` tenant | Secret Manager accessor only on that tenant's connector and signer secrets; Salesforce version-adder only on its Salesforce secret |
@@ -3721,3 +3724,19 @@ is no longer needed.
 - `/health`, `/api/auth/config`, and the public HTML title returned
   successfully; the latest-revision Cloud Logging scan contained zero
   `severity>=ERROR` entries.
+
+## 2026-08-21 billing guardrail hardening (live)
+
+- The isolated billing budget `Driftline $10 Guardrail`
+  (`77e23b49-d3b8-45de-91b7-f0c6172dfd9b`) remains filtered to only project
+  `driftline-hackathon-2026` (`724959673622`) with a `$10 USD` monthly amount.
+- The budget now alerts at 10%, 25%, 50%, 75%, 90%, and 100% of current spend.
+  Notifications use the billing account's default recipients; no custom
+  notification channel or cross-project filter was added.
+- `scripts/update_budget_guardrail.sh` is idempotent, prints the resulting
+  budget, and exits before making a change if the active gcloud project is not
+  `driftline-hackathon-2026`. Re-running it directly verified the exact amount,
+  project filter, and six fractional threshold values through gcloud.
+- This control-plane change did not redeploy the app. Cloud Run remains on
+  revision `driftline-00092-9cn` at 100% traffic, and the production
+  verification script still passes with zero recent Cloud Run errors.
