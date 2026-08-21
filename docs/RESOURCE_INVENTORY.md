@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T12:39:30Z` with the active gcloud project set to
+Checked `2026-08-21T12:55:30Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00109-7qj` at 100% traffic.
+  `driftline-00111-xr2` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,39 @@ Checked `2026-08-21T12:39:30Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 public-console clarity and resilient proof release (live)
+
+- Source commit `ec65176` was deployed by Cloud Build
+  `aa5659ff-045f-44e2-ac47-e24add7a2d76` (`SUCCESS`, 3m14s) as Cloud Run
+  revision `driftline-00111-xr2` at 100% traffic. The anonymous console now
+  labels the pre-run evidence as a deterministic fixture rather than a
+  preview, shows only the latest three tenantless runs, and makes the signed
+  tenant history boundary explicit. After approval, the owner queue reports
+  closed versus outstanding work; no synthetic data is hidden or relabeled as
+  customer activity.
+- `scripts/verify_production.sh` passed with Firestore persistence, async
+  jobs, scheduler/tasks, monitoring, and zero recent Cloud Run errors. The
+  hardened `scripts/verify_live_agent.sh` passed after a fresh bounded run:
+  job `job-0bdc79f38683` / workflow
+  `08342970-299c-480f-8827-bb68582c91ac` reached `needs_approval` through
+  `gemini-3.5-flash`, Google ADK, both allowlisted tools, four artifacts, and
+  five audit events. The verifier now retries a permitted deterministic
+  anonymous fallback up to three bounded runs, but still fails unless a real
+  Gemini structured turn is proven.
+- The same deployed workflow completed an approval → private Cloud Storage
+  packet → undo journey. Approval returned `storage_status=persisted`,
+  `operational_status=active`, `external_write=false`, and
+  `external_systems_changed=false`; undo returned `status=needs_approval`,
+  persisted a rollback marker, and kept external systems unchanged.
+- GitHub Actions run `32483785937` passed for source `ec65176`; local
+  verification for this source also passed 244 backend
+  tests, Ruff, the frontend production build, and `git diff --check`.
+- Fresh logged-out Chrome QA against the live alias verified the new copy,
+  three-row public history, live scan, Gemini trace, and no console errors.
+  At 390×844 mobile width, body/document scroll width remained 390px and the
+  Lighthouse snapshot scored 100 for accessibility, best practices, SEO, and
+  agentic browsing.
 
 ## 2026-08-21 production-lane and judge-proof release (live)
 

@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `810283f`, Cloud Build
-  `9498f5c2-3f5e-4c0b-aad9-4fa85167d94d`, and Cloud Run revision
-  `driftline-00109-7qj` at 100% traffic. It passed 244 backend tests, Ruff,
+- The current active release is source commit `ec65176`, Cloud Build
+  `aa5659ff-045f-44e2-ac47-e24add7a2d76`, and Cloud Run revision
+  `driftline-00111-xr2` at 100% traffic. It passed 244 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -171,6 +171,15 @@ created during the contest.
   workflow returned to `needs_approval` with a rollback marker and
   `external_systems_changed=false`. This is the demonstrated reversible
   change-to-action loop, not a claim of an external connector write.
+  The current console release labels deterministic pre-run fixtures clearly,
+  limits the anonymous history view to the latest three tenantless runs, and
+  makes owner-action closure visible after approval. The live verifier now
+  retries a permitted anonymous deterministic fallback for up to three
+  bounded runs but fails unless a real Gemini structured turn is proven.
+  A fresh pass on this release created job `job-0bdc79f38683` / workflow
+  `08342970-299c-480f-8827-bb68582c91ac`; the approval → persisted packet →
+  undo proof returned `external_write=false` and
+  `external_systems_changed=false`.
   The public scan endpoint also deduplicates an in-flight source job, so a
   refresh cannot queue duplicate Gemini work behind the one-concurrent Cloud
   Tasks worker. A fresh live second request for `public/terms` reused job
