@@ -114,21 +114,21 @@ product truth.
 
 ## Verified release evidence
 
-The current serving release is source commit `7a26522`, Cloud Build
-`5375841c-f3cc-43fb-a839-56a8784f5008`, and Cloud Run revision
-`driftline-00131-5tn` at 100% traffic in project `driftline-hackathon-2026`.
+The current serving release is source commit `c41b8dc`, Cloud Build
+`bb7442af-0893-4f3c-8a4a-570b3b59f180`, and Cloud Run revision
+`driftline-00132-ldk` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:61d4edfcd7502bc1ec5710e18d81b91f4939dc9960a3d7b80245effa5b49b542`.
+`sha256:9882f48fac7db8bc9ab090d98ff03459308b489b0690900a4b1a006a06801310`.
 
-- Local gate: 252 backend tests passed, Ruff passed, and the frontend
-  production build passed (bundle 311.51 kB, gzip 91.96 kB).
-- CI: GitHub Actions run `32518704117` passed the backend suite, Ruff,
+- Local gate: 253 backend tests passed, Ruff passed, and the frontend
+  production build passed (bundle 316.74 kB, gzip 93.09 kB).
+- CI: GitHub Actions run `32519809024` passed the backend suite, Ruff,
   frontend build, standalone image build, and repository hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-bf32f027a99f` / workflow
-  `41fda217-a32d-49dc-b58b-4cf88e2b4fe2` returned `needs_approval`,
+- Live agent check: fresh job `job-063b75f4c617` / workflow
+  `2f1ce3f7-d6e3-4d4c-9bed-b9445b3b6c50` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered

@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T19:34Z` with the active gcloud project set to
+Checked `2026-08-21T19:46Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00131-5tn` at 100% traffic. Its immutable serving image is
-  `sha256:61d4edfcd7502bc1ec5710e18d81b91f4939dc9960a3d7b80245effa5b49b542`.
+  `driftline-00132-ldk` at 100% traffic. Its immutable serving image is
+  `sha256:9882f48fac7db8bc9ab090d98ff03459308b489b0690900a4b1a006a06801310`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -25,10 +25,34 @@ Checked `2026-08-21T19:34Z` with the active gcloud project set to
   `anonymous_lane=packet_only`, and no credential values exposed.
 - The live production verifier also checks `Cache-Control: no-store` and the
   fail-closed `Permissions-Policy` deny-list on both health and API responses.
+- The Settings surface exposes the tenant-scoped Salesforce OAuth handoff and
+  aggregate read probe without exposing credentials or CRM records; final
+  authorization remains an owner-controlled Salesforce consent action.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 Salesforce control-surface release
+
+- Source commit `c41b8dc` deployed successfully through Cloud Build
+  `bb7442af-0893-4f3c-8a4a-570b3b59f180` (`SUCCESS`, 3m2s) as revision
+  `driftline-00132-ldk` at 100% traffic. The serving image is pinned to
+  `sha256:9882f48fac7db8bc9ab090d98ff03459308b489b0690900a4b1a006a06801310`.
+- The new owner-only Settings panel starts the existing PKCE OAuth flow,
+  renders the returned consent URL without logging it, and offers a separate
+  aggregate-only Salesforce read probe after callback completion. The route
+  returns tenant metadata only (`credential_values_exposed=false`).
+- Local verification passed 253 backend tests, Ruff, frontend build
+  (`316.74 kB`, `93.09 kB` gzip), and `git diff --check`. GitHub Actions run
+  `32519809024` passed all repository gates.
+- `scripts/verify_production.sh` passed; fresh live proof returned job
+  `job-063b75f4c617` / workflow `2f1ce3f7-d6e3-4d4c-9bed-b9445b3b6c50` with
+  `needs_approval`, public-source evidence, Gemini 3.5 Flash, Google ADK,
+  two allowlisted tools, four artifacts, five audit events, and two options.
+- The same durable job/workflow passed approval/undo verification: packet
+  persisted, output reversed, `external_write=false`, and
+  `external_systems_changed=false`.
 
 ## 2026-08-21 header-only operator credential proof
 
