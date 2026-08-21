@@ -709,6 +709,43 @@ def test_github_reactivates_reversed_issue_labels() -> None:
     }
 
 
+def test_github_does_not_relabel_a_human_closed_issue() -> None:
+    requests = []
+    responses = [
+        [
+            {
+                "number": 7,
+                "html_url": "https://github.com/acme/docs/issues/7",
+                "state": "closed",
+                "title": "[Driftline] Comparison map",
+                "body": "Driftline action action-1",
+                "labels": [{"name": "driftline-reversed"}],
+            }
+        ]
+    ]
+
+    def opener(request, timeout):
+        requests.append(request)
+        return _Response(responses.pop(0))
+
+    connector = GitHubConnector(
+        GitHubConfig(enabled=True, token="ghp-test", owner="acme", repo="docs"),
+        opener=opener,
+    )
+    result = connector.create_or_reuse_issue(
+        action_id="action-1",
+        workflow_id="wf-1",
+        artifact="Comparison map",
+        owner="Product Marketing",
+        proposed="Refresh the row.",
+        evidence_hash="a" * 64,
+    )
+
+    assert result["status"] == "blocked_closed"
+    assert result["idempotent"] is False
+    assert len(requests) == 1
+
+
 def test_github_reversal_preserves_non_driftline_labels() -> None:
     requests = []
     responses = [

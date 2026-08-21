@@ -1633,6 +1633,16 @@ class GitHubConnector:
             None,
         )
         if existing:
+            if str(existing.get("state", "open")).casefold() == "closed":
+                # A closed issue may have been resolved or closed by a human.
+                # Never silently reopen or relabel it as active; the operator
+                # must explicitly reopen it or choose a new downstream target.
+                return {
+                    "status": "blocked_closed",
+                    "issue_number": existing.get("number"),
+                    "issue_url": existing.get("html_url"),
+                    "idempotent": False,
+                }
             labels = {
                 str(label.get("name"))
                 for label in existing.get("labels") or []
@@ -1724,7 +1734,7 @@ def execute_github_handoff(state: Any) -> dict[str, Any]:
         "github_issue_number": result.get("issue_number"),
         "github_issue_url": result.get("issue_url"),
         "github_idempotent": result.get("idempotent", False),
-        "external_write": True,
+        "external_write": result["status"] != "blocked_closed",
     }
 
 
