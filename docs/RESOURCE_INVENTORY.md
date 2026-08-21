@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T20:32Z` with the active gcloud project set to
+Checked `2026-08-21T20:47Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00135-dv2` at 100% traffic. Its immutable serving image is
-  `sha256:db707393bf53a4052501c807ea6dc34d96b895550db9328ad2b2fd6a0dbb3977`.
+  `driftline-00136-fzq` at 100% traffic. Its immutable serving image is
+  `sha256:59b30f1b7b8dd39e57c202d923e61062e4d3fb012b1e25c4d6d46a7d20a1c50e`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -32,6 +32,27 @@ Checked `2026-08-21T20:32Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 tenant source-bound release (live)
+
+- Source commit `ce2b5ca` passed GitHub Actions run `32524543240` (258 backend
+  tests, Ruff, frontend production build, standalone image build, and
+  repository hygiene) and deployed through Cloud Build
+  `4998dd62-a9aa-4b48-a815-52dd4934c5df` (`SUCCESS`, 3m24s).
+- Cloud Run revision `driftline-00136-fzq` serves 100% traffic with immutable
+  image digest
+  `sha256:59b30f1b7b8dd39e57c202d923e61062e4d3fb012b1e25c4d6d46a7d20a1c50e`.
+- Operator source registration now fails closed at 25 enabled custom sources
+  per tenant, allows updates to existing source IDs at the limit, and remains
+  separate from the deployment-wide scheduler cap of 25 selected sources.
+  Persistence failures fail closed rather than silently bypassing the limit.
+- `scripts/verify_production.sh`, `scripts/verify_live_agent.sh`, and
+  `scripts/verify_public_approval_undo.sh` all passed on this revision. The
+  live agent proof returned `job-af119fe3e0d3` / workflow
+  `16c65c2c-6341-4dbc-8d5f-3afd99cf0596`, Gemini 3.5 Flash through Google ADK,
+  two allowlisted tools, four artifacts, five audit events, and two decision
+  options; approval/undo persisted the packet and reversed the operational
+  output with no external connector writes.
 
 ## 2026-08-21 cadence-aware monitor verification
 

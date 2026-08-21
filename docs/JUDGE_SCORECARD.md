@@ -4,8 +4,8 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `b1d60e8`, Cloud Run `driftline-00135-dv2`, Cloud Build
-`d80208cf-532e-420e-a832-b65d34d91762`, project
+Current release: source `ce2b5ca`, Cloud Run `driftline-00136-fzq`, Cloud Build
+`4998dd62-a9aa-4b48-a815-52dd4934c5df`, project
 `driftline-hackathon-2026`, 100% traffic.
 
 ## Innovation and operational utility — 40%
@@ -35,11 +35,11 @@ Current release: source `b1d60e8`, Cloud Run `driftline-00135-dv2`, Cloud Build
   packet record, and timeline; the undo response persisted
   `action-63355af11e1c35cb5150` as `reversed` with all connector external-write
   flags false.
-- `scripts/verify_live_agent.sh`: fresh job `job-6cee02e8b4cf`, workflow
-  `2997be46-f313-43d0-9a3d-89a9524cfa48`, five audit events and four artifacts.
-- `scripts/verify_public_approval_undo.sh`: fresh job
-  `job-bb0ae6f8abfa`, workflow `0c062253-a31e-46b6-ad72-9ee7351d392e`, packet persisted and
-  reversed with both external-write flags false. The verifier now also fails
+- `scripts/verify_live_agent.sh`: fresh job `job-af119fe3e0d3`, workflow
+  `16c65c2c-6341-4dbc-8d5f-3afd99cf0596`, five audit events and four artifacts.
+- `scripts/verify_public_approval_undo.sh`: fresh proof on job
+  `job-af119fe3e0d3`, workflow `16c65c2c-6341-4dbc-8d5f-3afd99cf0596`; the packet
+  persisted and was reversed with both external-write flags false. The verifier now also fails
   closed unless the approval journey carries structured Gemini impact/Decision
   Copilot options, passing deterministic policy review, and matching evidence
   hashes.
@@ -59,6 +59,11 @@ Current release: source `b1d60e8`, Cloud Run `driftline-00135-dv2`, Cloud Build
   own terms (`job-ee66d880b4eb`, workflow
   `d5f75932-3a41-48a8-8765-d629abae9441`). Each reached `needs_approval` with
   Gemini structured analysis, four mapped impacts, and five audit events.
+- Operator source onboarding is bounded to 25 enabled custom sources per
+  tenant, with updates allowed for existing IDs at the limit and fail-closed
+  persistence errors. This is independently tested from the deployment-wide
+  25-source scheduler cap, preventing one tenant from consuming the whole
+  registry.
 
 ## Architectural discipline and technology — 30%
 
