@@ -1,0 +1,37 @@
+{
+  "displayName": "Driftline health check failing",
+  "userLabels": {
+    "app": "driftline",
+    "environment": "production",
+    "owner": "driftline"
+  },
+  "documentation": {
+    "content": "The isolated Driftline Cloud Run health endpoint has failed the multi-region uptime check. Verify Cloud Run revision health, Cloud Tasks backlog, and recent application logs in project driftline-hackathon-2026.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "Driftline /health is not passing",
+      "conditionThreshold": {
+        "filter": "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" resource.type=\"uptime_url\" resource.label.\"host\"=\"driftline-xvxczqg62a-uc.a.run.app\" metric.label.\"check_id\"=\"driftline-health-Hmxqs16MUkY\"",
+        "comparison": "COMPARISON_LT",
+        "thresholdValue": 1,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_FRACTION_TRUE",
+            "crossSeriesReducer": "REDUCE_MIN"
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ],
+  "combiner": "OR",
+  "alertStrategy": {
+    "autoClose": "1800s"
+  }
+}

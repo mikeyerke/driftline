@@ -57,6 +57,23 @@ Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
   in the public console; arbitrary competitor crawling and private source
   access are not claimed.
 
+## 2026-08-21 production liveness monitoring (live)
+
+- Cloud Monitoring uptime check `driftline-health`
+  (`projects/driftline-hackathon-2026/uptimeCheckConfigs/driftline-health-Hmxqs16MUkY`)
+  is configured for HTTPS `GET /health`, HTTP 200, the
+  `"status":"ok"` response marker, a five-minute period, ten-second timeout,
+  SSL validation, and three regions (USA Iowa, Europe, Asia Pacific).
+- Alert policy `Driftline health check failing`
+  (`17375876853888551854`) is enabled with the same Driftline labels and a
+  30-minute auto-close. It has no notification channel by design, so this
+  monitoring addition does not send email or external messages; operators can
+  inspect incidents in the isolated project.
+- The check and policy are reproducible from
+  `infra/monitoring/driftline-health-alert.json`. The first metric point may
+  take several minutes after creation; the authoritative configuration above
+  is already confirmed in Cloud Monitoring.
+
 ## 2026-08-21 fontless console performance release (live)
 
 - Source commit `02b2e41` passed the full 240-test suite, Ruff,

@@ -541,3 +541,11 @@ dispatches per second. A $10 monthly billing budget is filtered to this project 
 trial started 2026-08-18 and ends 2026-11-17; the full paid-account activation
 control is intentionally not enabled. See `docs/RESOURCE_INVENTORY.md` for
 the complete cleanup inventory and exact image digest.
+
+Cloud Monitoring also owns the production liveness check: `driftline-health`
+checks `/health` every five minutes from three regions and requires HTTP 200 plus
+the `"status":"ok"` response marker. The enabled `Driftline health check
+failing` alert policy auto-closes after 30 minutes and is intentionally scoped to
+this project; no notification channel or external messaging destination is
+configured by default. The check and policy are reproducible from
+`infra/monitoring/driftline-health-alert.json` and the resource inventory.
