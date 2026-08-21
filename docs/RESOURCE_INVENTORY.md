@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T10:41:20Z` with the active gcloud project set to
+Checked `2026-08-21T10:50:12Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00098-hmc` at 100% traffic.
+  `driftline-00099-ztd` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,20 @@ Checked `2026-08-21T10:41:20Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 tenant-switch isolation release (live)
+
+- Source commit `330a534` was deployed by Cloud Build
+  `ff3ee862-47d1-4677-a962-0e720d91e9b0` (`SUCCESS`) as Cloud Run revision
+  `driftline-00099-ztd` at 100% traffic.
+- Tenant switches and sign-out now clear the previous workflow, job, source
+  selection, decision routes, and connector context from the browser before a
+  new tenant can act. The connector panel also clears its aggregate read state
+  whenever the tenant ID changes.
+- The deployed browser completed a fresh competitor pricing scan with Gemini
+  structured analysis, four evidence-bound artifacts, the deterministic human
+  gate, no browser alerts, and no horizontal overflow. `/health` and the
+  production verifier passed; the local suite remains 242 tests passed.
 
 ## 2026-08-21 authenticated connector context release (live)
 
