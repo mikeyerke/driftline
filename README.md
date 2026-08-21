@@ -519,6 +519,7 @@ evidence and remaining unmeasured customer outcomes.
 - GitHub: https://github.com/mikeyerke/driftline
 - Demo video: held while the product is being pressure-tested; do not submit this draft yet
 - Architecture: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
+- Judge scorecard: https://github.com/mikeyerke/driftline/blob/main/docs/JUDGE_SCORECARD.md
 - Verified rules: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
 - Cloud inventory: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
 - Pilot packet: https://github.com/mikeyerke/driftline/blob/main/docs/PILOT_PACKET.md

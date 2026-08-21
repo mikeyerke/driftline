@@ -5,6 +5,7 @@
 - Hosted application: https://driftline-xvxczqg62a-uc.a.run.app/
 - Public source repository: https://github.com/mikeyerke/driftline
 - Architecture diagram: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
+- Judge scorecard: https://github.com/mikeyerke/driftline/blob/main/docs/JUDGE_SCORECARD.md
 - Cloud/resource evidence: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
 - Rules and eligibility evidence: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
 - Demonstration video: held for final owner review; no upload or submission has been made
