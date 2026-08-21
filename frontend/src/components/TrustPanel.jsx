@@ -33,7 +33,7 @@ export default function TrustPanel({ actionRecord }) {
         <div><Server size={18} /><strong>Google Cloud</strong><small>Cloud Run · Firestore · Cloud Tasks</small></div>
         <div><ShieldCheck size={18} /><strong>Deterministic gate</strong><small>Agent cannot approve; writes require the human gate</small></div>
         <div><LockKeyhole size={18} /><strong>Evidence binding</strong><small>Every packet carries its source hash</small></div>
-        <div><Scale size={18} /><strong>Bounded actions</strong><small>{jiraWasWritten ? jiraTrustLabel : "Prepared packets; signed operator required for writes"}</small></div>
+        <div><Scale size={18} /><strong>Bounded actions</strong><small>{jiraWasWritten ? jiraTrustLabel : "Review-ready packets; signed operator required for writes"}</small></div>
       </div>
       <div className="ops-pulse" aria-label="Live operational pulse">
         <div className="ops-pulse-heading"><strong>Live operational pulse</strong><span>{ops ? `Refreshed ${new Date(ops.generated_at).toLocaleTimeString()}` : "Reading deployment telemetry…"}</span></div>

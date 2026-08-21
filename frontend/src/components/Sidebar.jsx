@@ -22,7 +22,7 @@ export default function Sidebar({ selected, onSelect }) {
       </nav>
       <button className="profile" type="button">
         <span className="avatar">DO</span>
-        <span><strong>Demo operator</strong><small>Synthetic workspace</small></span>
+        <span><strong>Public demo lane</strong><small>Production · packet-safe</small></span>
         <ChevronDown size={16} />
       </button>
     </aside>
