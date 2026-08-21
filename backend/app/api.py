@@ -769,7 +769,9 @@ def _enforce_workflow_tenant(
 ) -> None:
     """Prevent a signed operator from acting on another tenant's workflow."""
     scope = approval_identity.get("scope")
-    if scope == "sandbox_packet_only":
+    # Keep accepting the legacy value for persisted/local identities, but use
+    # the production-facing name for all new public decisions.
+    if scope in {"public_packet_only", "sandbox_packet_only"}:
         if state.tenant_id is not None:
             raise HTTPException(
                 status_code=403,
@@ -995,8 +997,8 @@ def _verify_approval_mode(
 ) -> dict[str, str]:
     """Bound public decisions to an explicit demo or signed approval mode.
 
-    The public judge console intentionally runs in ``demo`` mode and creates
-    sandbox packets only. A configured operator lane can use a Google OIDC
+    The public console intentionally runs in ``demo`` mode and creates
+    packet-only outputs. A configured operator lane can use a Google OIDC
     identity for the allowlisted operator email, or an HMAC token generated
     from the dedicated approval secret as an isolated break-glass path;
     unsigned public names are rejected before the workflow policy engine runs.
@@ -1023,7 +1025,7 @@ def _verify_approval_mode(
         return {
             "mode": "demo",
             "identity": "named_demo_actor",
-            "scope": "sandbox_packet_only",
+            "scope": "public_packet_only",
             "tenant_id": principal.tenant_id,
             "role": principal.role,
         }
