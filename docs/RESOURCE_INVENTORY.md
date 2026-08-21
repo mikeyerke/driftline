@@ -3212,3 +3212,13 @@ is no longer needed.
   middleware-generated token URLs; those records are not retroactively
   rewritten. New requests no longer copy header credentials into the query
   string, and the middleware now resolves them through request-scoped memory.
+- A fresh secured tenant scan on revision `driftline-00065-rw4` returned HTTP
+  200, reached `needs_approval`, and persisted workflow
+  `8548fc6c-35e8-4aa8-b908-19532b8d11e4` with `source_id=public/pricing`,
+  `run_mode=tenant_demo`, `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, and exactly the two allowlisted tool calls
+  `inspect_source_change` and `get_workflow_state`. No approval or connector
+  write was invoked in this security canary.
+- A post-canary error query for the active revision returned zero entries, and
+  a token-pattern scan of the new revision's request logs returned zero
+  matches.
