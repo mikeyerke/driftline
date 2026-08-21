@@ -19,7 +19,7 @@ from statistics import median
 from threading import Lock
 from time import monotonic
 from typing import Any, Literal
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlencode
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -246,7 +246,17 @@ async def secure_get_auth(request: Request, call_next):
         pairs = parse_qsl(
             request.scope.get("query_string", b"").decode(), keep_blank_values=True
         )
-        if {key for key, _value in pairs} & {"approval_token", "identity_token"}:
+        sensitive_keys = {"approval_token", "identity_token"}
+        if {key for key, _value in pairs} & sensitive_keys:
+            # Uvicorn's access logger reads the mutable ASGI scope. Replace
+            # credential values before returning the rejection so a hostile
+            # query token cannot be retained in the request line itself.
+            request.scope["query_string"] = urlencode(
+                [
+                    (key, "[redacted]" if key in sensitive_keys else value)
+                    for key, value in pairs
+                ]
+            ).encode()
             return JSONResponse(
                 {"detail": "Query authentication is disabled; use request headers."},
                 status_code=400,
