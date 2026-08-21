@@ -137,20 +137,22 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `8166f64`, Cloud Build
-  `0487bcd0-0798-4d8a-8ae9-e105aa3384a1`, and Cloud Run revision
-  `driftline-00120-xnw` at 100% traffic. It passed 248 backend tests, Ruff,
-  the frontend production build, and isolated deployment probes. The console
-  now reads only the visible bounded source-history page and overlaps the five
-  allowlisted monitor ledgers, reducing direct cold-path registry/memory reads
-  to approximately 0.94s/0.91s while preserving the append-only and tenant
-  boundaries. `/health` is explicitly `Cache-Control: no-store`.
-  The current live proofs created jobs `job-bf4c55cea0f1` and
-  `job-f198ece08fb3`, proving Google ADK + Gemini 3.5 Flash, the two
-  allowlisted tools, the deterministic `needs_approval` gate, persisted packet,
-  and reversible undo with both external-write flags false. A direct anonymous
-  `POST /api/agent/run` on this exact revision also returned `persisted=true`,
-  structured Gemini analysis and Decision Copilot policy `pass`. The console
+- The current active release is source commit `5f6833b`, Cloud Build
+  `a3f2539a-a6df-4696-9e7d-6a29a5c4506a`, and Cloud Run revision
+  `driftline-00122-kqq` at 100% traffic. It passed 248 backend tests, Ruff,
+  the frontend production build, and isolated deployment probes. Below-fold
+  history, monitor freshness, multimodal evidence, change memory, value
+  proof, run history, and deployment telemetry now defer until their panels
+  approach the viewport; logged-out desktop/mobile QA observed six initial
+  requests, truthful deferred copy, successful scroll-triggered loading, no
+  console messages, and no document overflow. Lighthouse navigation passed
+  100 for accessibility, best practices, SEO, and agentic browsing on both
+  desktop and mobile. The current live proofs created jobs
+  `job-2f8c3dee0d57` and `job-657e0e6abe70`, proving Google ADK + Gemini 3.5
+  Flash, the two allowlisted tools, the deterministic `needs_approval` gate,
+  persisted packet, and reversible undo with both external-write flags false.
+  A direct anonymous `POST /api/agent/run` on this exact revision also
+  persisted a new workflow with five audit events. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
   expose a signed aggregate pilot-measurement flow without claiming customer

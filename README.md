@@ -496,18 +496,20 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `8166f64`, Cloud Build
-`0487bcd0-0798-4d8a-8ae9-e105aa3384a1`, and Cloud Run revision
-`driftline-00120-xnw` at 100% traffic. GitHub Actions run `32495446128` passed
-248 backend tests, Ruff, the frontend production build, a standalone image
-build, and repository-hygiene checks. Direct live proofs on this revision
-verified Google ADK + Gemini 3.5 Flash, the allowlisted tool trace, the
-deterministic approval gate, persisted packet/undo behavior, and the direct
-`/api/agent/run` path; the public lane made no external connector writes.
-The monitor registry and change-memory endpoints now use bounded concurrent
-history reads so their direct cold-path responses remain under one second in
-the current deployment. See [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md)
-for the exact evidence and remaining unmeasured customer outcomes.
+The current serving release is source commit `5f6833b`, Cloud Build
+`a3f2539a-a6df-4696-9e7d-6a29a5c4506a`, and Cloud Run revision
+`driftline-00122-kqq` at 100% traffic. Its immutable image digest is
+`sha256:4c0d71f23c60da50b24409665b36a04abc452f49573e24bd336eb10cf08cbfaf`.
+GitHub Actions run `32497129930` passed 248 backend tests, Ruff, the frontend
+production build, a standalone image build, and repository-hygiene checks.
+Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
+Flash, the allowlisted tool trace, the deterministic approval gate, persisted
+packet/undo behavior, and the direct `/api/agent/run` path; the public lane
+made no external connector writes. Below-fold history, monitor freshness,
+multimodal evidence, change memory, value proof, run history, and deployment
+telemetry now load on approach rather than competing with first paint. See
+[`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md) for the exact
+evidence and remaining unmeasured customer outcomes.
 
 ## Public links
 

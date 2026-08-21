@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T15:10:10Z` with the active gcloud project set to
+Checked `2026-08-21T15:31:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00120-xnw` at 100% traffic. Its immutable serving image is
-  `sha256:a121db3bc7eecbab04c4ec0d884bf61ab77f14ca52bf96f1ef5961ba4d1ef619`.
+  `driftline-00122-kqq` at 100% traffic. Its immutable serving image is
+  `sha256:4c0d71f23c60da50b24409665b36a04abc452f49573e24bd336eb10cf08cbfaf`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -27,6 +27,42 @@ Checked `2026-08-21T15:10:10Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 below-fold request deferral release (live)
+
+- Source commit `5f6833b` (`Clarify deferred panel states`) was deployed by
+  Cloud Build `a3f2539a-a6df-4696-9e7d-6a29a5c4506a` (`SUCCESS`, about 3m29s)
+  as Cloud Run revision `driftline-00122-kqq` at 100% traffic. The active
+  gcloud project remained `driftline-hackathon-2026`; no existing project was
+  targeted.
+- The console now defers below-fold source history, monitor freshness, visual
+  evidence, change memory, value proof, run history, and deployment telemetry
+  reads until their panels approach the viewport. Logged-out Chrome QA on the
+  public alias observed six initial requests (document, JS, CSS, auth config,
+  sources, favicon), then loaded the bounded reads after scrolling into view.
+  Deferred copy stayed truthful before loading; after the panels entered view,
+  all five source cards reported `Healthy`, and no application alert appeared.
+- Desktop and mobile browser checks found no console messages or document
+  overflow. At 390x844, body and document widths both equaled 390px; a
+  sequential scroll through every deferred panel loaded the ledger, visual
+  evidence, memory, value proof, run history, and trust telemetry successfully.
+  Lighthouse navigation audits passed 100 for accessibility, best practices,
+  SEO, and agentic browsing on both desktop and mobile (53/53 checks, zero
+  failures).
+- The independent local gate passed 248 backend tests, Ruff, and the frontend
+  production build. GitHub Actions run `32497129930` passed for `5f6833b`.
+- `scripts/verify_production.sh` passed on this revision with zero recent Cloud
+  Run errors. `scripts/verify_live_agent.sh` created job
+  `job-2f8c3dee0d57` / workflow `8ee00767-b885-4a60-894f-91be0448b6ea` and
+  proved `needs_approval`, `public_source`, `gemini-3.5-flash`, Google ADK,
+  both allowlisted tools, four artifacts, five audit events, and two Decision
+  Copilot options. `scripts/verify_public_approval_undo.sh` created job
+  `job-657e0e6abe70` / workflow `99cb5f0a-81f0-4de8-bf20-6eee0c64effe` and
+  proved persisted packet -> reversal with both external-write flags false.
+- A direct anonymous `POST /api/agent/run` also persisted a new
+  `public_source` Google ADK/Gemini workflow
+  `4e3e048f-9488-4db4-89e0-bd568604fe71` with five audit events. The public
+  lane made no external connector write.
 
 ## 2026-08-21 bounded read performance release (live)
 
