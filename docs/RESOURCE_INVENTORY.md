@@ -3255,3 +3255,25 @@ is no longer needed.
   human approval gate. No external connector write was attempted. This proves
   the public judge path is a live ADK/Gemini product experience with
   packet-only safety, not a static front-end mock.
+
+## 2026-08-21 partial-agent monitor recovery (live)
+
+- Source commit `1e763fd` (`Preserve workflows after partial agent turns`) and
+  follow-up commit `f17cc07` (`Recover workflows after monitor retries`) passed
+  the complete 233-test suite, Ruff, frontend production build, and diff checks.
+  The runtime now recovers a workflow ID from the ADK turn context and, if a
+  transient model failure occurs after source inspection, attaches the newest
+  exact-source workflow to the durable job instead of advancing the baseline
+  and losing the approval work.
+- Cloud Build `0208c362-95d8-44bc-b373-5e8b9b53bb86` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00068-48k` at 100% traffic. The image
+  digest is
+  `sha256:6b946e0bfe5bd99491935e49247b11d29c2d4b8998b56ae6957e1632c2f10c0b`.
+- After a harmless README source update, Scheduler created monitor job
+  `job-d8819695c976`. The job reached `needs_approval` with
+  `workflow_id=232dcd43-1ce5-487f-a50c-f44cc70b4c81`,
+  `source_id=custom/driftline-readme`, tenant `driftline-demo`,
+  `model=gemini-3.5-flash`, and `execution_mode=google_adk`. Its durable
+  response explicitly records that evidence was preserved after a bounded
+  agent retry; the linked workflow is `needs_approval` with the new snapshot
+  hash. No external connector write was attempted.
