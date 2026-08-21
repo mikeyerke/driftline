@@ -430,7 +430,7 @@ def packet_markdown(state: WorkflowState) -> str:
         f"- Source ID: `{evidence.source_id if evidence else 'unknown'}`",
         f"- Evidence hash: `{evidence.evidence_hash if evidence else 'none'}`",
         f"- Data mode: `{state.data_mode}`",
-        "- External systems changed: **No** (sandbox output)",
+        "- External systems changed: **No** (isolated public-demo output)",
         f"- Firestore action record: `{(state.action_record or {}).get('action_id', 'none')}`",
         f"- Action status: `{(state.action_record or {}).get('status', 'none')}`",
         f"- Google Cloud operational output: `{(state.action_record or {}).get('operational_side_effect', 'not yet published')}`",
