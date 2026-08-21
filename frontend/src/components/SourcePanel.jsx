@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle2, ExternalLink, Globe2, Hash, History, ShieldC
 import { getSourceHistory, registerSource } from "../api";
 import MultimodalEvidencePanel from "./MultimodalEvidencePanel";
 
-export default function SourcePanel({ evidence, dataMode, sources = [], sourceHealth = [], selectedSource, onSourceChange, operatorSession, onRegistered }) {
+export default function SourcePanel({ evidence, dataMode, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered }) {
   const isPublic = dataMode === "public_source";
   const [history, setHistory] = useState([]);
   const [showRegister, setShowRegister] = useState(false);
@@ -71,9 +71,11 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
           <div className="registry-health-grid">
             {sources.map((source) => {
               const health = healthById[source.source_id];
-              const status = health?.status || "needs_baseline";
-              const statusLabel = status.replaceAll("_", " ");
-              const freshness = health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
+              const loading = sourceHealthState === "loading";
+              const unavailable = sourceHealthState === "unavailable";
+              const status = loading ? "checking" : unavailable ? "unavailable" : health?.status || "needs_baseline";
+              const statusLabel = loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status.replaceAll("_", " ");
+              const freshness = loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
               const nextDue = health?.next_due_at ? `Next due ${new Date(health.next_due_at).toLocaleString()}` : `Cadence ${source.cadence || "scheduled"}`;
               return <div className={`registry-health-card ${status}`} key={source.source_id}><span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span><strong>{source.name}</strong><small>{freshness}</small><small>{nextDue}</small></div>;
             })}

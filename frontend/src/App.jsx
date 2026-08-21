@@ -62,6 +62,7 @@ export default function App() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [sources, setSources] = useState([]);
   const [sourceHealth, setSourceHealth] = useState([]);
+  const [sourceHealthState, setSourceHealthState] = useState("loading");
   const [selectedSource, setSelectedSource] = useState("public/pricing");
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
   const modalRef = useRef(null);
@@ -116,17 +117,29 @@ export default function App() {
     }
   };
 
+  const refreshSourceHealth = async () => {
+    setSourceHealthState("loading");
+    try {
+      const payload = await getMonitorRegistry();
+      setSourceHealth(payload.sources || []);
+      setSourceHealthState("ready");
+    } catch {
+      setSourceHealth([]);
+      setSourceHealthState("unavailable");
+    }
+  };
+
   useEffect(() => {
     refreshHistory();
     getSources().then((payload) => setSources(payload.sources || [])).catch(() => setSources([]));
-    getMonitorRegistry().then((payload) => setSourceHealth(payload.sources || [])).catch(() => setSourceHealth([]));
+    refreshSourceHealth();
   }, []);
 
   useEffect(() => subscribeOperatorSession((next) => {
     setOperatorSession(next);
     refreshHistory();
     getSources().then((payload) => setSources(payload.sources || [])).catch(() => setSources([]));
-    getMonitorRegistry().then((payload) => setSourceHealth(payload.sources || [])).catch(() => setSourceHealth([]));
+    refreshSourceHealth();
   }), []);
 
   const selectNav = (label) => {
@@ -360,7 +373,7 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} sourceHealth={sourceHealth} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onRegistered={(payload) => { if (payload?.source?.source_id) setSelectedSource(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); getMonitorRegistry().then((next) => setSourceHealth(next.sources || [])).catch(() => {}); }} />
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onRegistered={(payload) => { if (payload?.source?.source_id) setSelectedSource(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel />
           <ValueProofPanel />
           <PilotMeasurementPanel operatorSession={operatorSession} />
