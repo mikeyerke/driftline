@@ -3190,3 +3190,25 @@ is no longer needed.
   Google OIDC remains enabled and the anonymous lane remains `packet_only`.
 - The operator run-history UI now displays the durable source ID alongside
   each monitor/scan run, so source identity is visible without opening logs.
+
+## 2026-08-21 request-auth log hardening (live)
+
+- Source commit `795fd25` (`Keep operator tokens out of request URLs`) passed
+  GitHub Actions run `32451977898` (`success`) with 231 backend tests, Ruff,
+  frontend production build, and standalone image build.
+- Cloud Build `1ab60ce7-1adb-4739-94fc-7211244bfdb3` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00065-rw4` at 100% traffic. The image
+  digest is
+  `sha256:652261c030b20dc80c3253e74fd31c056a0e23dc55e31cf9a925af7f3850df8e`.
+  The active runtime explicitly sets `DRIFTLINE_REJECT_QUERY_AUTH=true` and
+  `DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY=true`.
+- A live header-authenticated signed source read returned HTTP 200 and six
+  sources, including `custom/driftline-readme`. A GET containing a fake query
+  token returned HTTP 400 with the fail-closed guidance. A bounded Cloud
+  Logging query for the new revision after the header-authenticated request
+  found zero token-shaped URL fields (`identity_token`, `approval_token`,
+  bearer/JWT patterns).
+- Historical access logs from before this release may retain the earlier
+  middleware-generated token URLs; those records are not retroactively
+  rewritten. New requests no longer copy header credentials into the query
+  string, and the middleware now resolves them through request-scoped memory.
