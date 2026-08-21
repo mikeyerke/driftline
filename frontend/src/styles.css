@@ -367,10 +367,10 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .operator-access { flex: 0 0 auto; }
   .operator-access > div { flex: 0 0 190px; }
   .run-hint { display: none; }
-  /* Keep all five impact stages legible instead of forcing a hidden
-     horizontal scroll inside a narrow right-hand card. The decision panel
-     remains beside the main column, while evidence and the graph read as a
-     clear top-to-bottom story. */
+  /* Keep all five impact stages legible. At this width the approval panel
+     would squeeze the evidence graph into a narrow rail, so let the map and
+     decision surface each use the full content width. */
+  .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
   .upper-grid { grid-template-columns: 1fr; }
 }
 

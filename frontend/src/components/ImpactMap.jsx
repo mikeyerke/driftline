@@ -179,6 +179,7 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
   const focusInstruction = focusedNode
     ? `${Math.max(0, focusedIds.size - 1)} connected nodes · ${connectorStats.reduce((sum, connector) => sum + connector.active, 0)} links in focus`
     : `${displayEdges.length} evidence links · select a node to trace the work`;
+  const linkLabel = (count) => `${count} ${count === 1 ? "link" : "links"}`;
 
   const selectNode = (node) => {
     setFocusedNodeId(node.id);
@@ -207,7 +208,7 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
               </div>
               {index < displayColumns.length - 1 && <div className={`impact-graph-connector${focusedNodeId ? " focused" : ""}`} aria-hidden="true">
                 <ArrowRight className="impact-graph-arrow" size={17} />
-                <span>{focusedNodeId ? `${connectorStats[index].active}/${connectorStats[index].total} linked` : `${connectorStats[index].total} links`}</span>
+                <span>{focusedNodeId ? `${connectorStats[index].active}/${connectorStats[index].total} linked` : linkLabel(connectorStats[index].total)}</span>
               </div>}
             </div>
           );
