@@ -38,7 +38,7 @@ export default function ValueProofPanel() {
   return (
     <section className="panel value-proof-panel" aria-labelledby="value-proof-title">
       <header className="panel-header">
-        <div><h2 id="value-proof-title"><Gauge size={17} />Value proof</h2><span className="live-label">Public sandbox records</span></div>
+        <div><h2 id="value-proof-title"><Gauge size={17} />Value proof</h2><span className="live-label">Observed demo telemetry</span></div>
         <span className="muted">Operational utility, not invented ROI</span>
       </header>
       {loading && <p className="multimodal-empty"><Activity size={15} className="spin" />Reading bounded deployment evidence…</p>}

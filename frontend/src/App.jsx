@@ -266,7 +266,7 @@ export default function App() {
           <h1>Driftline promise drift operations</h1>
           <div className="topbar-actions">
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
-            <span className="workspace-button">Evaluation sandbox<ChevronDown size={15} /></span>
+            <span className="workspace-button">Production control plane<ChevronDown size={15} /></span>
             <span className="run-hint">{runHint}</span>
             <button className="primary" onClick={runScan} disabled={scanning} type="button">
               <Play size={17} />{scanning ? "Running…" : "Run scan"}
@@ -275,7 +275,7 @@ export default function App() {
         </header>
 
         <div className="content">
-        <div className="workspace-banner"><strong>Evaluation sandbox</strong><span>Own + competitor public signals · offering impact graph · deterministic human gate</span><span className="banner-status">{liveWorkflow ? "Live workflow" : "Preview only"}</span></div>
+        <div className="workspace-banner"><strong>Production control plane</strong><span>Public demo safety mode · allowlisted signals · deterministic human gate</span><span className="banner-status">{liveWorkflow ? "Live workflow" : "Packet-only demo"}</span></div>
           <section id="overview-section" className="overview-section">
             <p className="product-orientation">Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval.</p>
             <section className="incident-header">

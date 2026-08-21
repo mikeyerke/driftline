@@ -5,7 +5,7 @@ export default function TrustPanel({ actionRecord }) {
   const jiraTrustLabel = actionRecord?.jira_status === "reversed" ? "Scoped Jira handoff reversed; customer systems unchanged" : "One scoped Jira handoff; customer systems unchanged";
   return (
     <section className="panel trust-panel" id="settings-section">
-      <header className="panel-header"><div><h2>Trust and deployment posture</h2><span className="live-label">Evaluation sandbox</span></div><span className="muted">Production boundary is explicit</span></header>
+      <header className="panel-header"><div><h2>Trust and deployment posture</h2><span className="live-label">Production deployment</span></div><span className="muted">Public demo lane is isolated</span></header>
       <div className="trust-grid">
         <div><Server size={18} /><strong>Google Cloud</strong><small>Cloud Run · Firestore · Cloud Tasks</small></div>
         <div><ShieldCheck size={18} /><strong>Deterministic gate</strong><small>Agent cannot approve; writes require the human gate</small></div>
