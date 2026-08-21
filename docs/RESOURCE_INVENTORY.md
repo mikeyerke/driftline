@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T07:33:41Z` with the active gcloud project set to
+Checked `2026-08-21T07:47:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00078-2wq` at 100% traffic.
+  `driftline-00079-k8c` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,21 @@ Checked `2026-08-21T07:33:41Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 Google Identity CSP hardening release (live)
+
+- Source commit `8e2d617` passed 239 backend tests, Ruff, `git diff --check`,
+  and the frontend production build. Cloud Build
+  `21827537-3377-438d-869e-428ef3e1939b` completed `SUCCESS`; the image digest
+  is `sha256:d29afc2896c442c31638a7a0bc0e4df8a47d5383e61858735b7b6b5a3523b261`;
+  Cloud Run revision `driftline-00079-k8c` serves 100% of traffic.
+- The production CSP now explicitly permits the Google Identity Services
+  stylesheet origin used by the operator sign-in control. This removes a
+  browser-level stylesheet violation while keeping scripts, frames, and
+  connections restricted to the required Google origin.
+- The deployed auth client is still pending replacement with a new OAuth client
+  created inside this isolated project; the current `32555940559...` value is
+  retained only until that action is completed and live sign-in is reverified.
 
 ## 2026-08-21 scheduler deduplication release (live)
 

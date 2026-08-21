@@ -134,9 +134,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `bc811b0`, Cloud Build
-  `cd102932-84da-4243-8625-9fe345570c95`, and Cloud Run revision
-  `driftline-00078-2wq` at 100% traffic. It passed 239 backend tests, Ruff,
+- The current active release is source commit `8e2d617`, Cloud Build
+  `21827537-3377-438d-869e-428ef3e1939b`, and Cloud Run revision
+  `driftline-00079-k8c` at 100% traffic. It passed 239 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -147,6 +147,9 @@ created during the contest.
   The scheduled monitor also deduplicates queued/running source jobs across
   duplicate deliveries and reports explicit in-flight no-ops instead of
   creating duplicate model work.
+  The current release also includes the CSP fix for the Google Identity
+  Services stylesheet; replacing the legacy OAuth client with a new client
+  owned by this isolated project remains the final operator-auth gate.
 - An earlier live rollout (`driftline-00037-6t9`, source `bb8a437`, Cloud Build
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
