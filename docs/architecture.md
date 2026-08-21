@@ -12,7 +12,7 @@ flowchart TD
     W --> E[Evidence, impact map, draft state]
     E --> G{Deterministic policy gate}
     G --> H[Named human decision]
-    H --> P[Bounded sandbox packet + owner action items]
+    H --> P[Bounded change packet + owner action items]
     E --> CC[Change Card: materiality, exposure, role packets, closure]
     CC --> H
     W --> F[(Firestore jobs, workflow + audit events)]
@@ -112,7 +112,7 @@ and GitHub handoff manifests. A human can claim and complete an item
 without granting the model any write authority; the lifecycle is
 `queued → claimed → completed` and is compare-and-set protected. Undo changes
 the action record and every item to `reversed` and reopens the gate. Each approved
-sandbox packet and the approved operational output are written to the isolated,
+change packet and the approved operational output are written to the isolated,
 versioned Cloud Storage bucket; undo writes separate rollback markers. These
 objects are private and are referenced by `gs://` URI in the action record.
 Not every verified change should create downstream work. A named human can
@@ -133,7 +133,7 @@ Hosted operator history, change memory, ops summary, and value-proof metrics
 merge the disposable instance cache with bounded Firestore history on every
 read. A warm Cloud Run instance therefore cannot under-report records created
 by a previous instance. The public console's Value proof panel intentionally
-uses the anonymous lane and shows only tenantless sandbox records; it does not
+uses the anonymous lane and shows only tenantless public-demo records; it does not
 present those counts as customer traction. Signed tenant operators receive an
 exact-tenant value-proof scope through the API, with deployment-wide fixtures
 excluded from their metrics.

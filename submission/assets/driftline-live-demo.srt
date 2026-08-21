@@ -8,7 +8,7 @@ Live Cloud Run workflow: Gemini 3.5 Flash + Google ADK inspect an allowlisted so
 
 3
 00:00:18,000 --> 00:00:31,000
-The approval creates a reversible Firestore sandbox packet and a versioned private Cloud Storage artifact.
+The approval creates a reversible Firestore change packet and a versioned private Cloud Storage artifact.
 
 4
 00:00:31,000 --> 00:00:40,000
