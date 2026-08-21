@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T10:26:09Z` with the active gcloud project set to
+Checked `2026-08-21T10:41:20Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00097-rdn` at 100% traffic.
+  `driftline-00098-hmc` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,22 @@ Checked `2026-08-21T10:26:09Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 authenticated connector context release (live)
+
+- Source commit `0a22b9d` was deployed by Cloud Build
+  `8f799fba-8cbb-4ab8-986b-d69b8cb5f309` (`SUCCESS`) as Cloud Run revision
+  `driftline-00098-hmc` at 100% traffic.
+- The signed operator console now exposes an explicit **Refresh context**
+  control beside the handoff destinations. It performs a request-scoped,
+  aggregate-only read of connector context and binding health before an
+  operator approves a downstream action; raw records and credentials never
+  enter the browser.
+- The anonymous lane remains unchanged and packet-safe. A fresh deployed
+  browser run completed the competitor pricing scan with `gemini_structured`,
+  four evidence-bound surfaces, and no browser alerts or horizontal overflow.
+- `/health`, the production verifier, local tests (242 passed), Ruff, the
+  frontend production build, and `git diff --check` all passed.
 
 ## 2026-08-21 trust copy and connector-status clarity release (live)
 
