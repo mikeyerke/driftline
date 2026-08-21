@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `251fa68`, Cloud Build
-  `44eb8716-68e9-45be-890c-b17843de78dd`, and Cloud Run revision
-  `driftline-00102-ktk` at 100% traffic. It passed 243 backend tests, Ruff,
+- The current active release is source commit `19fc1e2`, Cloud Build
+  `0e2f0979-d355-4f4d-8069-eac5bf8c666d`, and Cloud Run revision
+  `driftline-00103-p6d` at 100% traffic. It passed 243 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -160,8 +160,8 @@ created during the contest.
   account consent and tenant-token issuance is an external identity step, not
   a claim of authenticated customer data.
   A fresh identity-free `scripts/verify_live_agent.sh` run against that exact
-  revision created job `job-850ac743c8af` / workflow
-  `56cc8d5c-20df-469f-8628-706cca1de3c5` and directly proved the live
+  revision created job `job-35d0bad97d36` / workflow
+  `8aea1601-0a83-4763-9b44-aa2ea73b2ad1` and directly proved the live
   `gemini-3.5-flash` + Google ADK path, structured analysis, both allowlisted
   tools, four artifacts, five audit events, and the deterministic
   `needs_approval` gate. The script is checked in so judges can reproduce the
@@ -173,9 +173,9 @@ created during the contest.
   change-to-action loop, not a claim of an external connector write.
   The public scan endpoint also deduplicates an in-flight source job, so a
   refresh cannot queue duplicate Gemini work behind the one-concurrent Cloud
-  Tasks worker. A live second request reused job `job-77ca8e415b01` and
-  returned `deduplicated=true`; the subsequent live verifier reached the
-  human gate through Gemini 3.5 Flash and Google ADK.
+  Tasks worker. A fresh live second request for `public/terms` reused job
+  `job-f19c5ab37d65` and returned `deduplicated=true`; the subsequent live
+  verifier reached the human gate through Gemini 3.5 Flash and Google ADK.
   It also includes a recoverable frontend error boundary so a render failure
   cannot present a blank console or imply that persisted workflow state was
   lost.

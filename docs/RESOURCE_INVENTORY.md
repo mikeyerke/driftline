@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T11:39:29Z` with the active gcloud project set to
+Checked `2026-08-21T11:46:33Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00102-ktk` at 100% traffic.
+  `driftline-00103-p6d` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,23 @@ Checked `2026-08-21T11:39:29Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 public scan race-closure release (live)
+
+- Source commit `19fc1e2` was deployed by Cloud Build
+  `0e2f0979-d355-4f4d-8069-eac5bf8c666d` (`SUCCESS`) as Cloud Run revision
+  `driftline-00103-p6d` at 100% traffic.
+- The public deduplication check, quota reservation, and enqueue now share a
+  process-local critical section, closing the concurrent refresh race while
+  durable Firestore job claims continue to protect cross-instance deliveries.
+- A fresh live pair for `public/terms` returned the same job
+  `job-f19c5ab37d65`; the second response explicitly returned
+  `deduplicated=true`. `scripts/verify_production.sh` passed with zero recent
+  Cloud Run errors.
+- The live agent verifier then proved job `job-35d0bad97d36` / workflow
+  `8aea1601-0a83-4763-9b44-aa2ea73b2ad1` reached `needs_approval` through
+  Gemini 3.5 Flash and Google ADK with both allowlisted tools, four artifacts,
+  and five audit events.
 
 ## 2026-08-21 public scan deduplication release (live)
 
