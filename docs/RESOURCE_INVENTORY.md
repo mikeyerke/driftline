@@ -12,17 +12,19 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T16:49:00Z` with the active gcloud project set to
+Checked `2026-08-21T17:00:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00126-zgv` at 100% traffic. Its immutable serving image is
-  `sha256:132a91d8d9c26cf196cc98a88a91e7a4184d1c06209a4314d23cee3494fa179d`.
+  `driftline-00127-wf9` at 100% traffic. Its immutable serving image is
+  `sha256:2aa709595bc2c9f37e7fffe6e1c704501afa772145c9b2fda40968b323a7358d`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
+- The live production verifier also checks `Cache-Control: no-store` and the
+  fail-closed `Permissions-Policy` deny-list on both health and API responses.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
@@ -54,6 +56,22 @@ Checked `2026-08-21T16:49:00Z` with the active gcloud project set to
 - The full local gate passed 250 backend tests, Ruff, frontend production
   build, and diff hygiene. GitHub Actions run `32503511174` passed backend
   tests/lint, frontend build, standalone image build, and repository hygiene.
+
+## 2026-08-21 capability-policy hardening (live)
+
+- Source commit `887ceaa` was deployed by Cloud Build
+  `90eed893-e082-4724-85ca-39528f67107c` (`SUCCESS`) as Cloud Run revision
+  `driftline-00127-wf9` at 100% traffic. The immutable image digest is
+  `sha256:2aa709595bc2c9f37e7fffe6e1c704501afa772145c9b2fda40968b323a7358d`.
+- `Permissions-Policy` is now assigned unconditionally by the API middleware;
+  a route cannot widen the public browser capability deny-list. The production
+  verifier asserts the same deny-list and `Cache-Control: no-store` on health
+  and API responses. The local suite passed 252 tests, Ruff, and the frontend
+  production build; GitHub Actions run `32505563228` passed all jobs.
+- Fresh exact-revision proofs passed: live agent job `job-563c82fb47bf` /
+  workflow `e254512d-7085-46fd-94cd-7ed06175ada1`, and approval/undo job
+  `job-5b8e690aa57b` / workflow `1aae0abf-1cde-4783-884a-b0719718ff1b`.
+  The latter persisted and reversed the packet with external writes false.
 
 ## 2026-08-21 Google OIDC tenant-discovery fix (live)
 

@@ -109,21 +109,21 @@ product truth.
 
 ## Verified release evidence
 
-The current serving release is source commit `4610a22`, Cloud Build
-`c17c3151-54a3-430b-931f-036e1630b641`, and Cloud Run revision
-`driftline-00126-zgv` at 100% traffic in project `driftline-hackathon-2026`.
+The current serving release is source commit `887ceaa`, Cloud Build
+`90eed893-e082-4724-85ca-39528f67107c`, and Cloud Run revision
+`driftline-00127-wf9` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:132a91d8d9c26cf196cc98a88a91e7a4184d1c06209a4314d23cee3494fa179d`.
+`sha256:2aa709595bc2c9f37e7fffe6e1c704501afa772145c9b2fda40968b323a7358d`.
 
-- Local gate: 251 backend tests passed, Ruff passed, and the frontend
+- Local gate: 252 backend tests passed, Ruff passed, and the frontend
   production build passed (bundle 309.63 kB, gzip 91.55 kB).
-- CI: GitHub Actions run `32504592582` passed the backend suite, Ruff,
+- CI: GitHub Actions run `32505563228` passed the backend suite, Ruff,
   frontend build, standalone image build, and repository hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-cb310ff6bb06` / workflow
-  `12b67e30-9575-40fe-8061-ed65c98cd24a` returned `needs_approval`,
+- Live agent check: fresh job `job-563c82fb47bf` / workflow
+  `e254512d-7085-46fd-94cd-7ed06175ada1` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -135,8 +135,8 @@ The immutable image digest is
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-d4aa36eea2c1` / workflow
-  `a7a2b536-65ee-4ced-8e0d-d0d486eb1e90` persisted the packet, reversed the
+- Approval/undo check: fresh job `job-5b8e690aa57b` / workflow
+  `1aae0abf-1cde-4783-884a-b0719718ff1b` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Breadth check on the same serving revision: competitor offerings

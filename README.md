@@ -502,11 +502,11 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `4610a22`, Cloud Build
-`c17c3151-54a3-430b-931f-036e1630b641`, and Cloud Run revision
-`driftline-00126-zgv` at 100% traffic. Its immutable image digest is
-`sha256:132a91d8d9c26cf196cc98a88a91e7a4184d1c06209a4314d23cee3494fa179d`.
-GitHub Actions run `32504592582` passed 251 backend tests, Ruff, the frontend
+The current serving release is source commit `887ceaa`, Cloud Build
+`90eed893-e082-4724-85ca-39528f67107c`, and Cloud Run revision
+`driftline-00127-wf9` at 100% traffic. Its immutable image digest is
+`sha256:2aa709595bc2c9f37e7fffe6e1c704501afa772145c9b2fda40968b323a7358d`.
+GitHub Actions run `32505563228` passed 252 backend tests, Ruff, the frontend
 production build, a standalone image build, and repository-hygiene checks.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
