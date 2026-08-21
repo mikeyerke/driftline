@@ -4,8 +4,8 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `485fbf5`, Cloud Run `driftline-00129-ztr`, Cloud Build
-`65fc7d05-44a1-45e3-a54c-3b585c365a2c`, project
+Current release: source `453169b`, Cloud Run `driftline-00130-9cn`, Cloud Build
+`fbb439be-dbad-48f7-b203-feaaf96d4a54`, project
 `driftline-hackathon-2026`, 100% traffic.
 
 ## Innovation and operational utility — 40%
@@ -35,10 +35,10 @@ Current release: source `485fbf5`, Cloud Run `driftline-00129-ztr`, Cloud Build
   packet record, and timeline; the undo response persisted
   `action-63355af11e1c35cb5150` as `reversed` with all connector external-write
   flags false.
-- `scripts/verify_live_agent.sh`: fresh job `job-c853e401876b`, workflow
-  `0dc6a470-0c24-4a4f-b324-fd2d1a791045`, five audit events and four artifacts.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-1db4bc81b618`,
-  workflow `4f871b72-a35b-4958-9038-fb671a30933f`, packet persisted and
+- `scripts/verify_live_agent.sh`: fresh job `job-575414fcb95f`, workflow
+  `da2044fe-60ae-4cae-9d95-47a22ccf8761`, five audit events and four artifacts.
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-29d033086f51`,
+  workflow `46df9083-4ab9-4d96-821a-a9ebe6a359aa`, packet persisted and
   reversed with both external-write flags false. The verifier now also fails
   closed unless the approval journey carries structured Gemini impact/Decision
   Copilot options, passing deterministic policy review, and matching evidence
@@ -75,7 +75,7 @@ Current release: source `485fbf5`, Cloud Run `driftline-00129-ztr`, Cloud Build
   IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
   membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
-  `sha256:0347fe616951e5599950ae01dfb1108aac92dc3465e3d858b11fe2417229f9f7`.
+  `sha256:91d62c9823f66ed9360bc5d9397023094e736adf2c6e76a0bfb096ffab16f219`.
 - Signed isolated connector probes are documented in
   [`RESOURCE_INVENTORY.md`](RESOURCE_INVENTORY.md); the anonymous lane remains
   packet-only by design.
@@ -95,7 +95,7 @@ Current release: source `485fbf5`, Cloud Run `driftline-00129-ztr`, Cloud Build
 ### Live evidence
 
 - 252 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32508077541`.
+  and repository hygiene pass in GitHub Actions run `32509006811`.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).
 - At 390×844, body and document widths equal the viewport and the browser has no

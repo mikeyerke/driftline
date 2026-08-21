@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T17:30:29Z` with the active gcloud project set to
+Checked `2026-08-21T17:47:09Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00129-ztr` at 100% traffic. Its immutable serving image is
-  `sha256:0347fe616951e5599950ae01dfb1108aac92dc3465e3d858b11fe2417229f9f7`.
+  `driftline-00130-9cn` at 100% traffic. Its immutable serving image is
+  `sha256:91d62c9823f66ed9360bc5d9397023094e736adf2c6e76a0bfb096ffab16f219`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -32,26 +32,28 @@ Checked `2026-08-21T17:30:29Z` with the active gcloud project set to
 
 ## 2026-08-21 evaluation-boundary and proof-of-action polish (live)
 
-- Source commit `485fbf5` was deployed by Cloud Build
-  `65fc7d05-44a1-45e3-a54c-3b585c365a2c` (`SUCCESS`, 3m16s) as Cloud Run
-  revision `driftline-00129-ztr` at 100% traffic. The immutable image digest is
-  `sha256:0347fe616951e5599950ae01dfb1108aac92dc3465e3d858b11fe2417229f9f7`.
+- Source commit `453169b` was deployed by Cloud Build
+  `fbb439be-dbad-48f7-b203-feaaf96d4a54` (`SUCCESS`, 3m22s) as Cloud Run
+  revision `driftline-00130-9cn` at 100% traffic. The immutable image digest is
+  `sha256:91d62c9823f66ed9360bc5d9397023094e736adf2c6e76a0bfb096ffab16f219`.
 - The public banner and value-proof panel now call the lane what it is:
   pinned synthetic scenarios and evaluation-only deployment records, not
   customer usage or ROI. The approved state adds a compact proof-of-action
   receipt for the Firestore action, Cloud Storage persistence, rollback path,
   and external-write posture. The exact demo replay evidence label is also
   `Pinned synthetic fixture`, so the public source card cannot be mistaken for
-  a live customer or competitor feed.
+  a live customer or competitor feed. Decision Copilot citations now label
+  whether a quote is `Observed after` or `Prior baseline` rather than hiding
+  that distinction behind a generic citation label.
 - Local verification passed 252 backend tests, Ruff, `git diff --check`, and
   the frontend production build (`311.14 kB`, `91.90 kB` gzip). GitHub Actions
-  run `32508077541` passed the repository gates.
-- Fresh exact-revision live agent proof passed on job `job-c853e401876b` /
-  workflow `0dc6a470-0c24-4a4f-b324-fd2d1a791045` with `needs_approval`,
+  run `32509006811` passed the repository gates.
+- Fresh exact-revision live agent proof passed on job `job-575414fcb95f` /
+  workflow `da2044fe-60ae-4cae-9d95-47a22ccf8761` with `needs_approval`,
   `public_source`, Gemini 3.5 Flash, Google ADK, two allowlisted tools, four
   artifacts, five audit events, and two Decision Copilot options.
-- Fresh exact-revision approval/undo proof passed on job `job-1db4bc81b618` /
-  workflow `4f871b72-a35b-4958-9038-fb671a30933f`; the packet persisted, the
+- Fresh exact-revision approval/undo proof passed on job `job-29d033086f51` /
+  workflow `46df9083-4ab9-4d96-821a-a9ebe6a359aa`; the packet persisted, the
   operational output reversed, and both external-write flags were false.
 
 ## 2026-08-21 cadence-aware monitor release (live)
