@@ -46,6 +46,6 @@ export const demoEvidence = {
   confidence: 0.99,
   snapshot_label: "Synthetic competitor fixture · competitor/pricing",
   snapshot_hash: "108725c5f3faf839e5df6e74e3fdec606e62520c337ce858ffed5ae0f7a6e767",
-  source_url: "https://raw.githubusercontent.com/mikeyerke/driftline/main/fixtures/competitor-pricing-after.txt",
+  source_url: "https://raw.githubusercontent.com/mikeyerke/driftline/19fc1e2/fixtures/competitor-pricing-after.txt",
   data_mode: "synthetic_demo",
 };
