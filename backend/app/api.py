@@ -1595,6 +1595,30 @@ def _inflight_monitor_job_exists(
     )
 
 
+def _inflight_public_job(source_id: str) -> JobState | None:
+    """Return an active anonymous job for a source, if one is already queued."""
+    try:
+        with _jobs_lock:
+            candidates = list(_jobs.values())
+        candidates.extend(list_jobs(limit=50))
+    except Exception:
+        # The existing per-window agent quota remains the fallback guardrail if
+        # a transient Firestore read cannot inspect the history ledger.
+        logger.warning("Unable to inspect public in-flight jobs", exc_info=True)
+        return None
+    active = [
+        job
+        for job in candidates
+        if job.tenant_id is None
+        and job.run_mode == "demo"
+        and job.source_id == source_id
+        and job.status in {"queued", "running"}
+    ]
+    if not active:
+        return None
+    return max(active, key=lambda item: item.updated_at or item.created_at or "")
+
+
 @app.get("/health")
 def health() -> dict[str, str | bool]:
     return {
@@ -4251,6 +4275,14 @@ async def start_demo_job(
             status_code=422,
             detail="Operator-registered sources require run_mode=monitor",
         )
+    if request.run_mode == "demo" and tenant_id is None:
+        # The public console is packet-safe, but a refresh or double-click can
+        # otherwise add duplicate Gemini work behind the one-concurrent queue.
+        existing = _inflight_public_job(request.source_id)
+        if existing is not None:
+            payload = _job_payload(existing)
+            payload["deduplicated"] = True
+            return payload
     if not _reserve_agent_call(tenant_id):
         raise HTTPException(
             status_code=429,

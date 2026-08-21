@@ -1679,6 +1679,35 @@ def test_public_demo_job_uses_fixed_query_and_identity(monkeypatch) -> None:
     assert "allowlisted public/pricing change" in str(captured["query"])
 
 
+def test_public_demo_job_reuses_inflight_source_job(monkeypatch) -> None:
+    """A public refresh must not enqueue duplicate Gemini work."""
+    source_id = "public/terms"
+    existing = JobState(
+        job_id="job-public-inflight",
+        status="running",
+        run_mode="demo",
+        source_id=source_id,
+    )
+    api._set_job(existing)
+    monkeypatch.setattr(api, "list_jobs", lambda limit=50: [])
+    started = False
+
+    def fake_start_job(**kwargs):
+        nonlocal started
+        started = True
+        return JobState(job_id="job-should-not-start")
+
+    monkeypatch.setattr(api, "_start_job", fake_start_job)
+    response = client.post("/api/jobs/demo", json={"source_id": source_id})
+
+    with api._jobs_lock:
+        api._jobs.pop(existing.job_id, None)
+    assert response.status_code == 200
+    assert response.json()["job_id"] == existing.job_id
+    assert response.json()["deduplicated"] is True
+    assert started is False
+
+
 def test_signed_monitor_job_carries_authenticated_tenant(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
