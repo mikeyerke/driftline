@@ -2975,3 +2975,11 @@ is no longer needed.
   images were added: the two oldest exact digests were deleted, leaving 10
   versions including the active image and rollback candidates. Automatic
   cleanup remains enabled for future builds.
+- Final API smoke on revision `driftline-00054-zsp` created workflow
+  `de3f6c7f-4a59-4005-ad24-4968bf3a50c4`; it reached `needs_approval` with
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, and exactly
+  `inspect_source_change` plus `get_workflow_state` in the trace. Signed
+  public-demo approval persisted four evidence-bound packets with all
+  connector writes `prepared_only` and `external_write=false`; immediate
+  undo persisted the rollback marker and returned the workflow to
+  `needs_approval`. Current-revision logs remained free of `ERROR` entries.
