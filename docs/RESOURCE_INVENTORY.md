@@ -3293,3 +3293,20 @@ is no longer needed.
   query-token probe returned HTTP 400; subsequent Cloud Logging scans for the
   revision found zero `identity_token` query fields, zero request URLs
   containing that parameter, and zero `severity>=ERROR` entries.
+
+## 2026-08-21 tenant approval fail-closed guard (live)
+
+- Source commit `8cceefa` (`Fail closed when tenant copilot is unavailable`)
+  passed 235 backend tests, Ruff, the frontend production build, and diff
+  checks. Tenant workflows carrying a real ADK trace cannot be approved
+  without a reviewed decision-copilot option; recovered workflows now persist
+  an explicit unavailable marker, and the operator UI disables approval until
+  a new scan produces a reviewed option. Legacy packet-only synthetic workflows
+  remain compatible.
+- Cloud Build `8f2b9e64-8c4c-4dca-8e03-0f6a1d12f243` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00071-rhd` at 100% traffic. The image
+  digest is
+  `sha256:79749d28a2e61ec3ad72782b18c1252d611da712eed44231b2fa29ae2f97a82f`.
+- `/health`, `/api/auth/config`, and the public HTML title returned
+  successfully; the latest-revision Cloud Logging scan contained zero
+  `severity>=ERROR` entries.
