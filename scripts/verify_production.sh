@@ -31,6 +31,14 @@ read -r revision traffic < <(
 [[ -n "${revision}" && "${traffic}" == "100" ]]
 printf 'Cloud Run: %s (%s%% traffic)\n' "${revision}" "${traffic}"
 
+artifact_cleanup_dry_run="$(
+  gcloud artifacts repositories describe driftline \
+    --project="${expected_project}" --location="${region}" \
+    --format='value(cleanupPolicyDryRun)'
+)"
+[[ "${artifact_cleanup_dry_run}" == "False" ]]
+printf 'Artifact Registry: cleanup policy active (dry-run disabled)\n'
+
 health="$(curl --fail --silent --show-error --max-time 20 "${public_url}/health")"
 printf '%s\n' "${health}" | jq -e \
   '.status == "ok" and .persistence == "firestore" and .async_jobs == true' >/dev/null

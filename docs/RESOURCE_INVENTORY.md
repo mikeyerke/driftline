@@ -70,7 +70,8 @@ Checked `2026-08-21T14:37:36Z` with the active gcloud project set to
   was in the newest ten. Exactly 10 rollback candidates remain; the current
   displayed repository size is 7.67 GB while blob garbage collection catches
   up. The private Cloud Storage artifact bucket was also confirmed with the
-  Driftline production labels.
+  Driftline production labels. The production verifier now checks that the
+  repository cleanup policy remains active with dry-run disabled.
 
 ## 2026-08-21 Gemini structured-output resilience release (live)
 
