@@ -267,6 +267,47 @@ def test_available_tenants_is_identity_only_and_filters_disabled_memberships(mon
     assert payload["credential_values_exposed"] is False
 
 
+def test_available_tenants_accepts_bearer_identity_header(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "test-audience")
+    captured: dict[str, object] = {}
+
+    def verify(token, audience):
+        captured.update(token=token, audience=audience)
+        return {"email": "header@example.com", "sub": "subject-header"}
+
+    monkeypatch.setattr(api, "_verify_google_identity_claims", verify)
+    monkeypatch.setattr(
+        api,
+        "list_tenant_memberships_for_email",
+        lambda email: [
+            {
+                "tenant_id": "header-acme",
+                "email": email,
+                "role": "owner",
+                "status": "active",
+                "membership_id": "membership-header",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        api,
+        "load_tenant",
+        lambda tenant_id: {"tenant_id": tenant_id, "status": "active"},
+    )
+
+    response = client.get(
+        "/api/tenants/available",
+        headers={"Authorization": "Bearer opaque-header-token"},
+    )
+
+    assert response.status_code == 200
+    assert captured == {
+        "token": "Bearer opaque-header-token",
+        "audience": "test-audience",
+    }
+    assert response.json()["tenants"][0]["tenant_id"] == "header-acme"
+
+
 def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> None:
     registry = client.get("/api/monitor/registry")
     assert registry.status_code == 200

@@ -3045,6 +3045,12 @@ def get_available_tenants(identity_token: str | None = None) -> dict[str, object
     explicitly choose one so an identity can never silently fall into the
     deployment's demo tenant.
     """
+    # Hosted browser clients send the short-lived ID token as an Authorization
+    # header so it never appears in a URL.  Keep the explicit query field only
+    # for local/bootstrap compatibility; production middleware owns the
+    # request-scoped header value.
+    _header_approval, header_identity = _request_auth.get()
+    identity_token = identity_token or header_identity
     audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
     try:
         claims = _verify_google_identity_claims(identity_token, audience)
