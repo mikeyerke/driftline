@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T06:51:20Z` with the active gcloud project set to
+Checked `2026-08-21T06:56:40Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00072-lg8` at 100% traffic.
+  `driftline-00073-qjm` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,21 @@ Checked `2026-08-21T06:51:20Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 registered-source evidence labeling release (live)
+
+- Source commit `9a3f144` passed GitHub Actions `32456185723`, 236 backend
+  tests, Ruff, `git diff --check`, and the frontend production build. Cloud
+  Build `f40e7210-69e8-4611-a212-9032e3ac62e6` completed `SUCCESS`; Cloud Run
+  revision `driftline-00073-qjm` serves 100% of traffic.
+- Registered-source runs now display `Operator-registered public source` and
+  `Authenticated source monitor` in the console. The UI no longer labels a
+  successfully captured public tenant source as synthetic or “Awaiting
+  capture,” preserving the distinction between pinned fixtures, registered
+  public evidence, and synthetic replay.
+- Post-deploy probes returned `/health` HTTP 200, Google OIDC auth config,
+  public console title, 100% traffic, `maxScale=1`, concurrency `20`, and zero
+  severity `ERROR` entries for the active revision.
 
 ## 2026-08-21 registered-source console monitor lane (live)
 
