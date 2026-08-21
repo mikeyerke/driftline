@@ -1,4 +1,5 @@
-import { Activity, CheckCircle2, Clock3, RotateCcw, ShieldAlert, XCircle } from "lucide-react";
+import { Activity, CheckCircle2, Clock3, RefreshCw, RotateCcw, ShieldAlert, XCircle } from "lucide-react";
+import { useState } from "react";
 
 const statusLabel = (status) => (status || "queued").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
@@ -10,7 +11,18 @@ function StatusIcon({ status }) {
   return <Clock3 size={15} />;
 }
 
-export default function RunHistory({ jobs, loading }) {
+export default function RunHistory({ jobs, loading, canRetry = false, onRetry }) {
+  const [retryingJobId, setRetryingJobId] = useState(null);
+
+  const handleRetry = async (jobId) => {
+    setRetryingJobId(jobId);
+    try {
+      await onRetry?.(jobId);
+    } finally {
+      setRetryingJobId(null);
+    }
+  };
+
   return (
     <section className="panel run-history" id="history-section">
       <header className="panel-header">
@@ -30,6 +42,7 @@ export default function RunHistory({ jobs, loading }) {
                 <span className="run-time">{job.created_at ? new Date(job.created_at).toLocaleString() : "—"}</span>
                 <span className="run-result">{job.public_summary || job.response || (job.workflow_id ? "Workflow created · awaiting decision" : "Awaiting result")}</span>
                 {job.workflow_id && <span className="run-workflow"><RotateCcw size={13} /> workflow linked</span>}
+                {canRetry && status === "failed" && <button className="secondary compact run-retry" type="button" disabled={retryingJobId === job.job_id} onClick={() => handleRetry(job.job_id)}><RefreshCw size={13} />{retryingJobId === job.job_id ? "Retrying…" : "Retry"}</button>}
               </div>
             );
           })}

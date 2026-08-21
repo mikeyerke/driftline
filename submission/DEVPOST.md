@@ -141,7 +141,9 @@ created during the contest.
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
   expose a signed aggregate pilot-measurement flow without claiming customer
-  ROI.
+  ROI. Signed tenant operators can also retry terminally failed jobs from Run
+  history; retries preserve the original tenant/source/query boundary and use
+  a durable idempotency link, while public jobs remain packet-only.
 - An earlier live rollout (`driftline-00037-6t9`, source `bb8a437`, Cloud Build
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only

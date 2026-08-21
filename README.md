@@ -250,7 +250,12 @@ creates a tenant-filtered metadata marker in `driftline_job_failures`, visible
 to signed operators at `/api/ops/job-failures`; the marker contains no prompt,
 source body, exception text, or credential and expires with the deployment
 default or the tenant's bounded retention policy. The public console never exposes another tenant's failure
-count.
+count. A signed tenant operator can retry a terminally failed tenant job from
+Run history through `POST /api/jobs/{job_id}/retry`; the endpoint preserves the
+original source, query, tenant, and run mode, checks the source allowlist again,
+and records `retry_of` so concurrent requests return one durable successor
+instead of creating duplicate model work. Public/demo jobs remain rerunnable
+only through the packet-safe public scan control.
 
 The direct `POST /api/agent/run` route has an explicit two-lane contract. The
 anonymous judge request is tenantless, limited to an allowlisted source, and

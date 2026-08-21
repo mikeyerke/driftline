@@ -113,6 +113,10 @@ class JobState:
     tenant_id: str | None = None
     run_mode: str = "demo"
     source_id: str = "public/pricing"
+    # Links a bounded operator retry to its terminal predecessor.  Keeping
+    # this on the durable job makes retry requests idempotent across Cloud Run
+    # instances instead of relying on a browser button to prevent duplicates.
+    retry_of: str | None = None
     workflow_id: str | None = None
     model: str | None = None
     execution_mode: str | None = None

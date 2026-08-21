@@ -197,7 +197,8 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .empty-state { padding: 20px; margin: 0; color: var(--muted); font-size: 12px; }
 .run-history { margin-top: 18px; }
 .run-history-list { overflow-x: auto; contain: paint; }
-.run-history-row { display: grid; grid-template-columns: 150px 145px 175px minmax(230px, 1fr) 115px; gap: 10px; align-items: center; min-width: 850px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 11px; }
+.run-history-row { display: grid; grid-template-columns: 150px 145px 175px minmax(230px, 1fr) 115px 80px; gap: 10px; align-items: center; min-width: 940px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 11px; }
+.run-retry { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
 .run-history-row:last-child { border-bottom: 0; }
 .run-kind { display: grid; gap: 3px; min-width: 0; }
 .run-kind small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 9px; }

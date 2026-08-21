@@ -442,6 +442,15 @@ class JobStartRequest(BaseModel):
     identity_token: str | None = Field(default=None, max_length=4096)
 
 
+class JobRetryRequest(BaseModel):
+    """Tenant-authenticated retry request; never accepts a new query or source."""
+
+    operator: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
 class MultimodalAnalysisRequest(BaseModel):
     asset_id: str = Field(default="promise-card", min_length=1, max_length=80)
     mode: Literal["live", "demo"] = "live"
@@ -1525,6 +1534,7 @@ def _start_job(
     background_tasks: BackgroundTasks,
     tenant_id: str | None = None,
     source_id: str = "public/pricing",
+    retry_of: str | None = None,
 ) -> JobState:
     job = JobState(
         job_id=f"job-{uuid4().hex[:12]}",
@@ -1533,6 +1543,7 @@ def _start_job(
         tenant_id=tenant_id,
         run_mode=run_mode,
         source_id=source_id,
+        retry_of=retry_of,
     )
     _set_job(job)
     try:
@@ -4377,6 +4388,91 @@ def get_job(
         identity_token=identity_token,
     )
     return _job_payload(job)
+
+
+@app.post("/api/jobs/{job_id}/retry")
+async def retry_job(
+    job_id: str,
+    request: JobRetryRequest,
+    background_tasks: BackgroundTasks,
+) -> dict[str, object]:
+    """Queue one bounded retry for a failed tenant job.
+
+    The caller cannot replace the original query, source, tenant, or run mode.
+    Anonymous/public jobs remain packet-safe and are retried from the normal
+    public Run scan control instead of exposing a mutation endpoint.
+    """
+    try:
+        failed_job = _resolve_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Job not found") from exc
+    if failed_job.tenant_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Public jobs can be rerun from the public scan control",
+        )
+    if failed_job.status != "failed":
+        raise HTTPException(
+            status_code=409,
+            detail="Only terminally failed jobs can be retried",
+        )
+    identity = _verify_approval_mode(
+        f"job-retry:{job_id}",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    if identity.get("tenant_id") != failed_job.tenant_id:
+        raise HTTPException(status_code=403, detail="Job tenant mismatch")
+    if source_definition(failed_job.source_id, identity["tenant_id"]) is None:
+        raise HTTPException(status_code=422, detail="Job source is no longer allowlisted")
+    # Cloud Tasks and browser retries can race across instances.  Return the
+    # existing active successor instead of spending a second agent call.
+    try:
+        with _jobs_lock:
+            recent_jobs = list(_jobs.values())
+        recent_jobs.extend(list_jobs(limit=50))
+    except Exception:
+        logger.exception("Unable to inspect retry idempotency ledger for %s", job_id)
+        recent_jobs = []
+    existing = next(
+        (
+            candidate
+            for candidate in recent_jobs
+            if candidate.retry_of == failed_job.job_id
+            and candidate.tenant_id == failed_job.tenant_id
+            and candidate.status in {"queued", "running", "needs_approval", "complete"}
+        ),
+        None,
+    )
+    if existing is not None:
+        return {
+            "status": "already_queued",
+            "retried_job_id": failed_job.job_id,
+            "job": existing.to_dict(),
+            "tenant_id": identity["tenant_id"],
+            "source_id": failed_job.source_id,
+        }
+    if not _reserve_agent_call(identity["tenant_id"]):
+        raise HTTPException(status_code=429, detail="Tenant agent rate limit reached; retry later.")
+    retried = _start_job(
+        query=failed_job.query,
+        user_id=failed_job.user_id,
+        run_mode=failed_job.run_mode,
+        background_tasks=background_tasks,
+        tenant_id=identity["tenant_id"],
+        source_id=failed_job.source_id,
+        retry_of=failed_job.job_id,
+    )
+    return {
+        "status": "queued",
+        "retried_job_id": failed_job.job_id,
+        "job": retried.to_dict(),
+        "tenant_id": identity["tenant_id"],
+        "source_id": failed_job.source_id,
+    }
 
 
 @app.get("/api/ops/job-failures")

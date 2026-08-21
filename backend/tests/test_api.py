@@ -1682,6 +1682,67 @@ def test_signed_registered_source_job_uses_monitor_lane(monkeypatch) -> None:
     assert captured["tenant_id"] == "driftline-demo"
 
 
+def test_signed_failed_tenant_job_retry_preserves_scope_and_is_idempotent(monkeypatch) -> None:
+    """Retries must be tenant-bound and never create duplicate successors."""
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "retry-route-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "driftline-demo")
+    with api._agent_call_lock:
+        api._tenant_agent_call_times.clear()
+
+    failed_job = JobState(
+        job_id="job-failed-retry-route",
+        status="failed",
+        query='Monitor exact source_id "public/pricing".',
+        user_id="signed-operator",
+        tenant_id="driftline-demo",
+        run_mode="monitor",
+        source_id="public/pricing",
+    )
+    api._set_job(failed_job)
+    captured: dict[str, object] = {}
+
+    def fake_start_job(**kwargs):
+        captured.update(kwargs)
+        successor = JobState(
+            job_id="job-retry-successor",
+            tenant_id=kwargs["tenant_id"],
+            run_mode=kwargs["run_mode"],
+            source_id=kwargs["source_id"],
+            retry_of=kwargs["retry_of"],
+        )
+        api._set_job(successor)
+        return successor
+
+    monkeypatch.setattr(api, "_start_job", fake_start_job)
+    actor = "Retry route operator"
+    token = hmac.new(
+        secret.encode(),
+        f"job-retry:{failed_job.job_id}:{actor}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    payload = {
+        "operator": actor,
+        "tenant_id": "driftline-demo",
+        "approval_token": token,
+    }
+
+    first = client.post(f"/api/jobs/{failed_job.job_id}/retry", json=payload)
+    second = client.post(f"/api/jobs/{failed_job.job_id}/retry", json=payload)
+
+    assert first.status_code == 200
+    assert first.json()["status"] == "queued"
+    assert second.status_code == 200
+    assert second.json()["status"] == "already_queued"
+    assert captured["query"] == failed_job.query
+    assert captured["tenant_id"] == failed_job.tenant_id
+    assert captured["source_id"] == failed_job.source_id
+    assert captured["run_mode"] == failed_job.run_mode
+    assert captured["retry_of"] == failed_job.job_id
+
+
 def test_signed_tenant_demo_job_carries_authenticated_tenant(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

@@ -86,6 +86,14 @@ export function getJob(jobId) {
   return request(`/api/jobs/${jobId}${params}`, { authenticated: Boolean(operatorSession.identityToken) });
 }
 
+export function retryJob(jobId) {
+  return request(`/api/jobs/${encodeURIComponent(jobId)}/retry`, {
+    method: "POST",
+    authenticated: true,
+    body: JSON.stringify(signedContext()),
+  });
+}
+
 export function listJobs(limit = 8) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (operatorSession.identityToken && operatorSession.tenantId) {

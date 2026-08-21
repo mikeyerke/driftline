@@ -76,6 +76,14 @@ defaults. A hosted quota lookup failure fails closed before work is reserved;
 a retention lookup failure uses the bounded deployment default. This is tenant
 control-plane policy and privacy/metering, not billing.
 
+Terminal tenant failures remain operationally recoverable: a signed operator
+can call `POST /api/jobs/{job_id}/retry` from Run history. Driftline rechecks
+tenant membership and the source allowlist, preserves the failed job's
+parameters, and stores a `retry_of` link. That durable link makes the endpoint
+idempotent across Cloud Run instances; a racing request receives the existing
+successor rather than launching another agent call. Anonymous jobs have no
+mutation retry route and remain controlled by the public scan lane.
+
 The public multimodal analysis route is a separate cost boundary: it accepts
 only the fixed visual registry and is capped at 10 Gemini analyses per
 3600-second process window. Exhaustion returns `429` with `Retry-After`, so a

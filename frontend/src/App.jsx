@@ -12,7 +12,7 @@ import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence } from "./data";
-import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, retryJob, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
 import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
 import IntegrationPanel from "./components/IntegrationPanel";
@@ -276,6 +276,16 @@ export default function App() {
     }
   };
 
+  const retryFailedJob = async (jobId) => {
+    try {
+      await retryJob(jobId);
+      setScanMessage("Retry queued · preserving the tenant source and policy boundary");
+      refreshHistory();
+    } catch (error) {
+      setScanMessage(`Unable to retry the job · ${error.message || "retry the request"}`);
+    }
+  };
+
   const updateArtifactDecision = (name, decision) => {
     setArtifactDecisions((current) => ({ ...current, [name]: decision }));
   };
@@ -354,7 +364,7 @@ export default function App() {
           <ChangeGenomePanel />
           <ValueProofPanel />
           <PilotMeasurementPanel operatorSession={operatorSession} />
-          <RunHistory jobs={recentJobs} loading={historyLoading} />
+          <RunHistory jobs={recentJobs} loading={historyLoading} canRetry={Boolean(operatorSession.identityToken)} onRetry={retryFailedJob} />
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
           <TrustPanel actionRecord={actionRecord} />
