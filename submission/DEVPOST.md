@@ -134,16 +134,16 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The latest live rollout (`driftline-00036-l8k`, source `16fe23a`, Cloud Build
-  `6a65bed7-429e-4875-9503-e7dd8587c501`) presents the console as a production
+- The latest live rollout (`driftline-00037-6t9`, source `bb8a437`, Cloud Build
+  `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `16fe23a`, deployed through Cloud Build
-  `6a65bed7-429e-4875-9503-e7dd8587c501` as Cloud Run revision
-  `driftline-00036-l8k` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32435260118` passed the backend tests,
+  The deployed runtime source is commit `bb8a437`, deployed through Cloud Build
+  `db3305b1-7770-4cec-a7f3-e468eb4210f5` as Cloud Run revision
+  `driftline-00037-6t9` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32435761464` passed the backend tests,
   frontend build, and standalone image build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
@@ -155,7 +155,7 @@ created during the contest.
   approval, reopen, and dismissal. Fresh browser QA passed the live scan,
   evidence, approval, completion, activity log, timeline, and 390px mobile path
   without console errors.
-- On 2026-08-21, the current `driftline-00036-l8k` revision was rechecked end to
+- On 2026-08-21, the current `driftline-00037-6t9` revision was rechecked end to
   end: `/health` returned Firestore persistence and async jobs; a direct ADK
   run returned HTTP 200 with `persisted=true`, `model=gemini-3.5-flash`, and
   exactly `inspect_source_change` plus `get_workflow_state`; a public demo
@@ -167,7 +167,7 @@ created during the contest.
   signed aggregate context probe returned Jira `KAN` (18 issues), Confluence
   `DRIFT` (5 pages), Slack `C0BRGFUSADA` (27 recent messages), and GitHub (0
   open issues and 0 open pull requests) with aggregate-only redaction.
-- The anonymous public-source Change Card on `driftline-00036-l8k` was
+- The anonymous public-source Change Card on `driftline-00037-6t9` was
   rechecked after a truthfulness fix: it displays `CRM context unavailable`
   and `No CRM context was read in this run`, never `Permissioned business
   context` without a connected Salesforce tenant.

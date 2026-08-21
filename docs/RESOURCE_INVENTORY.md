@@ -12,13 +12,13 @@ project number: 724959673622
 
 ## 2026-08-21 production-control-plane copy rollout (live)
 
-- Source commit `16fe23a` passed GitHub Actions `32435260118` and Cloud Build
-  `6a65bed7-429e-4875-9503-e7dd8587c501` completed `SUCCESS`.
-- Cloud Run revision `driftline-00036-l8k` serves 100% of traffic with the same
+- Source commit `bb8a437` passed GitHub Actions `32435761464` and Cloud Build
+  `db3305b1-7770-4cec-a7f3-e468eb4210f5` completed `SUCCESS`.
+- Cloud Run revision `driftline-00037-6t9` serves 100% of traffic with the same
   scale-to-zero and one-instance guardrails. The public console now names this
   the production control plane and labels the anonymous lane as packet-only
   public-demo safety mode; it does not imply customer data or external writes.
-- A fresh anonymous `/api/agent/run` canary on the rollout returned
+- A fresh anonymous `/api/agent/run` canary on the preceding rollout returned
   `persisted=true`, `execution_mode=google_adk`, `model=gemini-3.5-flash`, and
   `data_mode=public_source`. No external connector write was performed.
 
@@ -29,12 +29,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00036-l8k` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00037-6t9` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `16fe23a`; Cloud Build `6a65bed7-429e-4875-9503-e7dd8587c501`.
+- Deployed runtime source: `bb8a437`; Cloud Build `db3305b1-7770-4cec-a7f3-e468eb4210f5`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
