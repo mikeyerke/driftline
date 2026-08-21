@@ -4,8 +4,8 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `ce2b5ca`, Cloud Run `driftline-00136-fzq`, Cloud Build
-`4998dd62-a9aa-4b48-a815-52dd4934c5df`, project
+Current release: source `5ba7633`, Cloud Run `driftline-00137-fcj`, Cloud Build
+`3de1e1c3-4cab-4d81-89b7-d1950b5a998b`, project
 `driftline-hackathon-2026`, 100% traffic.
 
 ## Innovation and operational utility — 40%
@@ -25,24 +25,19 @@ Current release: source `ce2b5ca`, Cloud Run `driftline-00136-fzq`, Cloud Build
 
 ### Live evidence
 
-- Current-revision logged-out browser QA visibly showed Gemini structured
-  impact analysis, four evidence-bound artifacts, two options, and the
-  deterministic approval gate; the scripted live proof below records the
-  durable job/workflow identifiers.
-- Current-revision browser journey (job `job-f1bfaa9665c9`, workflow
-  `38da400c-5581-47cc-9210-5126061006bc`) completed scan -> approval -> undo.
-  The UI rendered the change card, Decision Copilot, four owner actions,
-  packet record, and timeline; the undo response persisted
-  `action-63355af11e1c35cb5150` as `reversed` with all connector external-write
-  flags false.
-- `scripts/verify_live_agent.sh`: fresh job `job-af119fe3e0d3`, workflow
-  `16c65c2c-6341-4dbc-8d5f-3afd99cf0596`, five audit events and four artifacts.
-- `scripts/verify_public_approval_undo.sh`: fresh proof on job
-  `job-af119fe3e0d3`, workflow `16c65c2c-6341-4dbc-8d5f-3afd99cf0596`; the packet
-  persisted and was reversed with both external-write flags false. The verifier now also fails
-  closed unless the approval journey carries structured Gemini impact/Decision
-  Copilot options, passing deterministic policy review, and matching evidence
-  hashes.
+- Logged-out desktop and 390x844 mobile browser QA visibly showed the new
+  interactive impact map: node focus, evidence-path tracing, unrelated-node
+  dimming, bounded inspector, and worklist handoff; mobile `scrollWidth` stayed
+  equal to the viewport width.
+- `scripts/verify_live_agent.sh`: fresh job `job-07c37ce51263`, workflow
+  `cfabe4f7-e1d2-4da4-8372-ad60bf340bf1`, five audit events, four artifacts,
+  two decision options, and `needs_approval`.
+- `scripts/verify_public_approval_undo.sh`: fresh proof on the same job and
+  workflow; the packet persisted and was reversed with
+  `external_write=false` and `external_systems_changed=false`. The verifier
+  fails closed unless the approval journey carries structured Gemini impact /
+  Decision Copilot options, passes deterministic policy review, and matches
+  evidence hashes.
 - A manual run of the isolated `driftline-monitor` Scheduler job produced an
   OIDC-authenticated HTTP 200 `/api/scheduler/tick` request on the serving
   revision; healthy sources were correctly deferred until their cadence due
