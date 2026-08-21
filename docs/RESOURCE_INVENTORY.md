@@ -2983,3 +2983,13 @@ is no longer needed.
   connector writes `prepared_only` and `external_write=false`; immediate
   undo persisted the rollback marker and returned the workflow to
   `needs_approval`. Current-revision logs remained free of `ERROR` entries.
+
+## 2026-08-21 anonymous boundary recheck (live)
+
+- Public requests to tenant directory, membership, credential inventory,
+  credential-access, connector bindings, job-failure, and pilot-report routes
+  failed closed (401/403/422) without exposing tenant or credential data.
+- Supplying `approval_token` or `identity_token` in query strings to public
+  routes returned HTTP 400 with `Query authentication is disabled; use request
+  headers.` The deployed request guard prevents secrets from being accepted
+  through URLs or accidentally retained in browser history and access logs.
