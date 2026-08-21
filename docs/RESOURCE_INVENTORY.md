@@ -3222,3 +3222,22 @@ is no longer needed.
 - A post-canary error query for the active revision returned zero entries, and
   a token-pattern scan of the new revision's request logs returned zero
   matches.
+
+## 2026-08-21 public packet safety naming (live)
+
+- Source commit `a55b236` (`Name public packet safety tier for production`)
+  passed the complete 231-test backend suite, Ruff, frontend production build,
+  and diff checks before release. The public approval identity now emits the
+  production-facing scope `public_packet_only`; the API still accepts the
+  legacy `sandbox_packet_only` value for backwards compatibility with older
+  local/persisted identities.
+- Cloud Build `4cc832a0-6f76-43ef-9e48-655b07a39d35` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00066-75v` at 100% traffic. The image
+  digest is
+  `sha256:d71686e0822aad8150bba80bc3cc0f71fa5acf54813f2c4dbb0dd2856809af91`.
+  The active project remained `driftline-hackathon-2026`.
+- `/health` returned HTTP 200 with Firestore persistence and async jobs;
+  `/api/auth/config` returned Google OIDC enabled with
+  `anonymous_lane=packet_only` and `credential_values_exposed=false`.
+  A query-token probe returned HTTP 400, confirming the deployed
+  fail-closed request-auth boundary remains active.
