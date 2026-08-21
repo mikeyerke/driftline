@@ -12,6 +12,7 @@ readonly scheduler_job="driftline-monitor"
 readonly task_queue="driftline-jobs"
 readonly uptime_id="driftline-health-Hmxqs16MUkY"
 readonly dashboard_id="9f00a615-b74c-4567-aae9-211cd66e97fc"
+readonly runtime_service_account="driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com"
 
 actual_project="$(gcloud config get-value project 2>/dev/null)"
 if [[ "${actual_project}" != "${expected_project}" ]]; then
@@ -39,6 +40,23 @@ auth_config="$(curl --fail --silent --show-error --max-time 20 "${public_url}/ap
 printf '%s\n' "${auth_config}" | jq -e --arg prefix "${expected_project_number}-" \
   '.enabled == true and .mode == "google_oidc" and (.client_id | startswith($prefix)) and .credential_values_exposed == false' >/dev/null
 printf 'Google operator auth: isolated project client, credential values not exposed\n'
+
+# The shared runtime must not be a project-wide Secret Manager reader or
+# version writer. Connector values are accessed only through the derived
+# per-tenant service identity and its exact secret IAM bindings. Keep this
+# check here so a future infrastructure change cannot silently widen the
+# hosted credential boundary again.
+runtime_secret_roles="$(
+  gcloud projects get-iam-policy "${expected_project}" --format=json |
+    jq -r --arg member "serviceAccount:${runtime_service_account}" '
+      [.bindings[]
+       | select((.members // []) | index($member))
+       | .role
+       | select(startswith("roles/secretmanager."))]
+      | join(",")'
+)"
+[[ -z "${runtime_secret_roles}" ]]
+printf 'Runtime IAM: no project-level Secret Manager access\n'
 
 ops_summary="$(curl --fail --silent --show-error --max-time 20 "${public_url}/api/ops/summary")"
 printf '%s\n' "${ops_summary}" | jq -e \

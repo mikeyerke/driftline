@@ -60,7 +60,9 @@ Checked `2026-08-21T14:37:36Z` with the active gcloud project set to
   `roles/cloudtasks.enqueuer`). The per-tenant impersonated identity still
   owns the exact connector-secret accessor/version-adder grants provisioned by
   `scripts/provision_tenant_connector_secrets.sh`. `/health` remained 200
-  immediately after the change.
+  immediately after the change, and `scripts/verify_production.sh` now fails
+  closed if a future release reintroduces any project-level
+  `roles/secretmanager.*` grant for the shared runtime.
 
 ## 2026-08-21 Gemini structured-output resilience release (live)
 
