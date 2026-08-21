@@ -3046,3 +3046,25 @@ is no longer needed.
   Confluence/Slack/GitHub markers. Signed undo reversed those Driftline-owned
   external markers, preserved the Jira issue, and persisted a rollback object
   and audit event. No credential value was returned or written to the repo.
+
+## 2026-08-21 authenticated operator console release (live)
+
+- Source commit `57da6d2` (`Add authenticated operator console lane`) passed
+  GitHub Actions run `32447925481` (`success`), 227 backend tests, Ruff, the
+  frontend production build, and `git diff --check`.
+- Cloud Build `270b4d31-643f-4601-9e9a-527e5ab244c2` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00057-25v` at 100% traffic. The image
+  digest is `sha256:13a95547bde16e4cec06b9f47c853d9eef14090bbefd7b7cdea51f4cae60dffb`.
+  `/health` returned HTTP 200, and the current-revision log query returned no
+  `severity>=ERROR` entries.
+- `/api/auth/config` returns only the public Google web client id and explicitly
+  labels the anonymous lane `packet_only`. The deployed UI rendered the Google
+  sign-in control and operator-lane copy without exposing any credential.
+- A fresh current-revision OIDC canary discovered the one active
+  `driftline-demo` owner membership, reached `needs_approval` through Gemini
+  3.5 Flash/ADK, and completed signed approval plus undo. Provider results were
+  `reactivated` for Jira, Confluence, and Slack; GitHub correctly returned
+  `blocked_closed` because its matching issue was already human-closed. Undo
+  returned Jira, Confluence, Slack, and GitHub to `reversed`, retained the Jira
+  issue, and persisted the rollback audit artifact. No credential values were
+  returned.

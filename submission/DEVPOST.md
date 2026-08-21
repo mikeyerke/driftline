@@ -210,6 +210,11 @@ created during the contest.
   reversal comment, and returned the workflow to `needs_approval` while
   retaining the issue and append-only audit record. This is direct production
   connector evidence for reversible operations, not a customer-ROI claim.
+- The current public console also exposes this OIDC boundary as a real operator
+  experience: Google sign-in stays in memory, tenant memberships are discovered
+  from the signed identity, and the selected tenant is carried through scan,
+  approval, action-item, and undo calls. Logged-out judges still receive the
+  packet-safe demo with no credential prompt.
 - The current responsive release was rechecked at a 390px emulated viewport:
   the document reports `bodyScrollWidth=500`, `documentElement.scrollWidth=500`,
   and `scrollX=0`, while the activity, run-history, and worklist panels retain

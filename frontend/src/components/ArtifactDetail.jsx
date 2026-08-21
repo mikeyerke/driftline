@@ -6,7 +6,7 @@ const ACTIONS = [
   ["queued", "Queue for later"],
 ];
 
-export default function ArtifactDetail({ item, live, decision, onDecisionChange, packetUrl }) {
+export default function ArtifactDetail({ item, live, decision, onDecisionChange, packetUrl, onPacket }) {
   if (!item) return null;
   return (
     <section className="panel artifact-detail" aria-labelledby="artifact-detail-title">
@@ -19,7 +19,9 @@ export default function ArtifactDetail({ item, live, decision, onDecisionChange,
         <div className="artifact-copy"><div><span className="diff-label removed-label">Current</span><p>{item.before || "Existing claim"}</p></div><div><span className="diff-label added-label">Proposed</span><p>{item.proposed || item.after || "Evidence-linked update"}</p></div></div>
         {live && item.status?.toLowerCase() === "draft ready" && <label className="decision-select">Action after approval<select id={`artifact-action-${item.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`} name="artifact-action" value={decision || "owner_review"} onChange={(event) => onDecisionChange(item.name, event.target.value)}>{ACTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>}
         {item.evidence_hash && <code className="artifact-hash">Evidence: {item.evidence_hash}</code>}
-        {packetUrl && <a className="source-link" href={packetUrl} target="_blank" rel="noreferrer">Open the generated change packet <ExternalLink size={14} /></a>}
+        {packetUrl && (onPacket
+          ? <button className="source-link packet-inline-button" type="button" onClick={onPacket}>Open the generated change packet <ExternalLink size={14} /></button>
+          : <a className="source-link" href={packetUrl} target="_blank" rel="noreferrer">Open the generated change packet <ExternalLink size={14} /></a>)}
       </div>
     </section>
   );

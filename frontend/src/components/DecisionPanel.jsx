@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Ban, Check, Download, FileText, RotateCcw } from "lucide-react";
 import DecisionCopilot from "./DecisionCopilot";
 
-export default function DecisionPanel({ approved, dismissed, approval, artifactDecisions, actionRecord, copilot, onApprove, onOptionSelect, onUndo, onDismiss, onEvidence, isLive, busy, packetHref, sourceCategory }) {
+export default function DecisionPanel({ approved, dismissed, approval, artifactDecisions, actionRecord, copilot, onApprove, onOptionSelect, onUndo, onDismiss, onEvidence, onPacket, isLive, busy, packetHref, sourceCategory }) {
   const decisions = approval?.artifact_decisions || artifactDecisions || { "Pricing battlecard": "packet", "Renewal playbook": "packet", "Enterprise FAQ": "owner_review", "CRM guidance": "queued" };
   const counts = Object.values(decisions).reduce((result, value) => ({ ...result, [value]: (result[value] || 0) + 1 }), {});
   const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
@@ -50,7 +50,9 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
         {actionRecord?.storage_status && <div className="audit-id"><strong>Cloud Storage artifact</strong><span>{actionRecord.storage_status === "persisted" ? `${actionRecord.artifact_kind === "rollback" ? "Rollback marker" : "Versioned packet"} persisted` : actionRecord.storage_status}</span>{actionRecord.artifact_uri && <code className="artifact-uri">{actionRecord.artifact_uri}</code>}</div>}
         {actionRecord?.operational_status && <div className="audit-id"><strong>Operational output</strong><span>{actionRecord.operational_status === "active" ? "Approved output published to the isolated Driftline bucket" : actionRecord.operational_status === "reversed" ? "Operational output reversed with a durable marker" : `Output ${actionRecord.operational_status}`}</span>{actionRecord.operational_output_uri && <code className="artifact-uri">{actionRecord.operational_output_uri}</code>}</div>}
         {actionRecord?.jira_status && <div className="audit-id"><strong>Jira handoff</strong><span>{actionRecord.jira_status === "created" ? "Issue created in the configured least-privilege project" : actionRecord.jira_status === "reused" ? "Existing idempotent issue reused" : actionRecord.jira_status === "reactivated" ? "Previously reversed issue reactivated" : actionRecord.jira_status === "reversed" ? "Driftline marker reversed" : actionRecord.jira_status === "blocked_closed" ? "Blocked: matching issue is closed; no automatic reopen" : actionRecord.jira_status === "not_configured" ? "Connector disabled until Atlassian credentials are configured" : `Handoff ${actionRecord.jira_status}`}</span>{actionRecord.jira_issue_key && <code className="artifact-uri">{actionRecord.jira_issue_key}</code>}</div>}
-        {packetHref && <a className="secondary full packet-link" href={packetHref} target="_blank" rel="noreferrer"><Download size={17} />Download change packet</a>}
+        {packetHref && (onPacket
+          ? <button className="secondary full packet-link" type="button" onClick={onPacket} disabled={busy}><Download size={17} />Download change packet</button>
+          : <a className="secondary full packet-link" href={packetHref} target="_blank" rel="noreferrer"><Download size={17} />Download change packet</a>)}
         <button className="secondary full evidence-button" onClick={onEvidence}><FileText size={17} />Open evidence</button>
       </aside>
     );

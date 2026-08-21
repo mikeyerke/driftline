@@ -12,7 +12,7 @@ import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence } from "./data";
-import { apiEnabled, approveWorkflow, dismissWorkflow, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
 import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
 import IntegrationPanel from "./components/IntegrationPanel";
@@ -325,10 +325,10 @@ export default function App() {
                   <ImpactMap items={impacts} graph={workflowState?.impact_graph} approved={approved} sourceName={evidence.source_name} />
                 </div>
                 <ArtifactTable items={impacts} onSelect={setSelectedArtifact} selected={selectedArtifact} />
-                <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} />
+                <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} />
               </div>
               <aside id="approvals-section">
-              <DecisionPanel approved={approved} dismissed={dismissed} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onDismiss={dismissSignal} onEvidence={() => setShowEvidence(true)} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category} />
+              <DecisionPanel approved={approved} dismissed={dismissed} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onDismiss={dismissSignal} onEvidence={() => setShowEvidence(true)} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category} />
               </aside>
             </div>
             {approved && <ActionItems workflowId={workflowId} items={workflowState.action_items} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}

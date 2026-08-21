@@ -144,7 +144,30 @@ export function multimodalAssetUrl(assetId, side, mode = "live") {
 }
 
 export function getWorkflowScenarios(workflowId) {
-  return request(`/api/workflows/${encodeURIComponent(workflowId)}/scenarios`);
+  const params = operatorSession.identityToken && operatorSession.tenantId
+    ? `?operator=${encodeURIComponent(operatorSession.email || "Google operator")}&tenant_id=${encodeURIComponent(operatorSession.tenantId)}`
+    : "";
+  return request(`/api/workflows/${encodeURIComponent(workflowId)}/scenarios${params}`, { authenticated: Boolean(operatorSession.identityToken) });
+}
+
+export async function downloadPacket(workflowId) {
+  const params = operatorSession.identityToken && operatorSession.tenantId
+    ? `?operator=${encodeURIComponent(operatorSession.email || "Google operator")}&tenant_id=${encodeURIComponent(operatorSession.tenantId)}`
+    : "";
+  const headers = operatorSession.identityToken
+    ? { Authorization: `Bearer ${operatorSession.identityToken}` }
+    : {};
+  const response = await fetch(`${API_BASE}/api/workflows/${encodeURIComponent(workflowId)}/packet${params}`, { headers });
+  if (!response.ok) throw new Error(`Driftline API returned ${response.status}`);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `driftline-change-packet-${workflowId}.md`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function getMemorySummary(limit = 50) {
@@ -209,8 +232,5 @@ export function retryAction(workflowId, itemId) {
 }
 
 export function packetUrl(workflowId) {
-  const params = operatorSession.identityToken && operatorSession.tenantId
-    ? `?operator=${encodeURIComponent(operatorSession.email || "Google operator")}&tenant_id=${encodeURIComponent(operatorSession.tenantId)}`
-    : "";
-  return `${API_BASE}/api/workflows/${workflowId}/packet${params}`;
+  return `${API_BASE}/api/workflows/${workflowId}/packet`;
 }

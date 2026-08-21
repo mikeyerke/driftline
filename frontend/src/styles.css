@@ -271,6 +271,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
  .source-grid code, .artifact-hash { color: var(--blue); font-size: 11px; overflow-wrap: anywhere; }
  .source-link { display: inline-flex; align-items: center; gap: 7px; width: fit-content; margin: 0 16px 9px; color: var(--blue); font-size: 12px; text-decoration: none; }
  .source-link:hover { text-decoration: underline; }
+ .packet-inline-button { border: 0; background: transparent; font: inherit; cursor: pointer; }
  .monitor-registry { margin: 3px 16px 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
  .monitor-registry-heading { display: flex; justify-content: space-between; gap: 12px; color: var(--ink); font-size: 11px; }
  .monitor-registry-heading span { color: var(--muted); }
