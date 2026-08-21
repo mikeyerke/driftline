@@ -2936,3 +2936,8 @@ is no longer needed.
   `hackathon=all-things-agentic`. Cloud Run remains scale-to-zero with
   `maxScale=1`; this retention control is isolated to the Driftline project
   and does not affect any other repository or service.
+- After the retention window was verified, 199 older exact digest versions
+  (and their Cloud Build tags) were deleted, leaving exactly 10 rollback
+  candidates. Artifact Registry reports the image-version count at 10; blob
+  garbage collection is asynchronous, so the displayed repository byte count
+  may lag the deletion.
