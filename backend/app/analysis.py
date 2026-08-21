@@ -79,7 +79,11 @@ analysis_agent = Agent(
     generate_content_config=GenerateContentConfig(
         response_mime_type="application/json",
         response_json_schema=StructuredAnalysis.model_json_schema(),
-        max_output_tokens=1200,
+        # Four evidence-bound artifacts plus concise proposed text routinely
+        # exceed 1,200 tokens on Gemini 3.5 Flash.  A bounded 2,400-token
+        # ceiling prevents truncation (which otherwise looks like a
+        # non-JSON/fallback turn) without allowing an unbounded response.
+        max_output_tokens=2400,
         thinking_config=ThinkingConfig(thinking_level="LOW"),
     ),
     description=(
