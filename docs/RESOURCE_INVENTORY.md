@@ -10,6 +10,21 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-21 closed-target safety boundary (live)
+
+- Source commit `c61823c` passed GitHub Actions `32441421717` and the full local
+  gate (223 backend tests, Ruff, and the frontend production build). Cloud
+  Build `76212a86-49a1-40a7-ae05-71ac321b7bf2` completed `SUCCESS`; Cloud Run
+  revision `driftline-00049-dq7` serves 100% of traffic.
+- The GitHub adapter now fails closed with `blocked_closed` when a marker points
+  at a human-closed issue. It performs no relabel, reopen, or delete operation;
+  the operator must explicitly reopen the issue or choose a new target. This
+  prevents a closed task from being represented as active.
+- The current revision returns `/health` HTTP 200 with Firestore and async jobs.
+  Earlier live provider reads remain valid for the all-connector active/reversed
+  lifecycle proof on revision `driftline-00048-j8g`; this release adds the
+  closed-target safety boundary without changing public demo behavior.
+
 ## 2026-08-21 all-connector reactivation and reversal proof (live)
 
 - Source commit `76c2a39` passed GitHub Actions `32440926605` and the full local
@@ -119,12 +134,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00048-j8g` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00049-dq7` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `76c2a39`; Cloud Build `c2857f9d-b9c7-4c6a-8033-af5e8274abad`.
+- Deployed runtime source: `c61823c`; Cloud Build `76212a86-49a1-40a7-ae05-71ac321b7bf2`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.

@@ -138,17 +138,17 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The current live revision is `driftline-00048-j8g` from source commit
-  `76c2a39`, deployed by Cloud Build
-  `c2857f9d-b9c7-4c6a-8033-af5e8274abad`; it serves 100% of traffic with the
+- The current live revision is `driftline-00049-dq7` from source commit
+  `c61823c`, deployed by Cloud Build
+  `76212a86-49a1-40a7-ae05-71ac321b7bf2`; it serves 100% of traffic with the
   same scale-to-zero and one-instance guardrails.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `76c2a39`, deployed through Cloud Build
-  `c2857f9d-b9c7-4c6a-8033-af5e8274abad` as Cloud Run revision
-  `driftline-00048-j8g` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32440926605` passed on this commit; the
-  local release gate also passed all 222 backend tests, Ruff, and the frontend
+  The deployed runtime source is commit `c61823c`, deployed through Cloud Build
+  `76212a86-49a1-40a7-ae05-71ac321b7bf2` as Cloud Run revision
+  `driftline-00049-dq7` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32441421717` passed on this commit; the
+  local release gate also passed all 223 backend tests, Ruff, and the frontend
   production build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
@@ -168,6 +168,10 @@ created during the contest.
   the Driftline-owned labels to `driftline-reversed`; the issue was retained.
   This proves an operational connector path, not customer ROI or a live
   competitor-monitoring result.
+- The GitHub adapter fails closed when a matching issue is human-closed:
+  `blocked_closed` performs no automatic reopen or relabel. This preserves
+  operator control over external task lifecycle while keeping the connector
+  auditable and reversible.
 - A current-revision signed approval/undo canary also exercised all four
   configured external adapters. Approval returned `reactivated` for Jira,
   Confluence, Slack, and GitHub; direct provider reads confirmed active versus
