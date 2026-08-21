@@ -3116,3 +3116,17 @@ is no longer needed.
   The compatibility fix was deployed and the same authenticated action then
   completed successfully on `driftline-00061-46f`. This is the production
   source-onboarding evidence; it is not a claim of arbitrary crawling.
+- A fresh signed tenant workflow on `driftline-00061-46f` reached
+  `needs_approval` with `execution_mode=google_adk`, `model=gemini-3.5-flash`,
+  tenant `driftline-demo`, and exactly the allowlisted tools
+  `inspect_source_change` and `get_workflow_state`. Selecting the cited
+  `opt-grandfather-existing` copilot option returned HTTP 200 and persisted the
+  workflow through the authenticated connector lane; the configured Jira,
+  Confluence, and Slack adapters were idempotently reused/reactivated, while
+  GitHub correctly remained `blocked_closed` for its human-closed matching
+  issue. Signed undo returned HTTP 200, persisted `reversed` state for all four
+  adapters, retained the Jira issue, and set `external_systems_changed=true`.
+  These are isolated Driftline connector operations, not customer ROI or live
+  competitor-monitoring claims.
+- A post-canary Cloud Logging query for revision `driftline-00061-46f` after
+  `2026-08-21T05:14:00Z` returned no `severity>=ERROR` entries.
