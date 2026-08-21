@@ -136,10 +136,10 @@ created during the contest.
   project-scoped budget guardrail.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `668e301`, deployed through Cloud Build
-  `c4ca5915-0210-4241-943d-8f91154a2fe9` as Cloud Run revision
-  `driftline-00034-8pf` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32431496244` passed the backend tests,
+  The deployed runtime source is commit `f73b067`, deployed through Cloud Build
+  `edfd813b-96ad-4c58-9edc-a940caa28430` as Cloud Run revision
+  `driftline-00035-htz` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32433166812` passed the backend tests,
   frontend build, and standalone image build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
@@ -151,7 +151,7 @@ created during the contest.
   approval, reopen, and dismissal. Fresh browser QA passed the live scan,
   evidence, approval, completion, activity log, timeline, and 390px mobile path
   without console errors.
-- On 2026-08-21, the current `driftline-00034-8pf` revision was rechecked end to
+- On 2026-08-21, the current `driftline-00035-htz` revision was rechecked end to
   end: `/health` returned Firestore persistence and async jobs; a direct ADK
   run returned HTTP 200 with `persisted=true`, `model=gemini-3.5-flash`, and
   exactly `inspect_source_change` plus `get_workflow_state`; a public demo
@@ -163,6 +163,10 @@ created during the contest.
   signed aggregate context probe returned Jira `KAN` (18 issues), Confluence
   `DRIFT` (5 pages), Slack `C0BRGFUSADA` (27 recent messages), and GitHub (0
   open issues and 0 open pull requests) with aggregate-only redaction.
+- The anonymous public-source Change Card on `driftline-00035-htz` was
+  rechecked after a truthfulness fix: it displays `CRM context unavailable`
+  and `No CRM context was read in this run`, never `Permissioned business
+  context` without a connected Salesforce tenant.
 - The tenant credential data plane is now canonical and fail-closed: durable
   tenant memberships, per-tenant Secret Manager namespaces, impersonated
   service identities, pinned versions, rotation/revocation, operation scopes,

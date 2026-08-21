@@ -2680,3 +2680,34 @@ is no longer needed.
   measurement path, but no customer result is claimed until a real team
   supplies dated before/after evidence. Salesforce likewise remains pending
   the browser login/consent handoff; no Salesforce data claim is made.
+
+## 2026-08-21 truthfulness correction and final live gate recheck (current)
+
+- Source commit `f73b067` (`Do not imply unverified CRM exposure`) was pushed
+  after backend regression coverage was added for anonymous public-source
+  runs. GitHub Actions `32433166812` completed successfully.
+- Cloud Build `edfd813b-96ad-4c58-9edc-a940caa28430` completed `SUCCESS`; Cloud
+  Run revision `driftline-00035-htz` serves 100% of traffic in the isolated
+  `driftline-hackathon-2026` project. `/health` returned HTTP 200 with
+  Firestore persistence and async jobs enabled. The active gcloud project was
+  re-confirmed before the checks.
+- A fresh public scan reached `needs_approval` with
+  `execution_mode=google_adk` and `model=gemini-3.5-flash`. The rendered Change
+  Card now says `CRM context unavailable` and `No CRM context was read in this
+  run`; it does not claim permissioned business context for an anonymous run.
+- Desktop and 390px mobile Lighthouse navigation audits each passed all 57
+  checks (100 accessibility, best practices, SEO, and agentic browsing).
+  Chrome reported no console messages after the mobile navigation audit.
+- A fresh tenant-signed binding-health read returned four healthy,
+  namespace-verified connectors (Jira, Confluence, Slack, GitHub), zero
+  attention items, and Salesforce `not_configured`; all credential values
+  remained redacted. A fresh signed aggregate context read returned Jira `KAN`
+  (18 open issues), Confluence `DRIFT` (5 pages), Slack `C0BRGFUSADA` (27 recent
+  messages), and GitHub `mikeyerke/driftline` (0 open issues and 0 open pull
+  requests), with `aggregate_metadata_only` and `persisted=false`.
+- The signed pilot report still returns `status=not_measured` and
+  `record_count=0`. The pilot packet and measurement helper are ready, but a
+  real participating team must supply dated before/after observations before
+  Driftline can claim customer time saved, revenue, retention, or willingness
+  to pay. Salesforce remains pending the owner-controlled login/consent
+  callback; no Salesforce data claim is made.
