@@ -252,6 +252,9 @@ Gemini prompt or durable ledger field. A real operator can add `operator`,
 the principal, reserves that tenant's agent quota, and preserves the operator's
 query in the signed tenant workflow. Partial identity or unallowlisted-source
 requests fail before a model call.
+The signed direct path resolves operator-registered public URLs inside the
+authenticated tenant boundary as well as pinned fixtures; anonymous callers
+cannot discover or execute those tenant sources.
 In the Firestore deployment, signed tenant reservations use a transactional
 window counter so concurrent Cloud Run instances cannot race past the same
 limit; local development uses a process-local fallback.
