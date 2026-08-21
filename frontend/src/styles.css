@@ -148,7 +148,7 @@ main { min-width: 0; overflow-x: clip; }
 .evidence-button { margin-top: 25px; }
 
 .worklist { min-height: 246px; }
-.table-scroll { overflow-x: auto; }
+.table-scroll { overflow-x: auto; contain: paint; }
 table { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 12px; }
 th { text-align: left; font-weight: 600; padding: 8px 14px; border-bottom: 1px solid var(--line); }
 td { height: 34px; padding: 5px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -168,7 +168,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .workflow-step.complete .step-dot { color: #fff; background: var(--blue); border-color: var(--blue); }.workflow-step.active .step-dot { border-color: var(--blue); box-shadow: inset 0 0 0 5px #fff; background: var(--blue); }
 .workflow-step small { display: block; margin-top: 4px; color: var(--muted); }.workflow-step.complete small { color: var(--green); }.workflow-step.active small { color: var(--blue); }
 
-.activity-log { margin-top: 7px; }
+.activity-log { margin-top: 7px; contain: paint; }
 .panel-header > div { display: flex; align-items: center; gap: 10px; }
 .live-label { padding: 2px 6px; border: 1px solid #bcd2fb; color: var(--blue); background: var(--blue-soft); border-radius: 3px; font-size: 11px; }
 .muted { color: var(--muted); font-size: 11px; }.text-button { margin-left: auto; display: flex; gap: 7px; border: 0; background: transparent; cursor: pointer; font-size: 12px; }
@@ -185,7 +185,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .modal .evidence-panel { margin: 0 20px; }.hash code { color: var(--blue); word-break: break-all; }.modal > footer { padding: 15px 20px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
 .empty-state { padding: 20px; margin: 0; color: var(--muted); font-size: 12px; }
 .run-history { margin-top: 18px; }
-.run-history-list { overflow-x: auto; }
+.run-history-list { overflow-x: auto; contain: paint; }
 .run-history-row { display: grid; grid-template-columns: 150px 145px 175px minmax(230px, 1fr) 115px; gap: 10px; align-items: center; min-width: 850px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 11px; }
 .run-history-row:last-child { border-bottom: 0; }
 .run-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-transform: capitalize; }
