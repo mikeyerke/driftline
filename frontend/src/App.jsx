@@ -67,6 +67,7 @@ export default function App() {
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
+  const lastTenantRef = useRef(operatorSession.tenantId || null);
 
   const approved = workflowState?.status === "complete";
   const dismissed = workflowState?.status === "dismissed";
@@ -141,6 +142,23 @@ export default function App() {
     getSources().then((payload) => setSources(payload.sources || [])).catch(() => setSources([]));
     refreshSourceHealth();
   }), []);
+
+  useEffect(() => {
+    const previousTenant = lastTenantRef.current;
+    const nextTenant = operatorSession.tenantId || null;
+    if (previousTenant && previousTenant !== nextTenant) {
+      // Never leave a prior tenant's workflow, decision, or job details on
+      // screen after a tenant switch or sign-out. The next tenant must start
+      // from its own filtered history and an explicit scan.
+      setWorkflowState(null);
+      setWorkflowId(null);
+      setJob(null);
+      setArtifactDecisions(initialDecisions);
+      setSelectedSource("competitor/pricing");
+      setScanMessage("Tenant changed · previous workflow cleared");
+    }
+    lastTenantRef.current = nextTenant;
+  }, [operatorSession.tenantId]);
 
   const selectNav = (label) => {
     setSelectedNav(label);

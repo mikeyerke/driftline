@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle2, FileText, GitPullRequest, Hash, MessageSquare, RefreshCw, ShieldCheck, TicketCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getConnectorBindingsHealth, getConnectorContextSummary } from "../api";
 
 const icons = { Jira: TicketCheck, Confluence: FileText, Slack: MessageSquare, GitHub: GitPullRequest };
@@ -21,6 +21,11 @@ export default function IntegrationPanel({ targets = [], approved, dismissed, ac
   const [health, setHealth] = useState(null);
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState("");
+  useEffect(() => {
+    setContext(null);
+    setHealth(null);
+    setContextError("");
+  }, [operatorSession?.tenantId]);
   if (!targets.length) return null;
   const statusKeys = { Jira: "jira_status", Confluence: "confluence_status", Slack: "slack_status", GitHub: "github_status" };
   const connectorStatuses = new Set(["created", "reused", "reactivated", "reversed"]);
