@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `302f151`, Cloud Build
-  `ba2fe2e4-1114-45c8-9263-675a6c9b905c`, and Cloud Run revision
-  `driftline-00101-sm7` at 100% traffic. It passed 242 backend tests, Ruff,
+- The current active release is source commit `251fa68`, Cloud Build
+  `44eb8716-68e9-45be-890c-b17843de78dd`, and Cloud Run revision
+  `driftline-00102-ktk` at 100% traffic. It passed 243 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -171,6 +171,11 @@ created during the contest.
   workflow returned to `needs_approval` with a rollback marker and
   `external_systems_changed=false`. This is the demonstrated reversible
   change-to-action loop, not a claim of an external connector write.
+  The public scan endpoint also deduplicates an in-flight source job, so a
+  refresh cannot queue duplicate Gemini work behind the one-concurrent Cloud
+  Tasks worker. A live second request reused job `job-77ca8e415b01` and
+  returned `deduplicated=true`; the subsequent live verifier reached the
+  human gate through Gemini 3.5 Flash and Google ADK.
   It also includes a recoverable frontend error boundary so a render failure
   cannot present a blank console or imply that persisted workflow state was
   lost.

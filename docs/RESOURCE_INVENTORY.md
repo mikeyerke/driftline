@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T11:02:48Z` with the active gcloud project set to
+Checked `2026-08-21T11:39:29Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00101-sm7` at 100% traffic.
+  `driftline-00102-ktk` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -25,7 +25,22 @@ Checked `2026-08-21T11:02:48Z` with the active gcloud project set to
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
-authority.
+  authority.
+
+## 2026-08-21 public scan deduplication release (live)
+
+- Source commit `251fa68` was deployed by Cloud Build
+  `44eb8716-68e9-45be-890c-b17843de78dd` (`SUCCESS`) as Cloud Run revision
+  `driftline-00102-ktk` at 100% traffic.
+- The public scan seam now reuses an active anonymous job for the same
+  allowlisted source instead of enqueueing duplicate Gemini work behind the
+  one-concurrent Cloud Tasks queue. A live production probe returned the same
+  job `job-77ca8e415b01` with `deduplicated=true` on the second request.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors. The
+  live agent verifier then proved job `job-77ca8e415b01` / workflow
+  `ccb90a0e-93a3-4b50-8995-07ce7312941b` reached `needs_approval` through
+  `gemini-3.5-flash`, Google ADK, both allowlisted tools, four artifacts, and
+  five audit events.
 
 ## 2026-08-21 isolated Google operator OAuth release (live)
 
