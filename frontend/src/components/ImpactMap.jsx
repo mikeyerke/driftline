@@ -140,13 +140,15 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
     });
     const ids = new Set();
     const visit = (start, adjacency) => {
+      const seen = new Set();
       const queue = [start];
       while (queue.length) {
         const current = queue.shift();
-        if (ids.has(current)) continue;
+        if (seen.has(current)) continue;
+        seen.add(current);
         ids.add(current);
         (adjacency.get(current) || []).forEach((neighbor) => {
-          if (!ids.has(neighbor)) queue.push(neighbor);
+          if (!seen.has(neighbor)) queue.push(neighbor);
         });
       }
     };
