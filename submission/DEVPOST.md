@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `e68b55b`, Cloud Build
-  `277d5f06-cac9-4395-bc90-3d1682f1260b`, and Cloud Run revision
-  `driftline-00112-v69` at 100% traffic. It passed 245 backend tests, Ruff,
+- The current active release is source commit `a78733a`, Cloud Build
+  `717b402a-355d-4009-8b14-2c67e2a5cc81`, and Cloud Run revision
+  `driftline-00115-2dm` at 100% traffic. It passed 245 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -159,6 +159,13 @@ created during the contest.
   origin registered. The public lane remains packet-safe; completing Google
   account consent and tenant-token issuance is an external identity step, not
   a claim of authenticated customer data.
+  The responsive judge-surface pass also removed the 1440px desktop
+  Google-Identity/workspace collision and changed the mobile impact graph from
+  an undiscoverable horizontal scroller to a readable vertical sequence.
+  Logged-out Chrome QA at 1440×900 and 390×844 found no document overflow or
+  application console errors; the dense worklist table remains an intentional
+  horizontal-scroll region. Lighthouse snapshots remain 100 for
+  accessibility, best practices, SEO, and agentic browsing.
   A fresh identity-free `scripts/verify_live_agent.sh` run against that exact
   revision created job `job-35d0bad97d36` / workflow
   `8aea1601-0a83-4763-9b44-aa2ea73b2ad1` and directly proved the live
@@ -184,8 +191,12 @@ created during the contest.
   `job-f9979a4981c4` / workflow `2ec4f44a-4349-4011-996c-dae2b0ae1b71` and
   proved persisted packet → durable undo with both external-write flags false.
   GitHub Actions run `32485900320` passed source `e68b55b` across backend
-  tests/lint, frontend build, image build, and shell hygiene; the serving
-  runtime is the exact `e68b55b` / `00112-v69` deployment above.
+  tests/lint, frontend build, image build, and shell hygiene; that paragraph
+  records the earlier quota-hardening runtime, not the current serving
+  revision above.
+  The current serving revision was independently checked by GitHub Actions
+  run `32488146746` for source `a78733a` and by the exact production,
+  live-agent, and approval/undo scripts recorded in the resource inventory.
   A live public multimodal probe on that revision returned
   `data_mode=public_source` for the pinned before/after visual pair and
   `mode=gemini_vision`, `model=gemini-3.5-flash`, `material_change=true`, and

@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T13:20:57Z` with the active gcloud project set to
+Checked `2026-08-21T13:45:34Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00112-v69` at 100% traffic.
+  `driftline-00115-2dm` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,41 @@ Checked `2026-08-21T13:20:57Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 responsive judge-surface release (live)
+
+- Source commit `a78733a` was deployed by Cloud Build
+  `717b402a-355d-4009-8b14-2c67e2a5cc81` (`SUCCESS`, 3m05s) as Cloud Run
+  revision `driftline-00115-2dm` at 100% traffic. The release fixes the
+  desktop Google Identity button/workspace-label collision at the default
+  1440px judge viewport and converts the five-stage impact graph to a readable
+  vertical sequence on tablet/mobile instead of an undiscoverable horizontal
+  scroller.
+- `scripts/verify_production.sh` passed on this exact revision with Firestore
+  persistence, async jobs, enabled scheduler/tasks, uptime check, alert policy,
+  and zero recent Cloud Run errors. A fresh `scripts/verify_live_agent.sh`
+  created job `job-6e4a0ea771e3` / workflow
+  `f5e50006-1d6f-470f-8e54-9f17c9f6495f` and proved
+  `gemini-3.5-flash`, Google ADK, both allowlisted tools, four artifacts, five
+  audit events, two decision-copilot options, and the deterministic
+  `needs_approval` gate.
+- `scripts/verify_public_approval_undo.sh` separately created job
+  `job-529cbf59b1ad` / workflow `bbc40bfd-5de2-44ec-a654-f1230615a560` and
+  proved a persisted packet followed by a durable reversal with
+  `external_write=false` and `external_systems_changed=false`.
+- The live multimodal route returned `data_mode=public_source` for the pinned
+  before/after pair, and Gemini vision returned
+  `mode=gemini_vision`, `model=gemini-3.5-flash`,
+  `material_change=true`, `confidence=1.0`, and evidence hash
+  `a78e9f0acb5b471a9500a51bb462c52aa8a13f021f0f48886105e4924523d250`.
+- GitHub Actions run `32488146746` passed for source `a78733a` across backend
+  tests/lint, frontend production build, standalone lockfile-pinned image,
+  and shell release-helper hygiene. Local frontend build and `git diff --check`
+  also passed. Logged-out Chrome QA at 1440×900 and 390×844 found no document
+  overflow or application console errors; the worklist table remains an
+  intentional horizontal-scroll region for its dense columns. Lighthouse
+  snapshots remain 100 for accessibility, best practices, SEO, and agentic
+  browsing.
 
 ## 2026-08-21 public-console clarity and resilient proof release (live)
 
