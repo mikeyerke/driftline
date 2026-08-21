@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `558dd20`, Cloud Build
-  `0092680e-68f3-4293-9592-787bf70c05bc`, and Cloud Run revision
-  `driftline-00117-8l4` at 100% traffic. It passed the backend test suite, Ruff,
+- The current active release is source commit `d9cbba4`, Cloud Build
+  `7ab4cf4e-89ad-4feb-a3e5-77d205d3db09`, and Cloud Run revision
+  `driftline-00119-xck` at 100% traffic. It passed 247 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -170,6 +170,13 @@ created during the contest.
   horizontal-scroll region. Lighthouse navigation audits remain 100 for
   accessibility, best practices, SEO, and agentic browsing on both desktop
   and mobile (58/58 checks).
+  A fresh browser pressure test caught one intermittent Gemini response shape
+  that correctly surfaced the deterministic fallback. The final release now
+  retries strictly twice and unwraps only a known single-key text envelope on
+  the third bounded attempt before applying the unchanged evidence and
+  artifact validator; unknown shapes still fail closed. Two fresh scans on the
+  current revision both showed real Gemini impact analysis and a Gemini
+  Decision Copilot.
   A fresh identity-free `scripts/verify_live_agent.sh` run against that exact
   revision created job `job-35d0bad97d36` / workflow
   `8aea1601-0a83-4763-9b44-aa2ea73b2ad1` and directly proved the live
@@ -199,7 +206,7 @@ created during the contest.
   records the earlier quota-hardening runtime, not the current serving
   revision above.
   The current serving revision was independently checked by GitHub Actions
-  run `32490298913` for source `558dd20` and by the exact production,
+  run `32491820540` for source `d9cbba4` and by the exact production,
   live-agent, and approval/undo scripts recorded in the resource inventory.
   A live public multimodal probe on that revision returned
   `data_mode=public_source` for the pinned before/after visual pair and
@@ -223,9 +230,9 @@ created during the contest.
   Production source URLs are also pinned to immutable fixture commits so the
   judge path cannot silently change when the repository's `main` branch moves.
   The latest live agent proof on the serving revision created job
-  `job-217f63827d5b` / workflow `4c5ee096-e579-4ac7-8994-e83402ff6122`; the
+  `job-280ccb206fb2` / workflow `2072fcea-2360-47c5-9769-1d258769d57e`; the
   latest credential-free approval/undo proof created job
-  `job-69aad98115aa` / workflow `166730c9-1247-467b-8ce8-5ea7945c89cc` and
+  `job-d7b39f3a9e44` / workflow `7067534b-9f5f-4245-b219-b786ef2ed1ab` and
   retained both external-write flags as false.
   The latest live verifier created job `job-934ea8ae11a7` / workflow
   `4f5bbaf9-d3a7-4372-857f-ae3cd52821ea` and again proved the model, ADK,

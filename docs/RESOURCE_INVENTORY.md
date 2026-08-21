@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T14:12:14Z` with the active gcloud project set to
+Checked `2026-08-21T14:29:35Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00117-8l4` at 100% traffic.
+  `driftline-00119-xck` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,43 @@ Checked `2026-08-21T14:12:14Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 Gemini structured-output resilience release (live)
+
+- Source commit `d9cbba4` (including the mobile operator sign-in visibility
+  fix from `e07a4c3`) was deployed by Cloud Build
+  `7ab4cf4e-89ad-4feb-a3e5-77d205d3db09` (`SUCCESS`, 3m36s) as Cloud Run
+  revision `driftline-00119-xck` at 100% traffic.
+- A fresh browser scan on the preceding revision exposed an intermittent
+  Gemini response with `summary` wrapped as an object, which correctly took
+  the UI's visible deterministic fallback. The final analyst hardening keeps
+  the first two attempts strict, then on the third and final bounded attempt
+  unwraps only a known single-key `{text|value|content}` envelope for the two
+  display-only fields before applying the unchanged evidence/artifact policy
+  validator. Unknown shapes still fail closed. The local suite now reports
+  `247 passed`; the regression covers both transient repair and persistent
+  wrapper output.
+- Two fresh logged-out browser scans on this exact revision both displayed
+  `Gemini impact analysis` and a Gemini Decision Copilot with no deterministic
+  impact fallback. The live agent trace showed `gemini-3.5-flash`, Google ADK,
+  both allowlisted tools, four artifacts, five audit events, and the
+  deterministic `needs_approval` gate.
+- `scripts/verify_production.sh` passed with Firestore persistence, async
+  tasks, scheduler/uptime monitoring, and zero recent Cloud Run errors.
+  `scripts/verify_live_agent.sh` created job `job-280ccb206fb2` / workflow
+  `2072fcea-2360-47c5-9769-1d258769d57e`; the credential-free
+  `scripts/verify_public_approval_undo.sh` created job `job-d7b39f3a9e44` /
+  workflow `7067534b-9f5f-4245-b219-b786ef2ed1ab` and proved
+  `packet=persisted`, `operational_output=reversed`, `external_write=false`,
+  and `external_systems_changed=false`.
+- The live multimodal probe on this revision returned
+  `data_mode=public_source`, `mode=gemini_vision`,
+  `model=gemini-3.5-flash`, `material_change=true`, `confidence=1.0`, and
+  evidence hash
+  `a78e9f0acb5b471a9500a51bb462c52aa8a13f021f0f48886105e4924523d250`.
+- GitHub Actions run `32491820540` passed for source `d9cbba4` across backend
+  tests/lint, frontend build, standalone lockfile-pinned image, and shell
+  release-helper hygiene.
 
 ## 2026-08-21 lazy operator identity and resilient copilot release (live)
 
