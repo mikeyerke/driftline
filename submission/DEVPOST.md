@@ -186,6 +186,11 @@ created during the contest.
   GitHub Actions run `32485900320` passed source `e68b55b` across backend
   tests/lint, frontend build, image build, and shell hygiene; the serving
   runtime is the exact `e68b55b` / `00112-v69` deployment above.
+  A live public multimodal probe on that revision returned
+  `data_mode=public_source` for the pinned before/after visual pair and
+  `mode=gemini_vision`, `model=gemini-3.5-flash`, `material_change=true`, and
+  `confidence=1.0` for the combined evidence hash. This is the evidence-bound
+  visual diff shown in the console, not an unverified image caption.
   The current console release labels deterministic pre-run fixtures clearly,
   limits the anonymous history view to the latest three tenantless runs, and
   makes owner-action closure visible after approval. The live verifier now

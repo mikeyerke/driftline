@@ -103,6 +103,12 @@ Checked `2026-08-21T13:20:57Z` with the active gcloud project set to
   approval persisted the private packet, undo persisted the reversal, and the
   final response retained `external_write=false` and
   `external_systems_changed=false`.
+- The live multimodal lane also passed on this revision: the public visual
+  evidence route returned `data_mode=public_source` for the pinned before/after
+  assets, and `POST /api/multimodal/analyze` returned
+  `mode=gemini_vision`, `model=gemini-3.5-flash`, `material_change=true`, and
+  `confidence=1.0` for evidence hash
+  `a78e9f0acb5b471a9500a51bb462c52aa8a13f021f0f48886105e4924523d250`.
 - GitHub Actions run `32485900320` passed for source `e68b55b` (245 backend
   tests, Ruff, frontend production build, standalone lockfile-pinned image,
   and shell release-helper hygiene).
