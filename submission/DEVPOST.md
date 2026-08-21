@@ -166,6 +166,11 @@ created during the contest.
   tools, four artifacts, five audit events, and the deterministic
   `needs_approval` gate. The script is checked in so judges can reproduce the
   proof without credentials.
+  A second live run on that deployment completed approval, persisted four
+  owner-review action items and a private packet, then executed undo; the
+  workflow returned to `needs_approval` with a rollback marker and
+  `external_systems_changed=false`. This is the demonstrated reversible
+  change-to-action loop, not a claim of an external connector write.
   It also includes a recoverable frontend error boundary so a render failure
   cannot present a blank console or imply that persisted workflow state was
   lost.

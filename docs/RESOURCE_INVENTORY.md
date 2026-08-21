@@ -60,6 +60,13 @@ authority.
   `inspect_source_change,get_workflow_state`, four mapped artifacts, and five
   audit events. The verifier performs no approval and no external connector
   write.
+- The same deployed path then completed a public approval → persisted packet →
+  undo journey on workflow `671877de-a901-4919-b764-359e8c9b7fbc` (job
+  `job-d799b1e1fef6`). Approval persisted four owner-review action items and a
+  Cloud Storage packet; undo returned the workflow to `needs_approval`, wrote a
+  rollback artifact, appended `decision_reopened`, and reported
+  `external_systems_changed=false`. This proves the reversible operational
+  loop without claiming a third-party write.
 
 ## 2026-08-21 stale-session isolation release (live)
 
