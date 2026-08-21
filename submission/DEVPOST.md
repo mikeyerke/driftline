@@ -135,9 +135,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `2b14abe`, Cloud Build
-  `1d76c3b6-3e1c-450c-bc37-45917b81b52f`, and Cloud Run revision
-  `driftline-00092-9cn` at 100% traffic. It passed 241 backend tests, Ruff,
+- The current active release is source commit `a093952`, Cloud Build
+  `bd21d914-4a88-46df-8f52-e8e5a234d82d`, and Cloud Run revision
+  `driftline-00094-n2l` at 100% traffic. It passed 241 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and

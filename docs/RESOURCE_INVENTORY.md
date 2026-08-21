@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T10:04:00Z` with the active gcloud project set to
+Checked `2026-08-21T10:02:08Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00092-9cn` at 100% traffic.
+  `driftline-00094-n2l` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -587,15 +587,15 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00092-9cn` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00094-n2l` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 10%, 25%, 50%, 75%, 90%, and 100% current-spend thresholds; default
   billing-account recipients remain enabled and no custom notification channel
   is configured.
-- Deployed runtime source: `2b14abe`; Cloud Build
-  `1d76c3b6-3e1c-450c-bc37-45917b81b52f`.
+- Deployed runtime source: `a093952`; Cloud Build
+  `bd21d914-4a88-46df-8f52-e8e5a234d82d`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
@@ -3724,6 +3724,28 @@ is no longer needed.
 - `/health`, `/api/auth/config`, and the public HTML title returned
   successfully; the latest-revision Cloud Logging scan contained zero
   `severity>=ERROR` entries.
+
+## 2026-08-21 competitive-intelligence first-run release (live)
+
+- Source commit `a093952` (`Lead with competitive intelligence workflow`)
+  passed GitHub Actions run `32470332244` with the 241-test backend suite,
+  Ruff, frontend production build, and standalone image build. Cloud Build
+  `bd21d914-4a88-46df-8f52-e8e5a234d82d` completed `SUCCESS` and deployed
+  Cloud Run revision `driftline-00094-n2l` at 100% traffic.
+- The anonymous first-run console now opens on the strongest product wedge:
+  an explicitly labelled competitor pricing fixture moving Competitor Pro
+  from `$49` to `$59` per seat per month. The preview impact map, approval
+  question, artifacts, and evidence all agree on the competitor scenario;
+  own-product pricing and terms remain selectable alternatives.
+- A live deterministic workflow probe on the revision returned
+  `competitor/pricing`, title `Competitor pricing moved`, and the four
+  downstream surfaces `Comparison map`, `Pricing battlecard`, `Deal desk
+  guidance`, and `Executive weekly brief`. This probe did not claim a customer
+  system write or customer outcome.
+- `scripts/verify_production.sh` passed on the same revision with Firestore
+  persistence, async jobs, enabled Scheduler, running Tasks, active uptime
+  monitoring, and zero recent Cloud Run errors. The public browser showed the
+  coherent competitor first-run state after deployment.
 
 ## 2026-08-21 billing guardrail hardening (live)
 
