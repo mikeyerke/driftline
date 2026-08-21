@@ -41,9 +41,10 @@ export default function RunHistory({ jobs, loading, publicMode = false, canRetry
         <div><h2>Run history</h2><span className="live-label">{publicMode ? "Public lane" : "Durable activity"}</span></div>
         <span className="muted">{publicMode ? "Latest tenantless runs · signed history stays scoped" : "Cloud Tasks + Firestore"}</span>
       </header>
-      {loading && <p className="empty-state">Loading the latest durable runs…</p>}
-      {!loading && !jobs.length && <p className="empty-state">No runs yet. Start a scan to create the first durable record.</p>}
-      {!loading && jobs.length > 0 && (
+      {!nearViewport && <p className="empty-state">Scroll to load the latest durable runs.</p>}
+      {nearViewport && loading && <p className="empty-state">Loading the latest durable runs…</p>}
+      {nearViewport && !loading && !jobs.length && <p className="empty-state">No runs yet. Start a scan to create the first durable record.</p>}
+      {nearViewport && !loading && jobs.length > 0 && (
         <div className="run-history-list">
           {visibleJobs.map((job) => {
             const status = job.status || "queued";

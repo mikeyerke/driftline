@@ -11,6 +11,7 @@ export default function ChangeGenomePanel() {
   useEffect(() => {
     if (!nearViewport) return undefined;
     let active = true;
+    setLoading(true);
     getMemorySummary()
       .then((payload) => active && setMemory(payload))
       .catch(() => active && setMemory(null))
@@ -43,7 +44,7 @@ export default function ChangeGenomePanel() {
         </div>
         <p className="genome-note"><RotateCcw size={13} />The genome is derived from immutable source snapshots and workflow records; it never rewrites evidence.</p>
       </>}
-      {!loading && !memory && <p className="empty-state">Change memory is unavailable right now; source evidence remains available.</p>}
+      {nearViewport && !loading && !memory && <p className="empty-state">Change memory is unavailable right now; source evidence remains available.</p>}
     </section>
   );
 }

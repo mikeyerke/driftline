@@ -85,9 +85,10 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
               const health = healthById[source.source_id];
               const loading = sourceHealthState === "loading";
               const unavailable = sourceHealthState === "unavailable";
-              const status = loading ? "checking" : unavailable ? "unavailable" : health?.status || "needs_baseline";
-              const statusLabel = loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status.replaceAll("_", " ");
-              const freshness = loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
+              const deferred = !nearViewport;
+              const status = deferred ? "deferred" : loading ? "checking" : unavailable ? "unavailable" : health?.status || "needs_baseline";
+              const statusLabel = deferred ? "Scroll to load freshness" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status.replaceAll("_", " ");
+              const freshness = deferred ? "Append-only ledger read is deferred" : loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
               const nextDue = health?.next_due_at ? `Next due ${new Date(health.next_due_at).toLocaleString()}` : `Cadence ${source.cadence || "scheduled"}`;
               return <div className={`registry-health-card ${status}`} key={source.source_id}><span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span><strong>{source.name}</strong><small>{freshness}</small><small>{nextDue}</small></div>;
             })}

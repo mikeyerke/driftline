@@ -43,7 +43,7 @@ export default function TrustPanel({ actionRecord }) {
         <div><Scale size={18} /><strong>Bounded actions</strong><small>{jiraWasWritten ? jiraTrustLabel : "Review-ready packets; signed operator required for writes"}</small></div>
       </div>
       <div className="ops-pulse" aria-label="Live operational pulse">
-        <div className="ops-pulse-heading"><strong>Live operational pulse</strong><span>{ops ? `Refreshed ${new Date(ops.generated_at).toLocaleTimeString()}` : "Reading deployment telemetry…"}</span></div>
+        <div className="ops-pulse-heading"><strong>Live operational pulse</strong><span>{!nearViewport ? "Scroll to load deployment telemetry" : ops ? `Refreshed ${new Date(ops.generated_at).toLocaleTimeString()}` : "Reading deployment telemetry…"}</span></div>
         <div className="ops-pulse-grid">
           <div><Activity size={15} /><strong>{ops ? `${healthySources}/${sourceHealth.length}` : "—"}</strong><small>sources healthy</small></div>
           <div><ListChecks size={15} /><strong>{ops ? `${deadLettered || 0}` : "—"}</strong><small>dead-lettered jobs · {queuedJobs || 0} queued</small></div>
