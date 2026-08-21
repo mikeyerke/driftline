@@ -105,8 +105,8 @@ button:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offset:
 
 main { min-width: 0; overflow-x: clip; }
 .topbar { height: 65px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 22px 0 25px; }
-.topbar h1 { margin: 0; font-size: 25px; letter-spacing: -.55px; }
-.topbar-actions { display: flex; gap: 17px; align-items: center; }
+.topbar h1 { min-width: 0; margin: 0; font-size: 25px; letter-spacing: -.55px; }
+.topbar-actions { display: flex; min-width: 0; gap: 17px; align-items: center; justify-content: flex-end; }
 .operator-access { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: 11px; }
 .operator-access-label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); white-space: nowrap; }
 .operator-access-label svg { color: var(--green); }
@@ -127,7 +127,7 @@ main { min-width: 0; overflow-x: clip; }
 .secondary { background: #fff; border-color: var(--line-strong); transition: background-color .15s ease-out, transform .15s ease-out; }
 .secondary:hover { background: var(--surface); }
 .scan-message { color: var(--green); display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }.scan-message.error { color: var(--orange); }
-.run-hint { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.run-hint { min-width: 0; max-width: min(370px, 30vw); overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 
 .content { padding: 17px 24px 14px; }
 .workspace-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 13px; border: 1px solid #cfe0ff; border-radius: 5px; background: var(--blue-soft); color: #114ca9; font-size: 12px; }
@@ -302,6 +302,23 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 @media (max-width: 1180px) {
   .app-shell { grid-template-columns: 76px minmax(0, 1fr); }.brand { justify-content: center; padding: 0; }.brand > span:last-child, .nav-item span, .profile > span:nth-child(2), .profile > svg { display: none; }.nav-item { justify-content: center; }.profile { display: flex; justify-content: center; }
   .dashboard-grid { grid-template-columns: 1fr; }.decision-panel { min-height: auto; }.upper-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* The Google Identity button has a provider-controlled width. Give it a
+   real slot before the remaining topbar controls can shrink, and move the
+   explanatory run hint into the banner at the narrower desktop breakpoint.
+   Without this, flex-shrink makes the button paint outside its parent and
+   overlaps the workspace label at the default 1440px judge viewport. */
+@media (max-width: 1500px) and (min-width: 841px) {
+  .topbar-actions { flex: 1 1 auto; gap: 12px; }
+  .operator-access { flex: 0 0 auto; }
+  .operator-access > div { flex: 0 0 190px; }
+  .run-hint { display: none; }
+  /* Keep all five impact stages legible instead of forcing a hidden
+     horizontal scroll inside a narrow right-hand card. The decision panel
+     remains beside the main column, while evidence and the graph read as a
+     clear top-to-bottom story. */
+  .upper-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 840px) {
