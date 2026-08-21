@@ -121,6 +121,8 @@ export default function App() {
   useEffect(() => subscribeOperatorSession((next) => {
     setOperatorSession(next);
     refreshHistory();
+    getSources().then((payload) => setSources(payload.sources || [])).catch(() => setSources([]));
+    getMonitorRegistry().then((payload) => setSourceHealth(payload.sources || [])).catch(() => setSourceHealth([]));
   }), []);
 
   const selectNav = (label) => {
@@ -338,7 +340,7 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} sourceHealth={sourceHealth} selectedSource={selectedSource} onSourceChange={setSelectedSource} />
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} sourceHealth={sourceHealth} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onRegistered={() => { getSources().then((payload) => setSources(payload.sources || [])).catch(() => {}); getMonitorRegistry().then((payload) => setSourceHealth(payload.sources || [])).catch(() => {}); }} />
           <ChangeGenomePanel />
           <ValueProofPanel />
           <RunHistory jobs={recentJobs} loading={historyLoading} />

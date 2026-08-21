@@ -104,11 +104,33 @@ export function getAvailableTenants(identityToken) {
 }
 
 export function getSources() {
-  return request("/api/sources");
+  const params = new URLSearchParams();
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/sources${params.toString() ? `?${params}` : ""}`, { authenticated: Boolean(operatorSession.identityToken) });
 }
 
 export function getMonitorRegistry() {
-  return request("/api/monitor/registry");
+  const params = new URLSearchParams();
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/monitor/registry${params.toString() ? `?${params}` : ""}`, { authenticated: Boolean(operatorSession.identityToken) });
+}
+
+export function registerSource(source) {
+  return request("/api/operator/sources", {
+    method: "POST",
+    body: JSON.stringify({
+      ...source,
+      tenant_id: operatorSession.tenantId,
+      registered_by: operatorSession.email || "Google operator",
+      ...signedContext(),
+    }),
+  });
 }
 
 export function getOpsSummary() {
@@ -125,7 +147,12 @@ export function getValueProof() {
 }
 
 export function getSourceHistory(sourceId, limit = 8) {
-  return request(`/api/sources/${encodeURIComponent(sourceId)}/history?limit=${limit}`);
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/sources/${encodeURIComponent(sourceId)}/history?${params}`, { authenticated: Boolean(operatorSession.identityToken) });
 }
 
 export function getMultimodalEvidence(assetId = "promise-card", mode = "live") {

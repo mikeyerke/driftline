@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, ExternalLink, Globe2, Hash, History, ShieldCheck } from "lucide-react";
-import { getSourceHistory } from "../api";
+import { getSourceHistory, registerSource } from "../api";
 import MultimodalEvidencePanel from "./MultimodalEvidencePanel";
 
-export default function SourcePanel({ evidence, dataMode, sources = [], sourceHealth = [], selectedSource, onSourceChange }) {
+export default function SourcePanel({ evidence, dataMode, sources = [], sourceHealth = [], selectedSource, onSourceChange, operatorSession, onRegistered }) {
   const isPublic = dataMode === "public_source";
   const [history, setHistory] = useState([]);
+  const [showRegister, setShowRegister] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [registerMessage, setRegisterMessage] = useState("");
+  const [registerError, setRegisterError] = useState("");
+  const [form, setForm] = useState({ source_id: "", name: "", url: "", category: "Competitor source", change_type: "Public promise change", owner: "Product Marketing", cadence: "24h" });
   const healthById = Object.fromEntries(sourceHealth.map((item) => [item.source_id, item]));
   const selectedDefinition = sources.find((source) => source.source_id === (selectedSource || evidence?.source_id));
   const isSyntheticCompetitorFixture = selectedDefinition?.source_kind === "competitor_public";
@@ -24,6 +29,24 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
       .catch(() => active && setHistory([]));
     return () => { active = false; };
   }, [selectedSource, evidence?.source_id, evidence?.retrieved_at]);
+
+  const updateForm = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  const submitRegistration = async (event) => {
+    event.preventDefault();
+    setRegistering(true);
+    setRegisterMessage("");
+    setRegisterError("");
+    try {
+      const payload = await registerSource(form);
+      onRegistered?.(payload);
+      setRegisterMessage(payload.baseline?.status === "baseline_established" ? "Source registered · baseline established" : "Source registered · scheduler will retry the baseline");
+      setForm({ source_id: "", name: "", url: "", category: "Competitor source", change_type: "Public promise change", owner: "Product Marketing", cadence: "24h" });
+    } catch (error) {
+      setRegisterError(error.message || "Source registration failed");
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   return (
     <section className="panel source-panel" id="sources-section">
@@ -55,6 +78,21 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
         <div className="monitor-source-list">
           {sources.map((source) => <span className={source.source_id === (selectedSource || evidence?.source_id) ? "monitor-source active" : "monitor-source"} key={source.source_id}><b>{source.name}{source.source_kind === "competitor_public" ? " · synthetic fixture" : ""}</b><small>{source.category} · {source.change_type}</small></span>)}
         </div>
+        {operatorSession?.identityToken && <div className="source-onboarding">
+          <div className="source-onboarding-heading"><div><strong>Register a real change surface</strong><small>Exact HTTPS URL · tenant-scoped · baseline read before monitoring</small></div><button className="secondary compact" type="button" onClick={() => { setShowRegister((current) => !current); setRegisterError(""); setRegisterMessage(""); }}>{showRegister ? "Close" : "Add source"}</button></div>
+          {showRegister && <form className="source-onboarding-form" onSubmit={submitRegistration}>
+            <label>Source ID<input required name="source_id" value={form.source_id} onChange={updateForm} placeholder="acme-competitor-pricing" pattern="[a-z0-9][a-z0-9-]{6,78}" /></label>
+            <label>Display name<input required name="name" value={form.name} onChange={updateForm} placeholder="Competitor pricing page" maxLength={120} /></label>
+            <label className="source-onboarding-wide">Exact HTTPS URL<input required type="url" name="url" value={form.url} onChange={updateForm} placeholder="https://competitor.example/pricing" /></label>
+            <label>Category<input required name="category" value={form.category} onChange={updateForm} maxLength={80} /></label>
+            <label>Change type<input required name="change_type" value={form.change_type} onChange={updateForm} maxLength={100} /></label>
+            <label>Owner<input required name="owner" value={form.owner} onChange={updateForm} maxLength={100} /></label>
+            <label>Cadence<select name="cadence" value={form.cadence} onChange={updateForm}><option value="6h">Every 6 hours</option><option value="12h">Every 12 hours</option><option value="24h">Daily</option></select></label>
+            <button className="primary source-onboarding-submit" type="submit" disabled={registering}>{registering ? "Registering…" : "Register and baseline"}</button>
+            {registerMessage && <p className="source-onboarding-success" role="status">{registerMessage}</p>}
+            {registerError && <p className="source-onboarding-error" role="alert">{registerError}</p>}
+          </form>}
+        </div>}
         <div className="source-history" aria-label="Append-only source history">
           <div className="source-history-heading"><span><History size={14} />Historical observations</span><small>Append-only ledger</small></div>
           {history.length === 0
