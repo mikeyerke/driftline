@@ -4,10 +4,12 @@ Driftline is a change-to-action agent for Product Marketing and adjacent
 operators. It monitors explicitly allowlisted public signals — own pricing and
 terms plus competitor pricing, offerings, and product narratives — verifies a
 material change, maps the affected offering and downstream work surfaces, and
-pauses when a consequential human decision is required. The hosted demo uses a
-bounded asynchronous job and a durable Firestore workflow; it produces
-target-specific Jira, Confluence, Slack, and GitHub handoff packets rather than
-pretending to write to a customer's systems.
+pauses when a consequential human decision is required. The hosted service has
+two explicit lanes: the anonymous judge console is packet-safe, while the
+Google-OIDC tenant operator lane uses the same durable Firestore workflow to
+execute least-privilege, idempotent, reversible connector actions. This is a
+real deployed control plane with a deliberately safe public surface, not a
+claim that an unauthenticated visitor can mutate a customer's systems.
 
 The demonstration models a pricing-page change from unlimited audit-log
 retention to 365-day retention, then traces the impact into a pricing

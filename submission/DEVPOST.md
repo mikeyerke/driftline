@@ -138,16 +138,16 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The current live revision is `driftline-00055-lvp` from source commit
-  `6897d5c`, deployed by Cloud Build
-  `690dfea8-efe4-4840-b68f-54df2a1ccebb`; it serves 100% of traffic with the
+- The current live revision is `driftline-00056-d8c` from source commit
+  `f937d60`, deployed by Cloud Build
+  `dbde9432-0fdc-437f-ae57-1ef4c1f09f16`; it serves 100% of traffic with the
   same scale-to-zero and one-instance guardrails.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `6897d5c`, deployed through Cloud Build
-  `690dfea8-efe4-4840-b68f-54df2a1ccebb` as Cloud Run revision
-  `driftline-00055-lvp` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32446039737` passed; the
+  The deployed runtime source is commit `f937d60`, deployed through Cloud Build
+  `dbde9432-0fdc-437f-ae57-1ef4c1f09f16` as Cloud Run revision
+  `driftline-00056-d8c` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32446842617` passed; the
   local release gate also passed all 225 backend tests, Ruff, and the frontend
   production build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
@@ -195,12 +195,27 @@ created during the contest.
   `DRIFT` (5 pages), Slack `C0BRGFUSADA` (27 recent messages), and GitHub (0
   open issues and 0 open pull requests) with aggregate-only redaction.
 - The hosted operator lane now requires Google OIDC (`DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY=true`); a direct HMAC probe returned HTTP 401, while the public lane remained packet-only. This keeps the deployed break-glass signer out of normal production authorization.
+- The newest revision repaired an incomplete tenant bootstrap safely: an
+  existing tenant with no memberships can receive exactly one owner membership
+  through the platform bootstrap route, while an already-membered tenant still
+  returns a conflict. The live OIDC directory then returned the isolated
+  `driftline-demo` owner membership, aggregate connector context, and binding
+  health without exposing credential values.
+- A current authenticated `tenant_demo` run (`b6332414-3bc3-4eb4-b5fc-43041abe35d3`)
+  carried `driftline-demo` through Gemini/ADK into Firestore and stopped at
+  `needs_approval`. OIDC approval reactivated the existing marker-scoped Jira
+  task `KAN-18` (idempotent, no duplicate issue); the same approval also
+  reactivated the tenant's Confluence, Slack, and GitHub markers. OIDC undo
+  changed the Driftline-owned Jira label to `driftline-reversed`, appended the
+  reversal comment, and returned the workflow to `needs_approval` while
+  retaining the issue and append-only audit record. This is direct production
+  connector evidence for reversible operations, not a customer-ROI claim.
 - The current responsive release was rechecked at a 390px emulated viewport:
   the document reports `bodyScrollWidth=500`, `documentElement.scrollWidth=500`,
   and `scrollX=0`, while the activity, run-history, and worklist panels retain
   their intentional inner horizontal scroll. Desktop and mobile Lighthouse each
   passed all 57 checks with 100 scores and the browser console had no messages.
-- The anonymous public-source Change Card on the current `driftline-00055-lvp`
+- The anonymous public-source Change Card on the current `driftline-00056-d8c`
   deployment was
   rechecked after a truthfulness fix: it displays `CRM context unavailable`
   and `No CRM context was read in this run`, never `Permissioned business
@@ -210,7 +225,7 @@ created during the contest.
   `external_write=false`. A named Product Marketing demo actor then claimed
   and completed one owner action; the live value endpoint reports this as
   public-demo telemetry only (1 of 24 action items, 4.2%), not customer ROI.
-- The latest public packet proof on `driftline-00055-lvp` contains
+- The latest public packet proof on `driftline-00056-d8c` contains
   `isolated public-demo output` rather than the old sandbox wording; approval
   persisted the packet and undo returned `needs_approval` with both
   `external_write=false` and `external_systems_changed=false`.

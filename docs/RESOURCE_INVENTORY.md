@@ -3020,3 +3020,29 @@ is no longer needed.
   `external_write=false`; immediate undo persisted the rollback marker and
   returned the workflow to `needs_approval`. No external provider write is
   claimed by this public smoke.
+
+## 2026-08-21 tenant bootstrap repair and authenticated connector canary (live)
+
+- Source commit `f937d60` (`Repair incomplete tenant bootstrap membership`)
+  passed GitHub Actions run `32446842617` (`success`). Cloud Build
+  `dbde9432-0fdc-437f-ae57-1ef4c1f09f16` completed `SUCCESS` and deployed
+  `driftline-00056-d8c` at 100% traffic. The active image digest is
+  `sha256:a8b93e677951e5c23ca91da3abdfafc554e8b185bfcfb8a294052f9c9e88a3d9`.
+  The active project remained `driftline-hackathon-2026`; Cloud Run remains
+  scale-to-zero with max one instance, 512 MiB, one CPU, 20 concurrency, and
+  a 300-second timeout.
+- `/health` returned HTTP 200 with Firestore persistence and async jobs; the
+  current-revision Cloud Logging query returned no `severity>=ERROR` entries.
+- With a short-lived Google OIDC identity, the isolated `driftline-demo`
+  tenant was repaired from an existing tenant document with no membership to
+  one owner membership. The signed tenant directory, aggregate context, and
+  binding-health routes then returned only redacted metadata: Jira,
+  Confluence, Slack, and GitHub healthy; Salesforce not configured.
+- Authenticated `tenant_demo` job `job-6efbdab733c5` reached
+  `needs_approval` with workflow `b6332414-3bc3-4eb4-b5fc-43041abe35d3`,
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, and the allowlisted
+  tools `inspect_source_change` plus `get_workflow_state`. Signed approval
+  reactivated the idempotent Jira task `KAN-18` and the configured
+  Confluence/Slack/GitHub markers. Signed undo reversed those Driftline-owned
+  external markers, preserved the Jira issue, and persisted a rollback object
+  and audit event. No credential value was returned or written to the repo.
