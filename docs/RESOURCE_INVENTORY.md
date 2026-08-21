@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T12:14:30Z` with the active gcloud project set to
+Checked `2026-08-21T12:23:30Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00106-7k7` at 100% traffic.
+  `driftline-00107-pr6` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -28,6 +28,17 @@ Checked `2026-08-21T12:14:30Z` with the active gcloud project set to
   authority.
 
 ## 2026-08-21 production-lane and judge-proof release (live)
+
+- Source commit `7913c37` was deployed by Cloud Build
+  `2f5b0c1b-057b-459d-a72b-759a1310d32a` (`SUCCESS`, 3m06s) as Cloud Run
+  revision `driftline-00107-pr6` at 100% traffic. The pre-scan evidence link
+  is now pinned to the same immutable competitor fixture commit used by the
+  runtime, so the judge path cannot drift before the first click.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors. A
+  fresh `scripts/verify_live_agent.sh` run proved job `job-4f477d45abd4` /
+  workflow `706f0b5c-b70e-4978-9663-bd4a97dda88c` reached `needs_approval`
+  through `gemini-3.5-flash`, Google ADK, both allowlisted tools, four
+  artifacts, and five audit events.
 
 - Source commit `a2b66f4` was deployed by Cloud Build
   `7ab6adb1-7b82-4244-b3b4-cd4c2b893b54` (`SUCCESS`, 3m21s) as Cloud Run
