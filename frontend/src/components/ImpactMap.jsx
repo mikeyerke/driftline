@@ -71,22 +71,53 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
       : sourceCategory === "Competitor narrative"
         ? "Market narrative change"
         : "Pricing and packaging";
+  // Keep the pre-scan state structurally honest: it is a deterministic map of
+  // the configured impact profile, not a blank placeholder. The live graph
+  // returned by the agent uses this same source -> offering -> impact area ->
+  // work surface -> handoff shape, so the console does not change its mental
+  // model halfway through a scan.
   const fallbackNodes = [
     { id: "source", kind: "source", label: sourceName || "Public pricing page", meta: "Verified source change" },
     { id: "offering", kind: "offering", label: previewOffering, meta: previewChangeType },
-    ...(items || []).map((item, index) => ({ id: `artifact-${index}`, kind: "artifact", label: item.name, meta: item.owner, risk: item.risk })),
   ];
-  const displayColumns = columns.length ? columns : [
-    { kind: "source", nodes: fallbackNodes.slice(0, 1) },
-    { kind: "offering", nodes: fallbackNodes.slice(1, 2) },
-    { kind: "artifact", nodes: fallbackNodes.slice(2) },
-  ];
+  const fallbackEdges = [{ from: "source", to: "offering" }];
+  const fallbackAreas = new Map();
+  const fallbackSystems = new Map();
+  const areaForItem = (item) => ({
+    "Competitive positioning": "Competitive intelligence",
+    "Sales objection handling": "Positioning",
+    "Commercial operations": "Revenue enablement",
+    "Market narrative": "Planning",
+  }[item.detail] || "Downstream work");
+  const systemsForItem = (item) => item.name === "Deal desk guidance"
+    ? ["Jira", "Slack"]
+    : ["Confluence", "Slack"];
+  (items || []).forEach((item, index) => {
+    const area = areaForItem(item);
+    const areaId = `fallback-area-${area.toLowerCase().replaceAll(" ", "-")}`;
+    if (!fallbackAreas.has(areaId)) {
+      fallbackAreas.set(areaId, area);
+      fallbackNodes.push({ id: areaId, kind: "domain", label: area, meta: "Impact area" });
+      fallbackEdges.push({ from: "offering", to: areaId });
+    }
+    const artifactId = `artifact-${index}`;
+    fallbackNodes.push({ id: artifactId, kind: "artifact", label: item.name, meta: item.owner, risk: item.risk });
+    fallbackEdges.push({ from: areaId, to: artifactId });
+    systemsForItem(item).forEach((system) => {
+      const systemId = `fallback-system-${system.toLowerCase()}`;
+      if (!fallbackSystems.has(systemId)) {
+        fallbackSystems.set(systemId, system);
+        fallbackNodes.push({ id: systemId, kind: "system", label: system, meta: "Prepared handoff" });
+      }
+      fallbackEdges.push({ from: artifactId, to: systemId });
+    });
+  });
+  const displayColumns = columns.length ? columns : ["source", "offering", "domain", "artifact", "system"]
+    .map((kind) => ({ kind, nodes: fallbackNodes.filter((node) => node.kind === kind) }))
+    .filter((column) => column.nodes.length);
   const displayNodes = displayColumns.flatMap((column) => column.nodes);
   const displayNodesById = useMemo(() => new Map(displayNodes.map((node) => [node.id, node])), [displayNodes]);
-  const displayEdges = edges.length ? edges : [
-    { from: "source", to: "offering" },
-    ...(items || []).map((item, index) => ({ from: "offering", to: `artifact-${index}` })),
-  ];
+  const displayEdges = edges.length ? edges : fallbackEdges;
 
   useEffect(() => {
     if (focusedNodeId && !displayNodesById.has(focusedNodeId)) setFocusedNodeId(null);
