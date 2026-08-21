@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T20:03Z` with the active gcloud project set to
+Checked `2026-08-21T20:10Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00133-clc` at 100% traffic. Its immutable serving image is
-  `sha256:eb05baa0ff2348d7ce95d2d14d481832b907f46cad0377b4195f2f71057bcf6c`.
+  `driftline-00134-rfk` at 100% traffic. Its immutable serving image is
+  `sha256:1f3f419b54589fddabfd01d71267be97ef99e971304934a10cf1652b04efea2c`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -32,6 +32,27 @@ Checked `2026-08-21T20:03Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 Salesforce OAuth read-lane correction release
+
+- Source commit `c5587fa` deployed successfully through Cloud Build
+  `afcea230-b6e9-40a5-bbd8-cdc0631738c8` (`SUCCESS`, 3m7s) as revision
+  `driftline-00134-rfk` at 100% traffic. The serving image is pinned to
+  `sha256:1f3f419b54589fddabfd01d71267be97ef99e971304934a10cf1652b04efea2c`.
+- The Salesforce read-only client now accepts the tenant OAuth access token
+  returned after refresh and no longer requires a deployment-wide Salesforce
+  bearer token. The allowlisted instance host and API version remain enforced.
+- Local verification passed 257 backend tests, Ruff, frontend build
+  (`317.12 kB`, `93.24 kB` gzip), and `git diff --check`. GitHub Actions run
+  `32521842231` passed all repository gates.
+- `scripts/verify_production.sh` passed; fresh live proof returned job
+  `job-f9e53621237e` / workflow `fbcbe6a0-aebe-481a-8a91-574f9875fa4a` with
+  `needs_approval`, public-source evidence, Gemini 3.5 Flash, Google ADK,
+  two allowlisted tools, four artifacts, five audit events, and two options.
+- `scripts/verify_public_approval_undo.sh` passed with job
+  `job-1bcfe167c869` / workflow `a56f7902-c614-4d68-b0ca-01e64050df11`:
+  packet persisted, output reversed, `external_write=false`, and
+  `external_systems_changed=false`.
 
 ## 2026-08-21 Salesforce context release
 
