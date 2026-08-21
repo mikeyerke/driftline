@@ -409,7 +409,11 @@ class JobStartRequest(BaseModel):
         max_length=2000,
     )
     user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
-    run_mode: Literal["demo", "monitor"] = "demo"
+    # ``tenant_demo`` is an authenticated pilot lane: it replays one of the
+    # pinned fixtures through the real ADK coordinator while retaining the
+    # tenant boundary and connector approval gates. It is deliberately
+    # distinct from both the anonymous judge replay and live monitoring.
+    run_mode: Literal["demo", "monitor", "tenant_demo"] = "demo"
     source_id: str = Field(default="public/pricing", min_length=1, max_length=80)
     operator: str = Field(default="demo-operator", min_length=1, max_length=120)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
@@ -3962,9 +3966,12 @@ async def start_demo_job(
     background_tasks: BackgroundTasks,
 ) -> dict:
     tenant_id: str | None = None
-    if request.run_mode == "monitor":
+    if request.run_mode in {"monitor", "tenant_demo"}:
+        auth_resource = (
+            "monitor" if request.run_mode == "monitor" else "tenant-demo"
+        )
         monitor_identity = _verify_approval_mode(
-            f"monitor:{request.source_id}",
+            f"{auth_resource}:{request.source_id}",
             request.operator,
             "signed",
             request.approval_token,

@@ -147,6 +147,29 @@ def test_agent_source_tool_persists_the_created_workflow() -> None:
     assert payload["data_mode"] == "synthetic_demo"
 
 
+def test_agent_tenant_demo_is_explicitly_labeled_and_bound() -> None:
+    persisted_ids: list[str] = []
+    original_persist = agent_module.persist_workflow
+    mode_token = agent_module.set_run_mode("tenant_demo")
+    tenant_token = agent_module.set_tenant_id("driftline-demo")
+    agent_module.persist_workflow = lambda state: persisted_ids.append(
+        state.workflow_id
+    )
+    try:
+        payload = agent_module.inspect_source_change("public/pricing")
+        state = agent_module.workflow_store.get(payload["workflow_id"])
+    finally:
+        agent_module.persist_workflow = original_persist
+        agent_module.reset_tenant_id(tenant_token)
+        agent_module.reset_run_mode(mode_token)
+
+    assert payload["workflow_id"] in persisted_ids
+    assert payload["data_mode"] == "synthetic_tenant_demo"
+    assert state.tenant_id == "driftline-demo"
+    assert state.data_mode == "synthetic_tenant_demo"
+    assert "Synthetic tenant replay fixture" in state.evidence.snapshot_label
+
+
 def test_agent_resolves_placeholder_workflow_to_current_adk_turn() -> None:
     token = agent_module.set_workflow_id(None)
     try:

@@ -1432,6 +1432,43 @@ def test_signed_monitor_job_carries_authenticated_tenant(monkeypatch) -> None:
     assert response.json()["tenant_id"] == "driftline-demo"
 
 
+def test_signed_tenant_demo_job_carries_authenticated_tenant(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "tenant-demo-test-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "driftline-demo")
+    captured: dict[str, object] = {}
+
+    def fake_start_job(**kwargs):
+        captured.update(kwargs)
+        return JobState(job_id="job-tenant-demo", tenant_id=kwargs["tenant_id"])
+
+    monkeypatch.setattr(api, "_start_job", fake_start_job)
+    actor = "Tenant demo operator"
+    token = hmac.new(
+        secret.encode(),
+        f"tenant-demo:public/pricing:{actor}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    response = client.post(
+        "/api/jobs/demo",
+        json={
+            "run_mode": "tenant_demo",
+            "source_id": "public/pricing",
+            "operator": actor,
+            "tenant_id": "driftline-demo",
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["tenant_id"] == "driftline-demo"
+    assert captured["run_mode"] == "tenant_demo"
+    assert response.json()["tenant_id"] == "driftline-demo"
+
+
 def test_signed_operator_cannot_approve_another_tenant_workflow(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

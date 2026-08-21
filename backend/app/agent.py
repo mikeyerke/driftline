@@ -53,21 +53,26 @@ def inspect_source_change(source_id: str) -> dict:
     snapshot = inspect_allowlisted_source(
         source_id,
         tenant_id=_tenant_id.get(),
-        force_replay=_run_mode.get() == "demo",
+        force_replay=_run_mode.get() in {"demo", "tenant_demo"},
     )
     if snapshot.get("status") == "rejected":
         return model_safe_state(snapshot)
     if not snapshot.get("change_detected", True):
         return model_safe_state(snapshot)
+    tenant_demo = _run_mode.get() == "tenant_demo" and _tenant_id.get() is not None
     state = workflow_store.start_demo(
         tenant_id=_tenant_id.get(),
         source_id=str(snapshot.get("source_id", source_id)),
         source_name=(source_definition(source_id, _tenant_id.get()) or {}).get(
             "name", "Allowlisted public snapshot"
         ),
-        data_mode=snapshot["data_mode"],
+        data_mode=("synthetic_tenant_demo" if tenant_demo else snapshot["data_mode"]),
         source_url=snapshot["source_url"],
-        snapshot_label=snapshot["snapshot_label"],
+        snapshot_label=(
+            f"Synthetic tenant replay fixture · {source_id}"
+            if tenant_demo
+            else snapshot["snapshot_label"]
+        ),
         after_text=snapshot["after"],
         snapshot_hash=snapshot["snapshot_hash"],
         previous_snapshot_hash=snapshot.get("previous_snapshot_hash"),

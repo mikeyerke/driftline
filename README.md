@@ -188,6 +188,15 @@ agent calls, workflow mutations, connector reads, and monitor jobs in Firestore.
 control-plane metering for quota and pilot evidence only: billing is disabled,
 content is not included, and the deployment still does not claim a hosted
 subscription system.
+
+For an authenticated pilot or connector rehearsal, `POST /api/jobs/demo` also
+accepts `run_mode=tenant_demo`. This mode requires the tenant's signed operator
+identity, uses only one of the five pinned fixtures, runs the real ADK/Gemini
+coordinator, and labels the resulting Firestore workflow
+`synthetic_tenant_demo`. It then follows the normal deterministic approval,
+connector-write, and undo gates. It is a bounded pilot replay—not a claim that
+the fixture is a customer's live source.
+
 Tenant owners can read and tune bounded per-tenant allowances without a
 redeploy through signed `GET/POST /api/tenants/policy`. The policy covers agent
 calls, workflow mutations, connector reads, and `retention_days` for tenant-owned
