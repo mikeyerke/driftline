@@ -130,6 +130,12 @@ Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
   severity `ERROR` entries after the closure canary. This is an observed
   operational metric for the isolated deployment, not a customer ROI claim.
 
+- The canary was completed end to end: all four owner actions (Product
+  Marketing, Customer Success, Support, and RevOps) were claimed and
+  completed exactly once. The durable closure record reached `state=closed`,
+  `completed=4`, `failed=0`, `overdue=0`, and `completion_rate=1.0`, with the
+  next step `Review the completed evidence trail`.
+
 ## 2026-08-21 fontless console performance release (live)
 
 - Source commit `02b2e41` passed the full 240-test suite, Ruff,

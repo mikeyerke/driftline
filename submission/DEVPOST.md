@@ -166,6 +166,11 @@ created during the contest.
   reports four action items, one completed, zero failed, and a 25% closure rate;
   the append-only audit contains both claim and completion events. This is an
   observed deployment metric, not a customer outcome or ROI claim.
+- Continuing that canary, the remaining Customer Success, Support, and RevOps
+  actions were each claimed and completed once. The durable closure state
+  reached `closed` with 4/4 actions complete, 0 failed, and 0 overdue. This
+  demonstrates the full change-to-closed-work loop while remaining explicitly
+  separate from customer ROI evidence.
   Multimodal evidence is pinned to an immutable asset commit and served as
   smaller JPEG bytes; fingerprinted frontend bundles are immutable-cacheable.
   The public console also avoids a render-blocking third-party font request;
