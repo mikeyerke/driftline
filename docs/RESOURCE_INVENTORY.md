@@ -2931,7 +2931,8 @@ is no longer needed.
   `driftline` package versions and deletes untagged or tagged versions older
   than 30 days. The policy was first applied with dry-run enabled, then
   re-applied with dry-run disabled after the policy shape and rollback window
-  were verified. No manual image deletion was performed in this release.
+  were verified. The initial policy application itself was non-destructive;
+  the explicit cleanup below was performed afterward against exact digests.
 - Repository labels remain `app=driftline`, `environment=production`, and
   `hackathon=all-things-agentic`. Cloud Run remains scale-to-zero with
   `maxScale=1`; this retention control is isolated to the Driftline project

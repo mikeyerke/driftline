@@ -134,7 +134,7 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The latest live rollout (`driftline-00037-6t9`, source `bb8a437`, Cloud Build
+- An earlier live rollout (`driftline-00037-6t9`, source `bb8a437`, Cloud Build
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
