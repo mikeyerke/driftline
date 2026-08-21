@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
+Checked `2026-08-21T08:59:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00086-77b` at 100% traffic.
+  `driftline-00087-p74` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,20 @@ Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 production lane clarity release (live)
+
+- Source commit `0aef33d` was deployed by Cloud Build
+  `042c0406-4001-49d3-92dc-2fe9f5da38bd` (`SUCCESS`) as Cloud Run revision
+  `driftline-00087-p74` at 100% traffic.
+- The public console now calls itself the `Public evaluation lane` and
+  `Packet-safe evaluation`: it is a live production-backed lane with
+  allowlisted sources and deterministic approval, while external connector
+  writes remain restricted to signed authenticated operators. This is a copy
+  clarification, not a relaxation of the safety boundary.
+- `/health` returned HTTP 200 after deployment; the fresh browser loaded the
+  new copy with no console errors or warnings; the active-revision error log
+  query was empty.
 
 ## 2026-08-21 static asset cache safety release (live)
 
