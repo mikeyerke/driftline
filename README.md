@@ -549,3 +549,9 @@ failing` alert policy auto-closes after 30 minutes and is intentionally scoped t
 this project; no notification channel or external messaging destination is
 configured by default. The check and policy are reproducible from
 `infra/monitoring/driftline-health-alert.json` and the resource inventory.
+
+The `Driftline production control plane` dashboard
+(`9f00a615-b74c-4567-aae9-211cd66e97fc`) puts the health check, Cloud Run
+request/instance telemetry, and Cloud Tasks dispatch pressure in one labeled
+view. Its configuration is reproducible from
+`infra/monitoring/driftline-production-dashboard.json`.

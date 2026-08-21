@@ -79,6 +79,23 @@ Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
   region may publish on a different sampling boundary; no failure point was
   observed.
 
+## 2026-08-21 production operations dashboard (live)
+
+- Cloud Monitoring dashboard `Driftline production control plane`
+  (`projects/724959673622/dashboards/9f00a615-b74c-4567-aae9-211cd66e97fc`)
+  is created with labels `app=driftline`, `environment=production`, and
+  `owner=driftline`.
+- The dashboard contains the liveness scorecard, Cloud Run request rate,
+  Cloud Run container instance count, and Cloud Tasks dispatch-attempt rate.
+  It is aggregate telemetry only and contains no prompts, source bodies,
+  credentials, or customer outcomes.
+- Configuration is reproducible from
+  `infra/monitoring/driftline-production-dashboard.json`. Monitoring API
+  header queries returned active series for all four metric families in the
+  current window (`run.googleapis.com/request_count`,
+  `run.googleapis.com/container/instance_count`,
+  `cloudtasks.googleapis.com/queue/task_attempt_count`, and the uptime check).
+
 ## 2026-08-21 public end-to-end journey (live)
 
 - Browser-driven production run `job-5f77824896c1` created workflow

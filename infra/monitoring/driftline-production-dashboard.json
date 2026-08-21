@@ -1,0 +1,120 @@
+{
+  "displayName": "Driftline production control plane",
+  "labels": {
+    "app": "driftline",
+    "environment": "production",
+    "owner": "driftline"
+  },
+  "gridLayout": {
+    "columns": "2",
+    "widgets": [
+      {
+        "text": {
+          "content": "# Driftline production control plane\n\nIsolated project: `driftline-hackathon-2026`\n\nThis dashboard intentionally contains service health and aggregate operational telemetry only. It contains no prompts, source bodies, connector credentials, or customer outcomes."
+        }
+      },
+      {
+        "title": "Public health check",
+        "scorecard": {
+          "timeSeriesQuery": {
+            "timeSeriesFilter": {
+              "filter": "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" resource.type=\"uptime_url\" resource.label.\"host\"=\"driftline-xvxczqg62a-uc.a.run.app\" metric.label.\"check_id\"=\"driftline-health-Hmxqs16MUkY\"",
+              "aggregation": {
+                "alignmentPeriod": "300s",
+                "perSeriesAligner": "ALIGN_FRACTION_TRUE",
+                "crossSeriesReducer": "REDUCE_MIN"
+              }
+            }
+          },
+          "sparkChartView": {
+            "sparkChartType": "SPARK_LINE"
+          }
+        }
+      },
+      {
+        "title": "Cloud Run requests",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"driftline\"",
+                  "aggregation": {
+                    "alignmentPeriod": "300s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": [
+                      "resource.label.service_name"
+                    ]
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "targetAxis": "Y1"
+            }
+          ],
+          "yAxis": {
+            "label": "requests / second",
+            "scale": "LINEAR"
+          }
+        }
+      },
+      {
+        "title": "Cloud Run container instances",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"run.googleapis.com/container/instance_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"driftline\"",
+                  "aggregation": {
+                    "alignmentPeriod": "300s",
+                    "perSeriesAligner": "ALIGN_MEAN",
+                    "crossSeriesReducer": "REDUCE_MAX",
+                    "groupByFields": [
+                      "resource.label.service_name"
+                    ]
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "targetAxis": "Y1"
+            }
+          ],
+          "yAxis": {
+            "label": "instances",
+            "scale": "LINEAR"
+          }
+        }
+      },
+      {
+        "title": "Cloud Tasks dispatch attempts",
+        "xyChart": {
+          "dataSets": [
+            {
+              "timeSeriesQuery": {
+                "timeSeriesFilter": {
+                  "filter": "metric.type=\"cloudtasks.googleapis.com/queue/task_attempt_count\" resource.type=\"cloud_tasks_queue\" resource.label.\"queue_id\"=\"driftline-jobs\"",
+                  "aggregation": {
+                    "alignmentPeriod": "300s",
+                    "perSeriesAligner": "ALIGN_RATE",
+                    "crossSeriesReducer": "REDUCE_SUM",
+                    "groupByFields": [
+                      "resource.label.queue_id"
+                    ]
+                  }
+                }
+              },
+              "plotType": "LINE",
+              "targetAxis": "Y1"
+            }
+          ],
+          "yAxis": {
+            "label": "attempts / second",
+            "scale": "LINEAR"
+          }
+        }
+      }
+    ]
+  }
+}
