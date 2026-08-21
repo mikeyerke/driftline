@@ -1561,6 +1561,33 @@ def _start_job(
     return job
 
 
+def _inflight_monitor_job_exists(
+    source_id: str,
+    tenant_id: str | None,
+) -> bool:
+    """Return whether this source already has an active monitor job.
+
+    Scheduler delivery is at-least-once. Checking both the instance cache and
+    the durable job ledger prevents a duplicate tick (or a second Cloud Run
+    instance) from launching another model call for the same source.
+    """
+    try:
+        with _jobs_lock:
+            candidates = list(_jobs.values())
+        candidates.extend(list_jobs(limit=50))
+    except Exception:
+        # A ledger outage must not make the scheduler fan out unbounded work.
+        logger.exception("Unable to inspect in-flight monitor jobs")
+        return True
+    return any(
+        job.run_mode == "monitor"
+        and job.source_id == source_id
+        and job.tenant_id == tenant_id
+        and job.status in {"queued", "running"}
+        for job in candidates
+    )
+
+
 @app.get("/health")
 def health() -> dict[str, str | bool]:
     return {
@@ -4305,7 +4332,11 @@ async def scheduler_tick(
     jobs: list[JobState] = []
     queued_source_ids: list[str] = []
     skipped: list[str] = []
+    in_flight: list[str] = []
     for current_tenant_id, current_source_id, _definition in source_entries:
+        if _inflight_monitor_job_exists(current_source_id, current_tenant_id):
+            in_flight.append(current_source_id)
+            continue
         if not _reserve_agent_call(current_tenant_id):
             skipped.append(current_source_id)
             continue
@@ -4332,6 +4363,7 @@ async def scheduler_tick(
         "source_ids": queued_source_ids,
         "jobs": [job.to_dict() for job in jobs],
         "skipped_source_ids": skipped,
+        "in_flight_source_ids": in_flight,
         # Preserve the one-job response shape for a canary invocation.
         "job_id": jobs[0].job_id if len(jobs) == 1 else None,
     }

@@ -1466,6 +1466,36 @@ def test_scheduler_tick_carries_custom_source_tenant(monkeypatch) -> None:
     assert custom["source_id"] == "custom/tenant-pricing"
 
 
+def test_scheduler_tick_deduplicates_inflight_monitor_job(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_verify_scheduler_request", lambda request: None)
+    in_flight = JobState(
+        job_id="job-monitor-inflight",
+        status="running",
+        run_mode="monitor",
+        source_id="public/pricing",
+    )
+    api._set_job(in_flight)
+    captured: list[str] = []
+
+    def fake_start_job(**kwargs):
+        captured.append(str(kwargs["source_id"]))
+        return JobState(job_id=f"job-{len(captured)}")
+
+    monkeypatch.setattr(api, "_start_job", fake_start_job)
+    monkeypatch.setenv("DRIFTLINE_MONITOR_MAX_SOURCES", "5")
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+        api._tenant_agent_call_times.clear()
+
+    response = client.post("/api/scheduler/tick")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "public/pricing" not in payload["source_ids"]
+    assert payload["in_flight_source_ids"] == ["public/pricing"]
+    assert "public/pricing" not in captured
+
+
 def test_signed_operator_can_onboard_an_exact_public_source(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")

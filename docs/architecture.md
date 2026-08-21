@@ -47,7 +47,10 @@ fabricated. Common bot/challenge interstitials (Cloudflare/Akamai/captcha
 pages) are rejected before they can become false source changes. Cloud Scheduler runs monitor mode every six hours, and a Firestore
 snapshot ledger distinguishes a baseline, unchanged source, and a verified
 change. Scheduler fan-out is capped at 25 sources; a signed canary can target
-one source. The deterministic workflow engine—not
+one source. Scheduler delivery is at-least-once, so the service checks the
+durable in-flight job ledger before enqueueing a source and reports a
+deduplicated no-op instead of launching duplicate model work. The deterministic
+workflow engine—not
 the model—creates the evidence, maps explicit offering impact profiles to
 downstream work surfaces, applies the
 approval policy, and records state transitions. Cloud Run hosts the API and

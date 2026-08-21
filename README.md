@@ -211,7 +211,10 @@ falls back to a clearly labelled deterministic replay; signed tenant and
 monitor runs remain fail-closed. Cloud Scheduler
 fans out one bounded monitor job per registered source (or a single canary when
 `source_id` is supplied), capped by `DRIFTLINE_MONITOR_MAX_SOURCES`; each source
-is still constrained by the same allowlist and ADK tool policy. The operator
+is still constrained by the same allowlist and ADK tool policy. Scheduler
+delivery is at-least-once, so Driftline checks the in-flight durable job ledger
+before enqueueing and reports deduplicated sources instead of launching a
+second model call. The operator
 console exposes `/api/monitor/registry` freshness state and `/api/ops/summary`
 runtime/connector guardrails without exposing credentials. Both live and
 identity-free public-demo mutations are query-capped and rate-limited to bound
