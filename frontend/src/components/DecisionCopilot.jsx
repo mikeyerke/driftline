@@ -6,7 +6,14 @@ function shortHash(value) {
   return value ? `${value.slice(0, 12)}…` : "unavailable";
 }
 
-export default function DecisionCopilot({ copilot, selectedId, onSelect }) {
+function citationLabel(quote, evidence) {
+  if (!quote || !evidence) return "Cited source";
+  if (quote === evidence.after) return "Observed after";
+  if (quote === evidence.before) return "Prior baseline";
+  return "Cited source";
+}
+
+export default function DecisionCopilot({ copilot, evidence, selectedId, onSelect }) {
   if (!copilot?.options?.length) return null;
   const policy = copilot.policy_review;
   const blocked = policy?.status === "blocked";
@@ -28,7 +35,7 @@ export default function DecisionCopilot({ copilot, selectedId, onSelect }) {
                 <span className="decision-option-summary">{option.summary}</span>
                 <details>
                   <summary>Tradeoffs, rollback, and evidence <ChevronDown size={13} /></summary>
-                  <span className="decision-option-detail"><strong>Tradeoffs</strong><span>{option.tradeoffs.join(" · ")}</span><strong>Rollback</strong><span>{option.rollback}</span><strong>Cited source</strong><q>{option.citations?.[0]?.quote}</q><small>Evidence {shortHash(option.citations?.[0]?.evidence_hash)}</small></span>
+                  <span className="decision-option-detail"><strong>Tradeoffs</strong><span>{option.tradeoffs.join(" · ")}</span><strong>Rollback</strong><span>{option.rollback}</span><strong>{citationLabel(option.citations?.[0]?.quote, evidence)}</strong><q>{option.citations?.[0]?.quote}</q><small>Evidence {shortHash(option.citations?.[0]?.evidence_hash)}</small></span>
                 </details>
               </span>
             </label>

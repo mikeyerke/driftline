@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Ban, Check, Download, FileText, RotateCcw } from "lucide-react";
 import DecisionCopilot from "./DecisionCopilot";
 
-export default function DecisionPanel({ approved, dismissed, approval, artifactDecisions, actionRecord, copilot, onApprove, onOptionSelect, onUndo, onDismiss, onEvidence, onPacket, isLive, busy, packetHref, sourceCategory, requiresDecisionCopilot = false }) {
+export default function DecisionPanel({ approved, dismissed, approval, artifactDecisions, actionRecord, copilot, evidence, onApprove, onOptionSelect, onUndo, onDismiss, onEvidence, onPacket, isLive, busy, packetHref, sourceCategory, requiresDecisionCopilot = false }) {
   const decisions = approval?.artifact_decisions || artifactDecisions || { "Pricing battlecard": "packet", "Renewal playbook": "packet", "Enterprise FAQ": "owner_review", "CRM guidance": "queued" };
   const counts = Object.values(decisions).reduce((result, value) => ({ ...result, [value]: (result[value] || 0) + 1 }), {});
   const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
@@ -95,7 +95,7 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
       <h2>Human approval required</h2>
       <p className="decision-question">{sourceCategory?.startsWith("Competitor") ? "Should Product Marketing approve this competitive response for owner handoff?" : "Should existing enterprise customers retain unlimited history through renewal?"}</p>
       <div className="decision-rationale"><strong>Why this needs a decision</strong><p>{sourceCategory?.startsWith("Competitor") ? "This signal can change comparison claims and deal guidance; Driftline keeps the observed source attached before anyone acts." : "This change affects contractual expectations and may require an exception path for existing customers."}</p></div>
-      <DecisionCopilot copilot={copilot} selectedId={selectedOptionId} onSelect={(option) => { setSelectedOptionId(option.option_id); onOptionSelect?.(option); }} />
+      <DecisionCopilot copilot={copilot} evidence={evidence} selectedId={selectedOptionId} onSelect={(option) => { setSelectedOptionId(option.option_id); onOptionSelect?.(option); }} />
       {customRouting && <label className="override-reason"><span>Why change the recommended artifact routing?</span><textarea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} maxLength={240} rows={2} /></label>}
       <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>{customRouting ? "Custom artifact routing selected · the reviewed workflow decision remains bounded by policy." : "High-risk artifacts remain behind this deterministic human gate."}</small></div>
       <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || copilotUnavailable || (copilot && !selectedOption) || (customRouting && overrideReason.trim().length < 3)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : copilotUnavailable ? "Rerun scan for Gemini review" : "Approve action plan"}</button>
