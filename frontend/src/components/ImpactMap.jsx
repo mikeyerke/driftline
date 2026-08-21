@@ -126,26 +126,32 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
   const focusedNode = focusedNodeId ? displayNodesById.get(focusedNodeId) : null;
   const focusedIds = useMemo(() => {
     if (!focusedNodeId) return new Set();
-    // Focus the whole connected evidence chain, not only the two adjacent
-    // cards. That makes a source selection reveal every downstream surface,
-    // while selecting one artifact still isolates its path and handoffs.
-    const adjacency = new Map();
+    // Focus the complete directed evidence chain, not only adjacent cards.
+    // Walk ancestors toward the source and descendants toward handoffs; do
+    // not traverse sideways through a shared offering and light up sibling
+    // work surfaces that the operator did not select.
+    const forward = new Map();
+    const reverse = new Map();
     displayEdges.forEach((edge) => {
-      if (!adjacency.has(edge.from)) adjacency.set(edge.from, []);
-      if (!adjacency.has(edge.to)) adjacency.set(edge.to, []);
-      adjacency.get(edge.from).push(edge.to);
-      adjacency.get(edge.to).push(edge.from);
+      if (!forward.has(edge.from)) forward.set(edge.from, []);
+      if (!reverse.has(edge.to)) reverse.set(edge.to, []);
+      forward.get(edge.from).push(edge.to);
+      reverse.get(edge.to).push(edge.from);
     });
     const ids = new Set();
-    const queue = [focusedNodeId];
-    while (queue.length) {
-      const current = queue.shift();
-      if (ids.has(current)) continue;
-      ids.add(current);
-      (adjacency.get(current) || []).forEach((neighbor) => {
-        if (!ids.has(neighbor)) queue.push(neighbor);
-      });
-    }
+    const visit = (start, adjacency) => {
+      const queue = [start];
+      while (queue.length) {
+        const current = queue.shift();
+        if (ids.has(current)) continue;
+        ids.add(current);
+        (adjacency.get(current) || []).forEach((neighbor) => {
+          if (!ids.has(neighbor)) queue.push(neighbor);
+        });
+      }
+    };
+    visit(focusedNodeId, reverse);
+    visit(focusedNodeId, forward);
     return ids;
   }, [displayEdges, focusedNodeId]);
   const focusedPath = focusedNode ? pathToSource(focusedNode.id, displayNodesById, displayEdges) : [];
