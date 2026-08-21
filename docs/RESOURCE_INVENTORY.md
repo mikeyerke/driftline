@@ -2941,3 +2941,20 @@ is no longer needed.
   candidates. Artifact Registry reports the image-version count at 10; blob
   garbage collection is asynchronous, so the displayed repository byte count
   may lag the deletion.
+
+## 2026-08-21 public lane clarity release (live)
+
+- Source commit `0c5f327` (`Clarify public production lane`) passed the local
+  backend gate (224 tests and Ruff) plus the frontend production build, then
+  Cloud Build `bd48453f-e1fa-4ef7-9524-64c8785db413` completed `SUCCESS`.
+- Cloud Run revision `driftline-00053-pck` serves 100% of traffic with image
+  digest `sha256:221e06a64be1a99bf577d695d13f14b99f9bac51b1611979fcd1f55dccee23ae`.
+  The active project remained `driftline-hackathon-2026`, and the dedicated
+  runtime service account and production labels were unchanged.
+- The public browser rendered `Public demo lane`, `Production · packet-safe`,
+  and `Ready for review` after a fresh scan. The live scan reached the human
+  approval gate with `google_adk`, `gemini-3.5-flash`, Firestore state, and the
+  two allowlisted tools `inspect_source_change` and `get_workflow_state`.
+  The 1280px browser layout had no horizontal overflow, browser diagnostics
+  had no errors, `/health` returned HTTP 200, and current-revision Cloud
+  Logging returned no `severity>=ERROR` entries.
