@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T07:47:00Z` with the active gcloud project set to
+Checked `2026-08-21T07:59:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00079-k8c` at 100% traffic.
+  `driftline-00080-j9m` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,21 @@ Checked `2026-08-21T07:47:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 recoverable console release (live)
+
+- Source commit `e456290` passed 239 backend tests, Ruff, `git diff --check`,
+  and the frontend production build. Cloud Build
+  `27dfc586-47a3-40d5-93f3-cb00c715df29` completed `SUCCESS`; Cloud Run revision
+  `driftline-00080-j9m` serves 100% of traffic with the existing max-one,
+  scale-to-zero guardrails.
+- The frontend now has a bounded React error boundary. A render-time failure
+  presents a recovery card with a reload action and does not erase persisted
+  workflow state or transmit exception details to a third party.
+- Post-deploy probes returned `/health` HTTP 200, Firestore persistence,
+  `gemini-3.5-flash` ADK execution through the public Run scan, deterministic
+  `needs_approval`, zero browser warning/error logs, and zero severity `ERROR`
+  Cloud Logging entries for the active revision.
 
 ## 2026-08-21 Google Identity CSP hardening release (live)
 
