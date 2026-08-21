@@ -335,7 +335,8 @@ real Salesforce org authorizes the isolated tenant. See
 lane boundaries.
 
 Pilot measurement is deliberately separate from synthetic demo telemetry. See
-`docs/PILOT_PLAN.md`; until real teams contribute aggregate evidence, Driftline
+`docs/PILOT_PLAN.md` and the executable [`docs/PILOT_PACKET.md`](docs/PILOT_PACKET.md);
+until real teams contribute aggregate evidence, Driftline
 continues to report ROI, revenue, retention, and willingness-to-pay as
 `not_measured`. Once signed records exist, tenant owners can use
 `GET /api/ops/pilot-report` for a tenant-filtered, aggregate before/after delta;
@@ -434,6 +435,7 @@ trees, generated bundles, and screenshots from the uploaded build context.
 - Architecture: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
 - Verified rules: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
 - Cloud inventory: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
+- Pilot packet: https://github.com/mikeyerke/driftline/blob/main/docs/PILOT_PACKET.md
 
 ## Reproducible verification
 

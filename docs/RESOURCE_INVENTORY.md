@@ -2643,3 +2643,40 @@ is no longer needed.
   p90 alongside p50. A fresh browser context rendered `approval latency p50 ·
   n=6` and `Approval latency p90 128.3s`; the panel continues to label
   customer outcomes as unmeasured.
+
+## 2026-08-21 final connector and workflow gate recheck (live)
+
+- The active gcloud project was confirmed as `driftline-hackathon-2026`; Cloud
+  Run service `driftline` revision `driftline-00034-8pf` serves 100% of traffic.
+  `/health` returned HTTP 200 with `persistence=firestore` and
+  `async_jobs=true`. Cloud Logging returned no `ERROR` entries for the active
+  revision.
+- A direct public `/api/agent/run` request returned HTTP 200 with
+  `persisted=true`, `execution_mode=google_adk`, `model=gemini-3.5-flash`, and
+  exactly the allowlisted tool calls `inspect_source_change` and
+  `get_workflow_state`. The trace included Gemini structured analysis and a
+  human approval requirement.
+- A fresh demo workflow was approved as the named demo actor, persisted a
+  Firestore-backed packet, then undone. Approval returned `complete` with
+  `external_systems_changed=false`; undo returned `needs_approval`, marked the
+  action `reversed`, and persisted a separate rollback marker. This is a
+  packet-only demo proof, not a claim that an external customer system changed.
+- A tenant-signed binding-health read returned four healthy,
+  namespace-verified connectors (Jira, Confluence, Slack, GitHub), zero
+  attention items, and Salesforce `not_configured`. The response confirmed
+  `credential_values_exposed=false`.
+- A tenant-signed aggregate context read returned HTTP 200 for Jira project
+  `KAN` (18 open issues), Confluence space `DRIFT` (5 pages), Slack channel
+  `C0BRGFUSADA` (27 recent messages), and GitHub `mikeyerke/driftline` (0 open
+  issues, 0 open pull requests). The contract remained
+  `aggregate_metadata_only`, `persisted=false`; no message, page, issue, or
+  repository bodies were returned.
+- Desktop and 390px mobile Lighthouse navigation audits each passed all 57
+  checks (100 accessibility, best practices, SEO, and agentic browsing), and
+  Chrome reported no console warnings or errors.
+- The signed tenant pilot report still returned `status=not_measured` and
+  `record_count=0`. `docs/PILOT_PACKET.md` and
+  `scripts/record_pilot_measurement.sh` now provide a secret-safe, aggregate
+  measurement path, but no customer result is claimed until a real team
+  supplies dated before/after evidence. Salesforce likewise remains pending
+  the browser login/consent handoff; no Salesforce data claim is made.

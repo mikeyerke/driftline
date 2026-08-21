@@ -151,6 +151,18 @@ created during the contest.
   approval, reopen, and dismissal. Fresh browser QA passed the live scan,
   evidence, approval, completion, activity log, timeline, and 390px mobile path
   without console errors.
+- On 2026-08-21, the current `driftline-00034-8pf` revision was rechecked end to
+  end: `/health` returned Firestore persistence and async jobs; a direct ADK
+  run returned HTTP 200 with `persisted=true`, `model=gemini-3.5-flash`, and
+  exactly `inspect_source_change` plus `get_workflow_state`; a public demo
+  approval completed to a persisted packet and a named demo undo returned it
+  to `needs_approval` with a reversal marker. Fresh desktop and 390px mobile
+  Lighthouse navigation audits passed all 57 checks with no console warnings
+  or errors. The signed connector binding-health probe returned four healthy,
+  namespace-verified connectors (Jira, Confluence, Slack, GitHub), while the
+  signed aggregate context probe returned Jira `KAN` (18 issues), Confluence
+  `DRIFT` (5 pages), Slack `C0BRGFUSADA` (27 recent messages), and GitHub (0
+  open issues and 0 open pull requests) with aggregate-only redaction.
 - The tenant credential data plane is now canonical and fail-closed: durable
   tenant memberships, per-tenant Secret Manager namespaces, impersonated
   service identities, pinned versions, rotation/revocation, operation scopes,
