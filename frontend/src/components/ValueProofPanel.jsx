@@ -46,7 +46,7 @@ export default function ValueProofPanel() {
         <div><h2 id="value-proof-title"><Gauge size={17} />Value proof</h2><span className="live-label">Observed demo telemetry</span></div>
         <span className="muted">Operational utility, not invented ROI</span>
       </header>
-      {!nearViewport && <p className="multimodal-empty">Scroll to load observed deployment evidence.</p>}
+      {!nearViewport && <p className="multimodal-empty">Observed deployment evidence loads when this panel enters view.</p>}
       {nearViewport && loading && <p className="multimodal-empty"><Activity size={15} className="spin" />Reading bounded deployment evidence…</p>}
       {!loading && proof && <>
         <div className="value-proof-grid">

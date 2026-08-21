@@ -25,7 +25,7 @@ export default function ChangeGenomePanel() {
         <div><h2 id="genome-title"><Dna size={17} />Change memory</h2><span className="live-label">Append-only</span></div>
         <span className="muted">Recurring moves and open work</span>
       </header>
-      {!nearViewport && <p className="multimodal-empty">Scroll to load append-only change memory.</p>}
+      {!nearViewport && <p className="multimodal-empty">Change memory loads when this panel enters view.</p>}
       {nearViewport && loading && <p className="multimodal-empty"><LoaderCircle size={15} className="spin" />Reading the source ledger…</p>}
       {!loading && memory && <>
         <div className="genome-summary">

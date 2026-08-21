@@ -87,8 +87,8 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
               const unavailable = sourceHealthState === "unavailable";
               const deferred = !nearViewport;
               const status = deferred ? "deferred" : loading ? "checking" : unavailable ? "unavailable" : health?.status || "needs_baseline";
-              const statusLabel = deferred ? "Scroll to load freshness" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status.replaceAll("_", " ");
-              const freshness = deferred ? "Append-only ledger read is deferred" : loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
+              const statusLabel = deferred ? "Loads when in view" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status.replaceAll("_", " ");
+              const freshness = deferred ? "Freshness read is deferred to keep the console fast" : loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
               const nextDue = health?.next_due_at ? `Next due ${new Date(health.next_due_at).toLocaleString()}` : `Cadence ${source.cadence || "scheduled"}`;
               return <div className={`registry-health-card ${status}`} key={source.source_id}><span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span><strong>{source.name}</strong><small>{freshness}</small><small>{nextDue}</small></div>;
             })}
@@ -117,7 +117,7 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
         <div className="source-history" aria-label="Append-only source history">
         <div className="source-history-heading"><span><History size={14} />Historical observations</span><small>Append-only ledger</small></div>
           {!nearViewport
-            ? <p className="empty-state">Scroll to load the append-only source ledger.</p>
+            ? <p className="empty-state">Freshness history loads when this panel enters view.</p>
             : history.length === 0
             ? <p className="empty-state">No scheduled observations yet for this source. A demo replay does not rewrite the monitor ledger.</p>
             : <ol>{history.map((observation) => <li key={`${observation.retrieved_at}-${observation.snapshot_hash}`}><span><b>{new Date(observation.retrieved_at).toLocaleString()}</b><small>{observation.snapshot_hash.slice(0, 12)}… · {observation.data_mode.replaceAll("_", " ")}</small></span><code>{observation.body}</code></li>)}</ol>}

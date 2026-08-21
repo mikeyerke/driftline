@@ -53,7 +53,7 @@ export default function MultimodalEvidencePanel({ assetId = "promise-card", mode
         <div><h2 id="multimodal-title"><FileImage size={17} />Multimodal reference pair</h2><span className={`live-label ${evidence?.data_mode === "public_source" ? "public" : "synthetic"}`}>{evidence?.data_mode === "public_source" ? "Allowlisted bytes" : "Synthetic reference"}</span></div>
         <span className="muted">Before → after</span>
       </header>
-      {!nearViewport && <p className="multimodal-empty">Scroll to load the bounded visual evidence pair.</p>}
+      {!nearViewport && <p className="multimodal-empty">Visual evidence loads when this panel enters view.</p>}
       {nearViewport && loading && <p className="multimodal-empty"><LoaderCircle size={15} className="spin" />Loading allowlisted visual bytes…</p>}
       {error && <p className="trace-error" role="alert">{error}</p>}
       {evidence && (
