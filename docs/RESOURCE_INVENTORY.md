@@ -2631,3 +2631,15 @@ is no longer needed.
 - A fresh direct agent probe on the same revision returned HTTP 200 with
   `persisted=true`, `execution_mode=google_adk`, `model=gemini-3.5-flash`, and
   exactly `inspect_source_change` plus `get_workflow_state` in the trace.
+
+## 2026-08-21 value-proof sample-context release (live)
+
+- Source commit: `668e301` (`Expose value proof sample context`), pushed after
+  CI run `32431496244` completed successfully.
+- Cloud Build `c4ca5915-0210-4241-943d-8f91154a2fe9` — `SUCCESS`; Cloud Run
+  revision `driftline-00034-8pf` serves 100% of traffic in the isolated
+  project.
+- The public Value Proof card now shows the approval-latency sample count and
+  p90 alongside p50. A fresh browser context rendered `approval latency p50 ·
+  n=6` and `Approval latency p90 128.3s`; the panel continues to label
+  customer outcomes as unmeasured.
