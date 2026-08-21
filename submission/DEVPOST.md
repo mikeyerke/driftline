@@ -51,7 +51,7 @@ Salesforce-context manifests. GitHub is authenticated for the isolated
 repository and verified with a reversible issue flow. A signed live context
 probe on the deployed runtime returned aggregate-only reads for Jira (`KAN`,
 18 sampled issues), Confluence (`DRIFT`, 5 pages), Slack (`C0BRGFUSADA`, 27
-recent messages), and GitHub (0 open issues, 3 open pull requests); no source
+recent messages), and GitHub (0 open issues, 0 open pull requests); no source
 text or message bodies were returned or persisted. The Salesforce contract is
 read-only and remains pending final tenant consent.
 
@@ -136,10 +136,10 @@ created during the contest.
   project-scoped budget guardrail.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `d24d22d`, deployed through Cloud Build
-  `39c63067-6bda-45de-ab78-0f3d8c84b7fb` as Cloud Run revision
-  `driftline-00032-fwl` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32429786135` passed the backend tests,
+  The deployed runtime source is commit `668e301`, deployed through Cloud Build
+  `c4ca5915-0210-4241-943d-8f91154a2fe9` as Cloud Run revision
+  `driftline-00034-8pf` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32431496244` passed the backend tests,
   frontend build, and standalone image build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
