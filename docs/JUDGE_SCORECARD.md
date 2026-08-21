@@ -28,11 +28,14 @@ Current release: source `8e71062`, Cloud Run `driftline-00123-h4m`, Cloud Build
 - Browser scan job `job-294bb65b6ed9` / workflow
   `3b82535d-14a8-48cc-88b3-24e3e6c3c9f8`: UI showed Gemini structured impact
   analysis, four artifacts, two options, and the approval gate.
-- `scripts/verify_live_agent.sh`: job `job-34d426fd0971`, workflow
-  `7c9d1281-299b-461f-b393-70334205c9bb`, five audit events and four artifacts.
-- `scripts/verify_public_approval_undo.sh`: job `job-9737925000a9`, workflow
-  `b5f6b828-7cd1-4541-b947-bdbb6cbdab52`, packet persisted and reversed with
-  both external-write flags false.
+- `scripts/verify_live_agent.sh`: fresh job `job-0058daec0e48`, workflow
+  `693df121-3dc6-484e-bcbb-a7024702b4e1`, five audit events and four artifacts.
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-db1aefa92fb8`,
+  workflow `b94c1be2-8118-4d53-841c-439d88bfa400`, packet persisted and
+  reversed with both external-write flags false. The verifier now also fails
+  closed unless the approval journey carries structured Gemini impact/Decision
+  Copilot options, passing deterministic policy review, and matching evidence
+  hashes.
 
 ## Architectural discipline and technology — 30%
 
@@ -55,7 +58,8 @@ Current release: source `8e71062`, Cloud Run `driftline-00123-h4m`, Cloud Build
 ### Live evidence
 
 - `scripts/verify_production.sh`: Firestore, Tasks, Scheduler, uptime, alerting,
-  IAM, Artifact Registry retention, and zero recent Cloud Run errors all pass.
+  IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
+  membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
   `sha256:bb39a764f876f0e2fbec1a5efadbafaffa75152cf9155fc15a16d6caa39a5224`.
 - Signed isolated connector probes are documented in

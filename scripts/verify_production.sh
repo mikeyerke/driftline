@@ -68,8 +68,20 @@ printf 'Runtime IAM: no project-level Secret Manager access\n'
 
 ops_summary="$(curl --fail --silent --show-error --max-time 20 "${public_url}/api/ops/summary")"
 printf '%s\n' "${ops_summary}" | jq -e \
-  '.model == "gemini-3.5-flash" and .persistence == "firestore" and ((.source_health // []) | length) >= 5' >/dev/null
-printf 'Agent configuration: Gemini 3.5 Flash, Firestore, five bounded source monitors\n'
+  '.model == "gemini-3.5-flash" and
+   .persistence == "firestore" and
+   .async_jobs == true and
+   ((.source_health // []) | length) >= 5 and
+   .approval_security.public_demo_packet_only == true and
+   .approval_security.google_oidc_operator_enabled == true and
+   .approval_security.external_writes_require_signed == true and
+   .approval_security.credential_model.tenant_bound == true and
+   .approval_security.credential_model.legacy_global_fallback == false and
+   .approval_security.tenant_auth.configured == true and
+   .approval_security.tenant_auth.durable_memberships == true and
+   .approval_security.tenant_auth.static_operator_allowlist == false and
+   .crm.salesforce.external_write == false' >/dev/null
+printf 'Agent configuration: Gemini 3.5 Flash, Firestore, five bounded source monitors, OIDC tenant boundary\n'
 
 read -r scheduler_state scheduler_last_attempt < <(
   gcloud scheduler jobs describe "${scheduler_job}" \

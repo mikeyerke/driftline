@@ -36,7 +36,23 @@ printf '%s\n' "${result}" | jq -e '
   .status == "needs_approval" and
   .workflow.status == "needs_approval" and
   (.workflow.impacts | length) >= 4 and
-  (.workflow.events | length) >= 5
+  (.workflow.events | length) >= 5 and
+  .workflow.agent_trace.execution_mode == "google_adk" and
+  .workflow.agent_trace.model == "gemini-3.5-flash" and
+  .workflow.agent_trace.structured_analysis.mode == "gemini_structured" and
+  .workflow.agent_trace.structured_analysis.model == "gemini-3.5-flash" and
+  .workflow.agent_trace.decision_copilot.mode == "gemini_structured" and
+  .workflow.agent_trace.decision_copilot.model == "gemini-3.5-flash" and
+  .workflow.agent_trace.decision_copilot.policy_review.status == "pass" and
+  (.workflow.agent_trace.decision_copilot.options | length) >= 2 and
+  (.workflow.agent_trace.decision_copilot.options | length) <= 3 and
+  (.workflow.evidence.evidence_hash) as $evidence_hash |
+  all(.workflow.impacts[]; .evidence_hash == $evidence_hash) and
+  all(.workflow.agent_trace.decision_copilot.options[];
+    .requires_human_approval == true and
+    (.citations | length) >= 1 and
+    all(.citations[]; .evidence_hash == $evidence_hash)
+  )
 ' >/dev/null
 
 workflow_id="$(printf '%s' "${result}" | jq -er '.workflow.workflow_id')"
@@ -58,6 +74,10 @@ printf '%s\n' "${approved}" | jq -e '
   .status == "complete" and
   .action_record.storage_status == "persisted" and
   .action_record.operational_status == "active" and
+  .action_record.reversible == true and
+  (.action_record.packet_count // 0) >= 4 and
+  (.action_record.action_item_count // 0) >= 4 and
+  (.action_record.evidence_hash | test("^[0-9a-f]{64}$")) and
   (.action_record.external_write // false) == false and
   (.action_record.external_systems_changed // false) == false
 ' >/dev/null
@@ -70,6 +90,9 @@ printf '%s\n' "${undone}" | jq -e '
   .status == "needs_approval" and
   .action_record.storage_status == "persisted" and
   .action_record.operational_status == "reversed" and
+  .action_record.reversible == true and
+  (.action_record.packet_count // 0) >= 4 and
+  (.action_record.evidence_hash | test("^[0-9a-f]{64}$")) and
   (.action_record.external_write // false) == false and
   (.action_record.external_systems_changed // false) == false and
   ([.events[].outcome] | index("decision_reopened")) != null

@@ -12,7 +12,7 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T15:46:00Z` with the active gcloud project set to
+Checked `2026-08-21T16:00:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
@@ -27,6 +27,31 @@ Checked `2026-08-21T15:46:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 release-proof hardening (live verification)
+
+- The read-only `scripts/verify_production.sh` gate now fails closed unless
+  the deployed control plane reports Firestore + async jobs, Google OIDC
+  operator auth, durable Firestore tenant membership, tenant-bound credentials,
+  no legacy global credential fallback, signed-only external writes, and a
+  read-only Salesforce contract. It passed against `driftline-00123-h4m` with
+  zero recent Cloud Run errors.
+- The packet-safety verifier now requires the same live
+  `google_adk`/`gemini-3.5-flash` structured impact and Decision Copilot trace,
+  passing deterministic policy review, matching evidence hashes on all four
+  artifacts and citations, four reversible packets, and no external write.
+  Fresh run: job `job-db1aefa92fb8` / workflow
+  `b94c1be2-8118-4d53-841c-439d88bfa400`; packet persisted and reversed with
+  `external_write=false` and `external_systems_changed=false`.
+- A separate fresh live-agent proof passed on job `job-0058daec0e48` /
+  workflow `693df121-3dc6-484e-bcbb-a7024702b4e1` with
+  `data_mode=public_source`, `needs_approval`, both allowlisted tools, four
+  artifacts, five audit events, and two Decision Copilot options. No
+  connector write was attempted.
+- Local verification passed 248 backend tests, Ruff, and the frontend
+  production build. These changes only strengthen reproducibility scripts and
+  documentation; the serving image digest and Cloud Run revision remain the
+  exact release recorded above.
 
 ## 2026-08-21 Gemini structured-impact reliability release (live)
 

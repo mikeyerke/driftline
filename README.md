@@ -546,11 +546,12 @@ will retry that permitted fallback for up to three bounded runs, but never
 reports success without a genuine Gemini structured turn.
 
 `verify_public_approval_undo.sh` is the complementary packet-safety check. It
-creates a fresh public evaluation workflow, exercises the deterministic
-approval gate, verifies that the private Cloud Storage packet is persisted
-without an external write, then reopens the decision and verifies a durable
-rollback marker. It is safe to run repeatedly: the public lane cannot call
-Jira, Confluence, Slack, GitHub, or Salesforce.
+creates a fresh public evaluation workflow, requires the same live structured
+Gemini/ADK and evidence-hash contract, exercises the deterministic approval
+gate, verifies that the private Cloud Storage packet is persisted without an
+external write, then reopens the decision and verifies a durable rollback
+marker. It is safe to run repeatedly: the public lane cannot call Jira,
+Confluence, Slack, GitHub, or Salesforce.
 
 ## Safety model
 

@@ -123,8 +123,8 @@ The immutable image digest is
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: job `job-34d426fd0971` / workflow
-  `7c9d1281-299b-461f-b393-70334205c9bb` returned `needs_approval`,
+- Live agent check: fresh job `job-0058daec0e48` / workflow
+  `693df121-3dc6-484e-bcbb-a7024702b4e1` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Live browser scan: job `job-294bb65b6ed9` / workflow
@@ -132,8 +132,8 @@ The immutable image digest is
   `Impact analysis · gemini structured`, the Gemini summary/rationale, the
   Decision Copilot, and the approval gate. The persisted trace recorded policy
   `pass` and the correct evidence hash.
-- Approval/undo check: job `job-9737925000a9` / workflow
-  `b5f6b828-7cd1-4541-b947-bdbb6cbdab52` persisted the packet, reversed the
+- Approval/undo check: fresh job `job-db1aefa92fb8` / workflow
+  `b94c1be2-8118-4d53-841c-439d88bfa400` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Browser QA: desktop and mobile Lighthouse navigation both scored 100 for
