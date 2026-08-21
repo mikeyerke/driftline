@@ -702,7 +702,7 @@ def test_github_reactivates_reversed_issue_labels() -> None:
         "issue_url": "https://github.com/acme/docs/issues/7",
         "idempotent": True,
     }
-    assert requests[1].method == "POST"
+    assert requests[1].method == "PUT"
     assert requests[1].full_url.endswith("/repos/acme/docs/issues/7/labels")
     assert json.loads(requests[1].data) == {
         "labels": ["customer-owned", "driftline-active", "driftline-approval-gated"]
@@ -736,7 +736,7 @@ def test_github_reversal_preserves_non_driftline_labels() -> None:
 
     assert result == {"status": "reversed", "issue_number": 7}
     assert requests[0].method == "GET"
-    assert requests[1].method == "POST"
+    assert requests[1].method == "PUT"
     assert json.loads(requests[1].data) == {
         "labels": ["customer-owned", "driftline-reversed"]
     }

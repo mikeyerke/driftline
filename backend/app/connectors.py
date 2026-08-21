@@ -1640,7 +1640,7 @@ class GitHubConnector:
             }
             if "driftline-reversed" in labels:
                 self._request(
-                    "POST",
+                    "PUT",
                     f"{base}/issues/{existing.get('number')}/labels",
                     {
                         "labels": self._preserved_labels(
@@ -1671,7 +1671,7 @@ class GitHubConnector:
         base = f"/repos/{quote(self.config.owner)}/{quote(self.config.repo)}"
         issue = self._request("GET", f"{base}/issues/{issue_number}")
         self._request(
-            "POST",
+            "PUT",
             f"{base}/issues/{issue_number}/labels",
             {"labels": self._preserved_labels(issue, "driftline-reversed")},
         )
