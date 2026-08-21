@@ -521,6 +521,11 @@ def _positive_int(name: str, default: int) -> int:
 
 
 AGENT_MAX_CALLS = _positive_int("DRIFTLINE_AGENT_MAX_CALLS", 10)
+# Anonymous judges share one public lane, so give that lane a separately
+# bounded allowance. Keeping it distinct from signed tenant quotas prevents a
+# burst of evaluation traffic from starving an authenticated pilot while still
+# limiting unauthenticated Gemini spend.
+PUBLIC_AGENT_MAX_CALLS = _positive_int("DRIFTLINE_PUBLIC_AGENT_MAX_CALLS", 20)
 AGENT_WINDOW_SECONDS = _positive_int("DRIFTLINE_AGENT_WINDOW_SECONDS", 3600)
 _agent_call_times: deque[float] = deque()
 _tenant_agent_call_times: dict[str, deque[float]] = {}
@@ -663,7 +668,8 @@ def _reserve_durable_tenant_slot(
 
 
 def _reserve_agent_call(tenant_id: str | None = None) -> bool:
-    limit = _tenant_quota_limit(tenant_id, "agent_calls", AGENT_MAX_CALLS)
+    fallback_limit = AGENT_MAX_CALLS if tenant_id else PUBLIC_AGENT_MAX_CALLS
+    limit = _tenant_quota_limit(tenant_id, "agent_calls", fallback_limit)
     if limit < 1:
         return False
     durable = _reserve_durable_tenant_slot(
@@ -2117,6 +2123,7 @@ def get_ops_summary(
         "model": os.getenv("MODEL_NAME", "gemini-3.5-flash"),
         "guardrails": {
             "agent_max_calls": AGENT_MAX_CALLS,
+            "public_agent_max_calls": PUBLIC_AGENT_MAX_CALLS,
             "agent_window_seconds": AGENT_WINDOW_SECONDS,
             "demo_max_mutations": DEMO_MAX_MUTATIONS,
             "connector_max_calls": CONNECTOR_MAX_CALLS,

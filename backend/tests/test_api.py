@@ -2040,6 +2040,18 @@ def test_rate_limits_are_isolated_per_tenant(monkeypatch) -> None:
     assert api._reserve_connector_call("tenant-b") is True
 
 
+def test_public_agent_quota_is_separate_from_signed_tenant_quota(monkeypatch) -> None:
+    monkeypatch.setattr(api, "AGENT_MAX_CALLS", 1)
+    monkeypatch.setattr(api, "PUBLIC_AGENT_MAX_CALLS", 2)
+    api._agent_call_times.clear()
+    api._tenant_agent_call_times.clear()
+
+    assert api._reserve_agent_call() is True
+    assert api._reserve_agent_call() is True
+    assert api._reserve_agent_call() is False
+    assert api._reserve_agent_call("tenant-a") is True
+
+
 def test_demo_approval_and_undo_round_trip() -> None:
     started = client.post("/api/workflows/demo")
     assert started.status_code == 200

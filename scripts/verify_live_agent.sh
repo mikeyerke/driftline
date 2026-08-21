@@ -52,6 +52,11 @@ for run in $(seq 1 "${max_runs}"); do
     .workflow.agent_trace.execution_mode == "google_adk" and
     .workflow.agent_trace.model == "gemini-3.5-flash" and
     .workflow.agent_trace.structured_analysis.mode == "gemini_structured" and
+    .workflow.agent_trace.decision_copilot.mode == "gemini_structured" and
+    .workflow.agent_trace.decision_copilot.model == "gemini-3.5-flash" and
+    .workflow.agent_trace.decision_copilot.policy_review.status == "pass" and
+    (.workflow.agent_trace.decision_copilot.options | length) >= 2 and
+    (.workflow.agent_trace.decision_copilot.options | length) <= 3 and
     ([.workflow.agent_trace.tool_calls[].name] | index("inspect_source_change")) != null and
     ([.workflow.agent_trace.tool_calls[].name] | index("get_workflow_state")) != null
   ' >/dev/null; then
@@ -79,5 +84,6 @@ printf '%s\n' "${result}" | jq -r '
   ("execution_mode=" + .workflow.agent_trace.execution_mode),
   ("tools=" + ([.workflow.agent_trace.tool_calls[].name] | join(","))),
   ("artifacts=" + ((.workflow.impacts | length) | tostring)),
-  ("audit_events=" + ((.workflow.events | length) | tostring))
+  ("audit_events=" + ((.workflow.events | length) | tostring)),
+  ("decision_options=" + ((.workflow.agent_trace.decision_copilot.options | length) | tostring))
 '
