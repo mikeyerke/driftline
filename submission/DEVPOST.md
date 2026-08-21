@@ -138,16 +138,16 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The current live revision is `driftline-00049-dq7` from source commit
-  `c61823c`, deployed by Cloud Build
-  `76212a86-49a1-40a7-ae05-71ac321b7bf2`; it serves 100% of traffic with the
+- The current live revision is `driftline-00050-42p` from source commit
+  `8eeae4a`, deployed by Cloud Build
+  `930e8940-35e6-442d-959b-986565b8451e`; it serves 100% of traffic with the
   same scale-to-zero and one-instance guardrails.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `c61823c`, deployed through Cloud Build
-  `76212a86-49a1-40a7-ae05-71ac321b7bf2` as Cloud Run revision
-  `driftline-00049-dq7` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32441421717` passed on this commit; the
+  The deployed runtime source is commit `8eeae4a`, deployed through Cloud Build
+  `930e8940-35e6-442d-959b-986565b8451e` as Cloud Run revision
+  `driftline-00050-42p` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32441821450` passed on this commit; the
   local release gate also passed all 223 backend tests, Ruff, and the frontend
   production build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or

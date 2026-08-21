@@ -10,6 +10,19 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-21 console lifecycle truthfulness release (live)
+
+- Source commit `8eeae4a` passed GitHub Actions `32441821450` and the local
+  gate (223 backend tests, Ruff, and the frontend production build). Cloud Build
+  `930e8940-35e6-442d-959b-986565b8451e` completed `SUCCESS`; Cloud Run revision
+  `driftline-00050-42p` serves 100% of traffic.
+- The console now renders connector outcomes as `Created`, `Reused`,
+  `Reactivated`, `Reversed`, or `Blocked · closed target`, matching provider
+  responses instead of implying every approved handoff was newly created.
+- Post-deploy probes returned `/health` HTTP 200 and the public console; an
+  unsigned `tenant_demo` start returned HTTP 401 as intended. Cloud Logging
+  returned no severity `ERROR` entries for `driftline-00050-42p`.
+
 ## 2026-08-21 closed-target safety boundary (live)
 
 - Source commit `c61823c` passed GitHub Actions `32441421717` and the full local
@@ -134,12 +147,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00049-dq7` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00050-42p` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `c61823c`; Cloud Build `76212a86-49a1-40a7-ae05-71ac321b7bf2`.
+- Deployed runtime source: `8eeae4a`; Cloud Build `930e8940-35e6-442d-959b-986565b8451e`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
