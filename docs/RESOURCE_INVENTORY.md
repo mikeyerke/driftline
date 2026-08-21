@@ -63,6 +63,11 @@ snapshot.
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
 - `/health`: HTTP 200, Firestore persistence enabled, async jobs enabled.
+- A fresh anonymous `POST /api/agent/run` on workflow
+  `17549d67-ebb6-4f9a-a0e5-e5b5a126fa3c` returned HTTP 200 with
+  `persisted=true`, `execution_mode=google_adk`, `model=gemini-3.5-flash`,
+  and `data_mode=public_source`; the workflow was re-read from Firestore in
+  `needs_approval` state. No connector write was requested.
 - Current public registry: five pinned judge fixtures only. No arbitrary
   competitor source is registered.
 - Signed connector health: Jira, Confluence, Slack, and GitHub healthy;
