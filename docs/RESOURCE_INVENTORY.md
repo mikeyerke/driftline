@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T09:22:00Z` with the active gcloud project set to
+Checked `2026-08-21T09:32:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00089-cwj` at 100% traffic.
+  `driftline-00090-kt9` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -41,6 +41,19 @@ Checked `2026-08-21T09:22:00Z` with the active gcloud project set to
   connectors.
 - `/health` returned 200, `scripts/verify_production.sh` passed, and the fresh
   browser loaded the revised copy with no console errors or warnings.
+
+## 2026-08-21 source schedule visibility release (live)
+
+- Source commit `de94a27` was deployed by Cloud Build
+  `5826f7d2-7f35-4c88-b9ef-396b0015067d` (`SUCCESS`) as Cloud Run revision
+  `driftline-00090-kt9` at 100% traffic.
+- The source registry now surfaces each source's last observation and next
+  scheduled observation using the existing append-only freshness ledger. This
+  makes the always-on monitor cadence visible without inventing a fetch or
+  mutating source history.
+- The live browser confirmed the five pinned sources display healthy status,
+  last-observed timestamps, and next-due timestamps with no console errors or
+  warnings. `/health` and `scripts/verify_production.sh` both passed.
 
 ## 2026-08-21 below-fold visual performance release (live)
 
@@ -73,7 +86,7 @@ Checked `2026-08-21T09:22:00Z` with the active gcloud project set to
 
 - Read-only `scripts/verify_production.sh` passed with the active gcloud
   project explicitly set to `driftline-hackathon-2026`.
-- The check confirmed Cloud Run revision `driftline-00089-cwj` at 100% traffic,
+- The check confirmed Cloud Run revision `driftline-00090-kt9` at 100% traffic,
   Firestore-backed `/health`, enabled Scheduler, a running Cloud Tasks queue
   with one concurrent dispatch and three attempts, the live uptime check and
   alert policy, the production dashboard, and zero severity `ERROR` entries in
