@@ -47,6 +47,11 @@ Current release: source `b1d60e8`, Cloud Run `driftline-00135-dv2`, Cloud Build
   OIDC-authenticated HTTP 200 `/api/scheduler/tick` request on the serving
   revision; healthy sources were correctly deferred until their cadence due
   time rather than spending another model call.
+- A second direct Scheduler run at `2026-08-21T20:31:32Z` selected only the two
+  due sources, completed monitor jobs `job-ab0c901478e7` and
+  `job-5b317c2f1c7d`, advanced their Firestore observation timestamps, and
+  left the other three sources deferred. The run recorded zero dead-lettered
+  tasks and zero Cloud Run `ERROR` logs.
 - The same deployed agent handled three additional bounded source families:
   competitor offerings (`job-82ac284398b6`, workflow
   `a1190503-0c2f-4182-83c9-22e4879fc6e1`), competitor narrative/blog

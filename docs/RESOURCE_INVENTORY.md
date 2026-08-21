@@ -12,7 +12,7 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T20:19Z` with the active gcloud project set to
+Checked `2026-08-21T20:32Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
@@ -32,6 +32,25 @@ Checked `2026-08-21T20:19Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 cadence-aware monitor verification
+
+- The real isolated Cloud Scheduler job `driftline-monitor` was manually run
+  through Google Cloud at `2026-08-21T20:31:32Z` using its existing OIDC
+  service identity; no IAM permissions or deployment settings were widened.
+- The deployed `/api/scheduler/tick` returned HTTP 200 and selected only the
+  two sources whose cadence deadlines had arrived. It created monitor jobs
+  `job-ab0c901478e7` (`public/pricing`) and `job-5b317c2f1c7d`
+  (`competitor/pricing`); both completed with Gemini 3.5 Flash and no
+  dead-lettered task.
+- Firestore source history advanced to `2026-08-21T20:31:36Z` for
+  `public/pricing` and `2026-08-21T20:31:41Z` for `competitor/pricing`. The
+  other three sources were correctly deferred until their separate cadence
+  deadlines, proving that the always-on path is cadence-aware rather than a
+  blind five-source spend spike.
+- The post-run operations summary reported `dead_lettered=0`; Cloud Logging
+  showed zero `ERROR` entries for the run window. This is operational monitor
+  evidence, not customer outcome or ROI evidence.
 
 ## 2026-08-21 Salesforce authorization-state UX release
 

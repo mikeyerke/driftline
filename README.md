@@ -537,6 +537,12 @@ against body or URL duplication. The Settings surface now exposes the
 tenant-scoped Salesforce read-only OAuth handoff and aggregate health probe;
 Salesforce remains unconnected until an owner completes its consent screen.
 
+The cadence path was re-run against the same isolated deployment at
+`2026-08-21T20:31:32Z`: the real Scheduler identity selected only the two due
+sources, both monitor jobs completed through Cloud Tasks/Gemini, Firestore
+history advanced for both, and no task or Cloud Run error was recorded. The
+remaining three sources were deferred to their own cadence deadlines.
+
 ## Public links
 
 - Live demo: https://driftline-xvxczqg62a-uc.a.run.app/
