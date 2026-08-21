@@ -83,6 +83,13 @@ Checked `2026-08-21T16:20:00Z` with the active gcloud project set to
   packet record, and timeline. The undo response persisted
   `action-63355af11e1c35cb5150` as `reversed`, with Jira, Confluence, and
   Slack `external_write=false` in the public packet-safe lane.
+- Additional current-revision breadth probes reached `needs_approval` with
+  Gemini structured analysis, four impacts, and five events for competitor
+  offerings (`job-82ac284398b6`, workflow
+  `a1190503-0c2f-4182-83c9-22e4879fc6e1`), competitor narrative/blog
+  (`job-b8a7d0ebcf6d`, workflow `7a63eea4-7dec-4626-8b2b-1834a4542716`), and
+  own terms (`job-ee66d880b4eb`, workflow
+  `d5f75932-3a41-48a8-8765-d629abae9441`).
 
 ## 2026-08-21 Gemini structured-impact reliability release (live)
 

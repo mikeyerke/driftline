@@ -139,6 +139,13 @@ The immutable image digest is
   `aa77cd13-282a-436a-9929-dcb47ad91cc7` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
+- Breadth check on the same serving revision: competitor offerings
+  (`job-82ac284398b6`, workflow `a1190503-0c2f-4182-83c9-22e4879fc6e1`),
+  competitor narrative/blog (`job-b8a7d0ebcf6d`, workflow
+  `7a63eea4-7dec-4626-8b2b-1834a4542716`), and own terms
+  (`job-ee66d880b4eb`, workflow `d5f75932-3a41-48a8-8765-d629abae9441`)
+  each reached `needs_approval` with Gemini structured analysis, four mapped
+  impacts, and five audit events.
 - Browser QA: desktop and mobile Lighthouse navigation both scored 100 for
   accessibility, best practices, SEO, and agentic browsing (53/53 checks,
   zero failures). At 390×844, body and document widths equal the viewport and

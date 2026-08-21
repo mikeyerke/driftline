@@ -43,6 +43,13 @@ Current release: source `7747baa`, Cloud Run `driftline-00124-ln5`, Cloud Build
   closed unless the approval journey carries structured Gemini impact/Decision
   Copilot options, passing deterministic policy review, and matching evidence
   hashes.
+- The same deployed agent handled three additional bounded source families:
+  competitor offerings (`job-82ac284398b6`, workflow
+  `a1190503-0c2f-4182-83c9-22e4879fc6e1`), competitor narrative/blog
+  (`job-b8a7d0ebcf6d`, workflow `7a63eea4-7dec-4626-8b2b-1834a4542716`), and
+  own terms (`job-ee66d880b4eb`, workflow
+  `d5f75932-3a41-48a8-8765-d629abae9441`). Each reached `needs_approval` with
+  Gemini structured analysis, four mapped impacts, and five audit events.
 
 ## Architectural discipline and technology — 30%
 
