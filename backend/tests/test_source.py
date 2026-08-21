@@ -7,6 +7,19 @@ from app import source
 from app.snapshots import InMemorySnapshotStore
 
 
+def test_pinned_https_handler_uses_context_hostname_policy(monkeypatch) -> None:
+    handler = source._PinnedHTTPSHandler("93.184.216.34")
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        handler,
+        "do_open",
+        lambda *_args, **kwargs: captured.update(kwargs) or "opened",
+    )
+
+    assert handler.https_open(object()) == "opened"
+    assert captured["check_hostname"] is True
+
+
 def test_public_adapter_rejects_arbitrary_host(monkeypatch) -> None:
     monkeypatch.setenv(
         "DRIFTLINE_PUBLIC_SOURCE_URL",

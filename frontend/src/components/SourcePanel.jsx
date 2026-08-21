@@ -81,7 +81,7 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
         {operatorSession?.identityToken && <div className="source-onboarding">
           <div className="source-onboarding-heading"><div><strong>Register a real change surface</strong><small>Exact HTTPS URL · tenant-scoped · baseline read before monitoring</small></div><button className="secondary compact" type="button" onClick={() => { setShowRegister((current) => !current); setRegisterError(""); setRegisterMessage(""); }}>{showRegister ? "Close" : "Add source"}</button></div>
           {showRegister && <form className="source-onboarding-form" onSubmit={submitRegistration}>
-            <label>Source ID<input required name="source_id" value={form.source_id} onChange={updateForm} placeholder="acme-competitor-pricing" pattern="[a-z0-9][a-z0-9-]{6,78}" /></label>
+            <label>Source ID<input required name="source_id" value={form.source_id} onChange={updateForm} placeholder="custom/acme-competitor-pricing" pattern="custom/[a-z0-9][a-z0-9._/-]{0,72}" /></label>
             <label>Display name<input required name="name" value={form.name} onChange={updateForm} placeholder="Competitor pricing page" maxLength={120} /></label>
             <label className="source-onboarding-wide">Exact HTTPS URL<input required type="url" name="url" value={form.url} onChange={updateForm} placeholder="https://competitor.example/pricing" /></label>
             <label>Category<input required name="category" value={form.category} onChange={updateForm} maxLength={80} /></label>

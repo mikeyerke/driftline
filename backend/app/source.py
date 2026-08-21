@@ -457,7 +457,12 @@ class _PinnedHTTPSHandler(HTTPSHandler):
             ),
             req,
             context=self._context,
-            check_hostname=self._check_hostname,
+            # ``urllib.request.HTTPSHandler`` does not expose
+            # ``_check_hostname`` consistently across Python versions. The
+            # pinned connection must still inherit the context's hostname
+            # verification policy rather than failing only when a real
+            # operator-registered URL is fetched in production.
+            check_hostname=getattr(self._context, "check_hostname", True),
         )
 
 
