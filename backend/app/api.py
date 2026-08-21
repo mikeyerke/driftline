@@ -154,6 +154,8 @@ def _write_tenant_secret(tenant_id: str, secret_name: str, value: str) -> str | 
         return write_secret_version(secret_name, value, credentials=credentials)
     except TypeError:
         return write_secret_version(secret_name, value)
+
+
 from .simulator import simulate_scenarios
 from .source import (
     inspect_allowlisted_source,
@@ -1844,7 +1846,9 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
             tenant_id,
             "salesforce",
             operation="read_context",
-            secret_reader=read_secret,
+            secret_reader=lambda secret_name, *, version="latest": _read_tenant_secret(
+                tenant_id, secret_name, version=version
+            ),
         ).value
         token = refresh_salesforce_token(config, refresh_token)
         client = SalesforceReadOnlyClient(
@@ -2121,7 +2125,9 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
             tenant_id,
             "salesforce",
             operation="read_context",
-            secret_reader=read_secret,
+            secret_reader=lambda secret_name, *, version="latest": _read_tenant_secret(
+                tenant_id, secret_name, version=version
+            ),
         ).value
         token = refresh_salesforce_token(config, refresh_token)
         client = SalesforceReadOnlyClient(
