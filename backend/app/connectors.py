@@ -12,6 +12,7 @@ from __future__ import annotations
 import base64
 import html
 import json
+import logging
 import os
 import re
 from collections.abc import Callable
@@ -27,6 +28,8 @@ from .tenant import (
     validate_connector_name,
     validate_tenant_id,
 )
+
+logger = logging.getLogger("driftline.connectors")
 
 
 class ConnectorError(RuntimeError):
@@ -543,10 +546,15 @@ def tenant_secret_credentials(tenant_id: str):
     never directly read another tenant's secret. Local development keeps the
     default credentials path unless explicitly enabled.
     """
+    safe_tenant = validate_tenant_id(tenant_id)
     mode = os.getenv("DRIFTLINE_TENANT_SECRET_IDENTITY_MODE", "direct").casefold()
     if mode != "impersonated":
+        logger.warning(
+            "Tenant secret identity mode=%s tenant=%s target=shared-runtime",
+            mode,
+            safe_tenant,
+        )
         return None
-    safe_tenant = validate_tenant_id(tenant_id)
     project = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
     try:
         from google.auth import default, impersonated_credentials
@@ -555,6 +563,11 @@ def tenant_secret_credentials(tenant_id: str):
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
         target = tenant_service_account_email(safe_tenant, project)
+        logger.warning(
+            "Tenant secret identity mode=impersonated tenant=%s target=%s",
+            safe_tenant,
+            target,
+        )
         return impersonated_credentials.Credentials(
             source_credentials=source_credentials,
             target_principal=target,
