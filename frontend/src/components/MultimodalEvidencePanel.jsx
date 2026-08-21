@@ -57,7 +57,7 @@ export default function MultimodalEvidencePanel({ assetId = "promise-card", mode
           <div className="multimodal-grid">
             {["before", "after"].map((side) => {
               const item = evidence[side];
-              return <figure className="multimodal-card" key={side}><figcaption><strong>{side === "before" ? "Before" : "After"}</strong><small>{item.mime_type} · {(item.size_bytes / 1024 / 1024).toFixed(2)} MB</small></figcaption><img src={multimodalAssetUrl(assetId, side, resolvedMode)} alt={`${item.label}, ${side} visual evidence`} loading="eager" decoding="async" /><code>{item.snapshot_hash.slice(0, 16)}…</code></figure>;
+              return <figure className="multimodal-card" key={side}><figcaption><strong>{side === "before" ? "Before" : "After"}</strong><small>{item.mime_type} · {(item.size_bytes / 1024 / 1024).toFixed(2)} MB</small></figcaption><img src={multimodalAssetUrl(assetId, side, resolvedMode)} alt={`${item.label}, ${side} visual evidence`} loading="lazy" decoding="async" /><code>{item.snapshot_hash.slice(0, 16)}…</code></figure>;
             })}
           </div>
           <div className="multimodal-proof"><span><Hash size={13} />Pair evidence hash</span><code>{evidence.evidence_hash}</code></div>
