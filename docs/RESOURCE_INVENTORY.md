@@ -10,6 +10,18 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-21 production-control-plane copy rollout (live)
+
+- Source commit `16fe23a` passed GitHub Actions `32435260118` and Cloud Build
+  `6a65bed7-429e-4875-9503-e7dd8587c501` completed `SUCCESS`.
+- Cloud Run revision `driftline-00036-l8k` serves 100% of traffic with the same
+  scale-to-zero and one-instance guardrails. The public console now names this
+  the production control plane and labels the anonymous lane as packet-only
+  public-demo safety mode; it does not imply customer data or external writes.
+- A fresh anonymous `/api/agent/run` canary on the rollout returned
+  `persisted=true`, `execution_mode=google_adk`, `model=gemini-3.5-flash`, and
+  `data_mode=public_source`. No external connector write was performed.
+
 ## Current state snapshot (authoritative)
 
 Checked after the latest live verification on 2026-08-21 UTC. The release
