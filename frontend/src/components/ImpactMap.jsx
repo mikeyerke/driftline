@@ -20,16 +20,30 @@ function GraphNode({ node }) {
   );
 }
 
-export default function ImpactMap({ items, graph, approved, sourceName }) {
+export default function ImpactMap({ items, graph, approved, sourceName, sourceCategory }) {
   const nodes = graph?.nodes || [];
   const columns = ["source", "offering", "domain", "artifact", "system"].map((kind) => ({
     kind,
     nodes: nodes.filter((node) => node.kind === kind),
   })).filter((column) => column.nodes.length);
   const summary = graph?.summary || {};
+  const previewOffering = sourceCategory === "Competitor pricing"
+    ? "Competitor Pro plan"
+    : sourceCategory === "Competitor offering"
+      ? "Competitor Business plan"
+      : sourceCategory === "Competitor narrative"
+        ? "Competitor product narrative"
+        : "Enterprise plan";
+  const previewChangeType = sourceCategory === "Competitor pricing"
+    ? "Competitive pricing move"
+    : sourceCategory === "Competitor offering"
+      ? "Product capability change"
+      : sourceCategory === "Competitor narrative"
+        ? "Market narrative change"
+        : "Pricing and packaging";
   const fallbackNodes = [
     { id: "source", kind: "source", label: sourceName || "Public pricing page", meta: "Verified source change" },
-    { id: "offering", kind: "offering", label: "Enterprise plan", meta: "Pricing and packaging" },
+    { id: "offering", kind: "offering", label: previewOffering, meta: previewChangeType },
     ...(items || []).map((item, index) => ({ id: `artifact-${index}`, kind: "artifact", label: item.name, meta: item.owner, risk: item.risk })),
   ];
   const displayColumns = columns.length ? columns : [
@@ -45,8 +59,8 @@ export default function ImpactMap({ items, graph, approved, sourceName }) {
         <span className="muted">Change → business consequence</span>
       </header>
       <div className="impact-map-summary">
-        <div><span>Change type</span><strong>{summary.change_type || "Pricing and packaging"}</strong></div>
-        <div><span>Affected offering</span><strong>{summary.offering || "Enterprise plan"}</strong></div>
+        <div><span>Change type</span><strong>{summary.change_type || previewChangeType}</strong></div>
+        <div><span>Affected offering</span><strong>{summary.offering || previewOffering}</strong></div>
         <div><span>Work surfaces</span><strong>{summary.artifact_count || items?.length || 0} mapped</strong></div>
       </div>
       <div className="impact-graph" role="img" aria-label="Source change mapped through offering, business impact, work surface, and handoff stages">

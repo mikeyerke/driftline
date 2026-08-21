@@ -11,12 +11,12 @@ execute least-privilege, idempotent, reversible connector actions. This is a
 real deployed control plane with a deliberately safe public surface, not a
 claim that an unauthenticated visitor can mutate a customer's systems.
 
-The demonstration models a pricing-page change from unlimited audit-log
-retention to 365-day retention, then traces the impact into a pricing
-battlecard, renewal playbook, enterprise FAQ, and CRM guidance. The console can
-also run bounded scenarios for competitor pricing, competitor capabilities,
-and competitor product blogs. Each scenario shows an offering impact graph,
-business domains, owners, work surfaces, and prepared handoffs. The deployed
+The default demonstration models a competitor price change from $49 to $59 per
+seat per month, then traces the impact into a comparison map, pricing
+battlecard, deal-desk guidance, and executive brief. The console can also run
+bounded scenarios for own pricing and terms, competitor capabilities, and
+competitor product blogs. Each scenario shows an offering impact graph, business
+domains, owners, work surfaces, and prepared handoffs. The deployed
 source adapter fetches explicitly registered public snapshots. Judge fixtures
 remain pinned and deterministic; a signed operator can onboard additional
 exact HTTPS HTML/text/RSS URLs through `/api/operator/sources`, with redirects,

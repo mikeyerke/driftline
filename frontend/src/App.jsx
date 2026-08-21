@@ -40,10 +40,10 @@ function defaultDecisionsFor(state) {
 }
 
 const initialDecisions = {
-  "Pricing battlecard": "packet",
-  "Renewal playbook": "packet",
-  "Enterprise FAQ": "owner_review",
-  "CRM guidance": "queued",
+  "Comparison map": "packet",
+  "Pricing battlecard": "owner_review",
+  "Deal desk guidance": "packet",
+  "Executive weekly brief": "queued",
 };
 
 export default function App() {
@@ -63,7 +63,7 @@ export default function App() {
   const [sources, setSources] = useState([]);
   const [sourceHealth, setSourceHealth] = useState([]);
   const [sourceHealthState, setSourceHealthState] = useState("loading");
-  const [selectedSource, setSelectedSource] = useState("public/pricing");
+  const [selectedSource, setSelectedSource] = useState("competitor/pricing");
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
@@ -357,13 +357,13 @@ export default function App() {
               <div className="main-column">
                 <div className="upper-grid">
                   <EvidenceDiff collapsed={evidenceCollapsed} onToggle={() => setEvidenceCollapsed((current) => !current)} evidence={evidence} />
-                  <ImpactMap items={impacts} graph={workflowState?.impact_graph} approved={approved} sourceName={evidence.source_name} />
+                  <ImpactMap items={impacts} graph={workflowState?.impact_graph} approved={approved} sourceName={evidence.source_name} sourceCategory={selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} />
                 </div>
                 <ArtifactTable items={impacts} onSelect={setSelectedArtifact} selected={selectedArtifact} />
                 <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} />
               </div>
               <aside id="approvals-section">
-              <DecisionPanel approved={approved} dismissed={dismissed} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onDismiss={dismissSignal} onEvidence={() => setShowEvidence(true)} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category} requiresDecisionCopilot={Boolean(operatorSession.identityToken)} />
+              <DecisionPanel approved={approved} dismissed={dismissed} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onDismiss={dismissSignal} onEvidence={() => setShowEvidence(true)} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category || selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} requiresDecisionCopilot={Boolean(operatorSession.identityToken)} />
               </aside>
             </div>
             {approved && <ActionItems workflowId={workflowId} items={workflowState.action_items} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}

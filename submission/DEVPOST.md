@@ -18,10 +18,10 @@ or cross-department production data plane.
 
 ## Inspiration
 
-A public pricing page changes one sentence. Days later, sales is still quoting
-the old promise, support has a conflicting answer, and customer success has no
-renewal exception path. Enterprises do not lack alerts; they lack a reliable
-way to turn evidence into coordinated action.
+A competitor changes one pricing sentence. Within hours, the comparison map,
+deal-desk guardrails, sales battlecard, and executive narrative can all be out
+of sync. Product Marketing does not lack alerts; it lacks a reliable way to
+turn observed market movement into evidence-bound, coordinated action.
 
 ## What it does
 
@@ -71,10 +71,11 @@ workflow. Durable tenant memberships, connector profiles, Secret Manager
 bindings, revocation metadata, and transactional rate limits are isolated in
 the Driftline project; no deployment-wide connector target fallback is enabled.
 
-The judge-ready workflow uses synthetic data: a public/pricing fixture changes
-Enterprise audit-log retention from unlimited to 365 days. The UI labels this
-fixture and is not connected to a real company, CRM, customer, or billing
-system.
+The judge-ready default workflow uses synthetic data: a competitor pricing
+fixture moves Competitor Pro from $49 to $59 per seat per month. The UI labels
+this fixture and is not connected to a real company, CRM, customer, or billing
+system. Own-product pricing and terms remain available as separate bounded
+scenarios.
 
 ## Google technology
 

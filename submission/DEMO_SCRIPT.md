@@ -15,7 +15,7 @@ https://driftline-xvxczqg62a-uc.a.run.app/ and the “Synthetic demo data” lab
 
 ## 0:25–0:55 — Choose the change surface and start the workflow
 
-Choose **Public pricing snapshot** in the scenario selector, then click
+Choose **Competitor pricing snapshot** in the scenario selector, then click
 **Run scan**. Explain that Driftline is bounded to allowlisted source types,
 not arbitrary URLs, and that this creates a durable asynchronous job: the
 browser queues work, Cloud Tasks invokes the worker, and Firestore stores the
@@ -27,10 +27,11 @@ fetch is unavailable. Keep the agent trace panel visible.
 
 Open **Evidence diff** and then **Open evidence**. Show the exact removed and
 added language, the synthetic source ID, the full SHA-256 hash, and the
-confidence value. Trace the impact map from the observed own-product move into
-the affected offering and four downstream artifacts. Show each artifact's
-owner, bounded action, risk, and target-specific handoff status. Select an
-artifact row to show its detail card.
+confidence value. Trace the impact map from the observed competitor price move
+into the affected offering and four downstream artifacts: a comparison map,
+pricing battlecard, deal-desk guidance, and executive brief. Show each
+artifact's owner, bounded action, risk, and target-specific handoff status.
+Select an artifact row to show its detail card.
 
 ## 1:35–2:10 — The autonomy boundary
 
