@@ -3737,7 +3737,11 @@ is no longer needed.
   from `$49` to `$59` per seat per month. The preview impact map, approval
   question, artifacts, and evidence all agree on the competitor scenario;
   own-product pricing and terms remain selectable alternatives.
-- A live deterministic workflow probe on the revision returned
+- A live anonymous job `job-9e0fea5f4ccd` on the revision completed at
+  `needs_approval` with `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, exactly the two allowlisted tools
+  `inspect_source_change` and `get_workflow_state`, and a Gemini structured
+  analysis tied to the competitor evidence hash. It returned
   `competitor/pricing`, title `Competitor pricing moved`, and the four
   downstream surfaces `Comparison map`, `Pricing battlecard`, `Deal desk
   guidance`, and `Executive weekly brief`. This probe did not claim a customer
