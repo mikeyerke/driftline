@@ -1301,6 +1301,35 @@ def _transition_workflow(
         return result
 
 
+def _recover_orphaned_workflow(job: JobState) -> WorkflowState | None:
+    """Find a workflow created by a partial run of this source job.
+
+    Source inspection writes its append-only observation and workflow before
+    the model's optional follow-up/analysis turns. If a transient model error
+    happens after that write, the next bounded retry can otherwise advance the
+    source baseline and hide the real approval work. Match only a recent
+    workflow for the same tenant and exact source, then let the caller attach
+    it to the durable job.
+    """
+    candidates: list[WorkflowState] = []
+    with _workflow_transition_lock:
+        candidates.extend(workflow_store._runs.values())
+    candidates.extend(list_workflows(limit=50))
+    unique: dict[str, WorkflowState] = {
+        state.workflow_id: state for state in candidates
+    }
+    matching = [
+        state
+        for state in unique.values()
+        if state.tenant_id == job.tenant_id
+        and state.evidence is not None
+        and state.evidence.source_id == job.source_id
+        and state.created_at >= job.created_at
+    ]
+    matching.sort(key=lambda state: state.created_at, reverse=True)
+    return matching[0] if matching else None
+
+
 async def _run_job(job_id: str) -> None:
     if not _claim_job_for_run(job_id):
         logger.info("Job %s was already claimed or completed", job_id)
@@ -1359,6 +1388,29 @@ async def _run_job(job_id: str) -> None:
         job.response = result.get("response", "")
         job.error = None
     except Exception as exc:
+        recovered = _recover_orphaned_workflow(job)
+        if recovered is not None:
+            job.workflow_id = recovered.workflow_id
+            job.status = (
+                "needs_approval"
+                if recovered.status.value == "needs_approval"
+                else recovered.status.value
+            )
+            job.model = job.model or os.getenv("MODEL_NAME", "gemini-3.5-flash")
+            job.execution_mode = job.execution_mode or "google_adk"
+            job.response = (
+                "Evidence captured; the workflow was preserved after a bounded "
+                "agent retry. Human approval is still required."
+            )
+            job.error = None
+            _set_job(job)
+            logger.warning(
+                "Recovered workflow %s for partially completed job %s after %s",
+                recovered.workflow_id,
+                job.job_id,
+                type(exc).__name__,
+            )
+            return
         # The public judge console is an explicitly synthetic, identity-free
         # lane.  Keep it reviewable when a real Gemini turn is temporarily
         # quota-limited or unavailable, while leaving signed/monitor runs

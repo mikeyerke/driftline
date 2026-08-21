@@ -11,7 +11,7 @@ from app import api, source
 from app.api import app
 from app.connectors import ConnectorError, _tenant_secret_or_env
 from app.decision_copilot import fallback_copilot, red_team_review
-from app.models import JobState
+from app.models import JobState, SourceEvidence, WorkflowState
 from app.tenant import principal_for_hmac, tenant_operator_signing_secret_name
 
 client = TestClient(app)
@@ -105,6 +105,35 @@ def test_public_job_payload_redacts_caller_text_and_internal_claims() -> None:
     assert tenant_payload["query"] == "signed tenant query"
     assert tenant_payload["response"] == "signed tenant response"
     assert tenant_payload["claim_id"] == "tenant-claim"
+
+
+def test_recover_orphaned_workflow_matches_recent_exact_source(monkeypatch) -> None:
+    job = JobState(
+        job_id="job-partial-agent",
+        tenant_id="driftline-demo",
+        source_id="custom/acme-pricing",
+        created_at="2026-08-21T06:00:00+00:00",
+    )
+    state = WorkflowState(
+        workflow_id="workflow-partial-agent",
+        title="Pricing changed",
+        tenant_id="driftline-demo",
+        evidence=SourceEvidence(
+            source_id="custom/acme-pricing",
+            source_name="Acme pricing",
+            before="old",
+            after="new",
+            evidence_hash="hash",
+            confidence=0.99,
+        ),
+        created_at="2026-08-21T06:00:05+00:00",
+    )
+    monkeypatch.setattr(api.workflow_store, "_runs", {state.workflow_id: state})
+    monkeypatch.setattr(api, "list_workflows", lambda limit=50: [])
+
+    recovered = api._recover_orphaned_workflow(job)
+
+    assert recovered is state
 
 
 def test_tenant_metrics_exclude_tenantless_and_other_tenant_records() -> None:
