@@ -211,9 +211,11 @@ async def security_headers(request: Request, call_next):
         response.headers["Cache-Control"] = "no-store"
     response.headers.setdefault(
         "Content-Security-Policy",
-        "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; "
-        "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        "connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; "
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     )
     # Cloud Run terminates TLS before forwarding to Uvicorn, so the app often
     # sees an internal HTTP scheme even for the public HTTPS URL. The service
@@ -1464,6 +1466,26 @@ def health() -> dict[str, str | bool]:
         "service": "driftline-agent",
         "persistence": os.getenv("DRIFTLINE_PERSISTENCE", "memory"),
         "async_jobs": _tasks_enabled(),
+    }
+
+
+@app.get("/api/auth/config")
+def get_auth_config() -> dict[str, object]:
+    """Expose only the public Google Identity Services configuration.
+
+    A web OAuth client id is not a credential. Returning it lets the hosted
+    console offer an actual operator sign-in without shipping a secret or
+    weakening the anonymous packet-safe judge lane. The API still validates
+    the resulting short-lived Google ID token and durable tenant membership on
+    every signed request.
+    """
+    audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
+    return {
+        "enabled": bool(audience),
+        "client_id": audience or None,
+        "mode": "google_oidc" if audience else "unavailable",
+        "anonymous_lane": "packet_only",
+        "credential_values_exposed": False,
     }
 
 

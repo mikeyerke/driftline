@@ -1,11 +1,52 @@
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
+// The ID token is held in memory only. It is never written to localStorage,
+// URL parameters, analytics, or the repository. The backend revalidates it on
+// every signed request and resolves the selected tenant from Firestore.
+let operatorSession = { identityToken: null, email: null, tenants: [], tenantId: null, role: null };
+const operatorListeners = new Set();
+
+export function getOperatorSession() {
+  return operatorSession;
+}
+
+export function subscribeOperatorSession(listener) {
+  operatorListeners.add(listener);
+  return () => operatorListeners.delete(listener);
+}
+
+export function setOperatorSession(next = {}) {
+  operatorSession = { ...operatorSession, ...next };
+  operatorListeners.forEach((listener) => listener(operatorSession));
+}
+
+export function clearOperatorSession() {
+  operatorSession = { identityToken: null, email: null, tenants: [], tenantId: null, role: null };
+  operatorListeners.forEach((listener) => listener(operatorSession));
+}
+
+function signedContext() {
+  if (!operatorSession.identityToken || !operatorSession.tenantId) return {};
+  return {
+    operator: operatorSession.email || "Google operator",
+    tenant_id: operatorSession.tenantId,
+    approval_mode: "signed",
+    identity_token: operatorSession.identityToken,
+  };
+}
+
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!response.ok) throw new Error(`Driftline API returned ${response.status}`);
+  const { authenticated = false, ...fetchOptions } = options;
+  const headers = new Headers({ "Content-Type": "application/json", ...(fetchOptions.headers || {}) });
+  if (authenticated && operatorSession.identityToken) {
+    headers.set("Authorization", `Bearer ${operatorSession.identityToken}`);
+  }
+  const response = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers });
+  if (!response.ok) {
+    let detail = "";
+    try { detail = (await response.json()).detail || ""; } catch { /* non-JSON response */ }
+    throw new Error(detail || `Driftline API returned ${response.status}`);
+  }
   return response.json();
 }
 
@@ -22,16 +63,44 @@ export function startDemoJob(sourceId = "public/pricing") {
       query: `Inspect the selected allowlisted source change, verify the evidence, map the affected offerings and downstream artifacts, and stop at the human approval gate.`,
       user_id: "demo-operator",
       source_id: sourceId,
+      ...(operatorSession.identityToken && operatorSession.tenantId
+        ? {
+            run_mode: "tenant_demo",
+            user_id: operatorSession.email || "google-operator",
+            operator: operatorSession.email || "Google operator",
+            tenant_id: operatorSession.tenantId,
+            identity_token: operatorSession.identityToken,
+          }
+        : {}),
     }),
   });
 }
 
 export function getJob(jobId) {
-  return request(`/api/jobs/${jobId}`);
+  const params = operatorSession.identityToken && operatorSession.tenantId
+    ? `?operator=${encodeURIComponent(operatorSession.email || "Google operator")}&tenant_id=${encodeURIComponent(operatorSession.tenantId)}`
+    : "";
+  return request(`/api/jobs/${jobId}${params}`, { authenticated: Boolean(operatorSession.identityToken) });
 }
 
 export function listJobs(limit = 8) {
-  return request(`/api/jobs?limit=${limit}`);
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/jobs?${params.toString()}`, { authenticated: Boolean(operatorSession.identityToken) });
+}
+
+export function getAuthConfig() {
+  return request("/api/auth/config");
+}
+
+export function getAvailableTenants(identityToken) {
+  return request("/api/tenants/available", {
+    authenticated: Boolean(identityToken),
+    headers: identityToken ? { Authorization: `Bearer ${identityToken}` } : undefined,
+  });
 }
 
 export function getSources() {
@@ -43,7 +112,12 @@ export function getMonitorRegistry() {
 }
 
 export function getOpsSummary() {
-  return request("/api/ops/summary");
+  const params = new URLSearchParams();
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/ops/summary${params.toString() ? `?${params}` : ""}`, { authenticated: Boolean(operatorSession.identityToken) });
 }
 
 export function getValueProof() {
@@ -81,12 +155,13 @@ export function approveWorkflow(workflowId, artifactDecisions, decision = "grand
   return request(`/api/workflows/${workflowId}/approve`, {
     method: "POST",
     body: JSON.stringify({
-      approver: "Demo operator",
+      approver: operatorSession.email || "Demo operator",
       decision,
       artifact_decisions: artifactDecisions,
       copilot_option_id: copilotOptionId,
       copilot_artifact_override: copilotArtifactOverride,
       copilot_override_reason: copilotOverrideReason,
+      ...signedContext(),
     }),
   });
 }
@@ -94,45 +169,48 @@ export function approveWorkflow(workflowId, artifactDecisions, decision = "grand
 export function undoWorkflow(workflowId) {
   return request(`/api/workflows/${workflowId}/undo`, {
     method: "POST",
-    body: JSON.stringify({ actor: "Demo operator" }),
+    body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
   });
 }
 
 export function dismissWorkflow(workflowId, reason = "Reviewed as non-material for the current segment") {
   return request(`/api/workflows/${workflowId}/dismiss`, {
     method: "POST",
-    body: JSON.stringify({ actor: "Demo operator", reason }),
+    body: JSON.stringify({ actor: operatorSession.email || "Demo operator", reason, ...signedContext() }),
   });
 }
 
 export function claimAction(workflowId, itemId) {
   return request(`/api/workflows/${workflowId}/actions/${itemId}/claim`, {
     method: "POST",
-    body: JSON.stringify({ actor: "Demo operator" }),
+    body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
   });
 }
 
 export function completeAction(workflowId, itemId) {
   return request(`/api/workflows/${workflowId}/actions/${itemId}/complete`, {
     method: "POST",
-    body: JSON.stringify({ actor: "Demo operator" }),
+    body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
   });
 }
 
 export function failAction(workflowId, itemId, reason = "Owner action needs a retry") {
   return request(`/api/workflows/${workflowId}/actions/${itemId}/fail`, {
     method: "POST",
-    body: JSON.stringify({ actor: "Demo operator", reason }),
+    body: JSON.stringify({ actor: operatorSession.email || "Demo operator", reason, ...signedContext() }),
   });
 }
 
 export function retryAction(workflowId, itemId) {
   return request(`/api/workflows/${workflowId}/actions/${itemId}/retry`, {
     method: "POST",
-    body: JSON.stringify({ actor: "Demo operator" }),
+    body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
   });
 }
 
 export function packetUrl(workflowId) {
-  return `${API_BASE}/api/workflows/${workflowId}/packet`;
+  const params = operatorSession.identityToken && operatorSession.tenantId
+    ? `?operator=${encodeURIComponent(operatorSession.email || "Google operator")}&tenant_id=${encodeURIComponent(operatorSession.tenantId)}`
+    : "";
+  return `${API_BASE}/api/workflows/${workflowId}/packet${params}`;
 }

@@ -1,0 +1,127 @@
+import { LogOut, ShieldCheck } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  clearOperatorSession,
+  getAuthConfig,
+  getAvailableTenants,
+  getOperatorSession,
+  setOperatorSession,
+  subscribeOperatorSession,
+} from "../api";
+
+function gisReady() {
+  return typeof window !== "undefined" && window.google?.accounts?.id;
+}
+
+export default function OperatorAccess() {
+  const buttonRef = useRef(null);
+  const [session, setSession] = useState(getOperatorSession());
+  const [config, setConfig] = useState(null);
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => subscribeOperatorSession(setSession), []);
+
+  useEffect(() => {
+    let active = true;
+    getAuthConfig()
+      .then((payload) => active && setConfig(payload))
+      .catch(() => active && setConfig({ enabled: false }));
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!config?.enabled || session.identityToken || !buttonRef.current) return undefined;
+    let cancelled = false;
+    const render = () => {
+      if (cancelled || !gisReady() || !buttonRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: config.client_id,
+        callback: async ({ credential }) => {
+          setError("");
+          setStatus("Checking tenant access…");
+          try {
+            const payload = await getAvailableTenants(credential);
+            const tenants = payload.tenants || [];
+            const first = tenants[0];
+            if (!first) throw new Error("Your Google account has no active Driftline tenant membership.");
+            setOperatorSession({
+              identityToken: credential,
+              email: payload.email,
+              tenants,
+              tenantId: first.tenant_id,
+              role: first.role,
+            });
+            setStatus(tenants.length > 1 ? "Choose a tenant" : "Authenticated operator");
+          } catch (requestError) {
+            clearOperatorSession();
+            setError(requestError.message || "Tenant access could not be verified.");
+            setStatus("");
+          }
+        },
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+      window.google.accounts.id.renderButton(buttonRef.current, {
+        type: "standard",
+        theme: "outline",
+        size: "medium",
+        text: "signin_with",
+        shape: "rectangular",
+        logo_alignment: "left",
+      });
+    };
+    if (gisReady()) render();
+    else {
+      const timer = window.setInterval(() => {
+        if (gisReady()) {
+          window.clearInterval(timer);
+          render();
+        }
+      }, 100);
+      return () => {
+        cancelled = true;
+        window.clearInterval(timer);
+      };
+    }
+    return () => { cancelled = true; };
+  }, [config, session.identityToken]);
+
+  const changeTenant = (event) => {
+    const tenant = session.tenants.find((item) => item.tenant_id === event.target.value);
+    if (!tenant) return;
+    setOperatorSession({ tenantId: tenant.tenant_id, role: tenant.role });
+    setStatus("Tenant selected");
+  };
+
+  if (!config?.enabled) {
+    return <span className="operator-access unavailable"><ShieldCheck size={14} />Operator sign-in unavailable</span>;
+  }
+
+  if (!session.identityToken) {
+    return (
+      <div className="operator-access">
+        <span className="operator-access-label"><ShieldCheck size={14} />Operator lane</span>
+        <div ref={buttonRef} aria-label="Sign in with Google for the Driftline operator lane" />
+        {status && <small className="operator-access-status">{status}</small>}
+        {error && <small className="operator-access-error" role="alert">{error}</small>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="operator-access authenticated">
+      <span className="operator-access-label"><ShieldCheck size={14} />{session.email}</span>
+      {session.tenants.length > 1 && (
+        <label className="operator-tenant-select">
+          <span className="sr-only">Tenant</span>
+          <select value={session.tenantId || ""} onChange={changeTenant} aria-label="Select Driftline tenant">
+            {session.tenants.map((tenant) => <option key={tenant.tenant_id} value={tenant.tenant_id}>{tenant.tenant_id} · {tenant.role}</option>)}
+          </select>
+        </label>
+      )}
+      <span className="operator-access-status">{session.tenantId} · {session.role}</span>
+      <button className="icon-button operator-signout" type="button" aria-label="Sign out of Driftline operator lane" onClick={() => { window.google?.accounts?.id?.disableAutoSelect?.(); clearOperatorSession(); setStatus(""); }}><LogOut size={15} /></button>
+    </div>
+  );
+}

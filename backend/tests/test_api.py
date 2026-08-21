@@ -26,6 +26,24 @@ def test_health() -> None:
     )
 
 
+def test_auth_config_exposes_only_public_google_client_configuration(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE",
+        "32555940559.apps.googleusercontent.com",
+    )
+    response = client.get("/api/auth/config")
+    assert response.status_code == 200
+    assert response.json() == {
+        "enabled": True,
+        "client_id": "32555940559.apps.googleusercontent.com",
+        "mode": "google_oidc",
+        "anonymous_lane": "packet_only",
+        "credential_values_exposed": False,
+    }
+    assert response.headers["cache-control"] == "no-store"
+    assert "script-src" in response.headers["content-security-policy"]
+
+
 def test_api_responses_are_not_cacheable() -> None:
     response = client.get("/api/ops/value-proof")
     assert response.status_code == 200

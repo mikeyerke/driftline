@@ -12,7 +12,7 @@ import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence } from "./data";
-import { apiEnabled, approveWorkflow, dismissWorkflow, getJob, getMonitorRegistry, getSources, listJobs, packetUrl, startDemoJob, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, dismissWorkflow, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
 import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
 import IntegrationPanel from "./components/IntegrationPanel";
@@ -21,6 +21,7 @@ import ScenarioSimulator from "./components/ScenarioSimulator";
 import ChangeGenomePanel from "./components/ChangeGenomePanel";
 import ChangeCardPanel from "./components/ChangeCardPanel";
 import ValueProofPanel from "./components/ValueProofPanel";
+import OperatorAccess from "./components/OperatorAccess";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -61,6 +62,7 @@ export default function App() {
   const [sources, setSources] = useState([]);
   const [sourceHealth, setSourceHealth] = useState([]);
   const [selectedSource, setSelectedSource] = useState("public/pricing");
+  const [operatorSession, setOperatorSession] = useState(getOperatorSession());
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
 
@@ -95,7 +97,9 @@ export default function App() {
       ? "Jira handoff reactivated · external state remains reversible"
       : jiraWriteOccurred
       ? "Jira handoff recorded · other destinations remain prepared-only"
-    : "Live allowlisted monitor · handoffs staged, no external writes";
+    : operatorSession.identityToken
+      ? "Authenticated tenant run · approval-gated connector actions"
+      : "Public allowlisted monitor · handoffs staged, no external writes";
 
   const refreshHistory = async () => {
     try {
@@ -113,6 +117,11 @@ export default function App() {
     getSources().then((payload) => setSources(payload.sources || [])).catch(() => setSources([]));
     getMonitorRegistry().then((payload) => setSourceHealth(payload.sources || [])).catch(() => setSourceHealth([]));
   }, []);
+
+  useEffect(() => subscribeOperatorSession((next) => {
+    setOperatorSession(next);
+    refreshHistory();
+  }), []);
 
   const selectNav = (label) => {
     setSelectedNav(label);
@@ -267,6 +276,7 @@ export default function App() {
         <header className="topbar">
           <h1>Driftline promise drift operations</h1>
           <div className="topbar-actions">
+            <OperatorAccess />
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
             <span className="workspace-button">Production control plane<ChevronDown size={15} /></span>
             <span className="run-hint">{runHint}</span>
@@ -277,7 +287,7 @@ export default function App() {
         </header>
 
         <div className="content">
-        <div className="workspace-banner"><strong>Production control plane</strong><span>Public demo safety mode · allowlisted signals · deterministic human gate</span><span className="banner-status">{liveWorkflow ? "Live workflow" : "Packet-only demo"}</span></div>
+        <div className="workspace-banner"><strong>Production control plane</strong><span>{operatorSession.identityToken ? `Authenticated tenant lane · ${operatorSession.tenantId} · deterministic human gate` : "Public demo safety mode · allowlisted signals · deterministic human gate"}</span><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Packet-only demo")}</span></div>
           <section id="overview-section" className="overview-section">
             <p className="product-orientation">Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval.</p>
             <section className="incident-header">
