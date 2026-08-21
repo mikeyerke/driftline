@@ -39,6 +39,10 @@ _SOURCE_REGISTRY_COLLECTION = "driftline_source_registry"
 _SOURCE_FAILURE_COLLECTION = "driftline_source_failures"
 _SOURCE_FAILURES_MEMORY: dict[str, dict[str, object]] = {}
 _MAX_REGISTERED_BODY_BYTES = 128 * 1024
+# Keep one tenant from consuming the entire scheduler budget or creating an
+# unbounded Firestore registry. The global scheduler cap remains a separate
+# deployment-wide guardrail.
+_MAX_REGISTERED_SOURCES_PER_TENANT = 25
 _CHALLENGE_MARKERS = (
     "cf-chl-",
     "challenge-platform",
@@ -366,6 +370,13 @@ def register_operator_source(
         raise ValueError("source_cadence_not_allowlisted")
     if not 1 <= freshness_sla_hours <= 168:
         raise ValueError("source_freshness_sla_out_of_bounds")
+    existing = (tenant_id, source_id) in _CUSTOM_SOURCE_DEFINITIONS
+    if (
+        not existing
+        and _registered_source_count(tenant_id)
+        >= _MAX_REGISTERED_SOURCES_PER_TENANT
+    ):
+        raise ValueError("tenant_source_limit_reached")
     normalized = {
         "source_id": source_id,
         "name": name.strip()[:120],
@@ -586,6 +597,33 @@ def _public_url_is_allowlisted(url: str, fixture: str) -> bool:
         and parts[:2] == ["mikeyerke", "driftline"]
         and parts[3:] == ["fixtures", fixture]
     )
+
+
+def _registered_source_count(tenant_id: str) -> int:
+    """Count enabled custom sources for one tenant before accepting another."""
+    if not _firestore_enabled():
+        return sum(
+            1
+            for (bound_tenant, _source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items()
+            if bound_tenant == tenant_id and definition.get("enabled", "true") != "false"
+        )
+    try:
+        # The single-field tenant filter avoids a composite index. The +1
+        # sentinel distinguishes a full registry without reading unbounded
+        # source documents.
+        query = (
+            _registry_client()
+            .collection(_SOURCE_REGISTRY_COLLECTION)
+            .where("tenant_id", "==", tenant_id)
+            .limit(_MAX_REGISTERED_SOURCES_PER_TENANT + 1)
+        )
+        return sum(
+            1
+            for snapshot in query.stream()
+            if (snapshot.to_dict() or {}).get("enabled", True)
+        )
+    except Exception as exc:
+        raise ValueError("source_registry_unavailable") from exc
 
 
 def _default_public_store() -> SnapshotStore:

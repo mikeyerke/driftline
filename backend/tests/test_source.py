@@ -381,6 +381,52 @@ def test_operator_sources_and_history_are_tenant_scoped() -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
 
 
+def test_operator_source_registration_has_per_tenant_bound(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    try:
+        for index in range(source._MAX_REGISTERED_SOURCES_PER_TENANT):
+            source.register_operator_source(
+                source_id=f"custom/source-{index}",
+                name=f"Source {index}",
+                category="Competitor pricing",
+                change_type="Pricing move",
+                url=f"https://example.com/pricing/{index}",
+                owner="Product Marketing",
+                cadence="24h",
+                freshness_sla_hours=48,
+                tenant_id="tenant-acme",
+            )
+
+        with pytest.raises(ValueError, match="tenant_source_limit_reached"):
+            source.register_operator_source(
+                source_id="custom/source-over-limit",
+                name="Over limit",
+                category="Competitor pricing",
+                change_type="Pricing move",
+                url="https://example.com/pricing/over-limit",
+                owner="Product Marketing",
+                cadence="24h",
+                freshness_sla_hours=48,
+                tenant_id="tenant-acme",
+            )
+
+        # Updating an existing source remains idempotent at the limit.
+        source.register_operator_source(
+            source_id="custom/source-0",
+            name="Source 0 updated",
+            category="Competitor pricing",
+            change_type="Pricing move",
+            url="https://example.com/pricing/updated",
+            owner="Product Marketing",
+            cadence="24h",
+            freshness_sla_hours=48,
+            tenant_id="tenant-acme",
+        )
+    finally:
+        source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+
 def test_operator_source_rejects_challenge_interstitial_without_recording_change(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     source.register_operator_source(
