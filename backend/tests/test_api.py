@@ -44,6 +44,7 @@ def test_auth_config_exposes_only_public_google_client_configuration(monkeypatch
     assert "script-src" in response.headers["content-security-policy"]
     assert "https://accounts.google.com/gsi/" in response.headers["content-security-policy"]
     assert "style-src-elem" in response.headers["content-security-policy"]
+    assert "fonts.googleapis.com" not in response.headers["content-security-policy"]
 
 
 def test_api_responses_are_not_cacheable() -> None:
