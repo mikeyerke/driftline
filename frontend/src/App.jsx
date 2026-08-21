@@ -68,6 +68,8 @@ export default function App() {
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
   const lastTenantRef = useRef(operatorSession.tenantId || null);
+  const sessionKeyRef = useRef(`${operatorSession.tenantId || "public"}:${operatorSession.identityToken ? "signed" : "anonymous"}`);
+  const sessionEpochRef = useRef(0);
 
   const approved = workflowState?.status === "complete";
   const dismissed = workflowState?.status === "dismissed";
@@ -107,40 +109,59 @@ export default function App() {
       ? "Authenticated tenant run · approval-gated connector actions"
       : "Public allowlisted monitor · live packet-safe access · no external writes";
 
-  const refreshHistory = async () => {
+  const refreshHistory = async (expectedEpoch = sessionEpochRef.current) => {
     try {
       const payload = await listJobs();
+      if (sessionEpochRef.current !== expectedEpoch) return;
       setRecentJobs(payload.jobs || []);
     } catch {
+      if (sessionEpochRef.current !== expectedEpoch) return;
       setRecentJobs([]);
     } finally {
-      setHistoryLoading(false);
+      if (sessionEpochRef.current === expectedEpoch) setHistoryLoading(false);
     }
   };
 
-  const refreshSourceHealth = async () => {
-    setSourceHealthState("loading");
+  const refreshSourceHealth = async (expectedEpoch = sessionEpochRef.current) => {
+    if (sessionEpochRef.current === expectedEpoch) setSourceHealthState("loading");
     try {
       const payload = await getMonitorRegistry();
+      if (sessionEpochRef.current !== expectedEpoch) return;
       setSourceHealth(payload.sources || []);
       setSourceHealthState("ready");
     } catch {
+      if (sessionEpochRef.current !== expectedEpoch) return;
       setSourceHealth([]);
       setSourceHealthState("unavailable");
     }
   };
 
   useEffect(() => {
-    refreshHistory();
-    getSources().then((payload) => setSources(payload.sources || [])).catch(() => setSources([]));
-    refreshSourceHealth();
+    const callbackEpoch = sessionEpochRef.current;
+    refreshHistory(callbackEpoch);
+    getSources().then((payload) => {
+      if (sessionEpochRef.current === callbackEpoch) setSources(payload.sources || []);
+    }).catch(() => {
+      if (sessionEpochRef.current === callbackEpoch) setSources([]);
+    });
+    refreshSourceHealth(callbackEpoch);
   }, []);
 
   useEffect(() => subscribeOperatorSession((next) => {
+    const nextSessionKey = `${next.tenantId || "public"}:${next.identityToken ? "signed" : "anonymous"}`;
+    if (sessionKeyRef.current !== nextSessionKey) {
+      sessionKeyRef.current = nextSessionKey;
+      sessionEpochRef.current += 1;
+    }
+    const callbackEpoch = sessionEpochRef.current;
     setOperatorSession(next);
-    refreshHistory();
-    getSources().then((payload) => setSources(payload.sources || [])).catch(() => setSources([]));
-    refreshSourceHealth();
+    refreshHistory(callbackEpoch);
+    getSources().then((payload) => {
+      if (sessionEpochRef.current === callbackEpoch) setSources(payload.sources || []);
+    }).catch(() => {
+      if (sessionEpochRef.current === callbackEpoch) setSources([]);
+    });
+    refreshSourceHealth(callbackEpoch);
   }), []);
 
   useEffect(() => {
@@ -185,6 +206,7 @@ export default function App() {
   }, [showEvidence]);
 
   const runScan = async () => {
+    const scanEpoch = sessionEpochRef.current;
     setScanMessage("");
     setScanning(true);
     setWorkflowState(null);
@@ -197,6 +219,7 @@ export default function App() {
         ? "monitor"
         : null;
       const queued = await startDemoJob(selectedSource, runMode);
+      if (sessionEpochRef.current !== scanEpoch) return;
       setJob(queued);
       refreshHistory();
       setScanMessage(runMode === "monitor"
@@ -208,6 +231,7 @@ export default function App() {
       for (let attempt = 0; attempt < 180; attempt += 1) {
         await delay(700);
         const current = await getJob(queued.job_id);
+        if (sessionEpochRef.current !== scanEpoch) return;
         setJob(current);
         if (current.status === "failed") throw new Error(current.error || "Agent job failed");
         if (["needs_approval", "complete"].includes(current.status) && current.workflow) {
@@ -227,6 +251,7 @@ export default function App() {
       }
       throw new Error("The agent job timed out");
     } catch (error) {
+      if (sessionEpochRef.current !== scanEpoch) return;
       setScanMessage(`Unable to start the live scan · ${error.message || "retry the request"}`);
       setJob((current) => current ? { ...current, status: "failed", error: error.message } : current);
     } finally {
@@ -236,6 +261,7 @@ export default function App() {
 
   const approve = async (selectedOption) => {
     if (!workflowId || !liveWorkflow || decisionBusy) return;
+    const decisionEpoch = sessionEpochRef.current;
     setDecisionBusy(true);
     try {
       const decision = selectedOption?.workflow_decision || (workflowState?.impact_graph?.summary?.category?.startsWith("Competitor")
@@ -249,6 +275,7 @@ export default function App() {
         selectedOption?.copilot_artifact_override || false,
         selectedOption?.copilot_override_reason || null,
       );
+      if (sessionEpochRef.current !== decisionEpoch) return;
       setWorkflowState(state);
       setJob((current) => current ? {
         ...current,
@@ -259,6 +286,7 @@ export default function App() {
       setScanMessage("Action plan recorded · reversible packet created");
       refreshHistory();
     } catch (error) {
+      if (sessionEpochRef.current !== decisionEpoch) return;
       setScanMessage(`Unable to record the decision · ${error.message || "retry the request"}`);
     } finally {
       setDecisionBusy(false);
@@ -267,9 +295,11 @@ export default function App() {
 
   const reopen = async () => {
     if (!workflowId || !liveWorkflow || decisionBusy) return;
+    const decisionEpoch = sessionEpochRef.current;
     setDecisionBusy(true);
     try {
       const state = await undoWorkflow(workflowId);
+      if (sessionEpochRef.current !== decisionEpoch) return;
       setWorkflowState(state);
       setJob((current) => current ? {
         ...current,
@@ -280,6 +310,7 @@ export default function App() {
       setScanMessage("Decision reopened · no external systems were changed");
       refreshHistory();
     } catch (error) {
+      if (sessionEpochRef.current !== decisionEpoch) return;
       setScanMessage(`Unable to reopen the decision · ${error.message || "retry the request"}`);
     } finally {
       setDecisionBusy(false);
@@ -288,9 +319,11 @@ export default function App() {
 
   const dismissSignal = async (reason) => {
     if (!workflowId || !liveWorkflow || decisionBusy) return;
+    const decisionEpoch = sessionEpochRef.current;
     setDecisionBusy(true);
     try {
       const state = await dismissWorkflow(workflowId, reason);
+      if (sessionEpochRef.current !== decisionEpoch) return;
       setWorkflowState(state);
       setJob((current) => current ? {
         ...current,
@@ -301,6 +334,7 @@ export default function App() {
       setScanMessage("Signal dismissed · reason recorded in the audit trail");
       refreshHistory();
     } catch (error) {
+      if (sessionEpochRef.current !== decisionEpoch) return;
       setScanMessage(`Unable to dismiss the signal · ${error.message || "retry the request"}`);
     } finally {
       setDecisionBusy(false);
@@ -308,11 +342,14 @@ export default function App() {
   };
 
   const retryFailedJob = async (jobId) => {
+    const retryEpoch = sessionEpochRef.current;
     try {
       await retryJob(jobId);
+      if (sessionEpochRef.current !== retryEpoch) return;
       setScanMessage("Retry queued · preserving the tenant source and policy boundary");
-      refreshHistory();
+      refreshHistory(retryEpoch);
     } catch (error) {
+      if (sessionEpochRef.current !== retryEpoch) return;
       setScanMessage(`Unable to retry the job · ${error.message || "retry the request"}`);
     }
   };
