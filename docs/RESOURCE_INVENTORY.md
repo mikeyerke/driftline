@@ -10,6 +10,33 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-21 signed tenant pilot and reversible Jira proof (live)
+
+- Source commit `282fcde` passed the full local gate (218 backend tests, Ruff,
+  and the frontend production build). Cloud Build
+  `2c112a6b-32bc-4314-814a-ba5084755fb6` completed `SUCCESS`; Cloud Run
+  revision `driftline-00045-hvw` serves 100% of traffic in the isolated
+  `driftline-hackathon-2026` project.
+- The new signed `run_mode=tenant_demo` lane ran job `job-5828e40c0c86` and
+  workflow `116dd7ce-690a-436a-9c31-ca98a41d757c` through real
+  `google_adk`/`gemini-3.5-flash`, with exactly
+  `inspect_source_change` and `get_workflow_state`. Firestore state was
+  tenant-bound to `driftline-demo`, marked `synthetic_tenant_demo`, and held at
+  `needs_approval` until a named human selected the Gemini copilot option.
+- The signed approval created a real, project-scoped Jira Task handoff in the
+  isolated `KAN` project. The idempotent marker found the prior reversed issue
+  `KAN-18` and reactivated only Driftline-owned labels (`jira_status=reactivated`,
+  `external_systems_changed=true`). A direct Jira API read confirmed labels
+  `driftline-active` and `driftline-approval-gated`.
+- Signed undo completed on the same workflow and changed only the Jira-owned
+  labels to `driftline-reversed`; a direct Jira API read confirmed the reversed
+  state. The original issue was retained and no delete operation was used.
+- This is a bounded authenticated fixture pilot and connector proof, not a
+  customer outcome or live competitor-monitoring claim. Salesforce remains
+  `not_configured`; the anonymous public judge lane remains packet-only.
+- Cloud Logging for `driftline-00045-hvw` returned no severity `ERROR` entries
+  after the live proof.
+
 ## 2026-08-21 production-control-plane copy rollout (live)
 
 - Source commit `bb8a437` passed GitHub Actions `32435761464` and Cloud Build
@@ -53,12 +80,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00043-xkb` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00045-hvw` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `9431006`; Cloud Build `351447cf-e436-41c6-ace9-0fdab19d639e`.
+- Deployed runtime source: `282fcde`; Cloud Build `2c112a6b-32bc-4314-814a-ba5084755fb6`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
@@ -75,7 +102,9 @@ snapshot.
 - Anonymous exposure recheck: `/api/ops/summary`, `/api/ops/value-proof`,
   `/api/jobs`, and `/api/sources` returned no token/secret fields; connector,
   tenant-policy, and failure-ledger routes remained signed-only.
-- Signed pilot report: `status=not_measured`, `record_count=0`.
+- Signed pilot report remains `status=not_measured`, `record_count=0`; the
+  authenticated fixture/Jira proof above is an operational canary, not a
+  customer outcome measurement.
 - Public-demo value proof: 50 workflows, 41 source observations, 32
   human-owned action items, 1 completed action (3.1%), 0 external writes.
 - Final video upload and Devpost submission: not completed.

@@ -138,17 +138,18 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The current live revision is `driftline-00043-xkb` from source commit
-  `9431006`, deployed by Cloud Build
-  `351447cf-e436-41c6-ace9-0fdab19d639e`; it serves 100% of traffic with the
+- The current live revision is `driftline-00045-hvw` from source commit
+  `282fcde`, deployed by Cloud Build
+  `2c112a6b-32bc-4314-814a-ba5084755fb6`; it serves 100% of traffic with the
   same scale-to-zero and one-instance guardrails.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `9431006`, deployed through Cloud Build
-  `351447cf-e436-41c6-ace9-0fdab19d639e` as Cloud Run revision
-  `driftline-00043-xkb` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32437783883` passed the backend tests,
-  frontend build, and standalone image build. A live direct-agent canary
+  The deployed runtime source is commit `282fcde`, deployed through Cloud Build
+  `2c112a6b-32bc-4314-814a-ba5084755fb6` as Cloud Run revision
+  `driftline-00045-hvw` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32439446188` passed on this commit; the
+  local release gate also passed all 218 backend tests, Ruff, and the frontend
+  production build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
   100 across accessibility, best practices, SEO, and agentic browsing on both
@@ -159,6 +160,14 @@ created during the contest.
   approval, reopen, and dismissal. Fresh browser QA passed the live scan,
   evidence, approval, completion, activity log, timeline, and 390px mobile path
   without console errors.
+- A signed `tenant_demo` fixture pilot on the current revision carried tenant
+  `driftline-demo` through real ADK/Gemini into Firestore as
+  `synthetic_tenant_demo`. After named human approval, the isolated Jira
+  connector reactivated the prior marker-scoped `KAN-18` task and a direct Jira
+  API read confirmed Driftline's active labels. Signed undo then changed only
+  the Driftline-owned labels to `driftline-reversed`; the issue was retained.
+  This proves an operational connector path, not customer ROI or a live
+  competitor-monitoring result.
 - On 2026-08-21, the preceding `driftline-00038-2gq` revision was rechecked end to
   end: `/health` returned Firestore persistence and async jobs; a direct ADK
   run returned HTTP 200 with `persisted=true`, `model=gemini-3.5-flash`, and
