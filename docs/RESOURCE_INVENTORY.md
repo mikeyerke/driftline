@@ -2628,3 +2628,6 @@ is no longer needed.
 - Final live UI checks on the new revision passed all 57 Lighthouse audits on
   desktop and mobile (100 accessibility, best practices, SEO, and agentic
   browsing) with no console messages.
+- A fresh direct agent probe on the same revision returned HTTP 200 with
+  `persisted=true`, `execution_mode=google_adk`, `model=gemini-3.5-flash`, and
+  exactly `inspect_source_change` plus `get_workflow_state` in the trace.
