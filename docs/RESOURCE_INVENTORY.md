@@ -52,6 +52,9 @@ snapshot.
   competitor source is registered.
 - Signed connector health: Jira, Confluence, Slack, and GitHub healthy;
   Salesforce `not_configured`; credential values redacted.
+- Anonymous exposure recheck: `/api/ops/summary`, `/api/ops/value-proof`,
+  `/api/jobs`, and `/api/sources` returned no token/secret fields; connector,
+  tenant-policy, and failure-ledger routes remained signed-only.
 - Signed pilot report: `status=not_measured`, `record_count=0`.
 - Public sandbox value proof: 50 workflows, 41 source observations, 32
   human-owned action items, 1 completed action (3.1%), 0 external writes.
