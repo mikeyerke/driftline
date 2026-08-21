@@ -79,6 +79,34 @@ async def test_api_cache_policy_overrides_endpoint_cache_header() -> None:
 
 
 @pytest.mark.asyncio
+async def test_permissions_policy_overrides_endpoint_capability_header() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/test-permissions-policy",
+            "scheme": "https",
+            "server": ("testserver", 443),
+            "client": ("testclient", 123),
+            "root_path": "",
+            "query_string": b"",
+            "headers": [],
+        }
+    )
+
+    async def call_next(_request: Request) -> Response:
+        return Response(
+            headers={"Permissions-Policy": "camera=(self), microphone=(self)"}
+        )
+
+    response = await api.security_headers(request, call_next)
+
+    assert response.headers["permissions-policy"] == (
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    )
+
+
+@pytest.mark.asyncio
 async def test_fingerprinted_static_assets_are_immutable_cacheable() -> None:
     request = Request(
         {

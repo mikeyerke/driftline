@@ -205,10 +205,12 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault(
-        "Permissions-Policy",
-        "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
-    )
+    # Keep the capability deny-list authoritative even if a route or upstream
+    # middleware supplied a broader policy.  This is a deliberate fail-closed
+    # invariant for the public console, not a default that callers may widen.
+    response.headers[
+        "Permissions-Policy"
+    ] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     if request.url.path.startswith("/api/"):
         # API responses can contain tenant-scoped metadata or one-time OAuth
         # handoff state. Never let a browser, proxy, or shared intermediary
