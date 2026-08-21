@@ -268,9 +268,17 @@ async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
                     "no structured analysis",
                     "non-json structured analysis",
                     "analysis request failed",
+                    "schema validation at ",
                 )
             )
             if attempt < 2 and retryable:
+                if "schema validation at " in str(exc):
+                    prompt = (
+                        f"{prompt}\n\nSchema repair instruction: the previous model response did not match the "
+                        "strict contract. Return `summary` and `rationale` as plain JSON strings, "
+                        "not objects or arrays; return exactly one object with the required fields "
+                        "and keep the supplied evidence hash unchanged."
+                    )
                 await asyncio.sleep(0.25 * (attempt + 1))
                 continue
             raise
