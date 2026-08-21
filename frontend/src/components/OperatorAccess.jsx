@@ -147,7 +147,7 @@ export default function OperatorAccess() {
 
   if (!session.identityToken) {
     return (
-      <div className="operator-access">
+      <div className={`operator-access${authStarted ? " google-auth-ready" : ""}`}>
         <span className="operator-access-label"><ShieldCheck size={14} />Operator lane</span>
         {authStarted
           ? <div ref={buttonRef} aria-label="Sign in with Google for the Driftline operator lane" />
