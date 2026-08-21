@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `7913c37`, Cloud Build
-  `2f5b0c1b-057b-459d-a72b-759a1310d32a`, and Cloud Run revision
-  `driftline-00107-pr6` at 100% traffic. It passed 243 backend tests, Ruff,
+- The current active release is source commit `cd9776d`, Cloud Build
+  `7930269a-915a-4a65-bb4d-693e276d4ad2`, and Cloud Run revision
+  `driftline-00108-f42` at 100% traffic. It passed 244 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -200,6 +200,9 @@ created during the contest.
   fresh live verifier on this revision created job `job-4f477d45abd4` /
   workflow `706f0b5c-b70e-4978-9663-bd4a97dda88c` and proved the same Gemini,
   ADK, tool, artifact, and deterministic-gate contract.
+  The current immutable-default release created job `job-d76dae51ef94` /
+  workflow `4e2d9523-9834-4778-93f7-de991d3ac93c` and persisted the pinned
+  `19fc1e2` source URL in its evidence record.
   It also includes a recoverable frontend error boundary so a render failure
   cannot present a blank console or imply that persisted workflow state was
   lost.
