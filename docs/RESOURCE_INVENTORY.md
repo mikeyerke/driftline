@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T21:36Z` with the active gcloud project set to
+Checked `2026-08-21T21:43Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00141-x97` at 100% traffic. Its immutable serving image is
-  `sha256:b291820568db59bf60f51ae5b81ec39279e325dd6016e6da70ab474cecdac9d5`.
+  `driftline-00142-657` at 100% traffic. Its immutable serving image is
+  `sha256:d3ec8b1aaa2e8973b3d1f33bfde7ea31215e09cbc15babb741ea7770903b9100`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -33,7 +33,27 @@ Checked `2026-08-21T21:36Z` with the active gcloud project set to
   direct `gcloud run services describe` output above is the current-state
   authority.
 
-## 2026-08-21 directional impact-focus release (live)
+## 2026-08-21 focused-map readability release (live)
+
+- Source commit `48ca9f8` passed GitHub Actions run `32529461064` (258 backend
+  tests, Ruff, frontend production build, standalone image build, and
+  repository hygiene) and deployed through Cloud Build
+  `0b9e4e54-b87b-4527-9376-0748a19a7710` (`SUCCESS`, 2m56s).
+- Cloud Run revision `driftline-00142-657` serves 100% traffic with immutable
+  image digest
+  `sha256:d3ec8b1aaa2e8973b3d1f33bfde7ea31215e09cbc15babb741ea7770903b9100`.
+- Focused impact-map secondary nodes retain readable contrast while remaining
+  visually subordinate; fresh desktop QA showed seven dimmed siblings, a
+  prominent selected work surface, and no horizontal overflow.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors.
+  Fresh live-agent proof returned `job-0386cee0979b` / workflow
+  `0cf5ae56-19af-449a-87cd-9cfcfbafa18b`, `needs_approval`, public-source mode,
+  Gemini 3.5 Flash through Google ADK, two allowlisted tools, four artifacts,
+  five audit events, and two decision options. Approval/undo proof passed on
+  the same workflow, persisting the packet and reversing the operational output
+  with `external_write=false` and `external_systems_changed=false`.
+
+## 2026-08-21 directional impact-focus release (historical serving revision)
 
 - Source commit `5e51bec` passed GitHub Actions run `32528922025` (258 backend
   tests, Ruff, frontend production build, standalone image build, and
