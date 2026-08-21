@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T09:10:00Z` with the active gcloud project set to
+Checked `2026-08-21T09:22:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00088-jn6` at 100% traffic.
+  `driftline-00089-cwj` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,21 @@ Checked `2026-08-21T09:10:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 trust copy and connector-status clarity release (live)
+
+- Source commit `28a8c75` was deployed by Cloud Build
+  `c62bfffa-314d-42c3-83d3-ebb281d2309b` (`SUCCESS`) as Cloud Run revision
+  `driftline-00089-cwj` at 100% traffic.
+- The live trust panel now distinguishes an actually created/reused/reversed
+  Jira handoff from unchanged destinations, instead of implying that a Jira
+  write leaves every customer system unchanged.
+- Connector telemetry now says `available` and explicitly notes that
+  deployment capability is not proof of per-tenant credentials or an external
+  write. This keeps the public evaluation lane accurate for prepared-only
+  connectors.
+- `/health` returned 200, `scripts/verify_production.sh` passed, and the fresh
+  browser loaded the revised copy with no console errors or warnings.
 
 ## 2026-08-21 below-fold visual performance release (live)
 
@@ -58,7 +73,7 @@ Checked `2026-08-21T09:10:00Z` with the active gcloud project set to
 
 - Read-only `scripts/verify_production.sh` passed with the active gcloud
   project explicitly set to `driftline-hackathon-2026`.
-- The check confirmed Cloud Run revision `driftline-00088-jn6` at 100% traffic,
+- The check confirmed Cloud Run revision `driftline-00089-cwj` at 100% traffic,
   Firestore-backed `/health`, enabled Scheduler, a running Cloud Tasks queue
   with one concurrent dispatch and three attempts, the live uptime check and
   alert policy, the production dashboard, and zero severity `ERROR` entries in
