@@ -40,6 +40,11 @@ Checked `2026-08-21T12:14:30Z` with the active gcloud project set to
   workflow `655fb48c-9411-46d2-b01a-5c653e983ce0` reached `needs_approval`
   through `gemini-3.5-flash`, Google ADK, both allowlisted tools, four
   artifacts, and five audit events.
+- A fresh logged-out Chrome pass against the current public alias completed the
+  scan at desktop semantics and at a 390px mobile viewport. The new agent-work
+  rail was visible with no console warnings/errors; mobile body and document
+  scroll width both remained 390px, and Lighthouse snapshot scored 100 for
+  accessibility, best practices, SEO, and agentic browsing.
 
 - Source commit `efc37db` was deployed by Cloud Build
   `ab382c57-979e-4db0-99ee-5818575daa49` (`SUCCESS`, 3m03s) as Cloud Run

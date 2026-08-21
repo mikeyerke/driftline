@@ -191,6 +191,10 @@ created during the contest.
   The current revision also exposes a plain-language allowlisted-work rail in
   the Agent run panel, making the two read/state tool calls visible as
   completed work rather than leaving the judge to infer them from raw names.
+  A fresh logged-out Chrome pass at a 390px mobile viewport showed that rail
+  with no console warnings/errors, no horizontal document overflow, and
+  Lighthouse snapshot scores of 100 for accessibility, best practices, SEO,
+  and agentic browsing.
   It also includes a recoverable frontend error boundary so a render failure
   cannot present a blank console or imply that persisted workflow state was
   lost.
