@@ -88,6 +88,9 @@ source package supplied for this build. The Devpost disclosure therefore
 describes that prior ideation and identifies the current implementation work
 completed during the submission period; it does not claim that earlier
 ideation was created during the contest.
+The repository's first commit is dated August 18, 2026, inside the August 3–31
+submission period; that timestamp is a reproducible implementation-history
+anchor, not a claim that the earlier concept conversation was contest work.
 
 ## Judging emphasis
 

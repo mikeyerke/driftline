@@ -216,4 +216,6 @@ discipline and technology 30%, and demo/production readiness 30%.
 The project discloses that Driftline continues an earlier concept conversation
 and incorporates the supplied source package; the current implementation,
 deployment, verification, and documentation work was completed or materially
-changed during the submission period.
+changed during the submission period. The public repository's first commit is
+dated August 18, 2026, inside the August 3–31 submission period; that history
+anchor does not misrepresent the earlier concept conversation as contest work.
