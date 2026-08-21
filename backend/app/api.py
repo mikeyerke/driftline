@@ -1295,13 +1295,18 @@ async def _run_job(job_id: str) -> None:
         return
     job = _resolve_job(job_id)
     try:
+        bound_query = (
+            job.query
+            if f'source_id "{job.source_id}"' in job.query
+            else f'{job.query} Use the exact allowlisted source_id "{job.source_id}".'
+        )
         if job.run_mode == "demo" and job.tenant_id is None:
-            result = await run_agent_task(job.query, job.user_id)
+            result = await run_agent_task(bound_query, job.user_id)
         elif job.tenant_id is None:
-            result = await run_agent_task(job.query, job.user_id, job.run_mode)
+            result = await run_agent_task(bound_query, job.user_id, job.run_mode)
         else:
             result = await run_agent_task(
-                job.query,
+                bound_query,
                 job.user_id,
                 job.run_mode,
                 tenant_id=job.tenant_id,
@@ -1435,6 +1440,7 @@ def _start_job(
     run_mode: str,
     background_tasks: BackgroundTasks,
     tenant_id: str | None = None,
+    source_id: str = "public/pricing",
 ) -> JobState:
     job = JobState(
         job_id=f"job-{uuid4().hex[:12]}",
@@ -1442,6 +1448,7 @@ def _start_job(
         user_id=user_id,
         tenant_id=tenant_id,
         run_mode=run_mode,
+        source_id=source_id,
     )
     _set_job(job)
     try:
@@ -4116,6 +4123,7 @@ async def start_demo_job(
         run_mode=request.run_mode,
         background_tasks=background_tasks,
         tenant_id=tenant_id,
+        source_id=request.source_id,
     )
     return job.to_dict()
 
@@ -4216,6 +4224,7 @@ async def scheduler_tick(
             run_mode="monitor",
             background_tasks=background_tasks,
             tenant_id=current_tenant_id,
+            source_id=current_source_id,
         )
         jobs.append(job)
         queued_source_ids.append(current_source_id)

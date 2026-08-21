@@ -1383,6 +1383,7 @@ def test_scheduler_tick_carries_custom_source_tenant(monkeypatch) -> None:
     assert response.status_code == 200
     custom = next(item for item in captured if item.get("tenant_id") == "acme")
     assert "custom/tenant-pricing" in str(custom["query"])
+    assert custom["source_id"] == "custom/tenant-pricing"
 
 
 def test_signed_operator_can_onboard_an_exact_public_source(monkeypatch) -> None:
@@ -1547,6 +1548,7 @@ def test_signed_monitor_job_carries_authenticated_tenant(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert captured["tenant_id"] == "driftline-demo"
+    assert captured["source_id"] == "public/pricing"
     assert response.json()["tenant_id"] == "driftline-demo"
 
 

@@ -112,6 +112,7 @@ class JobState:
     user_id: str = "demo-operator"
     tenant_id: str | None = None
     run_mode: str = "demo"
+    source_id: str = "public/pricing"
     workflow_id: str | None = None
     model: str | None = None
     execution_mode: str | None = None
