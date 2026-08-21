@@ -12,7 +12,7 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T13:06:16Z` with the active gcloud project set to
+Checked `2026-08-21T13:09:35Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
@@ -66,6 +66,16 @@ Checked `2026-08-21T13:06:16Z` with the active gcloud project set to
 - GitHub Actions run `32483785937` passed for source `ec65176`; local
   verification for this source also passed 244 backend
   tests, Ruff, the frontend production build, and `git diff --check`.
+- GitHub Actions run `32485267469` passed for repository HEAD `7728ed6`
+  (backend tests/lint, frontend production build, standalone lockfile-pinned
+  image, and shell release-helper hygiene).
+- A final control-plane check passed against the same serving revision:
+  `scripts/verify_production.sh` reported Firestore persistence, running
+  scheduler/tasks, enabled monitoring, and zero recent Cloud Run errors. A
+  fresh `scripts/verify_live_agent.sh` run proved job `job-b3bd92a2bece` /
+  workflow `9ac6363b-dbcd-4f53-87d8-dabebe496b69` reached `needs_approval`
+  through `gemini-3.5-flash`, Google ADK, both allowlisted tools, four
+  artifacts, and five audit events.
 - Fresh logged-out Chrome QA against the live alias verified the new copy,
   three-row public history, live scan, Gemini trace, and no console errors.
   At 390×844 mobile width, body/document scroll width remained 390px and the
