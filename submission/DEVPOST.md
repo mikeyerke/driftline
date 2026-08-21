@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `1814bad`, Cloud Build
-  `63b0d1de-f83d-4fa1-8cbd-5f8fb1b99a69`, and Cloud Run revision
-  `driftline-00100-f7x` at 100% traffic. It passed 242 backend tests, Ruff,
+- The current active release is source commit `302f151`, Cloud Build
+  `ba2fe2e4-1114-45c8-9263-675a6c9b905c`, and Cloud Run revision
+  `driftline-00101-sm7` at 100% traffic. It passed 242 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -155,8 +155,10 @@ created during the contest.
   session are discarded, preventing cross-tenant workflow, history, source,
   and decision state from reappearing after an operator switch.
   The current release also includes the CSP fix for the Google Identity
-  Services stylesheet; replacing the legacy OAuth client with a new client
-  owned by this isolated project remains the final operator-auth gate.
+  Services stylesheet and a project-owned Web OAuth client with the Cloud Run
+  origin registered. The public lane remains packet-safe; completing Google
+  account consent and tenant-token issuance is an external identity step, not
+  a claim of authenticated customer data.
   It also includes a recoverable frontend error boundary so a render failure
   cannot present a blank console or imply that persisted workflow state was
   lost.

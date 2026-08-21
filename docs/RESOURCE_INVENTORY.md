@@ -16,16 +16,35 @@ Checked `2026-08-21T11:02:48Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00100-f7x` at 100% traffic.
+  `driftline-00101-sm7` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
-  reports Google OIDC enabled with `anonymous_lane=packet_only` and no
-  credential values exposed.
+  reports Google OIDC enabled with the isolated project-owned client,
+  `anonymous_lane=packet_only`, and no credential values exposed.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
-  authority.
+authority.
+
+## 2026-08-21 isolated Google operator OAuth release (live)
+
+- Source commit `302f151` was deployed by Cloud Build
+  `ba2fe2e4-1114-45c8-9263-675a6c9b905c` (`SUCCESS`) as Cloud Run revision
+  `driftline-00101-sm7` at 100% traffic.
+- A new **Driftline production operator** Web application OAuth client was
+  created in `driftline-hackathon-2026` with the Cloud Run origin
+  `https://driftline-xvxczqg62a-uc.a.run.app`; no client secret was committed,
+  logged, or used by the browser GIS flow.
+- `/api/auth/config` now returns the new project-owned client ID and
+  `credential_values_exposed=false`. A fresh Chrome browser loaded the GIS
+  button with that client and opened the Google account sign-in page without
+  the prior `invalid_client / no registered origin` error. Completing Google
+  account selection/consent and obtaining a tenant token remains an external
+  identity step; no authenticated connector claim is based on this browser
+  probe alone.
+- `/health` and `scripts/verify_production.sh` passed with zero recent Cloud
+  Run errors. The public packet-safe lane remains live and unchanged.
 
 ## 2026-08-21 stale-session isolation release (live)
 
