@@ -248,13 +248,14 @@ async def secure_get_auth(request: Request, call_next):
         )
         sensitive_keys = {"approval_token", "identity_token"}
         if {key for key, _value in pairs} & sensitive_keys:
-            # Uvicorn's access logger reads the mutable ASGI scope. Replace
-            # credential values before returning the rejection so a hostile
-            # query token cannot be retained in the request line itself.
+            # Uvicorn's access logger reads the mutable ASGI scope. Remove
+            # credential parameters before returning the rejection so a
+            # hostile query token cannot be retained in the request line.
             request.scope["query_string"] = urlencode(
                 [
-                    (key, "[redacted]" if key in sensitive_keys else value)
+                    (key, value)
                     for key, value in pairs
+                    if key not in sensitive_keys
                 ]
             ).encode()
             return JSONResponse(

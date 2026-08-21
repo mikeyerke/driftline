@@ -1016,7 +1016,8 @@ async def test_hosted_get_redacts_rejected_query_token_in_asgi_scope(monkeypatch
 
     assert response.status_code == 400
     assert b"secret-value" not in request.scope["query_string"]
-    assert b"%5Bredacted%5D" in request.scope["query_string"]
+    assert b"approval_token" not in request.scope["query_string"]
+    assert b"operator=demo" in request.scope["query_string"]
 
 
 def test_hosted_get_resolves_signed_auth_from_headers_without_query_token(
