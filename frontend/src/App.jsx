@@ -200,9 +200,9 @@ export default function App() {
         ...current,
         status: state.status,
         workflow: state,
-        public_summary: "Action plan recorded · sandbox packet created",
+        public_summary: "Action plan recorded · reversible packet created",
       } : current);
-      setScanMessage("Action plan recorded · sandbox packet created");
+      setScanMessage("Action plan recorded · reversible packet created");
       refreshHistory();
     } catch (error) {
       setScanMessage(`Unable to record the decision · ${error.message || "retry the request"}`);
@@ -283,7 +283,7 @@ export default function App() {
               <div className="incident-title">
               <h2>{workflowState?.title || (selectedSource === "competitor/pricing" ? "Competitor pricing moved" : selectedSource === "competitor/offerings" ? "Competitor offering changed" : selectedSource === "competitor/blog" ? "Competitor product narrative changed" : "Enterprise plan packaging changed")}</h2>
                 <div className="metadata">
-                  <span><strong>Source</strong>{evidence.source_name}</span><i /><span><strong>Detected</strong>{workflowState ? "Just now" : "Preview"}</span><i />
+                  <span><strong>Source</strong>{evidence.source_name}</span><i /><span><strong>Detected</strong>{workflowState ? "Just now" : "Awaiting scan"}</span><i />
                   <span><strong>Confidence</strong><CheckCircle2 className="verified" size={15} />Verified</span><i /><span><strong>Severity</strong><b className="risk-dot high-dot" />High</span>
                 </div>
               </div>
