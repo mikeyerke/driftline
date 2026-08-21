@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T07:27:30Z` with the active gcloud project set to
+Checked `2026-08-21T07:33:41Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00077-xts` at 100% traffic.
+  `driftline-00078-2wq` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,24 @@ Checked `2026-08-21T07:27:30Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 scheduler deduplication release (live)
+
+- Source commit `bc811b0` passed 239 backend tests, Ruff, `git diff --check`,
+  and the frontend production build. Cloud Build
+  `cd102932-84da-4243-8625-9fe345570c95` completed `SUCCESS`; Cloud Run
+  revision `driftline-00078-2wq` serves 100% of traffic.
+- The six-hour monitor is now safe against at-least-once scheduler delivery:
+  before enqueueing, it checks the in-memory and durable job ledgers for a
+  queued/running monitor with the same tenant and source. Duplicate sources
+  are returned in `in_flight_source_ids` as an explicit no-op, and a ledger
+  lookup failure fails closed rather than fanning out unbounded model work.
+- Live probes returned `/health` HTTP 200 with Firestore persistence and async
+  jobs enabled, Google OIDC configuration with no credential values exposed,
+  registry summary `5 healthy / 0 needs_baseline / 0 source_failed`, three
+  append-only public pricing observations, the durable memory summary, the
+  public scan queue shape, 100% traffic, maxScale `1`, concurrency `20`, and
+  no severity `ERROR` logs for the active revision.
 
 ## 2026-08-21 idempotent tenant retry release (live)
 
