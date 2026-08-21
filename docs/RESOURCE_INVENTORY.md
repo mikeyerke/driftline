@@ -10,6 +10,24 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-21 production source onboarding release (live)
+
+- Source commit `0ec10af` passed GitHub Actions `32442367441` and the local
+  gate (224 backend tests, Ruff, and the frontend production build). Cloud
+  Build `64840a9b-3836-4899-81b0-96474e14ea14` completed `SUCCESS`; Cloud Run
+  revision `driftline-00051-rll` serves 100% of traffic.
+- Signed exact-URL source onboarding now performs one bounded public read in
+  production source mode and returns an explicit `baseline_established` or
+  `source_fetch_failed` result. It remains metadata-only in local/synthetic
+  mode, and the scheduler continues retrying failed sources.
+- Post-deploy proof: `/health` returned HTTP 200; an anonymous public scan on
+  job `job-9dd517681c11` reached `needs_approval` with workflow
+  `b736c7fc-3408-47e4-af30-6bd8ba9dba38`, `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, `data_mode=public_source`, and exactly two
+  allowlisted tool calls. An unsigned tenant-demo request returned HTTP 401.
+- Cloud Logging returned no severity `ERROR` entries for
+  `driftline-00051-rll`.
+
 ## 2026-08-21 console lifecycle truthfulness release (live)
 
 - Source commit `8eeae4a` passed GitHub Actions `32441821450` and the local
@@ -147,12 +165,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00050-42p` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00051-rll` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `8eeae4a`; Cloud Build `930e8940-35e6-442d-959b-986565b8451e`.
+- Deployed runtime source: `0ec10af`; Cloud Build `64840a9b-3836-4899-81b0-96474e14ea14`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.

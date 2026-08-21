@@ -138,17 +138,17 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The current live revision is `driftline-00050-42p` from source commit
-  `8eeae4a`, deployed by Cloud Build
-  `930e8940-35e6-442d-959b-986565b8451e`; it serves 100% of traffic with the
+- The current live revision is `driftline-00051-rll` from source commit
+  `0ec10af`, deployed by Cloud Build
+  `64840a9b-3836-4899-81b0-96474e14ea14`; it serves 100% of traffic with the
   same scale-to-zero and one-instance guardrails.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `8eeae4a`, deployed through Cloud Build
-  `930e8940-35e6-442d-959b-986565b8451e` as Cloud Run revision
-  `driftline-00050-42p` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32441821450` passed on this commit; the
-  local release gate also passed all 223 backend tests, Ruff, and the frontend
+  The deployed runtime source is commit `0ec10af`, deployed through Cloud Build
+  `64840a9b-3836-4899-81b0-96474e14ea14` as Cloud Run revision
+  `driftline-00051-rll` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32442367441` passed on this commit; the
+  local release gate also passed all 224 backend tests, Ruff, and the frontend
   production build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
