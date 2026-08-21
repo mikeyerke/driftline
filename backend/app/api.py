@@ -213,6 +213,12 @@ async def security_headers(request: Request, call_next):
         # handoff state. Never let a browser, proxy, or shared intermediary
         # retain those responses beyond the request.
         response.headers["Cache-Control"] = "no-store"
+    elif request.url.path.startswith("/assets/"):
+        # Vite fingerprints production bundles, so immutable caching is safe
+        # and keeps repeat visits from redownloading the console shell.
+        response.headers.setdefault(
+            "Cache-Control", "public, max-age=31536000, immutable"
+        )
     response.headers.setdefault(
         "Content-Security-Policy",
         "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; "

@@ -76,6 +76,30 @@ async def test_api_cache_policy_overrides_endpoint_cache_header() -> None:
     assert response.headers["cache-control"] == "no-store"
 
 
+@pytest.mark.asyncio
+async def test_fingerprinted_static_assets_are_immutable_cacheable() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/assets/index-abc123.js",
+            "scheme": "https",
+            "server": ("testserver", 443),
+            "client": ("testclient", 123),
+            "root_path": "",
+            "query_string": b"",
+            "headers": [],
+        }
+    )
+
+    async def call_next(_request: Request) -> Response:
+        return Response()
+
+    response = await api.security_headers(request, call_next)
+
+    assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+
 def test_public_job_payload_redacts_caller_text_and_internal_claims() -> None:
     public_job = JobState(
         job_id="job-public-redaction",
