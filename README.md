@@ -517,7 +517,9 @@ human approval gate. It fails closed unless the deployed response proves
 `gemini-3.5-flash`, `google_adk`, `gemini_structured`, both allowlisted tool
 calls, four mapped artifacts, and durable audit events. The identity-free
 deterministic `/api/workflows/demo` endpoint remains the fallback for judging
-when a live source or model quota is temporarily unavailable.
+when a live source or model quota is temporarily unavailable; the verifier
+will retry that permitted fallback for up to three bounded runs, but never
+reports success without a genuine Gemini structured turn.
 
 ## Safety model
 

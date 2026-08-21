@@ -67,7 +67,10 @@ The scripts fail closed unless the public service is healthy, the active Cloud
 Run deployment is in the isolated project, the live job reaches
 `needs_approval`, the response proves `gemini-3.5-flash` and `google_adk`, the
 two allowlisted tools are present, and the evidence-bound artifacts and audit
-events are persisted. The full local gate is:
+events are persisted. The live verifier retries the explicitly permitted
+anonymous deterministic fallback for up to three bounded runs, but still
+fails unless a genuine Gemini structured turn is proven. The full local gate
+is:
 
 ```bash
 .venv/bin/pytest -q
@@ -92,4 +95,3 @@ fixture URLs. The architecture diagram is in
 - Hours saved, revenue lift, retention impact, willingness-to-pay, and a
   customer pilot are not measured. The Value proof panel reports deployment
   observations separately from those outcomes.
-
