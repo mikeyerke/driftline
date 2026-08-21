@@ -18,8 +18,13 @@ business domains, owners, work surfaces, and prepared handoffs. The deployed
 source adapter fetches explicitly registered public snapshots. Judge fixtures
 remain pinned and deterministic; a signed operator can onboard additional
 exact HTTPS HTML/text/RSS URLs through `/api/operator/sources`, with redirects,
-query credentials, private DNS-resolved addresses, and bodies over 128KB rejected. It is not
-connected to a real company system.
+query credentials, private DNS-resolved addresses, and bodies over 128KB
+rejected. It is not connected to a real company system.
+
+In production source mode, onboarding performs one bounded read immediately and
+returns either `baseline_established` or an explicit fetch failure; the durable
+scheduler then owns recurring observations and retry behavior. Local and public
+synthetic demo modes stay metadata-only for deterministic evaluation.
 
 ## Why it is agentic
 
