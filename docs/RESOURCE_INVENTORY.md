@@ -10,6 +10,17 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-21 visual evidence reliability release (live)
+
+- Source commit `453c2c6` passed GitHub Actions `32442923011`; the frontend
+  production build passed and Cloud Build
+  `b0f238a7-37e9-4626-a6e4-e859c41f4dfe` completed `SUCCESS`. Cloud Run revision
+  `driftline-00052-f75` serves 100% of traffic.
+- The before/after multimodal cards now load eagerly instead of waiting for
+  scroll intersection. A fresh headless Chrome probe measured both public
+  visual assets at `1536x1024`, `complete=true`, with no console or page errors.
+  The same probe measured `documentWidth=390` at a 390px mobile viewport.
+
 ## 2026-08-21 production source onboarding release (live)
 
 - Source commit `0ec10af` passed GitHub Actions `32442367441` and the local
@@ -165,12 +176,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00051-rll` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00052-f75` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `0ec10af`; Cloud Build `64840a9b-3836-4899-81b0-96474e14ea14`.
+- Deployed runtime source: `453c2c6`; Cloud Build `b0f238a7-37e9-4626-a6e4-e859c41f4dfe`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
