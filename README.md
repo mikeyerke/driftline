@@ -140,11 +140,13 @@ workload before choosing an action. Unconfigured integrations remain explicitly
 `authorization_required=true` until the tenant completes consent. After the
 callback, Salesforce uses the same deterministic tenant binding
 (`driftline-tenant-<tenant>-salesforce`) and contributes only allowlisted object
-counts/field names. The latest deployed signed probe returned HTTP 200 for all
-four configured connectors (Jira 18 sampled issues, Confluence 5 pages, Slack
-27 recent messages, GitHub 0 open issues/0 open pull requests) and an honest
-Salesforce authorization-required card with aggregate-only redaction; this is
-live runtime-read evidence, not a customer-pilot outcome.
+counts/field names. The owner-completed callback has been verified to persist a
+read-only connection record, tenant-scoped Secret Manager pointer, and the
+impersonated credential path. The latest direct aggregate probe still returns
+`invalid_grant` from Salesforce, so a fresh owner reauthorization is required
+before claiming a live CRM read; no object totals are claimed here. Jira,
+Confluence, Slack, and GitHub remain aggregate-only connector evidence, not
+customer-pilot outcomes.
 
 External connector credentials are tenant-bound. An owner provisions the
 deterministic Secret Manager secret and activates its metadata-only binding via
@@ -506,12 +508,17 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `cf3ac52`, Cloud Build
-`87ac57a9-4fbd-42e2-9400-4e51f68acf31`, and Cloud Run revision
-`driftline-00146-knx` at 100% traffic. Its immutable image digest is
-`sha256:05cba51e429028b875856a5fef3ca9d1a832e349f76b7ecadb94053076484bfd`.
-GitHub Actions run `32533094817` passed 259 backend tests, Ruff, the frontend
-production build, a standalone image build, and repository-hygiene checks.
+The current serving release is source commit `2109fae`, Cloud Build
+`0f19ede8-e47a-47ed-aefb-c3eb1f66aa63`, and Cloud Run revision
+`driftline-00155-r9d` at 100% traffic. Its immutable image digest is
+`sha256:9b25e0e8b8e2008fd89439eb0a6675f2d6fe410432e27c3ee96d06cb98e2e5c6`.
+GitHub Actions run `32537023541` passed the repository gates. This release adds
+the visible Salesforce **Reauthorize read-only** recovery control and retains
+the tenant-scoped Secret Manager access path. The latest direct Salesforce
+probe is intentionally recorded as `invalid_grant` until the owner completes a
+fresh consent; the agent, approval, and undo identifiers below refer to the
+verified prior serving release and are not silently relabeled as Salesforce
+proof.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
 packet/undo behavior, and the direct `/api/agent/run` path; the public lane
@@ -535,9 +542,12 @@ approval/undo proof. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
 removed from this isolated project. The signed browser client sends its
 short-lived Google ID token only in the `Authorization` header, with a CI guard
-against body or URL duplication. The Settings surface now exposes the
-tenant-scoped Salesforce read-only OAuth handoff and aggregate health probe;
-Salesforce remains unconnected until an owner completes its consent screen.
+against body or URL duplication. The Settings surface exposes the
+tenant-scoped Salesforce read-only OAuth handoff, aggregate health probe, and
+reauthorization recovery control. The owner-completed callback is persisted as
+a read-only connection, but the latest probe returned Salesforce
+`invalid_grant`; Driftline does not claim a live CRM read until a fresh consent
+produces object totals.
 
 The cadence path was re-run against the same isolated deployment at
 `2026-08-21T20:31:32Z`: the real Scheduler identity selected only the two due

@@ -1,4 +1,5 @@
 import json
+from urllib.parse import unquote_plus
 
 import pytest
 
@@ -902,3 +903,27 @@ def test_salesforce_oauth_read_client_does_not_require_global_token() -> None:
     )
 
     assert client.instance_url == "https://acme.my.salesforce.com"
+
+
+def test_salesforce_health_uses_aggregate_count_queries_only() -> None:
+    requests = []
+
+    def opener(request, timeout):
+        requests.append(request)
+        return _Response({"totalSize": 4, "records": []})
+
+    client = SalesforceReadOnlyClient(
+        SalesforceConfig(enabled=True, api_version="v61.0"),
+        access_token="tenant-access-token",
+        instance_url="https://acme.my.salesforce.com",
+        opener=opener,
+    )
+
+    result = client.health_summary()
+
+    assert [item["total"] for item in result["objects"]] == [4, 4, 4]
+    assert len(requests) == 3
+    for request in requests:
+        query = unquote_plus(request.full_url)
+        assert "SELECT COUNT() FROM" in query
+        assert "SELECT Id" not in query

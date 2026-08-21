@@ -104,8 +104,10 @@ tenant-specific Secret Manager namespaces and are never returned to the
 browser, source control, or logs. The isolated signed lane has been exercised
 against Driftline-owned Jira, Confluence, Slack, and GitHub targets with
 aggregate-only context reads and reversible marker operations. Those probes are
-not customer data or customer ROI. Salesforce is a read-only OAuth contract and
-remains pending final tenant consent.
+not customer data or customer ROI. Salesforce's owner-controlled callback has
+been persisted as a read-only tenant connection, but the latest direct
+aggregate probe returned `invalid_grant`; no Salesforce object totals or
+successful CRM read are claimed until fresh consent succeeds.
 
 The source adapter accepts pinned fixtures and exact operator-registered public
 URLs only. It rejects redirects, query credentials, private addresses, and
@@ -114,14 +116,22 @@ product truth.
 
 ## Verified release evidence
 
-The current serving release is source commit `b1d60e8`, Cloud Build
-`d80208cf-532e-420e-a832-b65d34d91762`, and Cloud Run revision
-`driftline-00135-dv2` at 100% traffic in project `driftline-hackathon-2026`.
+The current serving release is source commit `2109fae`, Cloud Build
+`0f19ede8-e47a-47ed-aefb-c3eb1f66aa63`, and Cloud Run revision
+`driftline-00155-r9d` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:db707393bf53a4052501c807ea6dc34d96b895550db9328ad2b2fd6a0dbb3977`.
+`sha256:9b25e0e8b8e2008fd89439eb0a6675f2d6fe410432e27c3ee96d06cb98e2e5c6`.
 
-- Local gate: 257 backend tests passed, Ruff passed, and the frontend
-  production build passed (bundle 317.12 kB, gzip 93.24 kB).
+The current release includes the visible Salesforce reauthorization recovery
+control. The callback metadata and tenant-scoped secret pointer are durable,
+but the direct Salesforce probe is still `invalid_grant`; this submission draft
+does not claim a live CRM read.
+
+- Local gate for the current source: 261 backend tests passed, the focused
+  Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
+  production build passed. The current serving image was built from the
+  already-verified application code; the additional local tests protect the
+  tenant credential broker and aggregate Salesforce query boundary.
 - CI: GitHub Actions run `32522531699` passed the backend suite, Ruff,
   frontend build, standalone image build, and repository hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,

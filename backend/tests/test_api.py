@@ -1091,6 +1091,60 @@ def test_salesforce_context_returns_aggregate_health_only_after_binding(monkeypa
     assert "short-lived-access-token" not in str(payload)
 
 
+def test_salesforce_context_reads_refresh_token_through_tenant_identity(monkeypatch) -> None:
+    """Protect the production path from bypassing tenant Secret Manager IAM."""
+    monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {"status": "oauth_ready", "mode": "awaiting_authorization"},
+    )
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {"status": "connected_read_only", "instance_url": "https://acme.my.salesforce.com"},
+            {"status": "active"},
+            True,
+        ),
+    )
+    monkeypatch.setattr(api.SalesforceConfig, "from_env", lambda: SimpleNamespace())
+    sentinel_credentials = object()
+    monkeypatch.setattr(api, "tenant_secret_credentials", lambda _tenant: sentinel_credentials)
+
+    def fake_read_secret(_name: str, *, version: str = "latest", credentials: object | None = None) -> str:
+        assert version == "7"
+        assert credentials is sentinel_credentials
+        return "refresh-token"
+
+    monkeypatch.setattr(api, "read_secret", fake_read_secret)
+
+    def fake_resolve(*_args, **kwargs):
+        reader = kwargs["secret_reader"]
+        assert reader("tenant-secret", version="7") == "refresh-token"
+        return SimpleNamespace(value="refresh-token")
+
+    monkeypatch.setattr(api, "resolve_tenant_credential", fake_resolve)
+    monkeypatch.setattr(
+        api,
+        "refresh_salesforce_token",
+        lambda *_args, **_kwargs: {"access_token": "short-lived-access-token"},
+    )
+
+    class FakeSalesforceClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def health_summary(self):
+            return {"status": "connected_read_only", "objects": []}
+
+    monkeypatch.setattr(api, "SalesforceReadOnlyClient", FakeSalesforceClient)
+
+    payload = api._salesforce_context_info("salesforce-acme")
+
+    assert payload["status"] == "connected_read_only"
+
+
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
