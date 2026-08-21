@@ -880,6 +880,25 @@ def _parse_iso(value: object) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def _cadence_hours(value: object, fallback: int) -> int:
+    """Return the bounded observation cadence in hours.
+
+    ``freshness_sla_hours`` answers when a source is stale; ``cadence`` answers
+    when the next observation should be attempted.  Keeping those separate
+    prevents a daily blog source with a 48-hour freshness SLA from silently
+    being checked only every two days.
+    """
+    cadence = str(value or "").strip().casefold()
+    hours = {
+        "1h": 1,
+        "6h": 6,
+        "12h": 12,
+        "24h": 24,
+        "7d": 24 * 7,
+    }.get(cadence)
+    return hours if hours is not None else max(1, fallback)
+
+
 def source_registry_health(
     *, now: datetime | None = None, tenant_id: str | None = None
 ) -> list[dict[str, object]]:
@@ -905,6 +924,7 @@ def source_registry_health(
         latest = observations[0] if observations else None
         retrieved = _parse_iso(latest.get("retrieved_at") if latest else None)
         sla_hours = int(definition["freshness_sla_hours"])
+        cadence_hours = _cadence_hours(definition.get("cadence"), sla_hours)
         age_seconds = max(0, int((current - retrieved).total_seconds())) if retrieved else None
         if latest is None:
             status = "needs_baseline"
@@ -925,7 +945,9 @@ def source_registry_health(
             or (failure_at is not None and retrieved <= failure_at)
         ):
             status = "source_failed"
-        next_due = (retrieved + timedelta(hours=sla_hours)).isoformat() if retrieved else None
+        next_due = (
+            retrieved + timedelta(hours=cadence_hours)
+        ).isoformat() if retrieved else None
         health.append(
             {
                 "source_id": source_id,
@@ -933,6 +955,7 @@ def source_registry_health(
                 "category": definition["category"],
                 "owner": definition["owner"],
                 "cadence": definition["cadence"],
+                "cadence_hours": cadence_hours,
                 "freshness_sla_hours": sla_hours,
                 "source_kind": definition["source_kind"],
                 "status": status,

@@ -1613,6 +1613,129 @@ def _inflight_monitor_job_exists(
     )
 
 
+def _monitor_due_selection(
+    entries: list[tuple[str | None, str, dict[str, str]]],
+    *,
+    max_sources: int,
+    force_source_id: str | None = None,
+) -> tuple[
+    list[tuple[str | None, str, dict[str, str]]],
+    list[dict[str, object]],
+]:
+    """Select bounded, due monitor work without starving tenant sources.
+
+    The scheduler runs more often than many source cadences.  Only sources
+    whose append-only ledger says ``needs_baseline``, ``stale``,
+    ``source_failed``, or whose cadence deadline has arrived should consume a
+    model call.  Due entries are then interleaved by tenant bucket so the
+    pinned public fixtures cannot monopolize the cap when many tenants are
+    registered.  A manually requested canary bypasses due filtering but still
+    respects the hard source cap.
+    """
+    bounded_max = max(1, max_sources)
+    if force_source_id:
+        selected = [
+            entry for entry in entries if entry[1] == force_source_id.strip()
+        ][:bounded_max]
+        deferred = [
+            {
+                "tenant_id": tenant_id,
+                "source_id": source_id,
+                "reason": "canary_cap",
+            }
+            for tenant_id, source_id, _definition in entries
+            if source_id != force_source_id.strip()
+        ]
+        return selected, deferred
+
+    health_by_tenant: dict[str | None, dict[str, dict[str, object]]] = {}
+    health_failed: set[str | None] = set()
+    tenant_ids = list(dict.fromkeys(tenant_id for tenant_id, _source_id, _definition in entries))
+    for tenant_id in tenant_ids:
+        try:
+            health_by_tenant[tenant_id] = {
+                str(item.get("source_id")): item
+                for item in source_registry_health(tenant_id=tenant_id)
+                if item.get("source_id")
+            }
+        except Exception:
+            logger.exception("Unable to evaluate monitor due state for tenant %s", tenant_id)
+            health_by_tenant[tenant_id] = {}
+            health_failed.add(tenant_id)
+
+    now = datetime.now(UTC)
+    due: list[tuple[int, tuple[str | None, str, dict[str, str]], str]] = []
+    deferred: list[dict[str, object]] = []
+    due_statuses = {"needs_baseline", "stale", "source_failed", "synthetic_only"}
+    for position, entry in enumerate(entries):
+        tenant_id, source_id, _definition = entry
+        health = health_by_tenant.get(tenant_id, {}).get(source_id)
+        if tenant_id in health_failed or health is None:
+            due.append((position, entry, "health_unavailable"))
+            continue
+        status = str(health.get("status", "needs_baseline"))
+        if status in due_statuses:
+            due.append((position, entry, status))
+            continue
+        next_due = health.get("next_due_at")
+        try:
+            due_at = datetime.fromisoformat(str(next_due)) if next_due else None
+        except ValueError:
+            due_at = None
+        if due_at is None or due_at <= now:
+            due.append((position, entry, "cadence_due" if due_at else "missing_due_time"))
+        else:
+            deferred.append(
+                {
+                    "tenant_id": tenant_id,
+                    "source_id": source_id,
+                    "reason": "not_due",
+                    "next_due_at": str(next_due),
+                }
+            )
+
+    # Round-robin due work by tenant bucket.  With one public bucket this
+    # preserves the pinned fixture order; with multiple buckets each tenant
+    # gets a chance before the global cap is consumed.
+    buckets: dict[str | None, list[tuple[int, tuple[str | None, str, dict[str, str]], str]]] = {}
+    bucket_order: list[str | None] = []
+    for item in due:
+        tenant_id = item[1][0]
+        if tenant_id not in buckets:
+            buckets[tenant_id] = []
+            bucket_order.append(tenant_id)
+        buckets[tenant_id].append(item)
+    selected_due: list[tuple[str | None, str, dict[str, str]]] = []
+    selected_keys: set[tuple[str | None, str]] = set()
+    while len(selected_due) < bounded_max and bucket_order:
+        progressed = False
+        for tenant_id in bucket_order:
+            bucket = buckets.get(tenant_id) or []
+            if not bucket:
+                continue
+            _position, entry, reason = bucket.pop(0)
+            selected_due.append(entry)
+            selected_keys.add((entry[0], entry[1]))
+            progressed = True
+            if len(selected_due) >= bounded_max:
+                break
+        if not progressed:
+            break
+
+    for _position, entry, reason in due:
+        key = (entry[0], entry[1])
+        if key not in selected_keys:
+            deferred.append(
+                {
+                    "tenant_id": entry[0],
+                    "source_id": entry[1],
+                    "reason": "source_cap",
+                    "due_reason": reason,
+                }
+            )
+    return selected_due, deferred
+
+
 def _inflight_public_job(source_id: str) -> JobState | None:
     """Return an active anonymous job for a source, if one is already queued."""
     try:
@@ -4416,9 +4539,12 @@ async def scheduler_tick(
         configured_entries = [
             entry for entry in configured_entries if entry[1] == source_id.strip()
         ]
-    source_entries = configured_entries
     max_sources = _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5)
-    source_entries = source_entries[:max_sources]
+    source_entries, deferred_sources = _monitor_due_selection(
+        configured_entries,
+        max_sources=max_sources,
+        force_source_id=source_id,
+    )
     invalid = [
         item
         for tenant_id, item, definition in source_entries
@@ -4461,9 +4587,14 @@ async def scheduler_tick(
     return {
         "status": "queued",
         "source_ids": queued_source_ids,
+        "selected_source_refs": [
+            {"tenant_id": tenant_id, "source_id": current_source_id}
+            for tenant_id, current_source_id, _definition in source_entries
+        ],
         "jobs": [job.to_dict() for job in jobs],
         "skipped_source_ids": skipped,
         "in_flight_source_ids": in_flight,
+        "deferred_sources": deferred_sources,
         # Preserve the one-job response shape for a canary invocation.
         "job_id": jobs[0].job_id if len(jobs) == 1 else None,
     }

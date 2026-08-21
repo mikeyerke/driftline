@@ -206,7 +206,11 @@ evidence stays unchanged for hashes, audit, and the UI. This is a deterministic
 local guardrail, not a claim that Google Model Armor is configured. Cloud
 Scheduler runs the historical monitor every
 six hours and records `baseline_established`, `unchanged`, or `changed` in a
-Firestore snapshot ledger. Cloud Run serves the API and web console in one
+Firestore snapshot ledger. Each source's observation cadence is distinct from
+its freshness SLA: the scheduler only spends a model call when the cadence is
+due (or a baseline/failure needs recovery), then round-robins due tenant
+buckets so one large registry cannot starve another tenant. Deferred sources
+return their next due time and reason in the scheduler response. Cloud Run serves the API and web console in one
 container, with Firestore as the durable workflow, job, source-history, and
 audit store. Approved public-demo packets, one approved operational output, and
 undo markers are also persisted as private, versioned Cloud Storage objects in

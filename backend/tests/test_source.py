@@ -4,7 +4,7 @@ from urllib.error import URLError
 import pytest
 
 from app import source
-from app.snapshots import InMemorySnapshotStore
+from app.snapshots import InMemorySnapshotStore, SnapshotRecord
 
 
 def test_pinned_https_handler_uses_context_hostname_policy(monkeypatch) -> None:
@@ -168,6 +168,29 @@ def test_builtin_fixture_urls_are_immutable() -> None:
 
 def test_source_registry_health_surfaces_latest_fetch_failure() -> None:
     source._SOURCE_FAILURES_MEMORY.clear()
+
+
+def test_source_registry_next_due_uses_observation_cadence_not_staleness_sla(monkeypatch) -> None:
+    store = InMemorySnapshotStore()
+    monkeypatch.setattr(source, "_default_public_store", lambda: store)
+    store.record(
+        "competitor/blog",
+        SnapshotRecord.create(
+            source_id="competitor/blog",
+            body="daily blog body",
+            source_url="https://example.com/blog",
+            data_mode="public_source",
+            snapshot_label="test",
+            retrieved_at="2026-01-01T00:00:00+00:00",
+        ),
+    )
+
+    health = source.source_registry_health(now=datetime(2026, 1, 1, 6, tzinfo=UTC))
+    blog = next(item for item in health if item["source_id"] == "competitor/blog")
+
+    assert blog["cadence"] == "24h"
+    assert blog["cadence_hours"] == 24
+    assert blog["next_due_at"] == "2026-01-02T00:00:00+00:00"
     definition = source.SOURCE_DEFINITIONS["competitor/pricing"]
     source._record_source_failure(
         "competitor/pricing",

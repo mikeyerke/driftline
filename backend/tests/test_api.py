@@ -1484,6 +1484,43 @@ def test_scheduler_tick_fans_out_only_allowlisted_sources(monkeypatch) -> None:
     assert len(payload["jobs"]) == 5
 
 
+def test_monitor_due_selection_is_cadence_aware_and_fair_across_tenants(monkeypatch) -> None:
+    entries = [
+        (None, "public/pricing", {}),
+        (None, "public/terms", {}),
+        ("acme", "custom/acme-pricing", {}),
+        ("beta", "custom/beta-pricing", {}),
+    ]
+
+    def fake_health(*, tenant_id=None):
+        if tenant_id is None:
+            return [
+                {
+                    "source_id": "public/pricing",
+                    "status": "healthy",
+                    "next_due_at": "2099-01-01T00:00:00+00:00",
+                },
+                {"source_id": "public/terms", "status": "needs_baseline"},
+            ]
+        return [{"source_id": f"custom/{tenant_id}-pricing", "status": "needs_baseline"}]
+
+    monkeypatch.setattr(api, "source_registry_health", fake_health)
+
+    selected, deferred = api._monitor_due_selection(entries, max_sources=2)
+
+    assert [(tenant, source_id) for tenant, source_id, _ in selected] == [
+        (None, "public/terms"),
+        ("acme", "custom/acme-pricing"),
+    ]
+    assert {
+        (item["tenant_id"], item["source_id"], item["reason"])
+        for item in deferred
+    } == {
+        (None, "public/pricing", "not_due"),
+        ("beta", "custom/beta-pricing", "source_cap"),
+    }
+
+
 def test_scheduler_tick_carries_custom_source_tenant(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     source.register_operator_source(
