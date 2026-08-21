@@ -2,6 +2,11 @@ import { CheckCircle2, Clock3, Cpu, Wrench } from "lucide-react";
 
 const label = (value) => (value || "—").replace(/_/g, " ");
 
+const toolLabel = (value) => ({
+  inspect_source_change: "Inspect allowlisted source",
+  get_workflow_state: "Read Firestore workflow state",
+}[value] || label(value));
+
 export default function AgentTrace({ job }) {
   const trace = job?.workflow?.agent_trace;
   const calls = job?.tool_calls || trace?.tool_calls?.map((item) => item.name) || [];
@@ -40,6 +45,14 @@ export default function AgentTrace({ job }) {
               {analysis.rationale && <small>{analysis.rationale}</small>}
               {analysis.artifact_count && <span className="analysis-count">{analysis.artifact_count} evidence-bound artifacts</span>}
               {analysis.reason && <small className="analysis-fallback">{analysis.reason}</small>}
+            </div>
+          )}
+          {calls.length > 0 && (
+            <div className="trace-tools" aria-label="Completed allowlisted tool calls">
+              <div className="trace-tools-heading"><Wrench size={14} /><strong>Allowlisted work completed</strong><small>Tool calls are read/state only</small></div>
+              <div className="trace-tools-list">
+                {calls.map((call, index) => <span className="trace-tool" key={`${call}-${index}`}><CheckCircle2 size={13} />{toolLabel(call)}</span>)}
+              </div>
             </div>
           )}
           <div className="trace-path" aria-label="Agent execution path">
