@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T20:10Z` with the active gcloud project set to
+Checked `2026-08-21T20:19Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00134-rfk` at 100% traffic. Its immutable serving image is
-  `sha256:1f3f419b54589fddabfd01d71267be97ef99e971304934a10cf1652b04efea2c`.
+  `driftline-00135-dv2` at 100% traffic. Its immutable serving image is
+  `sha256:db707393bf53a4052501c807ea6dc34d96b895550db9328ad2b2fd6a0dbb3977`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -32,6 +32,20 @@ Checked `2026-08-21T20:10Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 Salesforce authorization-state UX release
+
+- Source commit `b1d60e8` deployed successfully through Cloud Build
+  `d80208cf-532e-420e-a832-b65d34d91762` (`SUCCESS`, 3m27s) as revision
+  `driftline-00135-dv2` at 100% traffic. The serving image is pinned to
+  `sha256:db707393bf53a4052501c807ea6dc34d96b895550db9328ad2b2fd6a0dbb3977`.
+- Signed context now renders Salesforce as “Authorization required” and “OAuth
+  consent required” rather than a generic not-configured state. The state is
+  still redacted and read-only until the owner completes consent.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors.
+  Fresh live proof returned job `job-6cee02e8b4cf` / workflow
+  `2997be46-f313-43d0-9a3d-89a9524cfa48`; approval/undo returned job
+  `job-bb0ae6f8abfa` / workflow `0c062253-a31e-46b6-ad72-9ee7351d392e`.
 
 ## 2026-08-21 Salesforce OAuth read-lane correction release
 

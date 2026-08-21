@@ -4,8 +4,8 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `c5587fa`, Cloud Run `driftline-00134-rfk`, Cloud Build
-`afcea230-b6e9-40a5-bbd8-cdc0631738c8`, project
+Current release: source `b1d60e8`, Cloud Run `driftline-00135-dv2`, Cloud Build
+`d80208cf-532e-420e-a832-b65d34d91762`, project
 `driftline-hackathon-2026`, 100% traffic.
 
 ## Innovation and operational utility — 40%
@@ -35,10 +35,10 @@ Current release: source `c5587fa`, Cloud Run `driftline-00134-rfk`, Cloud Build
   packet record, and timeline; the undo response persisted
   `action-63355af11e1c35cb5150` as `reversed` with all connector external-write
   flags false.
-- `scripts/verify_live_agent.sh`: fresh job `job-f9e53621237e`, workflow
-  `fbcbe6a0-aebe-481a-8a91-574f9875fa4a`, five audit events and four artifacts.
+- `scripts/verify_live_agent.sh`: fresh job `job-6cee02e8b4cf`, workflow
+  `2997be46-f313-43d0-9a3d-89a9524cfa48`, five audit events and four artifacts.
 - `scripts/verify_public_approval_undo.sh`: fresh job
-  `job-1bcfe167c869`, workflow `a56f7902-c614-4d68-b0ca-01e64050df11`, packet persisted and
+  `job-bb0ae6f8abfa`, workflow `0c062253-a31e-46b6-ad72-9ee7351d392e`, packet persisted and
   reversed with both external-write flags false. The verifier now also fails
   closed unless the approval journey carries structured Gemini impact/Decision
   Copilot options, passing deterministic policy review, and matching evidence
@@ -79,7 +79,7 @@ Current release: source `c5587fa`, Cloud Run `driftline-00134-rfk`, Cloud Build
   IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
   membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
-  `sha256:1f3f419b54589fddabfd01d71267be97ef99e971304934a10cf1652b04efea2c`.
+  `sha256:db707393bf53a4052501c807ea6dc34d96b895550db9328ad2b2fd6a0dbb3977`.
 - Signed isolated connector probes are documented in
   [`RESOURCE_INVENTORY.md`](RESOURCE_INVENTORY.md); the anonymous lane remains
   packet-only by design.

@@ -506,11 +506,11 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `c5587fa`, Cloud Build
-`afcea230-b6e9-40a5-bbd8-cdc0631738c8`, and Cloud Run revision
-`driftline-00134-rfk` at 100% traffic. Its immutable image digest is
-`sha256:1f3f419b54589fddabfd01d71267be97ef99e971304934a10cf1652b04efea2c`.
-GitHub Actions run `32521842231` passed 257 backend tests, Ruff, the frontend
+The current serving release is source commit `b1d60e8`, Cloud Build
+`d80208cf-532e-420e-a832-b65d34d91762`, and Cloud Run revision
+`driftline-00135-dv2` at 100% traffic. Its immutable image digest is
+`sha256:db707393bf53a4052501c807ea6dc34d96b895550db9328ad2b2fd6a0dbb3977`.
+GitHub Actions run `32522531699` passed 257 backend tests, Ruff, the frontend
 production build, a standalone image build, and repository-hygiene checks.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
@@ -527,8 +527,8 @@ The latest proof refresh also exercised the real background delivery path:
 Cloud Scheduler sent an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick` on the serving revision and cadence rules deferred
 healthy sources that were not due. Fresh repeatable proof identifiers are
-`job-f9e53621237e` / `fbcbe6a0-aebe-481a-8a91-574f9875fa4a` for the live agent
-and `job-1bcfe167c869` / `a56f7902-c614-4d68-b0ca-01e64050df11` for the
+`job-6cee02e8b4cf` / `2997be46-f313-43d0-9a3d-89a9524cfa48` for the live agent
+and `job-bb0ae6f8abfa` / `0c062253-a31e-46b6-ad72-9ee7351d392e` for the
 approval/undo proof. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
 removed from this isolated project. The signed browser client sends its
