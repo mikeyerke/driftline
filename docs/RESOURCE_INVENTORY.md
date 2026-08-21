@@ -10,6 +10,22 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## 2026-08-21 connector reactivation hardening (live)
+
+- Source commit `1c5ec8f` passed GitHub Actions `32440101155` and the full local
+  gate (221 backend tests, Ruff, and the frontend production build). Cloud
+  Build `af23c2ee-0693-4e09-a454-3df0f8b072a4` completed `SUCCESS`; Cloud Run
+  revision `driftline-00046-hjc` serves 100% of traffic.
+- The release hardens every external handoff adapter: Jira and GitHub restore
+  Driftline-owned active labels after a prior reversal, Slack emits an explicit
+  reactivation audit message, and Confluence removes its reversal label or
+  appends a versioned reactivation marker without overwriting history.
+- Current live checks returned `/health` HTTP 200 with Firestore and async jobs,
+  anonymous exposure scans clear for `/api/ops/summary`, `/api/ops/value-proof`,
+  `/api/jobs`, and `/api/sources`, and signed binding health with four healthy,
+  namespace-verified connectors (Salesforce remains not configured). Cloud
+  Logging returned no severity `ERROR` entries for `driftline-00046-hjc`.
+
 ## 2026-08-21 signed tenant pilot and reversible Jira proof (live)
 
 - Source commit `282fcde` passed the full local gate (218 backend tests, Ruff,
@@ -80,12 +96,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00045-hvw` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00046-hjc` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `282fcde`; Cloud Build `2c112a6b-32bc-4314-814a-ba5084755fb6`.
+- Deployed runtime source: `1c5ec8f`; Cloud Build `af23c2ee-0693-4e09-a454-3df0f8b072a4`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
