@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from contextvars import ContextVar, Token
 
 from dotenv import load_dotenv
@@ -19,6 +20,7 @@ os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 _run_mode: ContextVar[str] = ContextVar("driftline_run_mode", default="demo")
 _tenant_id: ContextVar[str | None] = ContextVar("driftline_tenant_id", default=None)
 _workflow_id: ContextVar[str | None] = ContextVar("driftline_workflow_id", default=None)
+_source_id: ContextVar[str | None] = ContextVar("driftline_source_id", default=None)
 
 
 def set_run_mode(mode: str) -> Token[str]:
@@ -48,8 +50,34 @@ def reset_workflow_id(token: Token[str | None]) -> None:
     _workflow_id.reset(token)
 
 
+def set_source_id(source_id: str | None) -> Token[str | None]:
+    """Bind the exact source selected by the scheduler or signed request."""
+    return _source_id.set(source_id.strip() if source_id else None)
+
+
+def reset_source_id(token: Token[str | None]) -> None:
+    _source_id.reset(token)
+
+
+def source_id_from_query(query: str) -> str | None:
+    """Extract an explicit source selector from a bounded job prompt."""
+    quoted = re.search(r'source_id\s+"([^"]+)"', query)
+    if quoted:
+        return quoted.group(1)
+    unquoted = re.search(
+        r"allowlisted\s+((?:custom|public|competitor)/[A-Za-z0-9._/-]+)",
+        query,
+    )
+    return unquoted.group(1) if unquoted else None
+
+
 def inspect_source_change(source_id: str) -> dict:
     """Detect and verify a material change in an approved source."""
+    # The model still supplies the tool argument for an auditable ADK trace,
+    # but a scheduler/signed turn binds the exact allowlisted source in the
+    # request context. This prevents prompt interpretation from monitoring a
+    # different source than the one the operator or scheduler selected.
+    source_id = _source_id.get() or source_id.strip()
     snapshot = inspect_allowlisted_source(
         source_id,
         tenant_id=_tenant_id.get(),

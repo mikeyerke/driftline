@@ -170,6 +170,27 @@ def test_agent_tenant_demo_is_explicitly_labeled_and_bound() -> None:
     assert "Synthetic tenant replay fixture" in state.evidence.snapshot_label
 
 
+def test_agent_source_binding_overrides_model_tool_argument() -> None:
+    """A scheduler-bound source cannot be swapped by a model tool argument."""
+    persisted_ids: list[str] = []
+    original_persist = agent_module.persist_workflow
+    source_token = agent_module.set_source_id("public/terms")
+    payload = None
+    agent_module.persist_workflow = lambda state: persisted_ids.append(
+        state.workflow_id
+    )
+    try:
+        payload = agent_module.inspect_source_change("public/pricing")
+    finally:
+        agent_module.persist_workflow = original_persist
+        agent_module.reset_source_id(source_token)
+        if payload:
+            agent_module.workflow_store._runs.pop(payload["workflow_id"], None)
+
+    assert payload["evidence"]["source_id"] == "public/terms"
+    assert payload["workflow_id"] in persisted_ids
+
+
 def test_agent_resolves_placeholder_workflow_to_current_adk_turn() -> None:
     token = agent_module.set_workflow_id(None)
     try:

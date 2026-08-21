@@ -10,12 +10,15 @@ from google.genai import types
 
 from .agent import (
     reset_run_mode,
+    reset_source_id,
     reset_tenant_id,
     reset_workflow_id,
     root_agent,
     set_run_mode,
+    set_source_id,
     set_tenant_id,
     set_workflow_id,
+    source_id_from_query,
 )
 from .analysis import AnalysisUnavailable, analysis_trace, analyze_workflow
 from .decision_copilot import (
@@ -105,6 +108,7 @@ async def run_agent_task(
     mode_token = set_run_mode(run_mode)
     tenant_token = set_tenant_id(tenant_id)
     workflow_token = set_workflow_id(None)
+    source_token = set_source_id(source_id_from_query(query))
     try:
         async for event in runner.run_async(
             user_id=user_id,
@@ -137,6 +141,7 @@ async def run_agent_task(
         reset_run_mode(mode_token)
         reset_tenant_id(tenant_token)
         reset_workflow_id(workflow_token)
+        reset_source_id(source_token)
 
     # The coordinator turn only discovers and verifies the source.  A second,
     # schema-constrained ADK turn performs the substantive impact mapping.  It
