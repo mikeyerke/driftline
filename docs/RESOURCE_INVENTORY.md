@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T08:27:00Z` with the active gcloud project set to
+Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00085-wbl` at 100% traffic.
+  `driftline-00086-77b` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,21 @@ Checked `2026-08-21T08:27:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 static asset cache safety release (live)
+
+- Source commit `cce8e4d` was deployed by Cloud Build
+  `5405921b-de1e-4b4f-ac28-647c371cdb87` (`SUCCESS`) as Cloud Run revision
+  `driftline-00086-77b` at 100% traffic. The isolated project remained the
+  active gcloud target throughout the release.
+- Fingerprinted JavaScript/CSS assets return
+  `Cache-Control: public, max-age=31536000, immutable`; missing `/assets/*`
+  responses do not receive an immutable cache header, preventing a transient
+  404 from being pinned by an intermediary.
+- `/health` returned `status=ok`, Firestore persistence, and async jobs. Cloud
+  Logging showed no application errors for the active revision. The full local
+  gate passed: 241 backend tests, Ruff, `git diff --check`, and the frontend
+  production build.
 
 ## 2026-08-21 fontless console performance release (live)
 
