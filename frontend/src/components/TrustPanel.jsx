@@ -4,8 +4,12 @@ import { getOpsSummary } from "../api";
 
 export default function TrustPanel({ actionRecord }) {
   const [ops, setOps] = useState(null);
-  const jiraWasWritten = actionRecord?.jira_status === "created" || actionRecord?.jira_status === "reused" || actionRecord?.jira_status === "reversed";
-  const jiraTrustLabel = actionRecord?.jira_status === "reversed" ? "Scoped Jira handoff reversed; customer systems unchanged" : "One scoped Jira handoff; customer systems unchanged";
+  const jiraWasWritten = ["created", "reused", "reactivated", "reversed"].includes(actionRecord?.jira_status);
+  const jiraTrustLabel = actionRecord?.jira_status === "reversed"
+    ? "Scoped Jira handoff reversed; customer systems unchanged"
+    : actionRecord?.jira_status === "reactivated"
+      ? "Scoped Jira handoff reactivated; customer systems unchanged"
+      : "One scoped Jira handoff; customer systems unchanged";
   useEffect(() => {
     let active = true;
     const refresh = () => getOpsSummary().then((payload) => active && setOps(payload)).catch(() => active && setOps(null));

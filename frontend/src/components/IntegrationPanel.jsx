@@ -5,16 +5,18 @@ const icons = { Jira: TicketCheck, Confluence: FileText, Slack: MessageSquare, G
 export default function IntegrationPanel({ targets = [], approved, dismissed, actionRecord }) {
   if (!targets.length) return null;
   const statusKeys = { Jira: "jira_status", Confluence: "confluence_status", Slack: "slack_status", GitHub: "github_status" };
-  const connectorStatuses = new Set(["created", "reused", "reversed"]);
+  const connectorStatuses = new Set(["created", "reused", "reactivated", "reversed"]);
   const statusFor = (target) => {
     if (dismissed) return { label: "Not created", written: false };
     if (!approved) return { label: "Prepared", written: false };
     const connectorStatus = actionRecord?.[statusKeys[target.system]];
     if (connectorStatus === "created") return { label: "Created", written: true };
     if (connectorStatus === "reused") return { label: "Reused", written: true };
+    if (connectorStatus === "reactivated") return { label: "Reactivated", written: true };
     if (connectorStatus === "reversed") return { label: "Reversed", written: true };
     if (connectorStatus === "failed") return { label: "Failed", written: false };
     if (connectorStatus === "not_eligible") return { label: "Not eligible", written: false };
+    if (connectorStatus === "blocked_closed") return { label: "Blocked · closed target", written: false };
     return { label: "Prepared only", written: false };
   };
   const writes = Object.entries(statusKeys).filter(([, key]) => connectorStatuses.has(actionRecord?.[key])).map(([system, key]) => `${system}: ${actionRecord[key]}`);

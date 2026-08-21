@@ -88,10 +88,12 @@ export default function App() {
   const packetHref = workflowId ? packetUrl(workflowId) : null;
   const structuredAnalysis = job?.workflow?.agent_trace?.structured_analysis;
   const actionRecord = workflowState?.action_record;
-  const jiraWriteOccurred = ["created", "reused", "reversed"].includes(actionRecord?.jira_status);
+  const jiraWriteOccurred = ["created", "reused", "reactivated", "reversed"].includes(actionRecord?.jira_status);
   const runHint = actionRecord?.jira_status === "reversed"
     ? "Jira handoff reversed · other destinations remain prepared-only"
-    : jiraWriteOccurred
+    : actionRecord?.jira_status === "reactivated"
+      ? "Jira handoff reactivated · external state remains reversible"
+      : jiraWriteOccurred
       ? "Jira handoff recorded · other destinations remain prepared-only"
     : "Live allowlisted monitor · handoffs staged, no external writes";
 
