@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T07:18:30Z` with the active gcloud project set to
+Checked `2026-08-21T07:27:30Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00076-7qw` at 100% traffic.
+  `driftline-00077-xts` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,25 @@ Checked `2026-08-21T07:18:30Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 idempotent tenant retry release (live)
+
+- Source commit `ffa331f` passed 238 backend tests, Ruff, `git diff --check`,
+  and the frontend production build. Cloud Build
+  `5d20546a-38ce-4281-a52f-0945f2629c0f` completed `SUCCESS`; Cloud Run
+  revision `driftline-00077-xts` serves 100% of traffic.
+- Signed tenant Run history now exposes a terminal-failure retry action. The
+  API rechecks tenant membership and the source allowlist, preserves the
+  failed job's query/source/run mode, and writes a durable `retry_of` link.
+  Concurrent retry requests return the existing successor instead of creating
+  duplicate agent work. Anonymous jobs remain packet-safe: a live public probe
+  received HTTP 403 with `Public jobs can be rerun from the public scan
+  control`.
+- Post-deploy probes used the isolated project and returned `/health` HTTP 200
+  with Firestore persistence and async jobs enabled, Google OIDC configuration
+  with no credential values exposed, the public console title, 100% traffic,
+  maxScale `1`, concurrency `20`, and no severity `ERROR` logs for the active
+  revision.
 
 ## 2026-08-21 tenant pilot measurement release (live)
 
