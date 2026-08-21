@@ -6,16 +6,17 @@ key-date endpoints on August 21, 2026. The canonical sources are:
 - [Contest overview](https://allthingsagentichackathon.devpost.com/)
 - [Official rules](https://allthingsagentichackathon.devpost.com/rules)
 - [Google Cloud free program](https://cloud.google.com/free)
-- [Contest credit request](https://forms.gle/5PtXmw1dSbDnpYke9)
+- [Contest credit request](https://forms.gle/riGhgDSHkHeMx8Ca6)
 - [Google Cloud Gemini 3.5 Flash model reference](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash)
 
 ## Dates and eligibility
 
-- Contest and submission period: August 4, 2026 at 7:45 AM Pacific through
+- Contest and submission period: August 3, 2026 at 9:00 AM Pacific through
   August 31, 2026 at 5:00 PM Pacific (September 1, 2026 00:00 UTC).
-- Judging period: September 1, 2026 at 9:00 AM Pacific through September 24,
-  2026 at 5:00 PM Pacific (September 25, 2026 00:00 UTC).
-- Winners are expected October 8, 2026 at 12:00 PM Pacific (7:00 PM UTC).
+- Judging period: September 1, 2026 at 9:00 AM Pacific through October 1,
+  2026 at 11:45 PM Pacific (October 2, 2026 06:45 UTC).
+- Winners are expected on or around October 8, 2026 at 10:00 AM Pacific
+  (5:00 PM UTC).
 - Entrants must be above the age of majority in their jurisdiction and must
   not be located in Italy, Quebec, Crimea, Cuba, Iran, Syria, North Korea,
   Sudan, Belarus, or Russia, or otherwise be excluded by export controls,
@@ -54,7 +55,7 @@ is actually published or integrated.
 
 ## Categories and selection
 
-The rules require selecting one category, and an entrant may receive only one
+The rules require selecting one category, and each project may receive only one
 prize:
 
 - Taskmaster — complete a messy, multi-step workflow and take action.
@@ -73,10 +74,10 @@ incorporation and corporate-email eligibility.
 Prize lanes listed by the official rules include Grand Prize, Taskmaster,
 Collaborative Partner, Fortified Enterprise Fleet, Startup Excellence,
 Individual/Hobbyist, Best Architectural Design, Best Multimodal UX, and
-Honorable Mentions. Driftline can truthfully target Taskmaster,
-Individual/Hobbyist if entered as an individual, Best Architectural Design,
-and Best Multimodal UX only if the final implementation and video substantiate
-those claims. Grand Prize is an overall outcome, not a category selection.
+Honorable Mentions. Driftline selects **Taskmaster**; Grand Prize and the
+special prizes are judge-determined outcomes, not additional category
+selections. The entry does not claim Startup Excellence without verified
+incorporation and corporate-email eligibility.
 
 ## New-project disclosure
 
@@ -94,10 +95,10 @@ Stage One checks baseline viability, category fit, and the requirements above.
 Stage Two weights Innovation & Operational Utility at 40%, Architectural
 Discipline & Tech Stack at 30%, and Demo & Production Readiness at 30%. The
 Taskmaster rubric asks for autonomous execution beyond chat and background
-workflow completion. The architecture rubric looks for modular agents, tools,
-state, and Google technology used substantively. The demo rubric asks for an
-unedited proof of a real action, Google Cloud deployment proof, and
-reproducible documentation.
+workflow completion, with a distinctive “Bring Your Own Friction” problem. The
+architecture rubric looks for modular agents, tools, state, and Google
+technology used substantively. The demo rubric asks for an unedited “Proof of
+Action,” Google Cloud deployment proof, and reproducible documentation.
 
 ## Current submission gates
 

@@ -29,6 +29,11 @@ executive narrative drift out of sync. The expensive work is not detecting the
 sentence; it is proving what changed, deciding what it means, coordinating the
 owners, and making a reversible update without inventing a claim.
 
+This is the BYOF friction behind Driftline: the recurring RevOps/Product
+Marketing chore of reconciling competitive signals with the internal surfaces
+that sellers and decision-makers actually use. An alert is not the deliverable;
+an evidence-bound, owner-routed change package is.
+
 ## The solution
 
 Driftline is a change-to-action control plane for Product Marketing and revenue
