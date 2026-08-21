@@ -28,6 +28,13 @@ returns either `baseline_established` or an explicit fetch failure; the durable
 scheduler then owns recurring observations and retry behavior. Local and public
 synthetic demo modes stay metadata-only for deterministic evaluation.
 
+The authenticated console uses the same production monitor lane for a registered
+URL: after onboarding, selecting that source and pressing **Run scan** queues a
+tenant-bound `monitor` job rather than the synthetic fixture lane. A registered
+source therefore follows the real fetch, append-only baseline, ADK analysis, and
+approval path from the product UI; pinned fixtures remain available separately
+for deterministic judging.
+
 Every scheduled monitor job also carries the exact registered source ID through
 the durable job record, ADK turn, and append-only observation ledger.
 

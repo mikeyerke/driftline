@@ -157,10 +157,16 @@ export default function App() {
     setJob(null);
     try {
       if (!apiEnabled) throw new Error("API disabled");
-      const queued = await startDemoJob(selectedSource);
+      const selectedDefinition = sources.find((source) => source.source_id === selectedSource);
+      const runMode = operatorSession.identityToken && selectedDefinition?.mode === "public_only"
+        ? "monitor"
+        : null;
+      const queued = await startDemoJob(selectedSource, runMode);
       setJob(queued);
       refreshHistory();
-      setScanMessage("Agent queued · waiting for a durable run");
+      setScanMessage(runMode === "monitor"
+        ? "Monitor queued · capturing the registered public source"
+        : "Agent queued · waiting for a durable run");
       // ADK + Gemini can legitimately take over a minute on a cold Cloud Run
       // instance. Keep polling well inside the server's 300-second job budget
       // instead of turning a slow-but-successful run into a false UI failure.

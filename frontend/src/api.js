@@ -56,7 +56,8 @@ export function startDemo() {
   return request("/api/workflows/demo", { method: "POST" });
 }
 
-export function startDemoJob(sourceId = "public/pricing") {
+export function startDemoJob(sourceId = "public/pricing", runMode = null) {
+  const tenantRunMode = runMode || "tenant_demo";
   return request("/api/jobs/demo", {
     method: "POST",
     body: JSON.stringify({
@@ -65,7 +66,9 @@ export function startDemoJob(sourceId = "public/pricing") {
       source_id: sourceId,
       ...(operatorSession.identityToken && operatorSession.tenantId
         ? {
-            run_mode: "tenant_demo",
+            // Registered public URLs must use the production monitor lane. A
+            // tenant_demo run is intentionally limited to pinned fixtures.
+            run_mode: tenantRunMode,
             user_id: operatorSession.email || "google-operator",
             operator: operatorSession.email || "Google operator",
             tenant_id: operatorSession.tenantId,

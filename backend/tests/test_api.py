@@ -1632,6 +1632,56 @@ def test_signed_monitor_job_carries_authenticated_tenant(monkeypatch) -> None:
     assert response.json()["tenant_id"] == "driftline-demo"
 
 
+def test_signed_registered_source_job_uses_monitor_lane(monkeypatch) -> None:
+    """The operator console must route dynamic sources to production monitoring."""
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    source.register_operator_source(
+        source_id="custom/operator-pricing",
+        name="Operator pricing",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://example.com/pricing",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        tenant_id="driftline-demo",
+    )
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "registered-source-secret")
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", "driftline-demo")
+    captured: dict[str, object] = {}
+
+    def fake_start_job(**kwargs):
+        captured.update(kwargs)
+        return JobState(job_id="job-registered-source", tenant_id=kwargs["tenant_id"])
+
+    monkeypatch.setattr(api, "_start_job", fake_start_job)
+    actor = "Registered source operator"
+    token = hmac.new(
+        b"registered-source-secret",
+        f"monitor:custom/operator-pricing:{actor}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    response = client.post(
+        "/api/jobs/demo",
+        json={
+            "run_mode": "monitor",
+            "source_id": "custom/operator-pricing",
+            "operator": actor,
+            "tenant_id": "driftline-demo",
+            "approval_token": token,
+        },
+    )
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert response.status_code == 200
+    assert captured["run_mode"] == "monitor"
+    assert captured["source_id"] == "custom/operator-pricing"
+    assert captured["tenant_id"] == "driftline-demo"
+
+
 def test_signed_tenant_demo_job_carries_authenticated_tenant(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
