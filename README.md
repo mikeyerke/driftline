@@ -264,8 +264,10 @@ public URL in the isolated Firestore registry, then the bounded scheduler can
 monitor it alongside the fixtures. Custom source definitions and snapshot
 history are tenant-scoped; the public console exposes only the five pinned
 fixtures. The internal scheduler carries each source's tenant ID into its
-bounded monitor job. It is an allowlist of sources, not an arbitrary web
-crawler.
+bounded monitor job. A source that changes between scheduled reads creates a
+new hash-bound observation and a tenant workflow; an unchanged source advances
+health without manufacturing an incident. It is an allowlist of sources, not
+an arbitrary web crawler.
 
 Connector bindings have an explicit owner-only lifecycle: a binding is
 activated only after the deterministic tenant Secret Manager secret exists, and
