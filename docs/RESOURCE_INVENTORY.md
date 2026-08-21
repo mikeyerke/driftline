@@ -3175,3 +3175,18 @@ is no longer needed.
   longer require source inference from free-text query fields.
 - A post-run Cloud Logging query for the active revision returned no
   `severity>=ERROR` entries after the canary window.
+
+## 2026-08-21 operator run-history source visibility (live)
+
+- Source commit `eb54fe9` (`Surface source IDs in run history`) passed GitHub
+  Actions run `32451382326` (`success`) with the locked frontend production
+  build; the backend suite, Ruff, and standalone image build also remained
+  green in the same workflow.
+- Cloud Build `483392d9-2d3b-441e-b718-3461204eef2d` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00064-jdq` at 100% traffic. The image
+  digest is
+  `sha256:ebc6a775037068deab4de5c7550bf3adced2ec76dc7c2bf56ef1d063e3d64314`.
+  The public `/health` and `/api/auth/config` probes returned successfully;
+  Google OIDC remains enabled and the anonymous lane remains `packet_only`.
+- The operator run-history UI now displays the durable source ID alongside
+  each monitor/scan run, so source identity is visible without opening logs.
