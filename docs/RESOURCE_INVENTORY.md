@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T21:43Z` with the active gcloud project set to
+Checked `2026-08-21T22:07Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00142-657` at 100% traffic. Its immutable serving image is
-  `sha256:d3ec8b1aaa2e8973b3d1f33bfde7ea31215e09cbc15babb741ea7770903b9100`.
+  `driftline-00144-k89` at 100% traffic. Its immutable serving image is
+  `sha256:bd92080f10b6e8ecef912b4f0d6e8db79bff420067ff9d02fc6be44048b20a52`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -33,7 +33,38 @@ Checked `2026-08-21T21:43Z` with the active gcloud project set to
   direct `gcloud run services describe` output above is the current-state
   authority.
 
-## 2026-08-21 focused-map readability release (live)
+## 2026-08-21 map utility and no-op monitoring release (current serving revision)
+
+- Source commits `f6ba47f` and `584715b` passed GitHub Actions run
+  `32531130663` (259 backend tests, Ruff, frontend production build,
+  standalone image build, and repository hygiene) and deployed through Cloud
+  Build `85d14b55-0389-409e-b98f-edc15edc42ea` (`SUCCESS`, 3m39s).
+- Cloud Run revision `driftline-00144-k89` serves 100% traffic with immutable
+  image digest
+  `sha256:bd92080f10b6e8ecef912b4f0d6e8db79bff420067ff9d02fc6be44048b20a52`.
+- The impact map now exposes per-stage link counts, focused link counts,
+  connected-node counts, keyboard-selected state, and a worklist handoff. At
+  the 1280px judge viewport the map received the full 1024px control-plane
+  width rather than being squeezed beside approval; the browser reported
+  `scrollWidth=1280`. Selecting Pricing battlecard produced 5 connected nodes,
+  5 focused links, 7 dimmed siblings, and the next handoffs Confluence and
+  Slack. A 390x844 check retained the map in a 362px panel with
+  `scrollWidth=390`.
+- The append-only source history now derives and shows `baseline_established`,
+  `unchanged`, or `changed` from adjacent immutable snapshot hashes. The live
+  source registry displayed five healthy sources with “Last check · No
+  material change”, making the monitor's no-op behavior visible rather than
+  implying every poll is an action.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors.
+  Fresh live-agent proof returned `job-3678579224eb` / workflow
+  `28d67b19-85e2-40a3-a805-f158a50747e7`, `needs_approval`, public-source mode,
+  Gemini 3.5 Flash through Google ADK, two allowlisted tools, four artifacts,
+  five audit events, and two decision options. Approval/undo proof returned
+  `job-61cadd411f63` / workflow `baeadd42-4c0b-4012-980e-15bae6b64850`,
+  persisted the packet, reversed the operational output, and recorded
+  `external_write=false` and `external_systems_changed=false`.
+
+## 2026-08-21 focused-map readability release (historical serving revision)
 
 - Source commit `48ca9f8` passed GitHub Actions run `32529461064` (258 backend
   tests, Ruff, frontend production build, standalone image build, and

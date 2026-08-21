@@ -506,29 +506,29 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `48ca9f8`, Cloud Build
-`0b9e4e54-b87b-4527-9376-0748a19a7710`, and Cloud Run revision
-`driftline-00142-657` at 100% traffic. Its immutable image digest is
-`sha256:d3ec8b1aaa2e8973b3d1f33bfde7ea31215e09cbc15babb741ea7770903b9100`.
-GitHub Actions run `32529461064` passed 258 backend tests, Ruff, the frontend
+The current serving release is source commits `f6ba47f` and `584715b`, Cloud
+Build `85d14b55-0389-409e-b98f-edc15edc42ea`, and Cloud Run revision
+`driftline-00144-k89` at 100% traffic. Its immutable image digest is
+`sha256:bd92080f10b6e8ecef912b4f0d6e8db79bff420067ff9d02fc6be44048b20a52`.
+GitHub Actions run `32531130663` passed 259 backend tests, Ruff, the frontend
 production build, a standalone image build, and repository-hygiene checks.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
 packet/undo behavior, and the direct `/api/agent/run` path; the public lane
-made no external connector writes. The impact analyst now has a bounded
-2,400-token ceiling that preserves Gemini structured analysis for all four
-evidence-bound artifacts, while below-fold history, monitor freshness,
-multimodal evidence, change memory, value proof, run history, and deployment
-telemetry still load on approach rather than competing with first paint. See
-[`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md) for the exact
-evidence and remaining unmeasured customer outcomes.
+made no external connector writes. The impact map now exposes link counts,
+focused evidence paths, and worklist handoffs, while the append-only source
+registry visibly reports no-op checks as `unchanged`. At 1280px the map gets
+the full control-plane width; a 390x844 check has no horizontal overflow. See
+[`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md) for exact proof
+identifiers and the remaining unmeasured customer outcomes.
 
 The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
-Fresh repeatable proof identifiers are
-`job-af119fe3e0d3` / `16c65c2c-6341-4dbc-8d5f-3afd99cf0596` for the live agent
-and the approval/undo proof on the same persisted workflow. Artifact Registry retains the
+Fresh repeatable proof identifiers on the current serving revision are
+`job-3678579224eb` / `28d67b19-85e2-40a3-a805-f158a50747e7` for the live agent
+and `job-61cadd411f63` / `baeadd42-4c0b-4012-980e-15bae6b64850` for the
+approval/undo proof. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
 removed from this isolated project. The signed browser client sends its
 short-lived Google ID token only in the `Authorization` header, with a CI guard
