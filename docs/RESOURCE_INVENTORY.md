@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T13:45:34Z` with the active gcloud project set to
+Checked `2026-08-21T14:12:14Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00115-2dm` at 100% traffic.
+  `driftline-00117-8l4` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,47 @@ Checked `2026-08-21T13:45:34Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 lazy operator identity and resilient copilot release (live)
+
+- Source commit `558dd20` was deployed by Cloud Build
+  `0092680e-68f3-4293-9592-787bf70c05bc` (`SUCCESS`, 3m04s) as Cloud Run
+  revision `driftline-00117-8l4` at 100% traffic. The active gcloud project
+  and dedicated runtime identity remained
+  `driftline-hackathon-2026` /
+  `driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com`.
+- Google Identity Services is now lazy-loaded only after an explicit
+  **Sign in with Google** action. A fresh anonymous navigation requested no
+  `accounts.google.com` resources or iframe, while the click path loaded the
+  real GIS script and provider button on demand. This keeps the packet-safe
+  judge lane free of an unnecessary third-party cookie without weakening the
+  signed operator path. No browser console errors or warnings were recorded
+  in either state.
+- Fresh logged-out Chrome QA at 1440x900 and 390x844 found document width
+  equal to the viewport (1440px and 390px), a fully visible vertical impact
+  graph, and a non-clipping mobile sign-in trigger. Lighthouse navigation
+  scored 100 for accessibility, best practices, SEO, and agentic browsing on
+  both desktop and mobile (58/58 checks, 0 failures).
+- GitHub Actions run `32490298913` passed for source `558dd20` across backend
+  tests/lint, frontend production build, standalone lockfile-pinned image,
+  and shell release-helper hygiene.
+- `scripts/verify_production.sh` passed on this revision with Firestore
+  persistence, asynchronous tasks, enabled scheduler/uptime monitoring, and
+  zero recent Cloud Run errors. `scripts/verify_live_agent.sh` created job
+  `job-217f63827d5b` / workflow
+  `4c5ee096-e579-4ac7-8994-e83402ff6122` and proved
+  `gemini-3.5-flash`, Google ADK, both allowlisted tools, four artifacts, five
+  audit events, two decision-copilot options, and the deterministic
+  `needs_approval` gate.
+- `scripts/verify_public_approval_undo.sh` separately created job
+  `job-69aad98115aa` / workflow `166730c9-1247-467b-8ce8-5ea7945c89cc` and
+  proved `packet=persisted`, `operational_output=reversed`,
+  `external_write=false`, and `external_systems_changed=false`.
+- The live multimodal route returned `data_mode=public_source` and the
+  Gemini vision route returned `mode=gemini_vision`,
+  `model=gemini-3.5-flash`, `material_change=true`, `confidence=1.0`, and
+  evidence hash
+  `a78e9f0acb5b471a9500a51bb462c52aa8a13f021f0f48886105e4924523d250`.
 
 ## 2026-08-21 responsive judge-surface release (live)
 

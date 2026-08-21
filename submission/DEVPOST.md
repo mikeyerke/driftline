@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `a78733a`, Cloud Build
-  `717b402a-355d-4009-8b14-2c67e2a5cc81`, and Cloud Run revision
-  `driftline-00115-2dm` at 100% traffic. It passed 245 backend tests, Ruff,
+- The current active release is source commit `558dd20`, Cloud Build
+  `0092680e-68f3-4293-9592-787bf70c05bc`, and Cloud Run revision
+  `driftline-00117-8l4` at 100% traffic. It passed the backend test suite, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -159,13 +159,17 @@ created during the contest.
   origin registered. The public lane remains packet-safe; completing Google
   account consent and tenant-token issuance is an external identity step, not
   a claim of authenticated customer data.
+  Google Identity Services is lazy-loaded only after an explicit sign-in
+  action, so anonymous first paint does not send a provider request or set a
+  third-party cookie; the click path still renders the real provider button.
   The responsive judge-surface pass also removed the 1440px desktop
   Google-Identity/workspace collision and changed the mobile impact graph from
   an undiscoverable horizontal scroller to a readable vertical sequence.
   Logged-out Chrome QA at 1440×900 and 390×844 found no document overflow or
   application console errors; the dense worklist table remains an intentional
-  horizontal-scroll region. Lighthouse snapshots remain 100 for
-  accessibility, best practices, SEO, and agentic browsing.
+  horizontal-scroll region. Lighthouse navigation audits remain 100 for
+  accessibility, best practices, SEO, and agentic browsing on both desktop
+  and mobile (58/58 checks).
   A fresh identity-free `scripts/verify_live_agent.sh` run against that exact
   revision created job `job-35d0bad97d36` / workflow
   `8aea1601-0a83-4763-9b44-aa2ea73b2ad1` and directly proved the live
@@ -195,7 +199,7 @@ created during the contest.
   records the earlier quota-hardening runtime, not the current serving
   revision above.
   The current serving revision was independently checked by GitHub Actions
-  run `32488146746` for source `a78733a` and by the exact production,
+  run `32490298913` for source `558dd20` and by the exact production,
   live-agent, and approval/undo scripts recorded in the resource inventory.
   A live public multimodal probe on that revision returned
   `data_mode=public_source` for the pinned before/after visual pair and
@@ -218,6 +222,11 @@ created during the contest.
   verifier reached the human gate through Gemini 3.5 Flash and Google ADK.
   Production source URLs are also pinned to immutable fixture commits so the
   judge path cannot silently change when the repository's `main` branch moves.
+  The latest live agent proof on the serving revision created job
+  `job-217f63827d5b` / workflow `4c5ee096-e579-4ac7-8994-e83402ff6122`; the
+  latest credential-free approval/undo proof created job
+  `job-69aad98115aa` / workflow `166730c9-1247-467b-8ce8-5ea7945c89cc` and
+  retained both external-write flags as false.
   The latest live verifier created job `job-934ea8ae11a7` / workflow
   `4f5bbaf9-d3a7-4372-857f-ae3cd52821ea` and again proved the model, ADK,
   allowlisted tools, four artifacts, and deterministic gate.
