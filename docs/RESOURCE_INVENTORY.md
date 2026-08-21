@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T08:59:00Z` with the active gcloud project set to
+Checked `2026-08-21T09:10:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00087-p74` at 100% traffic.
+  `driftline-00088-jn6` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,19 @@ Checked `2026-08-21T08:59:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 below-fold visual performance release (live)
+
+- Source commit `e7afc28` was deployed by Cloud Build
+  `64601726-5e7f-4de7-8137-ce64f53e5d7a` (`SUCCESS`) as Cloud Run revision
+  `driftline-00088-jn6` at 100% traffic.
+- Multimodal before/after evidence images are now browser-lazy-loaded instead
+  of eager-loaded. This keeps the visual evidence available in the live source
+  panel while avoiding unnecessary initial transfer before a reviewer reaches
+  that below-fold section.
+- `/health` returned 200, the production verification script passed, and the
+  browser confirmed both visual images have `loading=lazy` with no errors or
+  warnings.
 
 ## 2026-08-21 production lane clarity release (live)
 
@@ -45,7 +58,7 @@ Checked `2026-08-21T08:59:00Z` with the active gcloud project set to
 
 - Read-only `scripts/verify_production.sh` passed with the active gcloud
   project explicitly set to `driftline-hackathon-2026`.
-- The check confirmed Cloud Run revision `driftline-00087-p74` at 100% traffic,
+- The check confirmed Cloud Run revision `driftline-00088-jn6` at 100% traffic,
   Firestore-backed `/health`, enabled Scheduler, a running Cloud Tasks queue
   with one concurrent dispatch and three attempts, the live uptime check and
   alert policy, the production dashboard, and zero severity `ERROR` entries in
