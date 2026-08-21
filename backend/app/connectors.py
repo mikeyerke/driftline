@@ -231,7 +231,27 @@ def _salesforce_token_request(
     try:
         with opener(request, timeout=8) as response:
             raw = response.read().decode("utf-8")
-    except (HTTPError, URLError, TimeoutError) as exc:
+    except HTTPError as exc:
+        # Salesforce returns useful OAuth error codes in the response body,
+        # but the public connector contract must stay generic. Log only the
+        # bounded code/description so an operator can distinguish a revoked
+        # refresh token from a misconfigured Connected App without echoing a
+        # token or the full provider response.
+        detail = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")
+            payload = json.loads(body) if body else {}
+            if isinstance(payload, dict):
+                detail = str(payload.get("error") or payload.get("error_description") or "")
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            detail = ""
+        logger.warning(
+            "Salesforce OAuth request failed status=%s error=%s",
+            getattr(exc, "code", "unknown"),
+            detail[:160].replace("\n", " "),
+        )
+        raise ConnectorError("salesforce_oauth_request_failed") from exc
+    except (URLError, TimeoutError) as exc:
         raise ConnectorError("salesforce_oauth_request_failed") from exc
     try:
         result = json.loads(raw) if raw else {}
