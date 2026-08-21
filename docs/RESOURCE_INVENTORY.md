@@ -10,6 +10,23 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## Current active release (authoritative check)
+
+Checked `2026-08-21T06:39:49Z` with the active gcloud project set to
+`driftline-hackathon-2026`:
+
+- Cloud Run service `driftline` in `us-central1` serves revision
+  `driftline-00071-rhd` at 100% traffic.
+- The public alias is
+  `https://driftline-xvxczqg62a-uc.a.run.app/`.
+- `/health` reports Firestore persistence and async jobs; `/api/auth/config`
+  reports Google OIDC enabled with `anonymous_lane=packet_only` and no
+  credential values exposed.
+- Entries below are append-only release evidence. Some refer to earlier
+  service lifecycles and are not claims about the currently serving revision;
+  direct `gcloud run services describe` output above is the current-state
+  authority.
+
 ## 2026-08-21 visual evidence reliability release (live)
 
 - Source commit `453c2c6` passed GitHub Actions `32442923011`; the frontend
