@@ -551,6 +551,7 @@ _salesforce_oauth_lock = Lock()
 
 _jobs: dict[str, JobState] = {}
 _jobs_lock = Lock()
+_public_job_lock = Lock()
 _workflow_transition_lock = Lock()
 _background_tasks: set[asyncio.Task[None]] = set()
 
@@ -4275,38 +4276,53 @@ async def start_demo_job(
             status_code=422,
             detail="Operator-registered sources require run_mode=monitor",
         )
-    if request.run_mode == "demo" and tenant_id is None:
-        # The public console is packet-safe, but a refresh or double-click can
-        # otherwise add duplicate Gemini work behind the one-concurrent queue.
-        existing = _inflight_public_job(request.source_id)
-        if existing is not None:
-            payload = _job_payload(existing)
-            payload["deduplicated"] = True
-            return payload
+    is_public_demo = request.run_mode == "demo" and tenant_id is None
+    if is_public_demo:
+        # Keep the check, quota reservation, and enqueue in one process-local
+        # critical section. This closes the double-click race; the durable job
+        # claim still protects duplicate Cloud Tasks deliveries across Run
+        # instances.
+        with _public_job_lock:
+            existing = _inflight_public_job(request.source_id)
+            if existing is not None:
+                payload = _job_payload(existing)
+                payload["deduplicated"] = True
+                return payload
+            if not _reserve_agent_call(tenant_id):
+                raise HTTPException(
+                    status_code=429,
+                    detail="Live agent demo rate limit reached; retry later.",
+                )
+            # The anonymous lane is a deterministic judge surface. Do not
+            # persist or send arbitrary caller text to Gemini; otherwise a
+            # public visitor could accidentally submit private material.
+            query = (
+                f"Inspect the allowlisted {request.source_id} change, verify the "
+                "evidence, map affected artifacts, and stop at the human approval "
+                "gate."
+            )
+            job = _start_job(
+                query=query,
+                user_id="public-demo",
+                run_mode=request.run_mode,
+                background_tasks=background_tasks,
+                tenant_id=None,
+                source_id=request.source_id,
+            )
+            return job.to_dict()
+
     if not _reserve_agent_call(tenant_id):
         raise HTTPException(
             status_code=429,
             detail="Live agent demo rate limit reached; retry later.",
         )
-    if request.run_mode == "demo" and tenant_id is None:
-        # The anonymous lane is a deterministic judge surface. Do not persist
-        # or send arbitrary caller text to Gemini; otherwise a public visitor
-        # could accidentally submit private material into the demo ledger.
-        query = (
-            f"Inspect the allowlisted {request.source_id} change, verify the "
-            "evidence, map affected artifacts, and stop at the human approval "
-            "gate."
-        )
-        user_id = "public-demo"
-    else:
-        query = (
-            f"{request.query.strip()} Use the exact allowlisted source_id "
-            f'"{request.source_id}". Do not choose a different source.'
-        )
-        user_id = request.user_id
+    query = (
+        f"{request.query.strip()} Use the exact allowlisted source_id "
+        f'"{request.source_id}". Do not choose a different source.'
+    )
     job = _start_job(
         query=query,
-        user_id=user_id,
+        user_id=request.user_id,
         run_mode=request.run_mode,
         background_tasks=background_tasks,
         tenant_id=tenant_id,
