@@ -14,10 +14,13 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
   const healthById = Object.fromEntries(sourceHealth.map((item) => [item.source_id, item]));
   const selectedDefinition = sources.find((source) => source.source_id === (selectedSource || evidence?.source_id));
   const isSyntheticCompetitorFixture = selectedDefinition?.source_kind === "competitor_public";
+  const isRegisteredPublic = dataMode === "operator_registered_public" || selectedDefinition?.mode === "public_only";
   const sourceBadge = isSyntheticCompetitorFixture
     ? "Synthetic competitor fixture"
     : dataMode === "synthetic_demo"
       ? "Synthetic replay"
+      : isRegisteredPublic
+        ? "Operator-registered public source"
       : isPublic
         ? "Public pinned snapshot"
         : "Awaiting capture";
@@ -51,7 +54,7 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
   return (
     <section className="panel source-panel" id="sources-section">
       <header className="panel-header">
-        <div><h2>Allowlisted source</h2><span className={`live-label ${isSyntheticCompetitorFixture || dataMode !== "public_source" ? "synthetic" : "public"}`}>{sourceBadge}</span></div>
+        <div><h2>Allowlisted source</h2><span className={`live-label ${isSyntheticCompetitorFixture || (dataMode !== "public_source" && !isRegisteredPublic) ? "synthetic" : "public"}`}>{sourceBadge}</span></div>
         <span className="muted">Source-level access only</span>
       </header>
       <div className="source-grid">

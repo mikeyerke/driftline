@@ -91,13 +91,16 @@ export default function App() {
   const structuredAnalysis = job?.workflow?.agent_trace?.structured_analysis;
   const actionRecord = workflowState?.action_record;
   const jiraWriteOccurred = ["created", "reused", "reactivated", "reversed"].includes(actionRecord?.jira_status);
+  const selectedSourceDefinition = sources.find((source) => source.source_id === selectedSource);
   const runHint = actionRecord?.jira_status === "reversed"
     ? "Jira handoff reversed · other destinations remain prepared-only"
     : actionRecord?.jira_status === "reactivated"
       ? "Jira handoff reactivated · external state remains reversible"
       : jiraWriteOccurred
       ? "Jira handoff recorded · other destinations remain prepared-only"
-    : operatorSession.identityToken
+    : operatorSession.identityToken && selectedSourceDefinition?.mode === "public_only"
+      ? "Authenticated source monitor · approval-gated analysis"
+      : operatorSession.identityToken
       ? "Authenticated tenant run · approval-gated connector actions"
       : "Public allowlisted monitor · handoffs staged, no external writes";
 
