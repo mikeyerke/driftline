@@ -1,4 +1,6 @@
 import json
+from io import BytesIO
+from urllib.error import HTTPError
 from urllib.parse import unquote_plus
 
 import pytest
@@ -18,6 +20,7 @@ from app.connectors import (
     SlackConnector,
     exchange_salesforce_code,
     execute_confluence_handoff,
+    refresh_salesforce_token,
     salesforce_authorization_url,
     salesforce_readiness,
 )
@@ -870,6 +873,27 @@ def test_salesforce_code_exchange_sends_pkce_verifier() -> None:
     )
     exchange_salesforce_code(config, "one-time-code", code_verifier="verifier", opener=opener)
     assert b"code_verifier=verifier" in requests[0].data
+
+
+def test_salesforce_invalid_grant_requires_reauthorization() -> None:
+    config = SalesforceConfig(
+        enabled=True,
+        client_id="client-id",
+        client_secret="secret",
+        redirect_uri="https://driftline.example/callback",
+    )
+
+    def opener(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            400,
+            "Bad Request",
+            {},
+            BytesIO(b'{"error":"invalid_grant"}'),
+        )
+
+    with pytest.raises(ConnectorError, match="salesforce_reauthorization_required"):
+        refresh_salesforce_token(config, "stale-refresh-token", opener=opener)
 
 
 def test_salesforce_client_rejects_unallowlisted_object() -> None:

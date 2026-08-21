@@ -47,6 +47,7 @@ from .connectors import (
     JiraConnector,
     SalesforceConfig,
     SalesforceReadOnlyClient,
+    SalesforceReauthorizationRequired,
     SlackConfig,
     SlackConnector,
     exchange_salesforce_code,
@@ -1864,6 +1865,16 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
         }
     except (ConnectorError, CredentialBrokerError) as exc:
         logger.warning("salesforce context read failed: %s", exc)
+        if isinstance(exc, SalesforceReauthorizationRequired):
+            return {
+                "status": "reauthorization_required",
+                "mode": "read_only_context",
+                "scope": "read_only_crm",
+                "external_read": False,
+                "redaction": "aggregate_metadata_only",
+                "authorization_required": True,
+                "reason": "refresh_token_rejected",
+            }
         return {
             "status": "failed",
             "mode": "read_only_context",
@@ -2164,6 +2175,18 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
             " -> ".join(chain),
             root_detail,
         )
+        if isinstance(exc, SalesforceReauthorizationRequired):
+            return {
+                "tenant_id": tenant_id,
+                "status": "reauthorization_required",
+                "mode": "read_only_context",
+                "scope": "read_only_context",
+                "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
+                "external_read": False,
+                "external_write": False,
+                "authorization_required": True,
+                "reason": "refresh_token_rejected",
+            }
         raise HTTPException(
             status_code=503, detail="Salesforce read probe failed"
         ) from exc

@@ -36,6 +36,10 @@ class ConnectorError(RuntimeError):
     """A configured connector could not complete its bounded operation."""
 
 
+class SalesforceReauthorizationRequired(ConnectorError):
+    """Salesforce rejected the stored refresh token and needs owner consent."""
+
+
 @dataclass(frozen=True)
 class SalesforceConfig:
     """Read-only CRM context contract; writes are intentionally out of scope."""
@@ -250,6 +254,10 @@ def _salesforce_token_request(
             getattr(exc, "code", "unknown"),
             detail[:160].replace("\n", " "),
         )
+        if detail == "invalid_grant":
+            raise SalesforceReauthorizationRequired(
+                "salesforce_reauthorization_required"
+            ) from exc
         raise ConnectorError("salesforce_oauth_request_failed") from exc
     except (URLError, TimeoutError) as exc:
         raise ConnectorError("salesforce_oauth_request_failed") from exc

@@ -615,3 +615,4 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .source-history-status.unchanged { color: var(--green) !important; }
 .source-history-status.changed { color: var(--orange) !important; }
 .salesforce-action-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.salesforce-health.warning strong { color: var(--orange); }
