@@ -137,22 +137,21 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `5f6833b`, Cloud Build
-  `a3f2539a-a6df-4696-9e7d-6a29a5c4506a`, and Cloud Run revision
-  `driftline-00122-kqq` at 100% traffic. It passed 248 backend tests, Ruff,
-  the frontend production build, and isolated deployment probes. Below-fold
-  history, monitor freshness, multimodal evidence, change memory, value
-  proof, run history, and deployment telemetry now defer until their panels
-  approach the viewport; logged-out desktop/mobile QA observed six initial
-  requests, truthful deferred copy, successful scroll-triggered loading, no
-  console messages, and no document overflow. Lighthouse navigation passed
-  100 for accessibility, best practices, SEO, and agentic browsing on both
-  desktop and mobile. The current live proofs created jobs
-  `job-2f8c3dee0d57` and `job-657e0e6abe70`, proving Google ADK + Gemini 3.5
-  Flash, the two allowlisted tools, the deterministic `needs_approval` gate,
-  persisted packet, and reversible undo with both external-write flags false.
-  A direct anonymous `POST /api/agent/run` on this exact revision also
-  persisted a new workflow with five audit events. The console
+- The current active release is source commit `8e71062`, Cloud Build
+  `993e7216-0077-4099-8957-0d52e103e9e7`, and Cloud Run revision
+  `driftline-00123-h4m` at 100% traffic. It passed 248 backend tests, Ruff,
+  the frontend production build, and isolated deployment probes. The impact
+  analyst now has a bounded 2,400-token ceiling, and a fresh logged-out scan
+  visibly rendered Gemini structured impact analysis for all four evidence-bound
+  artifacts rather than the deterministic fallback. Below-fold history,
+  monitor freshness, multimodal evidence, change memory, value proof, run
+  history, and deployment telemetry still defer until their panels approach
+  the viewport; the latest desktop/mobile Lighthouse navigation passed 100 for
+  accessibility, best practices, SEO, and agentic browsing. The current live
+  proofs created jobs `job-34d426fd0971` and `job-9737925000a9`, proving Google
+  ADK + Gemini 3.5 Flash, the two allowlisted tools, the deterministic
+  `needs_approval` gate, persisted packet, and reversible undo with both
+  external-write flags false. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
   expose a signed aggregate pilot-measurement flow without claiming customer

@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T15:31:00Z` with the active gcloud project set to
+Checked `2026-08-21T15:46:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00122-kqq` at 100% traffic. Its immutable serving image is
-  `sha256:4c0d71f23c60da50b24409665b36a04abc452f49573e24bd336eb10cf08cbfaf`.
+  `driftline-00123-h4m` at 100% traffic. Its immutable serving image is
+  `sha256:bb39a764f876f0e2fbec1a5efadbafaffa75152cf9155fc15a16d6caa39a5224`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -27,6 +27,40 @@ Checked `2026-08-21T15:31:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 Gemini structured-impact reliability release (live)
+
+- Source commit `8e71062` (`Prevent Gemini impact analysis truncation`) was
+  deployed by Cloud Build `993e7216-0077-4099-8957-0d52e103e9e7` (`SUCCESS`,
+  3m09s) as Cloud Run revision `driftline-00123-h4m` at 100% traffic. The
+  active gcloud project remained `driftline-hackathon-2026`; no existing
+  project was targeted.
+- The impact analyst's bounded Gemini output ceiling increased from 1,200 to
+  2,400 tokens. The strict Pydantic schema, evidence-hash checks, artifact
+  allowlist, and deterministic approval policy are unchanged. This removed a
+  real truncation path that could otherwise surface the explicit deterministic
+  demo fallback even though the coordinator and tools had run.
+- A fresh logged-out browser scan on this revision created job
+  `job-294bb65b6ed9` / workflow `3b82535d-14a8-48cc-88b3-24e3e6c3c9f8` and
+  visibly rendered `Impact analysis · gemini structured`, a Gemini summary and
+  rationale, two Gemini Decision Copilot options, four evidence-bound
+  artifacts, and a deterministic human approval gate. The persisted trace
+  records `model=gemini-3.5-flash`, `execution_mode=google_adk`, both
+  allowlisted tools, and policy `pass`.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors.
+  `scripts/verify_live_agent.sh` created job `job-34d426fd0971` / workflow
+  `7c9d1281-299b-461f-b393-70334205c9bb` and again proved `needs_approval`,
+  `public_source`, Gemini 3.5 Flash, Google ADK, four artifacts, five audit
+  events, and two decision options. `scripts/verify_public_approval_undo.sh`
+  created job `job-9737925000a9` / workflow
+  `b5f6b828-7cd1-4541-b947-bdbb6cbdab52` and proved persisted packet ->
+  reversal with `external_write=false` and
+  `external_systems_changed=false`.
+- GitHub Actions run `32498604630` passed for `8e71062` (248 backend tests,
+  Ruff, frontend production build, standalone image, and repository hygiene).
+  Desktop and mobile Lighthouse navigation on the public alias passed 100 for
+  accessibility, best practices, SEO, and agentic browsing (53/53 checks,
+  zero failures on each device).
 
 ## 2026-08-21 below-fold request deferral release (live)
 
