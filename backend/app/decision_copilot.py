@@ -383,6 +383,13 @@ def validate_approval_choice(
     if not option_id:
         if custom_override:
             raise ValueError("Custom routing requires a reviewed copilot option")
+        trace = state.agent_trace or {}
+        decision_trace_payload = trace.get("decision_copilot")
+        if trace.get("execution_mode") == "google_adk" and (
+            not isinstance(decision_trace_payload, dict)
+            or decision_trace_payload.get("mode") == "unavailable"
+        ):
+            raise TypeError("Decision copilot is unavailable; rerun the scan")
         # Legacy synthetic workflows have no copilot trace and remain
         # compatible with the packet-only approval contract. Once a live ADK
         # trace exists, however, an approval must name the reviewed option so

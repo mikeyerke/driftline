@@ -110,6 +110,25 @@ def test_live_trace_requires_a_reviewed_option() -> None:
         )
 
 
+def test_live_workflow_without_decision_copilot_fails_closed() -> None:
+    state = DriftlineWorkflow().start_demo(tenant_id="driftline-demo")
+    state.agent_trace = {
+        "execution_mode": "google_adk",
+        "decision_copilot": {
+            "mode": "unavailable",
+            "reason": "Transient model failure",
+        },
+    }
+
+    with pytest.raises(TypeError, match="Decision copilot is unavailable"):
+        validate_approval_choice(
+            state,
+            None,
+            "grandfather_existing_customers",
+            None,
+        )
+
+
 def test_custom_artifact_override_is_complete_and_audited() -> None:
     state = DriftlineWorkflow().start_demo()
     copilot = fallback_copilot(state)

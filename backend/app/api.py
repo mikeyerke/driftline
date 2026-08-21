@@ -1401,6 +1401,15 @@ async def _run_job(job_id: str) -> None:
     except Exception as exc:
         recovered = _recover_orphaned_workflow(job)
         if recovered is not None:
+            recovered.agent_trace = {
+                **(recovered.agent_trace or {}),
+                "execution_mode": "google_adk",
+                "decision_copilot": {
+                    "mode": "unavailable",
+                    "reason": "Transient model failure; rerun the scan before approval.",
+                },
+            }
+            persist_workflow(recovered)
             job.workflow_id = recovered.workflow_id
             job.status = (
                 "needs_approval"
