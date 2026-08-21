@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T21:04Z` with the active gcloud project set to
+Checked `2026-08-21T21:20Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00137-fcj` at 100% traffic. Its immutable serving image is
-  `sha256:ff01c647741df99ade5ae5b45b1779be03bef458ea3dae815f503fbfd11da146`.
+  `driftline-00138-bcf` at 100% traffic. Its immutable serving image is
+  `sha256:00852752feb22432f4dc1b14d85e969263cb89da1af3f47266a0760b610b6323`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -33,29 +33,30 @@ Checked `2026-08-21T21:04Z` with the active gcloud project set to
   direct `gcloud run services describe` output above is the current-state
   authority.
 
-## 2026-08-21 interactive decision-surface release (live)
+## 2026-08-21 full pre-scan graph release (live)
 
-- Source commit `5ba7633` passed GitHub Actions run `32525894296` (258 backend
+- Source commit `9a23fd4` passed GitHub Actions run `32527512451` (258 backend
   tests, Ruff, frontend production build, standalone image build, and
   repository hygiene) and deployed through Cloud Build
-  `3de1e1c3-4cab-4d81-89b7-d1950b5a998b` (`SUCCESS`, 3m28s).
-- Cloud Run revision `driftline-00137-fcj` serves 100% traffic with immutable
+  `c00e383c-7868-47b8-b7b2-af49a5e6f670` (`SUCCESS`, 3m14s).
+- Cloud Run revision `driftline-00138-bcf` serves 100% traffic with immutable
   image digest
-  `sha256:ff01c647741df99ade5ae5b45b1779be03bef458ea3dae815f503fbfd11da146`.
-- The impact map is now an accessible interactive graph: selecting a source,
-  offering, or work surface focuses its evidence path, dims unrelated nodes,
-  and exposes a bounded inspector with the owner, risk, evidence path, and
-  worklist handoff. Desktop and 390x844 mobile browser QA showed no horizontal
-  overflow; the focused work-surface action opened the worklist row.
+  `sha256:00852752feb22432f4dc1b14d85e969263cb89da1af3f47266a0760b610b6323`.
+- The impact map is an accessible interactive graph before and after a scan:
+  the deterministic pre-scan state now shows source, offering, impact area,
+  work surface, and prepared handoff stages; selecting a node focuses its
+  evidence path, dims unrelated nodes, and exposes a bounded inspector with
+  owner, risk, and worklist handoff. Desktop and 390x844 mobile browser QA
+  showed no horizontal overflow.
 - `scripts/verify_production.sh` passed with zero recent Cloud Run errors.
-  Fresh live-agent proof returned `job-07c37ce51263` / workflow
-  `cfabe4f7-e1d2-4da4-8372-ad60bf340bf1`, `needs_approval`, public-source mode,
+  Fresh live-agent proof returned `job-41c4329adae2` / workflow
+  `3e30298a-9465-4e4a-a6a2-681cdace0f8d`, `needs_approval`, public-source mode,
   Gemini 3.5 Flash through Google ADK, two allowlisted tools, four artifacts,
   five audit events, and two decision options. Approval/undo proof passed on
   the same workflow, persisting the packet and reversing the operational output
   with `external_write=false` and `external_systems_changed=false`.
 
-## 2026-08-21 tenant source-bound release (historical serving revision)
+## 2026-08-21 interactive decision-surface release (historical serving revision)
 
 - Source commit `ce2b5ca` passed GitHub Actions run `32524543240` (258 backend
   tests, Ruff, frontend production build, standalone image build, and
@@ -337,7 +338,7 @@ Checked `2026-08-21T21:04Z` with the active gcloud project set to
   production build. The current serving release is recorded above; older
   release entries below remain append-only historical evidence.
 
-## 2026-08-21 deferred-read UX release (current serving revision)
+## 2026-08-21 deferred-read UX release (historical serving revision)
 
 - Source commit `7747baa` (`Clarify deferred production reads`) was deployed
   by Cloud Build `ea1e7339-533b-4109-8128-7f166efd1603` (`SUCCESS`, about

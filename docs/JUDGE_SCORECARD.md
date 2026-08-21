@@ -4,8 +4,8 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `5ba7633`, Cloud Run `driftline-00137-fcj`, Cloud Build
-`3de1e1c3-4cab-4d81-89b7-d1950b5a998b`, project
+Current release: source `9a23fd4`, Cloud Run `driftline-00138-bcf`, Cloud Build
+`c00e383c-7868-47b8-b7b2-af49a5e6f670`, project
 `driftline-hackathon-2026`, 100% traffic.
 
 ## Innovation and operational utility — 40%
@@ -25,12 +25,13 @@ Current release: source `5ba7633`, Cloud Run `driftline-00137-fcj`, Cloud Build
 
 ### Live evidence
 
-- Logged-out desktop and 390x844 mobile browser QA visibly showed the new
-  interactive impact map: node focus, evidence-path tracing, unrelated-node
+- Logged-out desktop and 390x844 mobile browser QA showed the interactive
+  impact map before and after a scan: source -> offering -> impact area -> work
+  surface -> handoff stages, node focus, evidence-path tracing, unrelated-node
   dimming, bounded inspector, and worklist handoff; mobile `scrollWidth` stayed
   equal to the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-07c37ce51263`, workflow
-  `cfabe4f7-e1d2-4da4-8372-ad60bf340bf1`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-41c4329adae2`, workflow
+  `3e30298a-9465-4e4a-a6a2-681cdace0f8d`, five audit events, four artifacts,
   two decision options, and `needs_approval`.
 - `scripts/verify_public_approval_undo.sh`: fresh proof on the same job and
   workflow; the packet persisted and was reversed with
