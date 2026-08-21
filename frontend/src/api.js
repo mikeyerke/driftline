@@ -153,6 +153,23 @@ export function getOpsSummary() {
   return request(`/api/ops/summary${params.toString() ? `?${params}` : ""}`, { authenticated: Boolean(operatorSession.identityToken) });
 }
 
+export function getConnectorContextSummary() {
+  return request("/api/connectors/context/summary", {
+    method: "POST",
+    authenticated: true,
+    body: JSON.stringify(signedContext()),
+  });
+}
+
+export function getConnectorBindingsHealth() {
+  const params = new URLSearchParams();
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/connectors/bindings/health?${params.toString()}`, { authenticated: true });
+}
+
 export function getValueProof() {
   return request("/api/ops/value-proof");
 }

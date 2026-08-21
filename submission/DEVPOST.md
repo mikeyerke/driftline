@@ -51,8 +51,10 @@ actor is not production identity. A signed live context probe on the deployed
 runtime returned aggregate-only reads for Jira (`KAN`, 18 sampled issues),
 Confluence (`DRIFT`, 5 pages), Slack (`C0BRGFUSADA`, 27 recent messages), and
 GitHub (0 open issues, 0 open pull requests); no source text or message bodies
-were returned or persisted. The Salesforce contract is read-only and remains
-pending final tenant consent.
+were returned or persisted. Authenticated operators can trigger that same
+request-scoped check from the console's **Refresh context** control before
+approving a handoff. The Salesforce contract is read-only and remains pending
+final tenant consent.
 
 ## Other data sources used
 

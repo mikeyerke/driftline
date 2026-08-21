@@ -125,7 +125,9 @@ For an authenticated operator, `POST /api/connectors/context/summary` adds a
 bounded internal-workload view before approval: fixed-scope Jira, Confluence,
 Slack, and GitHub connectors return aggregate counts only. It is signed-only,
 request-scoped, and never exposes source text or private records to the public
-console. Unconfigured integrations remain explicitly `prepared_only`;
+console. The authenticated console exposes this as a deliberate **Refresh
+context** control beside the handoff destinations, so an operator can verify
+connector health and aggregate workload before choosing an action. Unconfigured integrations remain explicitly `prepared_only`;
 Salesforce is a read-only OAuth lane pending real tenant consent, and its
 refresh token follows the same deterministic tenant binding
 (`driftline-tenant-<tenant>-salesforce`) after the callback.
