@@ -167,6 +167,14 @@ created during the contest.
   rechecked after a truthfulness fix: it displays `CRM context unavailable`
   and `No CRM context was read in this run`, never `Permissioned business
   context` without a connected Salesforce tenant.
+- A fresh public sandbox run selected the reviewed Gemini copilot option,
+  persisted its private packet, and kept every connector `prepared_only` with
+  `external_write=false`. A named Product Marketing demo actor then claimed
+  and completed one owner action; the live value endpoint reports this as
+  sandbox telemetry only (1 of 32 action items, 3.1%), not customer ROI.
+- The signed source registry read returned only the five pinned fixtures. The
+  research references in the README are not registered live competitor
+  sources.
 - The tenant credential data plane is now canonical and fail-closed: durable
   tenant memberships, per-tenant Secret Manager namespaces, impersonated
   service identities, pinned versions, rotation/revocation, operation scopes,
