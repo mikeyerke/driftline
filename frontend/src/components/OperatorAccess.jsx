@@ -13,10 +13,40 @@ function gisReady() {
   return typeof window !== "undefined" && window.google?.accounts?.id;
 }
 
+let gisLoadPromise;
+
+function loadGoogleIdentityServices() {
+  if (gisReady()) return Promise.resolve();
+  if (gisLoadPromise) return gisLoadPromise;
+
+  gisLoadPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-driftline-google-identity]');
+    const script = existing || document.createElement("script");
+    const onLoad = () => resolve();
+    const onError = () => reject(new Error("Google sign-in could not load"));
+    script.addEventListener("load", onLoad, { once: true });
+    script.addEventListener("error", onError, { once: true });
+    if (!existing) {
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.dataset.driftlineGoogleIdentity = "true";
+      document.head.appendChild(script);
+    }
+  }).catch((error) => {
+    gisLoadPromise = undefined;
+    throw error;
+  });
+
+  return gisLoadPromise;
+}
+
 export default function OperatorAccess() {
   const buttonRef = useRef(null);
   const [session, setSession] = useState(getOperatorSession());
   const [config, setConfig] = useState(null);
+  const [authStarted, setAuthStarted] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
 
@@ -31,7 +61,7 @@ export default function OperatorAccess() {
   }, []);
 
   useEffect(() => {
-    if (!config?.enabled || session.identityToken || !buttonRef.current) return undefined;
+    if (!config?.enabled || session.identityToken || !authStarted || !buttonRef.current) return undefined;
     let cancelled = false;
     const render = () => {
       if (cancelled || !gisReady() || !buttonRef.current) return;
@@ -85,7 +115,24 @@ export default function OperatorAccess() {
       };
     }
     return () => { cancelled = true; };
-  }, [config, session.identityToken]);
+  }, [authStarted, config, session.identityToken]);
+
+  const startSignIn = async () => {
+    setError("");
+    setAuthLoading(true);
+    setStatus("Loading Google sign-in…");
+    try {
+      setAuthStarted(true);
+      await loadGoogleIdentityServices();
+      setStatus("Choose your Google account…");
+    } catch (loadError) {
+      setAuthStarted(false);
+      setStatus("");
+      setError(loadError.message || "Google sign-in could not load; try again.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   const changeTenant = (event) => {
     const tenant = session.tenants.find((item) => item.tenant_id === event.target.value);
@@ -102,7 +149,9 @@ export default function OperatorAccess() {
     return (
       <div className="operator-access">
         <span className="operator-access-label"><ShieldCheck size={14} />Operator lane</span>
-        <div ref={buttonRef} aria-label="Sign in with Google for the Driftline operator lane" />
+        {authStarted
+          ? <div ref={buttonRef} aria-label="Sign in with Google for the Driftline operator lane" />
+          : <button className="operator-google-trigger" type="button" onClick={startSignIn} disabled={authLoading}><ShieldCheck size={14} />{authLoading ? "Loading…" : "Sign in with Google"}</button>}
         {status && <small className="operator-access-status">{status}</small>}
         {error && <small className="operator-access-error" role="alert">{error}</small>}
       </div>
