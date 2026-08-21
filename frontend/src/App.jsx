@@ -103,7 +103,7 @@ export default function App() {
       ? "Authenticated source monitor · approval-gated analysis"
       : operatorSession.identityToken
       ? "Authenticated tenant run · approval-gated connector actions"
-      : "Public allowlisted monitor · handoffs staged, no external writes";
+      : "Public allowlisted monitor · live packet-safe access · no external writes";
 
   const refreshHistory = async () => {
     try {
@@ -309,7 +309,7 @@ export default function App() {
         </header>
 
         <div className="content">
-        <div className="workspace-banner"><strong>Production control plane</strong><span>{operatorSession.identityToken ? `Authenticated tenant lane · ${operatorSession.tenantId} · deterministic human gate` : "Public demo safety mode · allowlisted signals · deterministic human gate"}</span><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Packet-only demo")}</span></div>
+        <div className="workspace-banner"><strong>Production control plane</strong><span>{operatorSession.identityToken ? `Authenticated tenant lane · ${operatorSession.tenantId} · deterministic human gate` : "Public evaluation lane · live allowlisted sources · deterministic human gate"}</span><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Packet-safe evaluation")}</span></div>
           <section id="overview-section" className="overview-section">
             <p className="product-orientation">Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval.</p>
             <section className="incident-header">
@@ -368,7 +368,7 @@ export default function App() {
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
           <TrustPanel actionRecord={actionRecord} />
-          <footer className="demo-footer"><span>ⓘ Synthetic replay remains available when the public source cannot be fetched.</span><span>Approval gating is deterministic; the public demo is packet-only and configured writes require signed operator approval.</span><span className="legal-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></span></footer>
+          <footer className="demo-footer"><span>ⓘ Synthetic replay remains available when the public source cannot be fetched.</span><span>Approval gating is deterministic; the public evaluation lane is packet-safe and configured writes require signed operator approval.</span><span className="legal-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></span></footer>
         </div>
       </main>
 

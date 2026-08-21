@@ -26,7 +26,7 @@ export default function IntegrationPanel({ targets = [], approved, dismissed, ac
         <div><h2 id="integration-title">PMM handoff destinations</h2><span className="live-label">Approval-gated</span></div>
         <span className="muted">No silent writes</span>
       </header>
-      <p className="integration-intro">Driftline turns the impact map into target-specific packets. This public lane is packet-safe: it never mutates an external system. A separately authenticated tenant operator can enable a configured connector and execute only the signed, scoped handoff.</p>
+      <p className="integration-intro">Driftline turns the impact map into target-specific packets. The live public lane is packet-safe: it never mutates an external system. A separately authenticated tenant operator can enable a configured connector and execute only the signed, scoped handoff.</p>
       <div className="integration-list">
         {targets.map((target) => {
           const Icon = icons[target.system] || Hash;
