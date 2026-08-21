@@ -56,7 +56,7 @@ Driftline is a complete resumable workflow rather than a chat interface:
 8. Prepare reversible, target-specific handoff packets for Product Marketing's
    Jira, Confluence, Slack, or GitHub workflow. Only the separately
    authenticated signed-operator lane may write through an explicitly enabled,
-   scoped connector; the public demo is packet-only.
+   scoped connector; the public evaluation lane is packet-safe.
 9. Preserve an auditable event trail for every action.
 
 The decision surface is intentionally richer than a single model answer. The
@@ -366,8 +366,9 @@ retained only for recoverable cleanup and is not mounted. No token is ever sent
 to the browser or committed to this repository.
 
 After a signed operator approves a packet, the adapter searches the current
-project for a Driftline action marker before creating one `Task`. A public demo
-approval cannot invoke this path, even when credentials are present. Undo is
+project for a Driftline action marker before creating one `Task`. A public
+evaluation-lane approval cannot invoke this path, even when credentials are
+present. Undo is
 reversible: it keeps the issue, removes only the Driftline active label, adds
 `driftline-reversed`, and appends an audit comment. Confluence, Slack, and
 GitHub use the same real adapter boundary, with Secret Manager-or-environment
@@ -382,7 +383,7 @@ Each connector can be enabled independently with its own project, space, channel
 or repository scope; a failed connector is recorded as `failed` and never turns
 into a successful claim. Tenant-bound asynchronous jobs, workflows, packets,
 action items, scenario previews, and operator summaries are filtered by the
-same signed identity boundary; the public demo sees only tenantless synthetic
+same signed identity boundary; the public evaluation lane sees only tenantless synthetic
 records and sends only a fixed allowlisted instruction to Gemini rather than
 persisting arbitrary visitor text. Claim, complete, fail, retry, and reverse action-item calls use that
 same boundary for tenant-bound workflows. Salesforce now has a deployed
