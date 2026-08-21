@@ -46,6 +46,21 @@ authority.
 - `/health` and `scripts/verify_production.sh` passed with zero recent Cloud
   Run errors. The public packet-safe lane remains live and unchanged.
 
+## 2026-08-21 reproducible live-agent proof
+
+- `scripts/verify_live_agent.sh` ran against the public revision after the
+  isolated OAuth release. It creates one bounded, identity-free public-source
+  job and fails closed unless the returned workflow proves the live model and
+  agent path rather than the deterministic fallback.
+- The run completed with job `job-850ac743c8af` and workflow
+  `56cc8d5c-20df-469f-8628-706cca1de3c5` at `needs_approval`.
+- Direct response evidence proved `data_mode=public_source`,
+  `model=gemini-3.5-flash`, `execution_mode=google_adk`, structured analysis
+  mode `gemini_structured`, allowlisted tools
+  `inspect_source_change,get_workflow_state`, four mapped artifacts, and five
+  audit events. The verifier performs no approval and no external connector
+  write.
+
 ## 2026-08-21 stale-session isolation release (live)
 
 - Source commit `1814bad` was deployed by Cloud Build

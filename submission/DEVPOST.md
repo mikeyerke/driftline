@@ -159,6 +159,13 @@ created during the contest.
   origin registered. The public lane remains packet-safe; completing Google
   account consent and tenant-token issuance is an external identity step, not
   a claim of authenticated customer data.
+  A fresh identity-free `scripts/verify_live_agent.sh` run against that exact
+  revision created job `job-850ac743c8af` / workflow
+  `56cc8d5c-20df-469f-8628-706cca1de3c5` and directly proved the live
+  `gemini-3.5-flash` + Google ADK path, structured analysis, both allowlisted
+  tools, four artifacts, five audit events, and the deterministic
+  `needs_approval` gate. The script is checked in so judges can reproduce the
+  proof without credentials.
   It also includes a recoverable frontend error boundary so a render failure
   cannot present a blank console or imply that persisted workflow state was
   lost.

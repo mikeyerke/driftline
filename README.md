@@ -504,16 +504,16 @@ trees, generated bundles, and screenshots from the uploaded build context.
 ~~~bash
 BASE=https://driftline-xvxczqg62a-uc.a.run.app
 curl -fsS "$BASE/health"
-JOB=$(curl -fsS -X POST "$BASE/api/jobs/demo" -H 'content-type: application/json')
-JOB_ID=$(printf '%s' "$JOB" | jq -r .job_id)
-curl -fsS "$BASE/api/jobs/$JOB_ID"
+./scripts/verify_production.sh
+./scripts/verify_live_agent.sh
 ~~~
 
-The final release evidence in `docs/RESOURCE_INVENTORY.md` records the exact
-Cloud Run revision, async job result, browser smoke test, Firestore documents,
-and Cloud Run logs. A live ADK response is only claimed when those fields have
-been observed directly; the identity-free deterministic `/api/workflows/demo`
-endpoint is the fallback for evaluation.
+`verify_live_agent.sh` creates one bounded public workflow and waits for the
+human approval gate. It fails closed unless the deployed response proves
+`gemini-3.5-flash`, `google_adk`, `gemini_structured`, both allowlisted tool
+calls, four mapped artifacts, and durable audit events. The identity-free
+deterministic `/api/workflows/demo` endpoint remains the fallback for judging
+when a live source or model quota is temporarily unavailable.
 
 ## Safety model
 
