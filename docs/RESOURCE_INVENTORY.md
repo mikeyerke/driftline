@@ -73,6 +73,11 @@ Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
   `infra/monitoring/driftline-health-alert.json`. The first metric point may
   take several minutes after creation; the authoritative configuration above
   is already confirmed in Cloud Monitoring.
+- A post-creation Monitoring API query returned two active checker series and
+  twelve observed `check_passed=true` points for
+  `driftline-health-Hmxqs16MUkY` in the current window. The third configured
+  region may publish on a different sampling boundary; no failure point was
+  observed.
 
 ## 2026-08-21 public end-to-end journey (live)
 
