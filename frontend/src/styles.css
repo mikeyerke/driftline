@@ -19,6 +19,7 @@
 }
 
 * { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: #fff; }
 button { font: inherit; color: inherit; }
 button:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offset: 2px; }
