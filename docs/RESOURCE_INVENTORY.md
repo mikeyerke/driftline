@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T17:55:45Z` with the active gcloud project set to
+Checked `2026-08-21T19:34Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00130-9cn` at 100% traffic. Its immutable serving image is
-  `sha256:91d62c9823f66ed9360bc5d9397023094e736adf2c6e76a0bfb096ffab16f219`.
+  `driftline-00131-5tn` at 100% traffic. Its immutable serving image is
+  `sha256:61d4edfcd7502bc1ec5710e18d81b91f4939dc9960a3d7b80245effa5b49b542`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -29,6 +29,29 @@ Checked `2026-08-21T17:55:45Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 header-only operator credential proof
+
+- Source commit `7a26522` deployed successfully through Cloud Build
+  `5375841c-f3cc-43fb-a839-56a8784f5008` (`SUCCESS`, 3m28s) as revision
+  `driftline-00131-5tn` at 100% traffic. The serving image is pinned to
+  `sha256:61d4edfcd7502bc1ec5710e18d81b91f4939dc9960a3d7b80245effa5b49b542`.
+- Signed browser calls now send the short-lived Google ID token only in the
+  `Authorization` header; it is not duplicated into JSON bodies or URLs. A
+  repository-hygiene CI check fails if that client-side pattern returns.
+- `scripts/verify_production.sh` passed on this revision. Fresh live proof
+  returned job `job-bf32f027a99f` / workflow
+  `41fda217-a32d-49dc-b58b-4cf88e2b4fe2` with `needs_approval`, public-source
+  evidence, Gemini 3.5 Flash, Google ADK, two allowlisted tools, four
+  artifacts, five audit events, and two Decision Copilot options.
+- The same durable job/workflow passed the approval/undo verifier: packet
+  persisted, operational output reversed, `external_write=false`, and
+  `external_systems_changed=false`. The verifier deduplicated the concurrent
+  public proof request by design.
+- The first build attempt was not deployed: Cloud Build
+  `41e567d8-8f81-486a-a4e4-fc6de4c63179` failed only on a transient PyPI
+  extraction timeout. Root and standalone Dockerfiles now use bounded UV
+  timeout/retry settings; the successful rebuild proves the fix.
 
 ## 2026-08-21 latest production proof refresh
 
@@ -71,8 +94,8 @@ Checked `2026-08-21T17:55:45Z` with the active gcloud project set to
   whether a quote is `Observed after` or `Prior baseline` rather than hiding
   that distinction behind a generic citation label.
 - Local verification passed 252 backend tests, Ruff, `git diff --check`, and
-  the frontend production build (`311.14 kB`, `91.90 kB` gzip). GitHub Actions
-  run `32509006811` passed the repository gates.
+  the frontend production build (`311.51 kB`, `91.96 kB` gzip). GitHub Actions
+  run `32518704117` passed the repository gates.
 - Fresh exact-revision live agent proof passed on job `job-575414fcb95f` /
   workflow `da2044fe-60ae-4cae-9d95-47a22ccf8761` with `needs_approval`,
   `public_source`, Gemini 3.5 Flash, Google ADK, two allowlisted tools, four

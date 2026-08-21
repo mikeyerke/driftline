@@ -503,11 +503,11 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `453169b`, Cloud Build
-`fbb439be-dbad-48f7-b203-feaaf96d4a54`, and Cloud Run revision
-`driftline-00130-9cn` at 100% traffic. Its immutable image digest is
-`sha256:91d62c9823f66ed9360bc5d9397023094e736adf2c6e76a0bfb096ffab16f219`.
-GitHub Actions run `32509006811` passed 252 backend tests, Ruff, the frontend
+The current serving release is source commit `7a26522`, Cloud Build
+`5375841c-f3cc-43fb-a839-56a8784f5008`, and Cloud Run revision
+`driftline-00131-5tn` at 100% traffic. Its immutable image digest is
+`sha256:61d4edfcd7502bc1ec5710e18d81b91f4939dc9960a3d7b80245effa5b49b542`.
+GitHub Actions run `32518704117` passed 252 backend tests, Ruff, the frontend
 production build, a standalone image build, and repository-hygiene checks.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
@@ -524,10 +524,12 @@ The latest proof refresh also exercised the real background delivery path:
 Cloud Scheduler sent an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick` on the serving revision and cadence rules deferred
 healthy sources that were not due. Fresh repeatable proof identifiers are
-`job-9dfaae082328` / `6aa95f1c-df5a-4ae7-9a2d-f0d5416705ca` for the live agent
-and `job-645b96127b2d` / `0b350ff6-9cf8-460a-b4d2-b2cca879339e` for
-approval/undo. Artifact Registry retains the newest ten images and the serving
-digest; older unreferenced builds were removed from this isolated project.
+`job-bf32f027a99f` / `41fda217-a32d-49dc-b58b-4cf88e2b4fe2` for both
+deduplicated live-agent and approval/undo proofs. Artifact Registry retains the
+newest ten images and the serving digest; older unreferenced builds were
+removed from this isolated project. The signed browser client sends its
+short-lived Google ID token only in the `Authorization` header, with a CI guard
+against body or URL duplication.
 
 ## Public links
 
