@@ -1,4 +1,5 @@
-import { ArrowRight, Check, CircleDot, FileCheck2, Globe2, Layers3, Link2, Radio, Target, UsersRound } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Check, ChevronRight, CircleDot, FileCheck2, Globe2, Layers3, Link2, MousePointer2, Radio, RotateCcw, Target, UsersRound } from "lucide-react";
 
 const kindMeta = {
   source: { label: "Observed change", icon: Globe2, tone: "source" },
@@ -8,20 +9,49 @@ const kindMeta = {
   system: { label: "Handoff", icon: Link2, tone: "system" },
 };
 
-function GraphNode({ node }) {
+function GraphNode({ node, focused, dimmed, onSelect }) {
   const meta = kindMeta[node.kind] || kindMeta.artifact;
   const Icon = meta.icon;
+  const stateClass = [
+    "impact-graph-node",
+    meta.tone,
+    focused ? "focused" : "",
+    dimmed ? "dimmed" : "",
+  ].filter(Boolean).join(" ");
+
   return (
-    <div className={`impact-graph-node ${meta.tone}`}>
-      <span className="impact-graph-icon"><Icon size={15} /></span>
+    <button
+      type="button"
+      className={stateClass}
+      aria-pressed={focused}
+      aria-label={`${meta.label}: ${node.label}${node.meta ? `, ${node.meta}` : ""}`}
+      onClick={() => onSelect(node)}
+    >
+      <span className="impact-graph-icon"><Icon size={15} aria-hidden="true" /></span>
       <span className="impact-graph-copy"><strong>{node.label}</strong><small>{node.meta}</small></span>
       {node.risk && <span className={`impact-graph-risk ${node.risk}`}>{node.risk}</span>}
-    </div>
+    </button>
   );
 }
 
-export default function ImpactMap({ items, graph, approved, sourceName, sourceCategory }) {
+function pathToSource(nodeId, nodesById, edges) {
+  const path = [];
+  const visited = new Set();
+  let current = nodeId;
+  while (current && nodesById.has(current) && !visited.has(current)) {
+    visited.add(current);
+    path.unshift(nodesById.get(current));
+    const parent = edges.find((edge) => edge.to === current);
+    current = parent?.from;
+  }
+  return path;
+}
+
+export default function ImpactMap({ items, graph, approved, sourceName, sourceCategory, onSelectArtifact }) {
   const nodes = graph?.nodes || [];
+  const edges = graph?.edges || [];
+  const [focusedNodeId, setFocusedNodeId] = useState(null);
+
   const columns = ["source", "offering", "domain", "artifact", "system"].map((kind) => ({
     kind,
     nodes: nodes.filter((node) => node.kind === kind),
@@ -51,31 +81,91 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
     { kind: "offering", nodes: fallbackNodes.slice(1, 2) },
     { kind: "artifact", nodes: fallbackNodes.slice(2) },
   ];
+  const displayNodes = displayColumns.flatMap((column) => column.nodes);
+  const displayNodesById = useMemo(() => new Map(displayNodes.map((node) => [node.id, node])), [displayNodes]);
+  const displayEdges = edges.length ? edges : [
+    { from: "source", to: "offering" },
+    ...(items || []).map((item, index) => ({ from: "offering", to: `artifact-${index}` })),
+  ];
+
+  useEffect(() => {
+    if (focusedNodeId && !displayNodesById.has(focusedNodeId)) setFocusedNodeId(null);
+  }, [displayNodesById, focusedNodeId]);
+
+  const focusedNode = focusedNodeId ? displayNodesById.get(focusedNodeId) : null;
+  const focusedIds = useMemo(() => {
+    if (!focusedNodeId) return new Set();
+    const ids = new Set([focusedNodeId]);
+    displayEdges.forEach((edge) => {
+      if (edge.from === focusedNodeId) ids.add(edge.to);
+      if (edge.to === focusedNodeId) ids.add(edge.from);
+    });
+    return ids;
+  }, [displayEdges, focusedNodeId]);
+  const focusedPath = focusedNode ? pathToSource(focusedNode.id, displayNodesById, displayEdges) : [];
+  const focusedChildren = focusedNode
+    ? displayEdges
+      .filter((edge) => edge.from === focusedNode.id)
+      .map((edge) => displayNodesById.get(edge.to))
+      .filter(Boolean)
+    : [];
+  const meta = focusedNode ? (kindMeta[focusedNode.kind] || kindMeta.artifact) : null;
+
+  const selectNode = (node) => {
+    setFocusedNodeId(node.id);
+    if (node.kind === "artifact" && onSelectArtifact) onSelectArtifact(node.label);
+  };
 
   return (
     <section className="panel impact-panel" aria-labelledby="impact-map-title">
       <header className="panel-header impact-map-header">
-        <div><h2 id="impact-map-title">Offering impact map</h2><span className="live-label public"><Radio size={12} />{approved ? "Handoff plan" : "Decision scope"}</span></div>
-        <span className="muted">Change → business consequence</span>
+        <div className="impact-map-title-group"><h2 id="impact-map-title">Offering impact map</h2><span className="live-label public"><Radio size={12} />{approved ? "Handoff plan" : "Decision scope"}</span></div>
+        <div className="impact-map-header-tools"><span className="impact-map-instruction"><MousePointer2 size={13} /> Select a node to trace the work</span><span className="muted">Change → business consequence</span></div>
       </header>
       <div className="impact-map-summary">
         <div><span>Change type</span><strong>{summary.change_type || previewChangeType}</strong></div>
         <div><span>Affected offering</span><strong>{summary.offering || previewOffering}</strong></div>
         <div><span>Work surfaces</span><strong>{summary.artifact_count || items?.length || 0} mapped</strong></div>
       </div>
-      <div className="impact-graph" role="img" aria-label="Source change mapped through offering, business impact, work surface, and handoff stages">
+      <div className="impact-graph" role="group" aria-label="Source change mapped through offering, business impact, work surface, and handoff stages">
         {displayColumns.map((column, index) => {
-          const meta = kindMeta[column.kind] || kindMeta.artifact;
+          const columnMeta = kindMeta[column.kind] || kindMeta.artifact;
           return (
             <div className="impact-graph-column" key={column.kind}>
-              <div className="impact-graph-column-label"><CircleDot size={13} />{meta.label}</div>
+              <div className="impact-graph-column-label"><CircleDot size={13} />{columnMeta.label}</div>
               <div className="impact-graph-nodes">
-                {column.nodes.map((node) => <GraphNode node={node} key={node.id} />)}
+                {column.nodes.map((node) => <GraphNode node={node} key={node.id} focused={focusedNodeId === node.id} dimmed={Boolean(focusedNodeId) && !focusedIds.has(node.id)} onSelect={selectNode} />)}
               </div>
-              {index < displayColumns.length - 1 && <ArrowRight className="impact-graph-arrow" size={17} />}
+              {index < displayColumns.length - 1 && <ArrowRight className="impact-graph-arrow" size={17} aria-hidden="true" />}
             </div>
           );
         })}
+      </div>
+      <div className={`impact-map-inspector${focusedNode ? " active" : ""}`} aria-live="polite">
+        {focusedNode ? (
+          <>
+            <div className="impact-map-inspector-heading">
+              <div><span>{meta.label}</span><strong>{focusedNode.label}</strong></div>
+              <button type="button" className="impact-map-reset" onClick={() => setFocusedNodeId(null)}><RotateCcw size={13} /> Clear focus</button>
+            </div>
+            <div className="impact-map-path" aria-label="Evidence path">
+              {focusedPath.map((node, index) => (
+                <span className="impact-map-path-step" key={node.id}>
+                  {index > 0 && <ChevronRight size={13} aria-hidden="true" />}
+                  <button type="button" onClick={() => selectNode(node)} aria-label={`Focus ${node.label}`}>{node.label}</button>
+                </span>
+              ))}
+            </div>
+            <p className="impact-map-inspector-note">
+              <Check size={14} /> {focusedNode.meta || "Evidence-linked node"}
+              {focusedNode.risk && <><span className="impact-map-separator">·</span><strong className={`impact-map-risk ${focusedNode.risk}`}>{focusedNode.risk} risk</strong></>}
+              {focusedChildren.length > 0 && <><span className="impact-map-separator">·</span>Next: {focusedChildren.map((node) => node.label).join(", ")}</>}
+              {focusedNode.kind === "artifact" && onSelectArtifact && <button type="button" className="impact-map-worklist-link" onClick={() => onSelectArtifact(focusedNode.label)}>Open worklist row <ChevronRight size={13} /></button>}
+            </p>
+          </>
+        ) : (
+          <p className="impact-map-inspector-empty"><MousePointer2 size={14} /> Select a source, offering, impact area, or work surface to see what it touches and where the evidence flows.</p>
+        )}
       </div>
       <div className="impact-map-footer">
         <span><UsersRound size={14} /> Ownership follows the work, not the model</span>

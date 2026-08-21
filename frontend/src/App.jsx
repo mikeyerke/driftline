@@ -411,7 +411,7 @@ export default function App() {
               <div className="main-column">
                 <div className="upper-grid">
                   <EvidenceDiff collapsed={evidenceCollapsed} onToggle={() => setEvidenceCollapsed((current) => !current)} evidence={evidence} />
-                  <ImpactMap items={impacts} graph={workflowState?.impact_graph} approved={approved} sourceName={evidence.source_name} sourceCategory={selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} />
+                  <ImpactMap items={impacts} graph={workflowState?.impact_graph} approved={approved} sourceName={evidence.source_name} sourceCategory={selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} onSelectArtifact={setSelectedArtifact} />
                 </div>
                 <ArtifactTable items={impacts} onSelect={setSelectedArtifact} selected={selectedArtifact} />
                 <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} />
