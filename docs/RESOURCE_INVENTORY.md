@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T07:08:40Z` with the active gcloud project set to
+Checked `2026-08-21T07:18:30Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00075-xt7` at 100% traffic.
+  `driftline-00076-7qw` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,22 @@ Checked `2026-08-21T07:08:40Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 tenant pilot measurement release (live)
+
+- Source commit `3d3d2d7` passed 237 backend tests, Ruff, `git diff --check`,
+  and the frontend production build. Cloud Build
+  `557f98b9-dfb0-4586-abca-4a44ac9b6877` completed `SUCCESS`; Cloud Run
+  revision `driftline-00076-7qw` serves 100% of traffic.
+- Authenticated tenant operators now have a Pilot measurement panel backed by
+  the existing signed `/api/ops/outcomes` and `/api/ops/pilot-report` routes.
+  It records only aggregate before/after minutes and optional outcome fields,
+  requires an evidence reference, and labels every result
+  `operator_reported_unverified`. The anonymous route remains protected: a
+  logged-out `/api/ops/pilot-report` probe returned HTTP 401.
+- Post-deploy probes returned `/health` HTTP 200, Google OIDC auth config, the
+  public console title, 100% traffic, scale-to-zero/max-one guardrails, and
+  zero severity `ERROR` entries for the active revision.
 
 ## 2026-08-21 source onboarding parser and selection release (live)
 
