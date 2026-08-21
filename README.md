@@ -556,3 +556,16 @@ The `Driftline production control plane` dashboard
 request/instance telemetry, and Cloud Tasks dispatch pressure in one labeled
 view. Its configuration is reproducible from
 `infra/monitoring/driftline-production-dashboard.json`.
+
+To reproduce the read-only release check locally, first select the isolated
+project and run:
+
+```bash
+gcloud config set project driftline-hackathon-2026
+./scripts/verify_production.sh
+```
+
+The script refuses to run if the active gcloud project is different. It checks
+Cloud Run traffic, the Firestore-backed health response, Scheduler, Cloud
+Tasks, Cloud Monitoring resources, and the recent Cloud Run error window; it
+does not mutate infrastructure or read secrets.

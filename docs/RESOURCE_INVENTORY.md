@@ -41,6 +41,19 @@ Checked `2026-08-21T08:59:00Z` with the active gcloud project set to
   new copy with no console errors or warnings; the active-revision error log
   query was empty.
 
+## 2026-08-21 reproducible production verification (live)
+
+- Read-only `scripts/verify_production.sh` passed with the active gcloud
+  project explicitly set to `driftline-hackathon-2026`.
+- The check confirmed Cloud Run revision `driftline-00087-p74` at 100% traffic,
+  Firestore-backed `/health`, enabled Scheduler, a running Cloud Tasks queue
+  with one concurrent dispatch and three attempts, the live uptime check and
+  alert policy, the production dashboard, and zero severity `ERROR` entries in
+  the last 15 minutes.
+- The script refuses to run against another gcloud project and performs no
+  writes or secret reads, making the release gate safe to rerun during handoff
+  or cleanup.
+
 ## 2026-08-21 static asset cache safety release (live)
 
 - Source commit `cce8e4d` was deployed by Cloud Build
