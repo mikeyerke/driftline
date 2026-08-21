@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T08:20:00Z` with the active gcloud project set to
+Checked `2026-08-21T08:27:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00084-7bh` at 100% traffic.
+  `driftline-00085-wbl` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,22 @@ Checked `2026-08-21T08:20:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 fontless console performance release (live)
+
+- Source commit `02b2e41` passed the full 240-test suite, Ruff,
+  `git diff --check`, and the frontend production build. Cloud Build
+  `85e9ff6e-29ab-4302-a3f4-c76bd2d99442` completed `SUCCESS`; Cloud Run
+  revision `driftline-00085-wbl` serves 100% of traffic.
+- Removed the render-blocking Google Fonts stylesheet. The console keeps its
+  existing DM Sans → Inter → system fallback stack without relying on a third-
+  party font request, and the CSP now allows only the required Google Identity
+  stylesheet path with `font-src 'self'`.
+- Fresh Lighthouse evidence: performance `0.81`, accessibility `1.0`, best
+  practices `1.0`, SEO `1.0`, agentic browsing `1.0`, FCP `3.1s`, LCP `4.1s`,
+  zero render-blocking savings, zero console errors, zero inspector issues,
+  and 755 KiB total transfer. Live `/health` and Cloud Logging probes remain
+  clean.
 
 ## 2026-08-21 multimodal delivery and cache release (live)
 

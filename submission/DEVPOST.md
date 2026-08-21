@@ -134,9 +134,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `2b35881`, Cloud Build
-  `09f36c8f-43e4-469f-a170-01a317090b6c`, and Cloud Run revision
-  `driftline-00084-7bh` at 100% traffic. It passed 240 backend tests, Ruff,
+- The current active release is source commit `02b2e41`, Cloud Build
+  `85e9ff6e-29ab-4302-a3f4-c76bd2d99442`, and Cloud Run revision
+  `driftline-00085-wbl` at 100% traffic. It passed 240 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -155,6 +155,9 @@ created during the contest.
   lost.
   Multimodal evidence is pinned to an immutable asset commit and served as
   smaller JPEG bytes; fingerprinted frontend bundles are immutable-cacheable.
+  The public console also avoids a render-blocking third-party font request;
+  the fresh production Lighthouse run measured 0.81 performance with no
+  console or inspector issues.
 - An earlier live rollout (`driftline-00037-6t9`, source `bb8a437`, Cloud Build
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
