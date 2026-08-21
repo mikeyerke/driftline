@@ -289,11 +289,13 @@ Connector destination profiles are also constrained to HTTPS provider host
 allowlists (Atlassian, Slack, GitHub, and Salesforce) and reject userinfo,
 query credentials, fragments, and untrusted hosts before persistence or use.
 
-The deployed registry includes three verified public examples: Crayon's pricing
-inquiry page, Kompyte's competitive-intelligence article, and Visualping's
-monitoring guide. Each was fetched through the bounded adapter and has an
-append-only baseline; Driftline does not claim that a vendor page change is
-ground truth for a customer's product.
+The research notes reference public material from vendors such as Crayon,
+Kompyte, and Visualping as examples of competitive-intelligence workflows.
+Those pages are not registered live sources in this deployment. The deployed
+registry currently contains only the five pinned fixtures above; a tenant
+operator must explicitly register any additional exact HTTPS source. Driftline
+does not claim that a vendor page change is ground truth for a customer's
+product.
 
 ### Verified Jira connector
 
