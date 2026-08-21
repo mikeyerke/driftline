@@ -20,6 +20,10 @@
 8. Open https://driftline-xvxczqg62a-uc.a.run.app/ in a logged-out browser and
    exercise the asynchronous scan, evidence, packet, reopening, and live ADK
    trace. Record the job ID and matching Firestore documents.
+9. From the repository root, run `./scripts/verify_public_approval_undo.sh`.
+   Preserve its job/workflow IDs and confirm the output proves a persisted
+   packet, `external_write=false`, `external_systems_changed=false`, and a
+   persisted undo marker.
 
 ## GitHub
 

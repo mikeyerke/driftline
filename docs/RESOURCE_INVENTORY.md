@@ -12,7 +12,7 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T12:57:25Z` with the active gcloud project set to
+Checked `2026-08-21T13:06:16Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
@@ -51,6 +51,18 @@ Checked `2026-08-21T12:57:25Z` with the active gcloud project set to
   `operational_status=active`, `external_write=false`, and
   `external_systems_changed=false`; undo returned `status=needs_approval`,
   persisted a rollback marker, and kept external systems unchanged.
+- The credential-free `scripts/verify_public_approval_undo.sh` reproduced that
+  public packet-safety contract on a fresh workflow: job
+  `job-65a058652155` / workflow `a8bbf0df-40d4-4004-befe-e570459ab673` passed
+  approval → persisted packet → undo. The final response reported
+  `storage_status=persisted`, `operational_status=reversed`,
+  `external_write=false`, and `external_systems_changed=false`; no connector
+  credential or third-party write was involved.
+- After the verifier received clearer timeout diagnostics, a second fresh run
+  also passed: job `job-bf2ff1ed5385` / workflow
+  `a801162e-eae5-40c9-a4b0-3fc7e6cf8e8a` returned
+  `packet=persisted`, `operational_output=reversed`,
+  `external_write=false`, and `external_systems_changed=false`.
 - GitHub Actions run `32483785937` passed for source `ec65176`; local
   verification for this source also passed 244 backend
   tests, Ruff, the frontend production build, and `git diff --check`.

@@ -61,6 +61,7 @@ BASE=https://driftline-xvxczqg62a-uc.a.run.app
 curl -fsS "$BASE/health"
 ./scripts/verify_production.sh
 ./scripts/verify_live_agent.sh
+./scripts/verify_public_approval_undo.sh
 ```
 
 The scripts fail closed unless the public service is healthy, the active Cloud
@@ -78,6 +79,12 @@ is:
 npm run build --prefix frontend
 git diff --check
 ```
+
+The packet-safety verifier is separate from the Gemini proof so the two claims
+remain auditable: it creates a fresh public workflow, approves a bounded
+evidence packet, asserts `storage_status=persisted` with both external-write
+flags false, then reopens the decision and asserts a persisted reversal marker.
+It never needs a connector credential or performs a third-party write.
 
 The current release evidence is recorded in
 [`docs/RESOURCE_INVENTORY.md`](../docs/RESOURCE_INVENTORY.md), including the

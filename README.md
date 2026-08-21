@@ -510,6 +510,7 @@ BASE=https://driftline-xvxczqg62a-uc.a.run.app
 curl -fsS "$BASE/health"
 ./scripts/verify_production.sh
 ./scripts/verify_live_agent.sh
+./scripts/verify_public_approval_undo.sh
 ~~~
 
 `verify_live_agent.sh` creates one bounded public workflow and waits for the
@@ -520,6 +521,13 @@ deterministic `/api/workflows/demo` endpoint remains the fallback for judging
 when a live source or model quota is temporarily unavailable; the verifier
 will retry that permitted fallback for up to three bounded runs, but never
 reports success without a genuine Gemini structured turn.
+
+`verify_public_approval_undo.sh` is the complementary packet-safety check. It
+creates a fresh public evaluation workflow, exercises the deterministic
+approval gate, verifies that the private Cloud Storage packet is persisted
+without an external write, then reopens the decision and verifies a durable
+rollback marker. It is safe to run repeatedly: the public lane cannot call
+Jira, Confluence, Slack, GitHub, or Salesforce.
 
 ## Safety model
 
