@@ -1344,6 +1344,48 @@ def test_signed_operator_can_onboard_an_exact_public_source(monkeypatch) -> None
     )
 
 
+def test_public_source_onboarding_establishes_bounded_baseline(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "test-only-secret")
+    baseline = {
+        "status": "baseline_established",
+        "change_detected": False,
+        "data_mode": "operator_registered_public",
+    }
+    monkeypatch.setattr(api, "inspect_allowlisted_source", lambda *args, **kwargs: baseline)
+    source_id = "custom/live-pricing"
+    token = hmac.new(
+        b"test-only-secret",
+        f"source-onboarding:{source_id}:Signed operator".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    response = client.post(
+        "/api/operator/sources",
+        json={
+            "source_id": source_id,
+            "name": "Live pricing",
+            "category": "Competitor pricing",
+            "change_type": "Pricing move",
+            "url": "https://example.com/pricing",
+            "owner": "Product Marketing",
+            "cadence": "24h",
+            "freshness_sla_hours": 48,
+            "parser": "html",
+            "registered_by": "Signed operator",
+            "approval_token": token,
+        },
+    )
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert response.status_code == 200
+    assert response.json()["baseline"] == baseline
+    assert "first baseline was established" in response.json()["next_step"]
+
+
 def test_manual_monitor_job_requires_signed_operator(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

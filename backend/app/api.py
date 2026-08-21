@@ -155,6 +155,7 @@ def _write_tenant_secret(tenant_id: str, secret_name: str, value: str) -> str | 
         return write_secret_version(secret_name, value)
 from .simulator import simulate_scenarios
 from .source import (
+    inspect_allowlisted_source,
     list_allowlisted_sources,
     list_source_history,
     register_operator_source,
@@ -1780,6 +1781,18 @@ def onboard_operator_source(request: SourceOnboardingRequest) -> dict[str, objec
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    # Production onboarding should prove that the exact URL is readable and
+    # establish its first append-only baseline in the same operator action.
+    # Keep local/synthetic test mode metadata-only, and never turn a fetch
+    # failure into a false change: inspect_allowlisted_source returns an
+    # explicit source_fetch_failed result for the scheduler to retry.
+    baseline: dict[str, object] | None = None
+    if os.getenv("DRIFTLINE_SOURCE_MODE", "synthetic").casefold() == "public":
+        baseline = inspect_allowlisted_source(
+            request.source_id,
+            tenant_id=approval_identity["tenant_id"],
+            force_replay=False,
+        )
     return {
         "status": "registered",
         "source": {
@@ -1788,7 +1801,14 @@ def onboard_operator_source(request: SourceOnboardingRequest) -> dict[str, objec
             if key not in {"registered_by", "registered_at"}
         },
         "approval_identity": approval_identity,
-        "next_step": "Run a signed monitor tick for this source to establish its baseline.",
+        "baseline": baseline,
+        "next_step": (
+            "Scheduler monitoring is active; the first baseline was established."
+            if baseline and baseline.get("status") == "baseline_established"
+            else "Scheduler will retry this source until a bounded baseline is established."
+            if baseline and baseline.get("status") == "source_fetch_failed"
+            else "Enable public source mode, then run a signed monitor tick to establish the baseline."
+        ),
     }
 
 
