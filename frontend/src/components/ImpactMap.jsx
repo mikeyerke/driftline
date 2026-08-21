@@ -126,11 +126,26 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
   const focusedNode = focusedNodeId ? displayNodesById.get(focusedNodeId) : null;
   const focusedIds = useMemo(() => {
     if (!focusedNodeId) return new Set();
-    const ids = new Set([focusedNodeId]);
+    // Focus the whole connected evidence chain, not only the two adjacent
+    // cards. That makes a source selection reveal every downstream surface,
+    // while selecting one artifact still isolates its path and handoffs.
+    const adjacency = new Map();
     displayEdges.forEach((edge) => {
-      if (edge.from === focusedNodeId) ids.add(edge.to);
-      if (edge.to === focusedNodeId) ids.add(edge.from);
+      if (!adjacency.has(edge.from)) adjacency.set(edge.from, []);
+      if (!adjacency.has(edge.to)) adjacency.set(edge.to, []);
+      adjacency.get(edge.from).push(edge.to);
+      adjacency.get(edge.to).push(edge.from);
     });
+    const ids = new Set();
+    const queue = [focusedNodeId];
+    while (queue.length) {
+      const current = queue.shift();
+      if (ids.has(current)) continue;
+      ids.add(current);
+      (adjacency.get(current) || []).forEach((neighbor) => {
+        if (!ids.has(neighbor)) queue.push(neighbor);
+      });
+    }
     return ids;
   }, [displayEdges, focusedNodeId]);
   const focusedPath = focusedNode ? pathToSource(focusedNode.id, displayNodesById, displayEdges) : [];
