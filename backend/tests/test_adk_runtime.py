@@ -48,3 +48,14 @@ def test_agent_trace_payload_is_redacted_and_contains_decision_metadata() -> Non
     assert "prompt" not in payload
     assert "source_body" not in payload
     assert "credential" not in payload
+
+
+def test_workflow_id_is_recovered_when_model_stops_after_source_tool() -> None:
+    token = adk_runtime.set_workflow_id("workflow-from-tool-context")
+    try:
+        assert adk_runtime._workflow_id_from_turn(None) == "workflow-from-tool-context"
+        assert adk_runtime._workflow_id_from_turn("workflow-from-response") == (
+            "workflow-from-response"
+        )
+    finally:
+        adk_runtime.reset_workflow_id(token)

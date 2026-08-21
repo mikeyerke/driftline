@@ -19,6 +19,7 @@ from .agent import (
     set_tenant_id,
     set_workflow_id,
     source_id_from_query,
+    workflow_id_from_context,
 )
 from .analysis import AnalysisUnavailable, analysis_trace, analyze_workflow
 from .decision_copilot import (
@@ -74,6 +75,18 @@ def _analysis_failure_result(
     if artifact_count is not None:
         result["artifact_count"] = artifact_count
     return result
+
+
+def _workflow_id_from_turn(workflow_id: str | None) -> str | None:
+    """Recover a workflow created by a tool even if Gemini omits a follow-up.
+
+    The source tool binds the created workflow to the current ADK turn before
+    returning its guarded payload. A model may legitimately stop after that
+    tool call, so the runtime must use the turn-local binding as the durable
+    source of truth instead of orphaning the workflow or retrying it as a new
+    monitor run.
+    """
+    return workflow_id or workflow_id_from_context()
 
 
 async def run_agent_task(
@@ -137,6 +150,10 @@ async def run_agent_task(
                 final_text = "".join(
                     part.text or "" for part in event.content.parts if part.text
                 )
+        # The coordinator normally echoes the workflow id in a function
+        # response. Recover the context-bound id when it stops after the
+        # source inspection tool, so a real change cannot be orphaned.
+        workflow_id = _workflow_id_from_turn(workflow_id)
     finally:
         reset_run_mode(mode_token)
         reset_tenant_id(tenant_token)

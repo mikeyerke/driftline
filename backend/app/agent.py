@@ -50,6 +50,11 @@ def reset_workflow_id(token: Token[str | None]) -> None:
     _workflow_id.reset(token)
 
 
+def workflow_id_from_context() -> str | None:
+    """Return the workflow created by the current ADK turn, if any."""
+    return _workflow_id.get()
+
+
 def set_source_id(source_id: str | None) -> Token[str | None]:
     """Bind the exact source selected by the scheduler or signed request."""
     return _source_id.set(source_id.strip() if source_id else None)
