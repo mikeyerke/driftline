@@ -2139,10 +2139,20 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
             seen.add(id(cursor))
             chain.append(type(cursor).__name__)
             cursor = cursor.__cause__ or cursor.__context__
+        root_detail = ""
+        if exc.__cause__ is not None:
+            root = exc.__cause__
+            while root.__cause__ is not None and root.__cause__ is not root:
+                root = root.__cause__
+            # Google API permission errors include the denied permission and
+            # resource, but never the bearer value. Truncate the detail to
+            # keep logs bounded and avoid echoing provider response bodies.
+            root_detail = str(root)[:320].replace("\n", " ")
         logger.warning(
-            "Salesforce health probe failed: %s (exception_chain=%s)",
+            "Salesforce health probe failed: %s (exception_chain=%s detail=%s)",
             str(exc),
             " -> ".join(chain),
+            root_detail,
         )
         raise HTTPException(
             status_code=503, detail="Salesforce read probe failed"
