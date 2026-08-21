@@ -2363,6 +2363,68 @@ async def test_live_agent_route_propagates_signed_tenant(monkeypatch) -> None:
     assert 'source_id "public/pricing"' in str(captured["query"])
 
 
+@pytest.mark.asyncio
+async def test_live_agent_route_accepts_registered_source_for_signed_tenant(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    tenant_id = "agent-tenant"
+    source.register_operator_source(
+        source_id="custom/agent-pricing",
+        name="Agent pricing",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://example.com/pricing",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        tenant_id=tenant_id,
+    )
+    captured: dict[str, object] = {}
+
+    async def fake_run_agent_task(
+        query: str,
+        user_id: str,
+        run_mode: str = "demo",
+        *,
+        tenant_id: str | None = None,
+    ) -> dict:
+        captured.update(query=query, user_id=user_id, run_mode=run_mode, tenant_id=tenant_id)
+        return {"status": "ok", "tenant_id": tenant_id}
+
+    monkeypatch.setattr(api, "run_agent_task", fake_run_agent_task)
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "agent-tenant-secret"
+    operator = "Tenant operator"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+    token = hmac.new(
+        secret.encode(),
+        f"agent-run:custom/agent-pricing:{operator}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+        api._tenant_agent_call_times.clear()
+
+    response = client.post(
+        "/api/agent/run",
+        json={
+            "query": "Inspect the registered tenant source",
+            "user_id": "tenant-operator",
+            "source_id": "custom/agent-pricing",
+            "operator": operator,
+            "tenant_id": tenant_id,
+            "approval_token": token,
+        },
+    )
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert response.status_code == 200
+    assert captured["tenant_id"] == tenant_id
+    assert captured["run_mode"] == "live"
+    assert 'source_id "custom/agent-pricing"' in str(captured["query"])
+
+
 def test_live_agent_route_rejects_partial_signed_identity() -> None:
     response = client.post(
         "/api/agent/run",

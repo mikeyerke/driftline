@@ -4433,9 +4433,6 @@ async def run_job(job_id: str, request: Request) -> dict:
 async def run_agent(request: AgentRunRequest) -> dict:
     if not request.query.strip():
         raise HTTPException(status_code=422, detail="Query cannot be empty")
-    definition = source_definition(request.source_id)
-    if definition is None or definition.get("dynamic") == "true":
-        raise HTTPException(status_code=422, detail="Source is not allowlisted")
     signed_identity: dict[str, str] | None = None
     has_signed_fields = any(
         value is not None
@@ -4461,6 +4458,15 @@ async def run_agent(request: AgentRunRequest) -> dict:
             request.tenant_id,
         )
     bound_tenant = signed_identity.get("tenant_id") if signed_identity else None
+    # A registered public URL belongs to its tenant and must never be
+    # discoverable or runnable from the anonymous lane. Resolve the source
+    # only after authenticating the optional tenant, so direct API operators
+    # receive the same real monitor path as the console and scheduler.
+    definition = source_definition(request.source_id, bound_tenant)
+    if definition is None or (
+        definition.get("dynamic") == "true" and bound_tenant is None
+    ):
+        raise HTTPException(status_code=422, detail="Source is not allowlisted")
     if not _reserve_agent_call(bound_tenant):
         raise HTTPException(
             status_code=429,
