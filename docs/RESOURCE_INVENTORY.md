@@ -2614,3 +2614,17 @@ is no longer needed.
   pending; no connected-org or CRM read claim is made until the operator
   completes the browser consent and the callback plus aggregate health probe
   succeed.
+
+## 2026-08-21 metric-label clarity release (live)
+
+- Source commit: `5bfc57c` (`Clarify change memory reversal metric`), pushed
+  to `main` after GitHub Actions run `32430823596` completed successfully.
+- Cloud Build `187446bb-3446-473c-ab80-a3b52cf1702f` — `SUCCESS`; active
+  Cloud Run revision `driftline-00033-r8x` serves 100% of traffic in the
+  isolated project.
+- The Change Memory card now labels its count `reversed owner items`, matching
+  the backend's action-item aggregation instead of implying it is a workflow
+  count. A fresh isolated browser context rendered the new label.
+- Final live UI checks on the new revision passed all 57 Lighthouse audits on
+  desktop and mobile (100 accessibility, best practices, SEO, and agentic
+  browsing) with no console messages.
