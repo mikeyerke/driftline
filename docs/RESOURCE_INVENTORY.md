@@ -30,6 +30,8 @@ snapshot.
 - Signed connector health: Jira, Confluence, Slack, and GitHub healthy;
   Salesforce `not_configured`; credential values redacted.
 - Signed pilot report: `status=not_measured`, `record_count=0`.
+- Public sandbox value proof: 50 workflows, 41 source observations, 32
+  human-owned action items, 1 completed action (3.1%), 0 external writes.
 - Final video upload and Devpost submission: not completed.
 
 ## 2026-08-20 reproducible isolated deploy identity (live)
