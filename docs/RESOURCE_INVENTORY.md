@@ -3068,3 +3068,20 @@ is no longer needed.
   returned Jira, Confluence, Slack, and GitHub to `reversed`, retained the Jira
   issue, and persisted the rollback audit artifact. No credential values were
   returned.
+
+## 2026-08-21 signed packet and scenario access hardening (live)
+
+- Source commit `2801354` (`Complete authenticated operator packet flows`)
+  passed GitHub Actions run `32448509896` (`success`), including the backend
+  suite, Ruff, frontend production build, and standalone image build.
+- Cloud Build `9b504b21-e8d0-46cb-a707-af83f92caad5` completed `SUCCESS` and
+  deployed `driftline-00058-8jj` at 100% traffic. The active image digest is
+  `sha256:1700dcd566b12eba440bdc8647c7304fc6f60735a43525695b8268f94fee0a35`.
+  `/health` and `/api/auth/config` returned successfully.
+- Tenant packet downloads now use an authenticated fetch with the OIDC bearer
+  header rather than placing identity material in a URL. A current tenant
+  packet returned HTTP 200 with 2,074 bytes; the same request without OIDC
+  returned HTTP 401. Tenant scenario reads use the same header-bound path.
+- The public browser still rendered the Google operator control and the
+  packet-safe public lane after a fresh navigation. No credentials are stored
+  in browser storage or exposed to the packet URL.
