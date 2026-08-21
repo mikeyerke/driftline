@@ -9,7 +9,11 @@ from starlette.responses import Response
 
 from app import api, source
 from app.api import app
-from app.connectors import ConnectorError, _tenant_secret_or_env
+from app.connectors import (
+    ConnectorError,
+    SalesforceReauthorizationRequired,
+    _tenant_secret_or_env,
+)
 from app.decision_copilot import fallback_copilot, red_team_review
 from app.models import JobState, SourceEvidence, WorkflowState
 from app.tenant import principal_for_hmac, tenant_operator_signing_secret_name
@@ -1143,6 +1147,47 @@ def test_salesforce_context_reads_refresh_token_through_tenant_identity(monkeypa
     payload = api._salesforce_context_info("salesforce-acme")
 
     assert payload["status"] == "connected_read_only"
+
+
+def test_salesforce_context_surfaces_reauthorization_required(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {"status": "oauth_ready", "mode": "awaiting_authorization"},
+    )
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {
+                "status": "connected_read_only",
+                "instance_url": "https://acme.my.salesforce.com",
+            },
+            {"status": "active"},
+            True,
+        ),
+    )
+    monkeypatch.setattr(api.SalesforceConfig, "from_env", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        api,
+        "resolve_tenant_credential",
+        lambda *_args, **_kwargs: SimpleNamespace(value="refresh-token"),
+    )
+    monkeypatch.setattr(
+        api,
+        "refresh_salesforce_token",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            SalesforceReauthorizationRequired("salesforce_reauthorization_required")
+        ),
+    )
+
+    payload = api._salesforce_context_info("salesforce-acme")
+
+    assert payload["status"] == "reauthorization_required"
+    assert payload["authorization_required"] is True
+    assert payload["external_read"] is False
+    assert payload["reason"] == "refresh_token_rejected"
 
 
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:

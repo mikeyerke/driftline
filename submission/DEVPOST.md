@@ -116,16 +116,17 @@ product truth.
 
 ## Verified release evidence
 
-The current serving release is source commit `2109fae`, Cloud Build
-`0f19ede8-e47a-47ed-aefb-c3eb1f66aa63`, and Cloud Run revision
-`driftline-00155-r9d` at 100% traffic in project `driftline-hackathon-2026`.
+The current serving release is source commit `6215311`, Cloud Build
+`ddbb1aea-fa8c-4618-bda4-bba1468f852c`, and Cloud Run revision
+`driftline-00156-k4k` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:9b25e0e8b8e2008fd89439eb0a6675f2d6fe410432e27c3ee96d06cb98e2e5c6`.
+`sha256:2e2fd930a57591c99f99d2e084bd6e6dcd7dc923d778c97357596760b89372d1`.
 
 The current release includes the visible Salesforce reauthorization recovery
-control. The callback metadata and tenant-scoped secret pointer are durable,
-but the direct Salesforce probe is still `invalid_grant`; this submission draft
-does not claim a live CRM read.
+control and an explicit `reauthorization_required` health response when a
+stored refresh token is rejected. The callback metadata and tenant-scoped
+secret pointer are durable, but no Salesforce object totals or successful CRM
+read are claimed until fresh consent succeeds.
 
 - Local gate for the current source: 261 backend tests passed, the focused
   Salesforce connector suite passed 37 tests, Ruff passed, and the frontend

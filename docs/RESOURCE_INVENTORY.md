@@ -12,14 +12,14 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T23:45Z` with the active gcloud project set to
+Checked `2026-08-21T23:56Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00155-r9d` at 100% traffic. Its immutable serving image is
-  `sha256:9b25e0e8b8e2008fd89439eb0a6675f2d6fe410432e27c3ee96d06cb98e2e5c6`.
-- Source commit `2109fae` was built by Cloud Build
-  `0f19ede8-e47a-47ed-aefb-c3eb1f66aa63`; GitHub Actions run `32537023541`
+  `driftline-00156-k4k` at 100% traffic. Its immutable serving image is
+  `sha256:2e2fd930a57591c99f99d2e084bd6e6dcd7dc923d778c97357596760b89372d1`.
+- Source commit `6215311` was built by Cloud Build
+  `ddbb1aea-fa8c-4618-bda4-bba1468f852c`; GitHub Actions run `32538330453`
   passed the repository gates.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
@@ -31,9 +31,9 @@ Checked `2026-08-21T23:45Z` with the active gcloud project set to
 - The Settings surface exposes the tenant-scoped Salesforce OAuth handoff,
   aggregate read probe, and **Reauthorize read-only** recovery control without
   exposing credentials or CRM records. The owner-completed callback persists
-  a read-only connection and tenant Secret Manager pointer; the latest direct
-  aggregate probe returns Salesforce `invalid_grant`, so object totals remain
-  unverified until a fresh owner consent succeeds.
+  a read-only connection and tenant Secret Manager pointer; a rejected refresh
+  token now returns explicit `reauthorization_required` state, so object totals
+  remain unverified until a fresh owner consent succeeds.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
@@ -41,13 +41,16 @@ Checked `2026-08-21T23:45Z` with the active gcloud project set to
 
 ## 2026-08-21 Salesforce reauthorization recovery release (current serving revision)
 
-- Source commit `2109fae` deployed successfully through Cloud Build
-  `0f19ede8-e47a-47ed-aefb-c3eb1f66aa63` (`SUCCESS`) as revision
-  `driftline-00155-r9d` at 100% traffic. The immutable serving image is
-  `sha256:9b25e0e8b8e2008fd89439eb0a6675f2d6fe410432e27c3ee96d06cb98e2e5c6`.
+- Source commit `6215311` deployed successfully through Cloud Build
+  `ddbb1aea-fa8c-4618-bda4-bba1468f852c` (`SUCCESS`) as revision
+  `driftline-00156-k4k` at 100% traffic. The immutable serving image is
+  `sha256:2e2fd930a57591c99f99d2e084bd6e6dcd7dc923d778c97357596760b89372d1`.
 - The release adds a visible **Reauthorize read-only** action next to the
   Salesforce aggregate probe. It starts the same owner-controlled OAuth
   consent flow without changing connector scope or exposing a token.
+- A rejected refresh token now returns a bounded `reauthorization_required`
+  health state instead of an HTTP 503, so Cloud Run does not classify a
+  recoverable consent action as an application outage.
 - The owner-completed callback at `2026-08-21T22:39:18Z` is verified in
   Firestore as `connected_read_only`, with the deterministic tenant secret
   pointer and impersonated runtime read path. A direct probe at

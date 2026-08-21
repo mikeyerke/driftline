@@ -142,9 +142,11 @@ callback, Salesforce uses the same deterministic tenant binding
 (`driftline-tenant-<tenant>-salesforce`) and contributes only allowlisted object
 counts/field names. The owner-completed callback has been verified to persist a
 read-only connection record, tenant-scoped Secret Manager pointer, and the
-impersonated credential path. The latest direct aggregate probe still returns
-`invalid_grant` from Salesforce, so a fresh owner reauthorization is required
-before claiming a live CRM read; no object totals are claimed here. Jira,
+impersonated credential path. If Salesforce rejects the stored refresh token,
+the health endpoint returns an explicit `reauthorization_required` state (not a
+generic application outage) and the UI links directly back to owner consent.
+Until a fresh probe returns object totals, no live CRM read is claimed here.
+Jira,
 Confluence, Slack, and GitHub remain aggregate-only connector evidence, not
 customer-pilot outcomes.
 
@@ -508,17 +510,17 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `2109fae`, Cloud Build
-`0f19ede8-e47a-47ed-aefb-c3eb1f66aa63`, and Cloud Run revision
-`driftline-00155-r9d` at 100% traffic. Its immutable image digest is
-`sha256:9b25e0e8b8e2008fd89439eb0a6675f2d6fe410432e27c3ee96d06cb98e2e5c6`.
-GitHub Actions run `32537023541` passed the repository gates. This release adds
-the visible Salesforce **Reauthorize read-only** recovery control and retains
-the tenant-scoped Secret Manager access path. The latest direct Salesforce
-probe is intentionally recorded as `invalid_grant` until the owner completes a
-fresh consent; the agent, approval, and undo identifiers below refer to the
-verified prior serving release and are not silently relabeled as Salesforce
-proof.
+The current serving release is source commit `6215311`, Cloud Build
+`ddbb1aea-fa8c-4618-bda4-bba1468f852c`, and Cloud Run revision
+`driftline-00156-k4k` at 100% traffic. Its immutable image digest is recorded
+in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
+GitHub Actions run `32538330453` passed the repository gates. This release adds
+the explicit Salesforce `reauthorization_required` contract, keeps the visible
+**Reauthorize read-only** recovery control, and retains the tenant-scoped Secret
+Manager access path. The owner must still complete a fresh consent before a
+live CRM read can be claimed; the agent, approval, and undo identifiers below
+refer to the verified prior application release and are not silently relabeled
+as Salesforce proof.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
 packet/undo behavior, and the direct `/api/agent/run` path; the public lane
@@ -545,9 +547,10 @@ short-lived Google ID token only in the `Authorization` header, with a CI guard
 against body or URL duplication. The Settings surface exposes the
 tenant-scoped Salesforce read-only OAuth handoff, aggregate health probe, and
 reauthorization recovery control. The owner-completed callback is persisted as
-a read-only connection, but the latest probe returned Salesforce
-`invalid_grant`; Driftline does not claim a live CRM read until a fresh consent
-produces object totals.
+a read-only connection. When the stored refresh token is rejected, the current
+release returns `reauthorization_required` rather than an application 503;
+Driftline still does not claim a live CRM read until a fresh consent produces
+object totals.
 
 The cadence path was re-run against the same isolated deployment at
 `2026-08-21T20:31:32Z`: the real Scheduler identity selected only the two due
