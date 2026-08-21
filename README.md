@@ -519,6 +519,15 @@ telemetry still load on approach rather than competing with first paint. See
 [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md) for the exact
 evidence and remaining unmeasured customer outcomes.
 
+The latest proof refresh also exercised the real background delivery path:
+Cloud Scheduler sent an OIDC-authenticated HTTP 200 request to
+`/api/scheduler/tick` on the serving revision and cadence rules deferred
+healthy sources that were not due. Fresh repeatable proof identifiers are
+`job-9dfaae082328` / `6aa95f1c-df5a-4ae7-9a2d-f0d5416705ca` for the live agent
+and `job-645b96127b2d` / `0b350ff6-9cf8-460a-b4d2-b2cca879339e` for
+approval/undo. Artifact Registry retains the newest ten images and the serving
+digest; older unreferenced builds were removed from this isolated project.
+
 ## Public links
 
 - Live demo: https://driftline-xvxczqg62a-uc.a.run.app/

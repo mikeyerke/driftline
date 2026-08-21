@@ -127,8 +127,8 @@ The immutable image digest is
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-575414fcb95f` / workflow
-  `da2044fe-60ae-4cae-9d95-47a22ccf8761` returned `needs_approval`,
+- Live agent check: fresh job `job-9dfaae082328` / workflow
+  `6aa95f1c-df5a-4ae7-9a2d-f0d5416705ca` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -140,10 +140,15 @@ The immutable image digest is
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-29d033086f51` / workflow
-  `46df9083-4ab9-4d96-821a-a9ebe6a359aa` persisted the packet, reversed the
+- Approval/undo check: fresh job `job-645b96127b2d` / workflow
+  `0b350ff6-9cf8-460a-b4d2-b2cca879339e` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
+- Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
+  manually triggered and Cloud Logging recorded an OIDC-authenticated HTTP 200
+  request to `/api/scheduler/tick` on the serving Cloud Run revision. Cadence
+  rules deferred healthy sources that were not due, so no synthetic monitoring
+  claim is made beyond the recorded delivery.
 - Breadth check on the same serving revision: competitor offerings
   (`job-82ac284398b6`, workflow `a1190503-0c2f-4182-83c9-22e4879fc6e1`),
   competitor narrative/blog (`job-b8a7d0ebcf6d`, workflow

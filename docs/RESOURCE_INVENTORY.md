@@ -12,7 +12,7 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T17:47:09Z` with the active gcloud project set to
+Checked `2026-08-21T17:55:45Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
@@ -29,6 +29,31 @@ Checked `2026-08-21T17:47:09Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 latest production proof refresh
+
+- The isolated Cloud Scheduler job `driftline-monitor` was manually triggered
+  at `2026-08-21T17:51:29Z`. Cloud Logging recorded an
+  OIDC-authenticated `Google-Cloud-Scheduler` request to `/api/scheduler/tick`
+  on `driftline-00130-9cn` with HTTP 200 and 2.29 seconds latency. This proves
+  the background delivery path is live; the cadence-aware scheduler correctly
+  deferred healthy sources that were not yet due.
+- `scripts/verify_production.sh` passed against the same revision at
+  `2026-08-21T17:55Z`: Firestore, Tasks, Scheduler, uptime, alerting, IAM,
+  security headers, tenant boundary, and zero recent Cloud Run errors.
+- Fresh exact-revision live agent proof passed on job
+  `job-9dfaae082328` / workflow `6aa95f1c-df5a-4ae7-9a2d-f0d5416705ca` with
+  `needs_approval`, `public_source`, Gemini 3.5 Flash, Google ADK, two
+  allowlisted tools, four artifacts, five audit events, and two Decision
+  Copilot options.
+- Fresh exact-revision approval/undo proof passed on job
+  `job-645b96127b2d` / workflow `0b350ff6-9cf8-460a-b4d2-b2cca879339e`;
+  the packet persisted, the operational output reversed, and both
+  external-write flags were false.
+- Artifact Registry cleanup retained the newest ten image digests, including
+  the serving digest, and removed eleven older unreferenced tagged builds from
+  this isolated repository. No Cloud Run revision or serving image was
+  deleted; the 30-day cleanup policy remains active.
 
 ## 2026-08-21 evaluation-boundary and proof-of-action polish (live)
 

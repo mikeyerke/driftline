@@ -35,14 +35,18 @@ Current release: source `453169b`, Cloud Run `driftline-00130-9cn`, Cloud Build
   packet record, and timeline; the undo response persisted
   `action-63355af11e1c35cb5150` as `reversed` with all connector external-write
   flags false.
-- `scripts/verify_live_agent.sh`: fresh job `job-575414fcb95f`, workflow
-  `da2044fe-60ae-4cae-9d95-47a22ccf8761`, five audit events and four artifacts.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-29d033086f51`,
-  workflow `46df9083-4ab9-4d96-821a-a9ebe6a359aa`, packet persisted and
+- `scripts/verify_live_agent.sh`: fresh job `job-9dfaae082328`, workflow
+  `6aa95f1c-df5a-4ae7-9a2d-f0d5416705ca`, five audit events and four artifacts.
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-645b96127b2d`,
+  workflow `0b350ff6-9cf8-460a-b4d2-b2cca879339e`, packet persisted and
   reversed with both external-write flags false. The verifier now also fails
   closed unless the approval journey carries structured Gemini impact/Decision
   Copilot options, passing deterministic policy review, and matching evidence
   hashes.
+- A manual run of the isolated `driftline-monitor` Scheduler job produced an
+  OIDC-authenticated HTTP 200 `/api/scheduler/tick` request on the serving
+  revision; healthy sources were correctly deferred until their cadence due
+  time rather than spending another model call.
 - The same deployed agent handled three additional bounded source families:
   competitor offerings (`job-82ac284398b6`, workflow
   `a1190503-0c2f-4182-83c9-22e4879fc6e1`), competitor narrative/blog
