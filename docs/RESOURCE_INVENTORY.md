@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T16:20:00Z` with the active gcloud project set to
+Checked `2026-08-21T16:37:43Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00124-ln5` at 100% traffic. Its immutable serving image is
-  `sha256:86769ded2dd5d53d3ad585757c957471e53afdefeca0f3a0b0d6f64ec12ab84d`.
+  `driftline-00125-2bl` at 100% traffic. Its immutable serving image is
+  `sha256:8507753c033b6060b3ab3f1dbff0119521883930b5989bf9b6662ba0fa7004d1`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -27,6 +27,33 @@ Checked `2026-08-21T16:20:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 cadence-aware monitor release (live)
+
+- Source commit `5f06bb2` was deployed by Cloud Build
+  `b915d84b-7b4b-4b22-8153-b316dde951de` (`SUCCESS`) as Cloud Run revision
+  `driftline-00125-2bl` at 100% traffic. The immutable image digest is
+  `sha256:8507753c033b6060b3ab3f1dbff0119521883930b5989bf9b6662ba0fa7004d1`.
+- Scheduler selection is now cadence-aware: healthy sources wait for their
+  observation cadence, while missing baselines, stale sources, source-fetch
+  failures, and synthetic-only records are eligible for recovery. Due work is
+  round-robined across tenant buckets before the hard 25-source cap, and the
+  response includes deferred source IDs with `not_due` or `source_cap` reasons.
+  Freshness SLA remains a separate staleness signal.
+- The live Cloud Scheduler job `driftline-monitor` remains `ENABLED` on
+  `0 */6 * * *` UTC. A manual canary at `2026-08-21T16:37:43Z` returned HTTP
+  200 in Cloud Logging on `driftline-00125-2bl`. The post-canary registry read
+  reported all five pinned sources `healthy`, with cadence-based next-due
+  times (`6h`, `12h`, `24h`) and no source failures.
+- Fresh current-revision live agent proof: job `job-33759ee5113c`, workflow
+  `52e0ee7c-a806-4132-92fd-43a9a4749864`, `needs_approval`, public source,
+  Gemini 3.5 Flash, Google ADK, two allowlisted tools, four artifacts, and
+  five audit events. Fresh approval/undo proof: job `job-71eca3498a3f`,
+  workflow `e0c28b2d-4e22-43f9-8e94-3d56cc42639e`, persisted packet and
+  reversed operational output with both external-write flags false.
+- The full local gate passed 250 backend tests, Ruff, frontend production
+  build, and diff hygiene. GitHub Actions run `32503511174` passed backend
+  tests/lint, frontend build, standalone image build, and repository hygiene.
 
 ## 2026-08-21 release-proof hardening (live verification)
 

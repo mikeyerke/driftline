@@ -25,7 +25,9 @@ source adapter fetches explicitly registered public snapshots. Judge fixtures
 remain pinned and deterministic; a signed operator can onboard additional
 exact HTTPS HTML/text/RSS URLs through `/api/operator/sources`, with redirects,
 query credentials, private DNS-resolved addresses, and bodies over 128KB
-rejected. It is not connected to a real company system.
+rejected. The anonymous judge lane is not connected to a customer's company
+system; the separately authenticated tenant lane can use the configured
+least-privilege connectors described below.
 
 In production source mode, onboarding performs one bounded read immediately and
 returns either `baseline_established` or an explicit fetch failure; the durable
@@ -500,11 +502,11 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `7747baa`, Cloud Build
-`ea1e7339-533b-4109-8128-7f166efd1603`, and Cloud Run revision
-`driftline-00124-ln5` at 100% traffic. Its immutable image digest is
-`sha256:86769ded2dd5d53d3ad585757c957471e53afdefeca0f3a0b0d6f64ec12ab84d`.
-GitHub Actions run `32500963459` passed 248 backend tests, Ruff, the frontend
+The current serving release is source commit `5f06bb2`, Cloud Build
+`b915d84b-7b4b-4b22-8153-b316dde951de`, and Cloud Run revision
+`driftline-00125-2bl` at 100% traffic. Its immutable image digest is
+`sha256:8507753c033b6060b3ab3f1dbff0119521883930b5989bf9b6662ba0fa7004d1`.
+GitHub Actions run `32503511174` passed 250 backend tests, Ruff, the frontend
 production build, a standalone image build, and repository-hygiene checks.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
