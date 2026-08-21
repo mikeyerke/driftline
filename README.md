@@ -105,7 +105,7 @@ creating duplicate downstream work.
 
 The product deliberately measures operational proof rather than inventing ROI:
 workflow throughput, approval latency, source observations, owner-action
-completion, reversals, and source health are observable at
+completion, owner-action cycle time, reversals, and source health are observable at
 `/api/ops/value-proof`. Hours saved, revenue lift, retention impact, and
 willingness-to-pay remain `not_measured` until a real pilot supplies aggregate
 before/after evidence. See

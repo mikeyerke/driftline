@@ -5,7 +5,7 @@ Driftline currently has deployment and workflow evidence, not customer evidence.
 ## What is already observed
 
 - The isolated deployment records source observations, agent runs, approvals, reversals, action items, and connector outcomes in Firestore.
-- `/api/ops/value-proof` reports bounded counts, observed approval latency, action-item completion, and explicitly lists unmeasured outcomes.
+- `/api/ops/value-proof` reports bounded counts, observed approval latency, owner-action cycle time, action-item completion, and explicitly lists unmeasured outcomes.
 - The public demo is packet-only. A signed operator lane is required before a configured connector can write.
 
 These are product-operation facts, not proof of revenue lift, hours saved, or willingness to pay.
@@ -32,7 +32,7 @@ Treat these as hypotheses to test, not results:
 
 ## Instrumentation that is safe to add
 
-Use aggregate counters only: scan count, source freshness, time from detected change to approval, action-item completion, connector success/failure, and reversal count. Driftline exposes approval-latency p50/p90 from its own audit timestamps, not a customer productivity claim. Never log source credentials, customer text, or raw CRM records. Keep browser analytics optional and privacy-preserving.
+Use aggregate counters only: scan count, source freshness, time from detected change to approval, time from action creation to owner completion, action-item completion, connector success/failure, and reversal count. Driftline exposes approval-latency and owner-action-cycle p50/p90 from its own audit timestamps, not a customer productivity claim. Never log source credentials, customer text, or raw CRM records. Keep browser analytics optional and privacy-preserving.
 
 When a real pilot exists, a signed operator can submit one aggregate record to
 `POST /api/ops/outcomes` with a source type, cohort label, before/after minutes,
