@@ -801,6 +801,33 @@ class JiraConnector:
         )
         existing = (search.get("issues") or [None])[0]
         if existing:
+            labels = {
+                str(label).strip()
+                for label in (existing.get("fields") or {}).get("labels", [])
+            }
+            if "driftline-reversed" in labels:
+                # A prior human-approved action may have been undone. Reusing
+                # that marker is still idempotent, but the new approval must
+                # make the external state active again or Driftline would
+                # report a successful write that Jira did not reflect.
+                self._request(
+                    "PUT",
+                    f"/rest/api/3/issue/{quote(str(existing.get('key')), safe='')}",
+                    {
+                        "update": {
+                            "labels": [
+                                {"remove": "driftline-reversed"},
+                                {"add": "driftline-active"},
+                            ]
+                        }
+                    },
+                )
+                return {
+                    "status": "reactivated",
+                    "issue_key": existing.get("key"),
+                    "issue_url": existing.get("self"),
+                    "idempotent": True,
+                }
             return {
                 "status": "reused",
                 "issue_key": existing.get("key"),

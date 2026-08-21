@@ -81,6 +81,60 @@ def test_jira_create_is_project_scoped_and_marker_idempotent() -> None:
     assert "Driftline action action-1" in body["fields"]["description"]["content"][0]["content"][0]["text"]
 
 
+def test_jira_reactivates_a_reversed_marker_before_reuse() -> None:
+    requests = []
+    responses = [
+        {
+            "issues": [
+                {
+                    "key": "DRIFT-42",
+                    "self": "https://jira.example/rest/api/3/issue/10042",
+                    "fields": {"labels": ["driftline-reversed"]},
+                }
+            ]
+        },
+        {},
+    ]
+
+    def opener(request, timeout):
+        requests.append((request, timeout))
+        return _Response(responses.pop(0))
+
+    connector = JiraConnector(
+        JiraConfig(
+            enabled=True,
+            base_url="https://example.atlassian.net/",
+            email="operator@example.com",
+            token="test-token",
+            project_key="DRIFT",
+        ),
+        opener=opener,
+    )
+    result = connector.create_or_reuse_issue(
+        workflow_id="wf-1",
+        action_id="action-1",
+        source_name="Competitor pricing",
+        evidence_hash="abc123",
+        artifact="Comparison map",
+        owner="Product Marketing",
+        proposed="Update the price.",
+    )
+
+    assert result == {
+        "status": "reactivated",
+        "issue_key": "DRIFT-42",
+        "issue_url": "https://jira.example/rest/api/3/issue/10042",
+        "idempotent": True,
+    }
+    assert len(requests) == 2
+    assert requests[1][0].method == "PUT"
+    body = json.loads(requests[1][0].data)
+    assert body["update"]["labels"] == [
+        {"remove": "driftline-reversed"},
+        {"add": "driftline-active"},
+    ]
+
+
 def test_jira_reverse_toggles_only_driftline_owned_labels() -> None:
     requests = []
 
