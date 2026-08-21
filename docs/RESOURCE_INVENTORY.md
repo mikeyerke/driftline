@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T10:50:12Z` with the active gcloud project set to
+Checked `2026-08-21T11:02:48Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00099-ztd` at 100% traffic.
+  `driftline-00100-f7x` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,22 @@ Checked `2026-08-21T10:50:12Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 stale-session isolation release (live)
+
+- Source commit `1814bad` was deployed by Cloud Build
+  `63b0d1de-f83d-4fa1-8cbd-5f8fb1b99a69` (`SUCCESS`) as Cloud Run revision
+  `driftline-00100-f7x` at 100% traffic.
+- The browser now attaches a session generation to scans, approval decisions,
+  undo/dismiss requests, retries, history, source registry, and health reads.
+  A response started under a prior tenant or signed-out session is discarded
+  instead of repopulating the current console.
+- The fresh public browser completed a deployed Gemini scan in 11 seconds,
+  rendered the verified evidence-bound decision card, four mapped artifacts,
+  and the deterministic human gate; it reported no browser alerts and no
+  horizontal overflow. `/health` and `scripts/verify_production.sh` passed,
+  with zero recent Cloud Run errors. Local verification remained 242 tests,
+  Ruff, frontend production build, and `git diff --check` passing.
 
 ## 2026-08-21 tenant-switch isolation release (live)
 
