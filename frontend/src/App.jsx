@@ -331,7 +331,7 @@ export default function App() {
               <h2>{workflowState?.title || (selectedSource === "competitor/pricing" ? "Competitor pricing moved" : selectedSource === "competitor/offerings" ? "Competitor offering changed" : selectedSource === "competitor/blog" ? "Competitor product narrative changed" : "Enterprise plan packaging changed")}</h2>
                 <div className="metadata">
                   <span><strong>Source</strong>{evidence.source_name}</span><i /><span><strong>Detected</strong>{workflowState ? "Just now" : "Awaiting scan"}</span><i />
-                  <span><strong>Confidence</strong><CheckCircle2 className="verified" size={15} />Verified</span><i /><span><strong>Severity</strong><b className="risk-dot high-dot" />High</span>
+                  <span><strong>Confidence</strong>{workflowState ? <><CheckCircle2 className="verified" size={15} />Verified</> : <em className="metadata-preview">Preview</em>}</span><i /><span><strong>{workflowState ? "Severity" : "Scenario risk"}</strong><b className="risk-dot high-dot" />High</span>
                 </div>
               </div>
               <button className="secondary incident-details" onClick={() => setShowEvidence(true)} type="button">View source evidence<ChevronDown size={16} /></button>
@@ -373,7 +373,7 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onRegistered={(payload) => { if (payload?.source?.source_id) setSelectedSource(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onRegistered={(payload) => { if (payload?.source?.source_id) setSelectedSource(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel />
           <ValueProofPanel />
           <PilotMeasurementPanel operatorSession={operatorSession} />

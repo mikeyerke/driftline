@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle2, ExternalLink, Globe2, Hash, History, ShieldC
 import { getSourceHistory, registerSource } from "../api";
 import MultimodalEvidencePanel from "./MultimodalEvidencePanel";
 
-export default function SourcePanel({ evidence, dataMode, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered }) {
+export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = false, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered }) {
   const isPublic = dataMode === "public_source";
   const [history, setHistory] = useState([]);
   const [showRegister, setShowRegister] = useState(false);
@@ -59,8 +59,8 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
       </header>
       <div className="source-grid">
         <div className="source-identity"><span className="source-icon"><Globe2 size={20} /></span><div><strong>{evidence?.source_name || "Public pricing snapshot"}</strong><small>{evidence?.source_id || "public/pricing"}</small></div></div>
-        <div><span className="source-label"><ShieldCheck size={14} />Evidence status</span><strong>Hash-bound and verified</strong></div>
-        <div><span className="source-label"><Hash size={14} />Snapshot hash</span><code>{evidence?.snapshot_hash || evidence?.evidence_hash || "Not captured yet"}</code></div>
+        <div><span className="source-label"><ShieldCheck size={14} />Evidence status</span><strong>{hasLiveWorkflow ? "Hash-bound and verified" : "Preview fixture · not captured"}</strong></div>
+        <div><span className="source-label"><Hash size={14} />{hasLiveWorkflow ? "Snapshot hash" : "Preview hash"}</span><code>{evidence?.snapshot_hash || evidence?.evidence_hash || "Not captured yet"}</code></div>
         <div><span className="source-label">Retrieved</span><strong>{evidence?.retrieved_at ? new Date(evidence.retrieved_at).toLocaleString() : "Run the scan to capture"}</strong></div>
       </div>
       {evidence?.source_url && <a className="source-link" href={evidence.source_url} target="_blank" rel="noreferrer">Open the allowlisted source snapshot <ExternalLink size={14} /></a>}
