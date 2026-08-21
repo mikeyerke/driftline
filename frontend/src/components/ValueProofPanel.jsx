@@ -31,6 +31,7 @@ export default function ValueProofPanel() {
 
   const observed = proof?.observed || {};
   const latency = observed.approval_latency_seconds || {};
+  const latencySamples = latency.sample_count || 0;
   const notMeasured = proof?.not_measured || [];
   const workflowModes = Object.entries(observed.workflow_data_modes || {});
 
@@ -46,7 +47,7 @@ export default function ValueProofPanel() {
           <div><Activity size={16} /><strong>{metric(observed.workflows)}</strong><small>workflows recorded</small></div>
           <div><CheckCircle2 size={16} /><strong>{metric(observed.cards_with_named_owners)}</strong><small>cards with named owners</small></div>
           <div><ShieldCheck size={16} /><strong>{metric(observed.workflows_reversed_or_reopened)}</strong><small>reopened or reversed</small></div>
-          <div><Clock3 size={16} /><strong>{seconds(latency.p50)}</strong><small>approval latency p50</small></div>
+          <div><Clock3 size={16} /><strong>{seconds(latency.p50)}</strong><small>approval latency p50 · n={latencySamples}</small></div>
         </div>
         <div className="value-proof-details">
           <div>
@@ -55,6 +56,7 @@ export default function ValueProofPanel() {
               <div><dt>Source observations</dt><dd>{metric(observed.source_observations)}</dd></div>
               <div><dt>Healthy sources</dt><dd>{metric(observed.healthy_sources)}</dd></div>
               <div><dt>Owner action completion</dt><dd>{observed.action_item_completion_rate === null || observed.action_item_completion_rate === undefined ? "—" : `${Math.round(observed.action_item_completion_rate * 100)}%`}</dd></div>
+              <div><dt>Approval latency p90</dt><dd>{seconds(latency.p90)}</dd></div>
               <div><dt>External writes</dt><dd>{metric(observed.external_write_actions)}</dd></div>
             </dl>
           </div>
