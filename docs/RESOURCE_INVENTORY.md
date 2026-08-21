@@ -63,6 +63,14 @@ Checked `2026-08-21T14:37:36Z` with the active gcloud project set to
   immediately after the change, and `scripts/verify_production.sh` now fails
   closed if a future release reintroduces any project-level
   `roles/secretmanager.*` grant for the shared runtime.
+- Artifact Registry was rechecked at 75 image versions and approximately
+  8.66 GB before cleanup. The retention policy is now active with dry-run
+  disabled; 65 older exact digests were deleted after verifying that the
+  serving digest `sha256:2c1a03c2a010f50d6031097823cfe9ffe9b5b318fd8f843680a1e3042ba53403`
+  was in the newest ten. Exactly 10 rollback candidates remain; the current
+  displayed repository size is 7.67 GB while blob garbage collection catches
+  up. The private Cloud Storage artifact bucket was also confirmed with the
+  Driftline production labels.
 
 ## 2026-08-21 Gemini structured-output resilience release (live)
 
