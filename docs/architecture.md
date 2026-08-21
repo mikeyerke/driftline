@@ -158,9 +158,12 @@ fixed, bounded read against its deployment scope and returns aggregate
 metadata only. Jira is limited to open work in the configured project,
 Confluence to page counts in the configured space, Slack to recent message
 volume in the configured channel, and GitHub to open issue/PR counts in the
-configured repository. No user-supplied query, object ID, page body, message
-text, or repository target is accepted. The result is request-scoped, not
-persisted, and never becomes public demo context.
+configured repository. Salesforce is a fifth tenant-bound lane: before OAuth
+consent it reports authorization required; after consent it reads only
+Product2, PricebookEntry, and Opportunity aggregate counts/field names. No
+user-supplied query, object ID, page body, message text, CRM record, or
+repository target is accepted. The result is request-scoped, not persisted,
+and never becomes public demo context.
 Reopening a decision restores the approval gate and is not an external undo.
 Connector manifests are deliberately marked `external_write: false` in the
 public demo. A configured connector is callable only after a separately signed

@@ -1,16 +1,20 @@
-import { AlertCircle, CheckCircle2, FileText, GitPullRequest, Hash, MessageSquare, RefreshCw, ShieldCheck, TicketCheck } from "lucide-react";
+import { AlertCircle, CheckCircle2, Database, FileText, GitPullRequest, Hash, MessageSquare, RefreshCw, ShieldCheck, TicketCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getConnectorBindingsHealth, getConnectorContextSummary } from "../api";
 
-const icons = { Jira: TicketCheck, Confluence: FileText, Slack: MessageSquare, GitHub: GitPullRequest };
+const icons = { Jira: TicketCheck, Confluence: FileText, Slack: MessageSquare, GitHub: GitPullRequest, Salesforce: Database };
 
-const connectorOrder = ["Jira", "Confluence", "Slack", "GitHub"];
+const connectorOrder = ["Jira", "Confluence", "Slack", "GitHub", "Salesforce"];
 
 function aggregateLabel(system, data = {}) {
   if (system === "Jira" && data.open_issue_count !== undefined) return `${data.open_issue_count} open issues`;
   if (system === "Confluence" && data.page_count !== undefined) return `${data.page_count} pages in scope`;
   if (system === "Slack" && data.recent_message_count !== undefined) return `${data.recent_message_count} recent messages`;
   if (system === "GitHub" && data.open_issue_count !== undefined) return `${data.open_issue_count} issues · ${data.open_pull_request_count || 0} PRs`;
+  if (system === "Salesforce" && Array.isArray(data.objects)) {
+    const total = data.objects.reduce((sum, item) => sum + Number(item.total || 0), 0);
+    return `${data.objects.length} objects · ${total} records`;
+  }
   if (data.status === "not_configured") return "Not configured";
   if (data.status === "failed") return "Read failed";
   return "Aggregate context available";
@@ -27,7 +31,7 @@ export default function IntegrationPanel({ targets = [], approved, dismissed, ac
     setContextError("");
   }, [operatorSession?.tenantId]);
   if (!targets.length) return null;
-  const statusKeys = { Jira: "jira_status", Confluence: "confluence_status", Slack: "slack_status", GitHub: "github_status" };
+  const statusKeys = { Jira: "jira_status", Confluence: "confluence_status", Slack: "slack_status", GitHub: "github_status", Salesforce: "salesforce_status" };
   const connectorStatuses = new Set(["created", "reused", "reactivated", "reversed"]);
   const statusFor = (target) => {
     if (dismissed) return { label: "Not created", written: false };

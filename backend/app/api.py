@@ -1297,6 +1297,7 @@ def _connector_context_info(tenant_id: str) -> dict[str, object]:
         ("confluence", lambda: ConfluenceConnector(ConfluenceConfig.from_env(tenant_id)).read_context_summary(), "read_only_space"),
         ("slack", lambda: SlackConnector(SlackConfig.from_env(tenant_id)).read_context_summary(), "read_only_channel"),
         ("github", lambda: GitHubConnector(GitHubConfig.from_env(tenant_id)).read_context_summary(), "read_only_repository"),
+        ("salesforce", lambda: _salesforce_context_info(tenant_id), "read_only_crm"),
     )
     result: dict[str, object] = {}
     for name, operation, scope in definitions:
@@ -1312,7 +1313,14 @@ def _connector_context_info(tenant_id: str) -> dict[str, object]:
             continue
         try:
             summary = operation()
-            result[name] = {**summary, "external_read": True}
+            result[name] = {
+                **summary,
+                # A connector may be enabled at the deployment level while a
+                # tenant is still awaiting OAuth. Preserve that honest
+                # per-tenant state instead of turning a metadata-only result
+                # into a false external-read claim.
+                "external_read": summary.get("external_read", True),
+            }
         except ConnectorError as exc:
             logger.warning("%s context read failed: %s", name, exc)
             result[name] = {
@@ -1797,6 +1805,71 @@ def _salesforce_secret_name(tenant_id: str) -> str:
     return tenant_connector_secret_name(tenant_id, "salesforce")
 
 
+def _salesforce_connection_metadata(
+    tenant_id: str,
+) -> tuple[dict[str, object], dict[str, object], bool]:
+    """Load Salesforce metadata and verify the exact tenant binding."""
+    connection = load_salesforce_connection(tenant_id) or {}
+    binding = load_connector_binding(tenant_id, "salesforce") or {}
+    connected = (
+        connection.get("status") == "connected_read_only"
+        and binding.get("status") == "active"
+        and binding.get("secret_name") == _salesforce_secret_name(tenant_id)
+    )
+    return connection, binding, connected
+
+
+def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
+    """Return aggregate Salesforce context for the signed internal lane.
+
+    This function deliberately performs no work when the tenant has not
+    completed OAuth. Once connected, it reuses the same fixed object allowlist
+    as the explicit health probe and returns counts/field names only; raw CRM
+    records, tokens, and query text never enter the workflow or audit log.
+    """
+    readiness = salesforce_readiness()
+    connection, _binding, connected = _salesforce_connection_metadata(tenant_id)
+    if not connected:
+        return {
+            "status": "not_configured",
+            "mode": readiness.get("mode", "prepared_only"),
+            "scope": "read_only_crm",
+            "external_read": False,
+            "redaction": "aggregate_metadata_only",
+            "authorization_required": readiness.get("status") == "oauth_ready",
+        }
+    config = SalesforceConfig.from_env()
+    try:
+        refresh_token = resolve_tenant_credential(
+            tenant_id,
+            "salesforce",
+            operation="read_context",
+            secret_reader=read_secret,
+        ).value
+        token = refresh_salesforce_token(config, refresh_token)
+        client = SalesforceReadOnlyClient(
+            config,
+            access_token=str(token["access_token"]),
+            instance_url=str(connection["instance_url"]),
+        )
+        return {
+            **client.health_summary(),
+            "scope": "read_only_crm",
+            "external_read": True,
+            "redaction": "aggregate_metadata_only",
+        }
+    except (ConnectorError, CredentialBrokerError) as exc:
+        logger.warning("salesforce context read failed: %s", exc)
+        return {
+            "status": "failed",
+            "mode": "read_only_context",
+            "scope": "read_only_crm",
+            "external_read": False,
+            "redaction": "aggregate_metadata_only",
+            "reason": str(exc),
+        }
+
+
 def _save_salesforce_state(state: str, payload: dict[str, object]) -> None:
     expires_at = float(payload.get("expires_at", 0))
     with _salesforce_oauth_lock:
@@ -1848,14 +1921,7 @@ def salesforce_status(
     )
     safe_tenant = identity["tenant_id"]
     readiness = salesforce_readiness()
-    connection = load_salesforce_connection(safe_tenant) or {}
-    binding = load_connector_binding(safe_tenant, "salesforce") or {}
-    expected_secret = _salesforce_secret_name(safe_tenant)
-    connected = (
-        connection.get("status") == "connected_read_only"
-        and binding.get("status") == "active"
-        and binding.get("secret_name") == expected_secret
-    )
+    connection, binding, connected = _salesforce_connection_metadata(safe_tenant)
     instance_url = str(connection.get("instance_url", "")).rstrip("/")
     hostname = urlparse(instance_url).hostname if instance_url else None
     return {
@@ -2038,15 +2104,9 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
             detail="Connector read quota reached; retry later.",
         )
     tenant_id = identity["tenant_id"]
-    connection = load_salesforce_connection(tenant_id)
-    binding = load_connector_binding(tenant_id, "salesforce")
-    expected_secret = _salesforce_secret_name(tenant_id)
+    connection, _binding, connected = _salesforce_connection_metadata(tenant_id)
     if (
-        not connection
-        or connection.get("status") != "connected_read_only"
-        or not binding
-        or binding.get("status") != "active"
-        or binding.get("secret_name") != expected_secret
+        not connected
     ):
         raise HTTPException(
             status_code=409, detail="Salesforce is not connected for this tenant"

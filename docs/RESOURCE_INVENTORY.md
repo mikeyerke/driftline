@@ -43,6 +43,10 @@ Checked `2026-08-21T19:46Z` with the active gcloud project set to
   renders the returned consent URL without logging it, and offers a separate
   aggregate-only Salesforce read probe after callback completion. The route
   returns tenant metadata only (`credential_values_exposed=false`).
+- The signed internal context summary now includes a fifth Salesforce card. It
+  remains `not_configured`/`authorization_required` until the owner completes
+  the OAuth callback; after connection it reads only the fixed CRM object
+  aggregates and preserves `external_read=false` before consent.
 - Local verification passed 253 backend tests, Ruff, frontend build
   (`316.74 kB`, `93.09 kB` gzip), and `git diff --check`. GitHub Actions run
   `32519809024` passed all repository gates.

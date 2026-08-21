@@ -130,18 +130,21 @@ this lane.
 
 For an authenticated operator, `POST /api/connectors/context/summary` adds a
 bounded internal-workload view before approval: fixed-scope Jira, Confluence,
-Slack, and GitHub connectors return aggregate counts only. It is signed-only,
-request-scoped, and never exposes source text or private records to the public
-console. The authenticated console exposes this as a deliberate **Refresh
-context** control beside the handoff destinations, so an operator can verify
-connector health and aggregate workload before choosing an action. Unconfigured integrations remain explicitly `prepared_only`;
-Salesforce is a read-only OAuth lane pending real tenant consent, and its
-refresh token follows the same deterministic tenant binding
-(`driftline-tenant-<tenant>-salesforce`) after the callback.
-The latest deployed signed probe returned HTTP 200 for all four configured
-connectors (Jira 18 sampled issues, Confluence 5 pages, Slack 27 recent
-messages, GitHub 0 open issues/0 open pull requests) with aggregate-only
-redaction; this is live runtime-read evidence, not a customer-pilot outcome.
+Slack, GitHub, and (after tenant OAuth) Salesforce connectors return aggregate
+counts only. It is signed-only, request-scoped, and never exposes source text,
+CRM records, or private credentials to the public console. The authenticated
+console exposes this as a deliberate **Refresh context** control beside the
+handoff destinations, so an operator can verify connector health and aggregate
+workload before choosing an action. Unconfigured integrations remain explicitly
+`prepared_only`; Salesforce is shown as `not_configured` with
+`authorization_required=true` until the tenant completes consent. After the
+callback, Salesforce uses the same deterministic tenant binding
+(`driftline-tenant-<tenant>-salesforce`) and contributes only allowlisted object
+counts/field names. The latest deployed signed probe returned HTTP 200 for all
+four configured connectors (Jira 18 sampled issues, Confluence 5 pages, Slack
+27 recent messages, GitHub 0 open issues/0 open pull requests) and an honest
+Salesforce authorization-required card with aggregate-only redaction; this is
+live runtime-read evidence, not a customer-pilot outcome.
 
 External connector credentials are tenant-bound. An owner provisions the
 deterministic Secret Manager secret and activates its metadata-only binding via

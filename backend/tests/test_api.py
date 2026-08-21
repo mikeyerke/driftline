@@ -989,6 +989,108 @@ def test_salesforce_status_returns_tenant_metadata_without_credentials(monkeypat
     assert "secret" not in payload
 
 
+def test_salesforce_context_is_explicitly_unconfigured_before_oauth(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {
+            "status": "oauth_ready",
+            "mode": "awaiting_authorization",
+            "scope": "read_only_context",
+        },
+    )
+    monkeypatch.setattr(api, "load_salesforce_connection", lambda _tenant: None)
+    monkeypatch.setattr(api, "load_connector_binding", lambda *_args: None)
+
+    payload = api._salesforce_context_info("salesforce-acme")
+
+    assert payload == {
+        "status": "not_configured",
+        "mode": "awaiting_authorization",
+        "scope": "read_only_crm",
+        "external_read": False,
+        "redaction": "aggregate_metadata_only",
+        "authorization_required": True,
+    }
+    assert "token" not in str(payload).casefold()
+    assert "secret" not in str(payload).casefold()
+
+
+def test_connector_context_preserves_salesforce_external_read_boundary(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "_salesforce_context_info",
+        lambda _tenant: {
+            "status": "not_configured",
+            "mode": "awaiting_authorization",
+            "external_read": False,
+            "scope": "read_only_crm",
+        },
+    )
+
+    payload = api._connector_context_info("salesforce-acme")
+
+    assert payload["salesforce"]["external_read"] is False
+    assert payload["salesforce"]["status"] == "not_configured"
+
+
+def test_salesforce_context_returns_aggregate_health_only_after_binding(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {"status": "oauth_ready", "mode": "awaiting_authorization"},
+    )
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {"status": "connected_read_only", "instance_url": "https://acme.my.salesforce.com"},
+            {"status": "active"},
+            True,
+        ),
+    )
+    monkeypatch.setattr(api.SalesforceConfig, "from_env", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        api,
+        "resolve_tenant_credential",
+        lambda *_args, **_kwargs: SimpleNamespace(value="refresh-token"),
+    )
+    monkeypatch.setattr(
+        api,
+        "refresh_salesforce_token",
+        lambda *_args, **_kwargs: {"access_token": "short-lived-access-token"},
+    )
+
+    class FakeSalesforceClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def health_summary(self):
+            return {
+                "status": "connected_read_only",
+                "objects": [
+                    {"object": "Product2", "total": 3, "fields": ["Name"]},
+                    {"object": "Opportunity", "total": 2, "fields": ["StageName"]},
+                ],
+                "external_write": False,
+            }
+
+    monkeypatch.setattr(api, "SalesforceReadOnlyClient", FakeSalesforceClient)
+
+    payload = api._salesforce_context_info("salesforce-acme")
+
+    assert payload["status"] == "connected_read_only"
+    assert payload["scope"] == "read_only_crm"
+    assert payload["external_read"] is True
+    assert payload["redaction"] == "aggregate_metadata_only"
+    assert payload["objects"][0]["total"] == 3
+    assert "refresh-token" not in str(payload)
+    assert "short-lived-access-token" not in str(payload)
+
+
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

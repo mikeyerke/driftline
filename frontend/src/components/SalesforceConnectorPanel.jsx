@@ -19,19 +19,24 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
   const [health, setHealth] = useState(null);
   const [error, setError] = useState("");
 
-  const loadStatus = async () => {
-    if (!operatorSession?.identityToken || !operatorSession?.tenantId || loading) return;
+  const refreshStatus = async ({ clearHealth = true } = {}) => {
+    if (!operatorSession?.identityToken || !operatorSession?.tenantId) return null;
     setLoading(true);
     setError("");
     try {
-      setStatus(await getSalesforceStatus());
-      setHealth(null);
+      const nextStatus = await getSalesforceStatus();
+      setStatus(nextStatus);
+      if (clearHealth) setHealth(null);
+      return nextStatus;
     } catch (requestError) {
       setError(requestError.message || "Salesforce status could not be read");
+      return null;
     } finally {
       setLoading(false);
     }
   };
+
+  const loadStatus = () => refreshStatus();
 
   useEffect(() => {
     setStatus(null);
@@ -64,11 +69,13 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
   };
 
   const runHealth = async () => {
+    if (!operatorSession?.identityToken || !operatorSession?.tenantId) return;
     setLoading(true);
     setError("");
     try {
-      setHealth(await getSalesforceHealth());
-      await loadStatus();
+      const [nextHealth, nextStatus] = await Promise.all([getSalesforceHealth(), getSalesforceStatus()]);
+      setHealth(nextHealth);
+      setStatus(nextStatus);
     } catch (requestError) {
       setError(requestError.message || "Salesforce read probe failed");
     } finally {
