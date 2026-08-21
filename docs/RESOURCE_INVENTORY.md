@@ -74,6 +74,26 @@ Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
   take several minutes after creation; the authoritative configuration above
   is already confirmed in Cloud Monitoring.
 
+## 2026-08-21 public end-to-end journey (live)
+
+- Browser-driven production run `job-5f77824896c1` created workflow
+  `794877e3-3794-464d-812b-2c3938c3da79` from the public console. The job
+  completed through `execution_mode=google_adk` with model
+  `gemini-3.5-flash`, source verification, four mapped artifacts, and the
+  deterministic human-approval gate.
+- The approval call recorded the decision and persisted a reversible,
+  evidence-hash-bound packet plus its Google Cloud Storage operational output.
+  The action record reported `external_systems_changed=false` and all
+  external connector lanes remained `prepared_only`, as required for the
+  anonymous public lane.
+- The same run then exercised the undo path. The append-only event log recorded
+  `decision_reopened`; the action record became `status=reversed` with a
+  durable reversal marker and no external write. This proves scan → evidence →
+  approval → persisted output → undo in the deployed product, not merely in a
+  local fixture.
+- Browser error/warning logs were empty and Cloud Logging showed no severity
+  `ERROR` entries for the run window.
+
 ## 2026-08-21 fontless console performance release (live)
 
 - Source commit `02b2e41` passed the full 240-test suite, Ruff,

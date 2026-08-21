@@ -153,6 +153,14 @@ created during the contest.
   It also includes a recoverable frontend error boundary so a render failure
   cannot present a blank console or imply that persisted workflow state was
   lost.
+- A fresh browser-driven run on the deployed revision (`job-5f77824896c1`,
+  workflow `794877e3-3794-464d-812b-2c3938c3da79`) completed the public
+  scan → Gemini/ADK evidence verification → deterministic approval → persisted
+  packet → undo journey. The action record retained its evidence hash,
+  reported `external_systems_changed=false`, and recorded an append-only
+  `decision_reopened` event with a durable reversal marker. This is direct
+  production-path evidence; it does not claim a third-party connector write
+  from the anonymous lane.
   Multimodal evidence is pinned to an immutable asset commit and served as
   smaller JPEG bytes; fingerprinted frontend bundles are immutable-cacheable.
   The public console also avoids a render-blocking third-party font request;
