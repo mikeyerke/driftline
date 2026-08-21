@@ -37,7 +37,7 @@ button:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offset:
 .profile small, .approver small { display: block; color: var(--muted); margin-top: 2px; }
 .avatar { width: 36px; height: 36px; background: #eef1f6; border-radius: 50%; display: grid; place-items: center; font-size: 13px; }
 
-main { min-width: 0; }
+main { min-width: 0; overflow-x: hidden; }
 .topbar { height: 65px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 22px 0 25px; }
 .topbar h1 { margin: 0; font-size: 25px; letter-spacing: -.55px; }
 .topbar-actions { display: flex; gap: 17px; align-items: center; }
