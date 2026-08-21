@@ -952,6 +952,43 @@ def test_salesforce_oauth_start_is_owner_only(monkeypatch) -> None:
     assert response.json()["detail"] == "Tenant owner role is required"
 
 
+def test_salesforce_status_returns_tenant_metadata_without_credentials(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *_args, **_kwargs: {
+            "tenant_id": "salesforce-acme",
+            "role": "owner",
+            "identity": "signed_operator",
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {
+            "status": "oauth_ready",
+            "mode": "awaiting_authorization",
+            "scope": "read_only_context",
+            "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
+        },
+    )
+    monkeypatch.setattr(api, "load_salesforce_connection", lambda _tenant: None)
+    monkeypatch.setattr(api, "load_connector_binding", lambda *_args: None)
+
+    response = client.get(
+        "/api/connectors/salesforce/status",
+        params={"operator": "Owner", "tenant_id": "salesforce-acme"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "oauth_ready"
+    assert payload["authorization_required"] is True
+    assert payload["allowed_objects"] == ["Product2", "PricebookEntry", "Opportunity"]
+    assert payload["credential_values_exposed"] is False
+    assert "secret" not in payload
+
+
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")

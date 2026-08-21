@@ -23,6 +23,7 @@ import ChangeCardPanel from "./components/ChangeCardPanel";
 import ValueProofPanel from "./components/ValueProofPanel";
 import PilotMeasurementPanel from "./components/PilotMeasurementPanel";
 import OperatorAccess from "./components/OperatorAccess";
+import SalesforceConnectorPanel from "./components/SalesforceConnectorPanel";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -430,6 +431,7 @@ export default function App() {
           <ChangeGenomePanel />
           <ValueProofPanel />
           <PilotMeasurementPanel operatorSession={operatorSession} />
+          <SalesforceConnectorPanel operatorSession={operatorSession} />
           <RunHistory jobs={recentJobs} loading={historyLoading} publicMode={!operatorSession.identityToken} canRetry={Boolean(operatorSession.identityToken)} onRetry={retryFailedJob} onVisible={() => refreshHistory()} />
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>

@@ -19,7 +19,7 @@ from statistics import median
 from threading import Lock
 from time import monotonic
 from typing import Any, Literal
-from urllib.parse import parse_qsl, urlencode
+from urllib.parse import parse_qsl, urlencode, urlparse
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -1822,6 +1822,59 @@ def _consume_salesforce_state(state: str) -> dict[str, object] | None:
     if not result or float(result.get("expires_at", 0)) < datetime.now(UTC).timestamp():
         return None
     return result
+
+
+@app.get("/api/connectors/salesforce/status")
+def salesforce_status(
+    operator: str,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return one tenant's Salesforce connection metadata without credentials.
+
+    This is deliberately separate from the health probe: opening Settings must
+    not make a Salesforce network call or refresh a provider token. The browser
+    can use the returned state to offer an explicit OAuth handoff, while the
+    aggregate health action remains a separately auditable operator click.
+    """
+    identity = _verify_approval_mode(
+        "salesforce-status",
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+    safe_tenant = identity["tenant_id"]
+    readiness = salesforce_readiness()
+    connection = load_salesforce_connection(safe_tenant) or {}
+    binding = load_connector_binding(safe_tenant, "salesforce") or {}
+    expected_secret = _salesforce_secret_name(safe_tenant)
+    connected = (
+        connection.get("status") == "connected_read_only"
+        and binding.get("status") == "active"
+        and binding.get("secret_name") == expected_secret
+    )
+    instance_url = str(connection.get("instance_url", "")).rstrip("/")
+    hostname = urlparse(instance_url).hostname if instance_url else None
+    return {
+        "tenant_id": safe_tenant,
+        "connector": "salesforce",
+        "status": "connected_read_only" if connected else readiness.get("status", "not_configured"),
+        "mode": "read_only_context" if connected else readiness.get("mode", "prepared_only"),
+        "external_write": False,
+        "scope": readiness.get("scope", "read_only_context"),
+        "allowed_objects": readiness.get("allowed_objects", ["Product2", "PricebookEntry", "Opportunity"]),
+        "authorization_required": bool(
+            not connected and readiness.get("status") == "oauth_ready"
+        ),
+        "instance_hostname": hostname,
+        "connected_at": connection.get("connected_at") if connected else None,
+        "binding_status": binding.get("status") if binding else None,
+        "verified_at": binding.get("verified_at") if connected else None,
+        "credential_values_exposed": False,
+    }
 
 
 @app.post("/api/connectors/salesforce/start")

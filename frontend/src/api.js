@@ -173,6 +173,30 @@ export function getConnectorBindingsHealth() {
   return request(`/api/connectors/bindings/health?${params.toString()}`, { authenticated: true });
 }
 
+export function getSalesforceStatus() {
+  const params = new URLSearchParams({
+    operator: operatorSession.email || "Google operator",
+  });
+  if (operatorSession.tenantId) params.set("tenant_id", operatorSession.tenantId);
+  return request(`/api/connectors/salesforce/status?${params.toString()}`, { authenticated: true });
+}
+
+export function startSalesforceConnection() {
+  return request("/api/connectors/salesforce/start", {
+    method: "POST",
+    authenticated: true,
+    body: JSON.stringify(signedContext()),
+  });
+}
+
+export function getSalesforceHealth() {
+  return request("/api/connectors/salesforce/health", {
+    method: "POST",
+    authenticated: true,
+    body: JSON.stringify(signedContext()),
+  });
+}
+
 export function getValueProof() {
   return request("/api/ops/value-proof");
 }
