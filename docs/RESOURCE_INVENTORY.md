@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T09:48:00Z` with the active gcloud project set to
+Checked `2026-08-21T10:04:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00091-bnm` at 100% traffic.
+  `driftline-00092-9cn` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -72,6 +72,19 @@ Checked `2026-08-21T09:48:00Z` with the active gcloud project set to
 - The full local gate passed (241 backend tests, Ruff, frontend build, and
   `git diff --check`); `/health` and `scripts/verify_production.sh` passed.
 
+## 2026-08-21 source-health loading truthfulness release (live)
+
+- Source commit `2b14abe` was deployed by Cloud Build
+  `1d76c3b6-3e1c-450c-bc37-45917b81b52f` (`SUCCESS`) as Cloud Run revision
+  `driftline-00092-9cn` at 100% traffic.
+- The source registry now distinguishes `Checking freshness` from a real
+  `needs_baseline` result while the monitor ledger request is in flight, and
+  reports `Freshness unavailable` if that request fails. It no longer flashes
+  a false baseline state during first paint.
+- The deployed browser settled on all five sources as healthy with
+  last-observed and next-due timestamps, with no console errors or warnings;
+  `/health` and the production verification script passed.
+
 ## 2026-08-21 below-fold visual performance release (live)
 
 - Source commit `e7afc28` was deployed by Cloud Build
@@ -103,7 +116,7 @@ Checked `2026-08-21T09:48:00Z` with the active gcloud project set to
 
 - Read-only `scripts/verify_production.sh` passed with the active gcloud
   project explicitly set to `driftline-hackathon-2026`.
-- The check confirmed Cloud Run revision `driftline-00091-bnm` at 100% traffic,
+- The check confirmed Cloud Run revision `driftline-00092-9cn` at 100% traffic,
   Firestore-backed `/health`, enabled Scheduler, a running Cloud Tasks queue
   with one concurrent dispatch and three attempts, the live uptime check and
   alert policy, the production dashboard, and zero severity `ERROR` entries in

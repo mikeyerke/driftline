@@ -134,9 +134,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `4ac141d`, Cloud Build
-  `d6049daf-775d-4e47-ad21-93b4db447763`, and Cloud Run revision
-  `driftline-00091-bnm` at 100% traffic. It passed 241 backend tests, Ruff,
+- The current active release is source commit `2b14abe`, Cloud Build
+  `1d76c3b6-3e1c-450c-bc37-45917b81b52f`, and Cloud Run revision
+  `driftline-00092-9cn` at 100% traffic. It passed 241 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -166,6 +166,10 @@ created during the contest.
   p50/p90 from recorded lifecycle timestamps. These are deployment operations
   telemetry only; customer time saved and business outcomes remain explicitly
   unmeasured until a real pilot.
+- Source freshness now has an explicit loading and unavailable state, so the
+  public console never presents an in-flight monitor request as a false
+  `needs_baseline` condition. The settled browser view shows all five current
+  sources healthy with their observed and next-due timestamps.
 - The multimodal before/after evidence images are browser-lazy-loaded so the
   live console does not eagerly download below-fold visual bytes before a
   reviewer requests that evidence. Production browser verification confirmed
