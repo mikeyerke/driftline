@@ -16,7 +16,7 @@ Checked `2026-08-21T10:02:08Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00094-n2l` at 100% traffic.
+  `driftline-00095-nph` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -587,15 +587,15 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00094-n2l` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00095-nph` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 10%, 25%, 50%, 75%, 90%, and 100% current-spend thresholds; default
   billing-account recipients remain enabled and no custom notification channel
   is configured.
-- Deployed runtime source: `a093952`; Cloud Build
-  `bd21d914-4a88-46df-8f52-e8e5a234d82d`.
+- Deployed runtime source: `2f7865d`; Cloud Build
+  `c1ffee0f-3ebd-44b3-8ec1-8b2e82979c32`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
@@ -3750,6 +3750,22 @@ is no longer needed.
   persistence, async jobs, enabled Scheduler, running Tasks, active uptime
   monitoring, and zero recent Cloud Run errors. The public browser showed the
   coherent competitor first-run state after deployment.
+
+## 2026-08-21 pre-scan truthfulness release (live)
+
+- Source commit `2f7865d` (`Label pre-scan evidence as preview`) passed the
+  local 241-test backend suite, Ruff, frontend production build, and diff
+  checks. Cloud Build `c1ffee0f-3ebd-44b3-8ec1-8b2e82979c32` completed
+  `SUCCESS` and deployed Cloud Run revision `driftline-00095-nph` at 100%
+  traffic.
+- Before a scan starts, the console now labels confidence as `Preview`, risk
+  as `Scenario risk`, and the source panel as `Preview fixture · not captured`.
+  After a live workflow exists, those labels return to verified evidence and
+  the captured snapshot hash. This prevents the static judge fixture from
+  being mistaken for a completed monitor run.
+- A fresh production browser load showed the preview labels with no console
+  errors; `/health` and `scripts/verify_production.sh` passed with zero recent
+  Cloud Run errors.
 
 ## 2026-08-21 billing guardrail hardening (live)
 
