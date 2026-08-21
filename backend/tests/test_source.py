@@ -431,6 +431,15 @@ def test_pinned_https_connection_dials_validated_address(monkeypatch) -> None:
     assert calls["server_hostname"] == "example.com"
 
 
+def test_pinned_https_connection_consumes_handler_hostname_kwarg() -> None:
+    connection = source._PinnedHTTPSConnection(
+        "example.com",
+        resolved_address="93.184.216.34",
+        check_hostname=True,
+    )
+    assert connection._resolved_address == "93.184.216.34"
+
+
 class _Response:
     def __init__(self, body: str) -> None:
         self.body = body

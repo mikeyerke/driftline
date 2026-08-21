@@ -427,6 +427,11 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
 
     def __init__(self, host: str, *, resolved_address: str, **kwargs):
         self._resolved_address = resolved_address
+        # urllib's HTTPSHandler passes this on some Python versions, while
+        # http.client.HTTPSConnection does not accept it in its constructor.
+        # Hostname verification is enforced by the SSL context in connect(),
+        # so consume this compatibility-only kwarg here.
+        kwargs.pop("check_hostname", None)
         super().__init__(host, **kwargs)
 
     def connect(self) -> None:
