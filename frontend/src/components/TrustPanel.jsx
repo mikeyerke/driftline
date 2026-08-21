@@ -6,10 +6,14 @@ export default function TrustPanel({ actionRecord }) {
   const [ops, setOps] = useState(null);
   const jiraWasWritten = ["created", "reused", "reactivated", "reversed"].includes(actionRecord?.jira_status);
   const jiraTrustLabel = actionRecord?.jira_status === "reversed"
-    ? "Scoped Jira handoff reversed; customer systems unchanged"
+    ? "Scoped Jira handoff reversed; other destinations unchanged"
     : actionRecord?.jira_status === "reactivated"
-      ? "Scoped Jira handoff reactivated; customer systems unchanged"
-      : "One scoped Jira handoff; customer systems unchanged";
+      ? "Scoped Jira handoff reactivated; other destinations unchanged"
+      : actionRecord?.jira_status === "created"
+        ? "Jira issue created in the configured project; other destinations unchanged"
+        : actionRecord?.jira_status === "reused"
+          ? "Existing Jira issue linked; other destinations unchanged"
+          : "One scoped Jira handoff recorded; other destinations remain unchanged";
   useEffect(() => {
     let active = true;
     const refresh = () => getOpsSummary().then((payload) => active && setOps(payload)).catch(() => active && setOps(null));
@@ -40,10 +44,10 @@ export default function TrustPanel({ actionRecord }) {
         <div className="ops-pulse-grid">
           <div><Activity size={15} /><strong>{ops ? `${healthySources}/${sourceHealth.length}` : "—"}</strong><small>sources healthy</small></div>
           <div><ListChecks size={15} /><strong>{ops ? `${deadLettered || 0}` : "—"}</strong><small>dead-lettered jobs · {queuedJobs || 0} queued</small></div>
-          <div><Database size={15} /><strong>{ops ? connectorLanes : "—"}</strong><small>connector lanes configured</small></div>
+          <div><Database size={15} /><strong>{ops ? connectorLanes : "—"}</strong><small>connector lanes available</small></div>
           <div><ShieldCheck size={15} /><strong>{ops ? "Signed" : "—"}</strong><small>{ops ? "approval required for writes" : "guardrail status unavailable"}</small></div>
         </div>
-        <p className="ops-pulse-note">{runtimeLabel}. This is deployment telemetry only; it contains no customer content or outcome claims.</p>
+        <p className="ops-pulse-note">{runtimeLabel}. Connector availability reflects deployment capability, not per-tenant credentials or an external write. This is deployment telemetry only; it contains no customer content or outcome claims.</p>
       </div>
       <p className="source-note">This public console is intentionally identity-free for judging. It is not an enterprise authentication claim, and it fails closed when the live backend is unavailable.</p>
     </section>
