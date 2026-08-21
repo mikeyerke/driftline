@@ -2702,6 +2702,14 @@ is no longer needed.
   returned HTTP 200 with `persisted=true`, `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and a Firestore-backed workflow in
   `needs_approval`.
+- A fresh public-source workflow was approved with the reviewed
+  `grandfather-existing-contracts` copilot option. The action record reported
+  `storage_status=persisted`, a private Cloud Storage packet URI, four
+  evidence-bound artifacts, and `external_systems_changed=false`. Public
+  connector statuses remained `prepared_only`.
+- The same workflow was undone immediately. It returned to `needs_approval`,
+  marked the action `reversed`, persisted separate rollback and operational
+  reversal artifacts, and kept `external_write=false`.
 - Desktop and 390px mobile Lighthouse navigation audits each passed all 57
   checks (100 accessibility, best practices, SEO, and agentic browsing).
   Chrome reported no console messages after the mobile navigation audit.
