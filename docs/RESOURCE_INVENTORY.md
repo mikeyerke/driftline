@@ -3241,3 +3241,17 @@ is no longer needed.
   `anonymous_lane=packet_only` and `credential_values_exposed=false`.
   A query-token probe returned HTTP 400, confirming the deployed
   fail-closed request-auth boundary remains active.
+
+## 2026-08-21 public ADK/Gemini judge-path canary (live)
+
+- The anonymous public `POST /api/jobs/demo` path was exercised on revision
+  `driftline-00066-75v` with the fixed `public/pricing` source. The returned
+  job `job-f91d2df5eea1` completed at `needs_approval` with HTTP 200 polling,
+  workflow `cec4fae3-b2d3-41da-9444-574fbe31994b`,
+  `execution_mode=google_adk`, `model=gemini-3.5-flash`, and exactly the
+  allowlisted tool calls `inspect_source_change` and `get_workflow_state`.
+- The workflow persisted hash-bound source evidence, four downstream impacts,
+  structured Gemini analysis, decision-copilot options, and the deterministic
+  human approval gate. No external connector write was attempted. This proves
+  the public judge path is a live ADK/Gemini product experience with
+  packet-only safety, not a static front-end mock.
