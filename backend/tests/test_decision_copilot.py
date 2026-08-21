@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 
 import pytest
@@ -127,6 +128,27 @@ def test_live_workflow_without_decision_copilot_fails_closed() -> None:
             "grandfather_existing_customers",
             None,
         )
+
+
+@pytest.mark.asyncio
+async def test_decision_copilot_retries_transient_empty_response(monkeypatch) -> None:
+    state = DriftlineWorkflow().start_demo(tenant_id="driftline-demo")
+    expected = fallback_copilot(state).model_dump()
+    calls = 0
+
+    async def fake_run_events(_prompt: str) -> list[str]:
+        nonlocal calls
+        calls += 1
+        return [] if calls == 1 else [json.dumps(expected)]
+
+    from app import decision_copilot
+
+    monkeypatch.setattr(decision_copilot, "_run_events", fake_run_events)
+    copilot, review = await decision_copilot.analyze_decision(state)
+
+    assert calls == 2
+    assert copilot.recommendation_id == "preserve_commitments"
+    assert review.status == "pass"
 
 
 def test_custom_artifact_override_is_complete_and_audited() -> None:

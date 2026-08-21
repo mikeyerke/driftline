@@ -7,6 +7,7 @@ before the public approval endpoint accepts an option.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any, Literal
@@ -362,12 +363,44 @@ def fallback_copilot(state: WorkflowState) -> DecisionCopilot:
 
 
 async def analyze_decision(state: WorkflowState) -> tuple[DecisionCopilot, PolicyReview]:
-    """Run Gemini options, then independently red-team them."""
-    copilot = _parse(await _run_events(_prompt(state)), state)
-    policy = red_team_review(copilot, state)
-    if policy.status == "blocked":
-        raise AnalysisUnavailable("Decision copilot blocked by red-team policy")
-    return copilot, policy
+    """Run Gemini options, then independently red-team them.
+
+    The copilot is a second model turn after the coordinator and impact
+    analyst.  A transient empty ADK response used to turn an otherwise live
+    workflow into a deterministic fallback, which was honest but weakened the
+    judge-facing proof.  Retry only transient transport/empty/schema-shape
+    failures; evidence and policy violations still fail closed immediately.
+    """
+    prompt = _prompt(state)
+    last_error: AnalysisUnavailable | None = None
+    for attempt in range(3):
+        try:
+            copilot = _parse(await _run_events(prompt), state)
+            policy = red_team_review(copilot, state)
+            if policy.status == "blocked":
+                raise AnalysisUnavailable("Decision copilot blocked by red-team policy")
+            return copilot, policy
+        except AnalysisUnavailable as exc:
+            last_error = exc
+            retryable = any(
+                marker in str(exc).casefold()
+                for marker in (
+                    "no decision copilot output",
+                    "non-json decision copilot output",
+                    "decision copilot failed schema validation",
+                )
+            )
+            if attempt < 2 and retryable:
+                await asyncio.sleep(0.25 * (attempt + 1))
+                continue
+            raise
+        except Exception as exc:
+            last_error = AnalysisUnavailable("Gemini decision copilot request failed")
+            if attempt < 2:
+                await asyncio.sleep(0.25 * (attempt + 1))
+                continue
+            raise last_error from exc
+    raise last_error or AnalysisUnavailable("Decision copilot unavailable")
 
 
 def validate_approval_choice(
