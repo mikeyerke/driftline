@@ -2958,3 +2958,20 @@ is no longer needed.
   The 1280px browser layout had no horizontal overflow, browser diagnostics
   had no errors, `/health` returned HTTP 200, and current-revision Cloud
   Logging returned no `severity>=ERROR` entries.
+
+## 2026-08-21 build-context hardening release (live)
+
+- Source commit `d4ee7ef` (`Bound Docker build context`) passed all GitHub
+  Actions gates: 224 backend tests with Ruff, frontend production build, and
+  standalone production-image build. `.dockerignore` now excludes repository
+  metadata, local environment files, virtual environments, dependency trees,
+  generated output, caches, and archives from Docker build context.
+- Cloud Build `38145a16-6eab-46e7-90b5-2b2d4b41d09f` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00054-zsp` at 100% traffic. The image
+  digest is `sha256:a8ca49d3f1ac752fba32f4987b91beeb3793bf74ec9cf9940f7cfc6673e51513`.
+  `/health` returned HTTP 200 and the active-revision log query returned no
+  `severity>=ERROR` entries.
+- The post-deploy repository inventory was reconciled after the two new
+  images were added: the two oldest exact digests were deleted, leaving 10
+  versions including the active image and rollback candidates. Automatic
+  cleanup remains enabled for future builds.
