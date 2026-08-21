@@ -2128,7 +2128,22 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
         result = client.health_summary()
         return {"tenant_id": tenant_id, **result}
     except (ConnectorError, CredentialBrokerError) as exc:
-        logger.warning("Salesforce health probe failed: %s", str(exc))
+        # Keep the public response deliberately generic, but preserve the
+        # exception class chain in logs so an operator can distinguish an
+        # isolated Secret Manager/IAM failure from an upstream Salesforce
+        # failure without ever logging a credential or provider response.
+        chain: list[str] = []
+        cursor: BaseException | None = exc
+        seen: set[int] = set()
+        while cursor is not None and id(cursor) not in seen and len(chain) < 4:
+            seen.add(id(cursor))
+            chain.append(type(cursor).__name__)
+            cursor = cursor.__cause__ or cursor.__context__
+        logger.warning(
+            "Salesforce health probe failed: %s (exception_chain=%s)",
+            str(exc),
+            " -> ".join(chain),
+        )
         raise HTTPException(
             status_code=503, detail="Salesforce read probe failed"
         ) from exc
