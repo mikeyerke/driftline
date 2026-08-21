@@ -207,6 +207,29 @@ async def test_analysis_turn_retries_schema_shape_failure(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_analysis_turn_repairs_known_text_wrapper_on_final_attempt(monkeypatch) -> None:
+    state = DriftlineWorkflow().start_demo()
+    payload = _payload(state)
+    calls = 0
+
+    async def persistently_wrapped_events(prompt: str) -> list[str]:
+        nonlocal calls
+        calls += 1
+        assert "Schema repair instruction" in prompt or calls == 1
+        return [
+            __import__("json").dumps(
+                {**payload, "summary": {"text": payload["summary"]}}
+            )
+        ]
+
+    monkeypatch.setattr(analysis, "_run_analysis_events", persistently_wrapped_events)
+    result = await analysis.analyze_workflow(state)
+
+    assert calls == 3
+    assert result.summary.startswith("Retention language changed")
+
+
+@pytest.mark.asyncio
 async def test_analysis_turn_handles_split_adk_text_events(monkeypatch) -> None:
     state = DriftlineWorkflow().start_demo()
     payload = __import__("json").dumps(_payload(state))

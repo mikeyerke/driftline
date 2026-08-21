@@ -241,7 +241,14 @@ def apply_analysis(
 
 
 async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
-    """Ask Gemini for structured proposals with one bounded transient retry."""
+    """Ask Gemini for structured proposals with bounded shape repair.
+
+    Gemini normally returns the requested JSON contract.  On a small number of
+    provider responses, a short text field is wrapped as ``{"text": "..."}``
+    despite the schema.  The first two attempts remain strict and ask the model
+    to repair that shape; only the final bounded attempt unwraps that known
+    provider envelope before applying the same evidence and artifact checks.
+    """
     if state.evidence is None:
         raise AnalysisUnavailable("Workflow has no source evidence")
     prompt = _analysis_prompt(state)
@@ -254,6 +261,7 @@ async def analyze_workflow(state: WorkflowState) -> StructuredAnalysis:
                 text_parts,
                 state.evidence.evidence_hash,
                 allowed_artifacts,
+                normalize_text_wrappers=attempt == 2,
             )
             apply_analysis(state, result, allowed_artifacts)
             return result
@@ -295,6 +303,7 @@ def _parse_analysis(
     text_parts: list[str],
     expected_evidence_hash: str,
     allowed_artifacts: dict[str, str] | None = None,
+    normalize_text_wrappers: bool = False,
 ) -> StructuredAnalysis:
     """Parse and validate one bounded model response."""
     raw = "".join(text_parts).strip()
@@ -335,8 +344,42 @@ def _parse_analysis(
                 "Gemini returned non-JSON structured analysis"
             ) from exc
         payload = max(candidates, key=lambda candidate: len(json.dumps(candidate)))
-    result = validate_analysis(payload, expected_evidence_hash, allowed_artifacts)
-    return result
+    try:
+        return validate_analysis(payload, expected_evidence_hash, allowed_artifacts)
+    except AnalysisUnavailable as exc:
+        if not normalize_text_wrappers or not isinstance(payload, dict):
+            raise
+        normalized = _normalize_text_wrappers(payload)
+        if normalized == payload:
+            raise
+        # The wrapper repair changes only known display-text fields.  The same
+        # strict validator still enforces the evidence hash, exact artifact
+        # names/owners, risk enum, and bounded lengths before persistence.
+        try:
+            return validate_analysis(
+                normalized, expected_evidence_hash, allowed_artifacts
+            )
+        except AnalysisUnavailable:
+            raise exc
+
+
+def _normalize_text_wrappers(payload: dict[str, Any]) -> dict[str, Any]:
+    """Unwrap only the provider's known single-key text envelope.
+
+    Unknown objects remain untouched and therefore continue to fail the strict
+    Pydantic contract.  This is intentionally narrower than general coercion:
+    model output must not gain a path to smuggle structured actions into a
+    text field.
+    """
+    normalized = dict(payload)
+    for field in ("summary", "rationale"):
+        value = normalized.get(field)
+        if not isinstance(value, dict) or len(value) != 1:
+            continue
+        key, wrapped = next(iter(value.items()))
+        if key in {"text", "value", "content"} and isinstance(wrapped, str):
+            normalized[field] = wrapped
+    return normalized
 
 
 def analysis_trace(result: StructuredAnalysis) -> dict[str, Any]:
