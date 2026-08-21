@@ -884,3 +884,21 @@ def test_salesforce_client_rejects_unallowlisted_object() -> None:
         assert str(exc) == "salesforce_object_not_allowlisted"
     else:  # pragma: no cover - documents the read-only boundary.
         raise AssertionError("unallowlisted Salesforce object was queried")
+
+
+def test_salesforce_oauth_read_client_does_not_require_global_token() -> None:
+    config = SalesforceConfig(
+        enabled=True,
+        api_version="v61.0",
+        client_id="client-id",
+        client_secret="secret",
+        redirect_uri="https://driftline.example/callback",
+    )
+
+    client = SalesforceReadOnlyClient(
+        config,
+        access_token="tenant-access-token",
+        instance_url="https://acme.my.salesforce.com",
+    )
+
+    assert client.instance_url == "https://acme.my.salesforce.com"

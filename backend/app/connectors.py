@@ -88,6 +88,19 @@ class SalesforceConfig:
         if not re.fullmatch(r"v\d+\.\d+", self.api_version):
             raise ConnectorError("salesforce_api_version_invalid")
 
+    def validate_read_client(self) -> None:
+        """Validate the tenant OAuth read lane without a global bearer token.
+
+        The explicit OAuth routes obtain an access token per tenant at runtime;
+        requiring ``DRIFTLINE_SALESFORCE_TOKEN`` here would incorrectly make a
+        connected tenant depend on a deployment-wide credential. The instance
+        URL is validated separately by ``SalesforceReadOnlyClient``.
+        """
+        if not self.enabled:
+            raise ConnectorError("salesforce_not_enabled")
+        if not re.fullmatch(r"v\d+\.\d+", self.api_version):
+            raise ConnectorError("salesforce_api_version_invalid")
+
     def validate_oauth(self) -> None:
         if not self.enabled:
             raise ConnectorError("salesforce_not_enabled")
@@ -294,7 +307,7 @@ class SalesforceReadOnlyClient:
         instance_url: str,
         opener: Callable[..., Any] = urlopen,
     ) -> None:
-        config.validate()
+        config.validate_read_client()
         if not access_token:
             raise ConnectorError("salesforce_access_token_missing")
         parsed = urlparse(instance_url.rstrip("/"))
