@@ -101,6 +101,30 @@ async def test_fingerprinted_static_assets_are_immutable_cacheable() -> None:
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
 
 
+@pytest.mark.asyncio
+async def test_missing_static_asset_is_not_cached_as_immutable() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/assets/missing.js",
+            "scheme": "https",
+            "server": ("testserver", 443),
+            "client": ("testclient", 123),
+            "root_path": "",
+            "query_string": b"",
+            "headers": [],
+        }
+    )
+
+    async def call_next(_request: Request) -> Response:
+        return Response(status_code=404)
+
+    response = await api.security_headers(request, call_next)
+
+    assert "cache-control" not in response.headers
+
+
 def test_public_job_payload_redacts_caller_text_and_internal_claims() -> None:
     public_job = JobState(
         job_id="job-public-redaction",
