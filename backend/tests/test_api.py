@@ -675,6 +675,14 @@ def test_platform_tenant_provisioning_creates_metadata_only_bootstrap(monkeypatc
 def test_platform_tenant_provisioning_rejects_duplicate_active_tenant(monkeypatch) -> None:
     tenant_id = "platform-duplicate-acme"
     api.persist_tenant({"tenant_id": tenant_id, "status": "active"})
+    api.persist_tenant_membership(
+        {
+            "tenant_id": tenant_id,
+            "email": "existing-owner@example.com",
+            "role": "owner",
+            "status": "active",
+        }
+    )
     monkeypatch.setattr(
         api,
         "_verify_platform_operator",
@@ -691,6 +699,32 @@ def test_platform_tenant_provisioning_rejects_duplicate_active_tenant(monkeypatc
     )
     assert response.status_code == 409
     assert response.json()["detail"] == "tenant_already_exists"
+
+
+def test_platform_tenant_provisioning_repairs_missing_owner_membership(monkeypatch) -> None:
+    tenant_id = "platform-repair-acme"
+    api.persist_tenant({"tenant_id": tenant_id, "status": "active"})
+    monkeypatch.setattr(
+        api,
+        "_verify_platform_operator",
+        lambda _token: {
+            "identity": "google_oidc_platform_operator",
+            "email": "platform@example.com",
+        },
+    )
+    response = client.post(
+        "/api/platform/tenants",
+        json={
+            "operator": "Platform repair",
+            "tenant_id": tenant_id,
+            "owner_email": "owner@example.com",
+            "identity_token": "opaque-test-token",
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["repaired_membership"] is True
+    assert api.list_tenant_memberships(tenant_id)[0]["email"] == "owner@example.com"
 
 
 def test_salesforce_callback_cannot_rebind_deprovisioned_tenant(monkeypatch) -> None:

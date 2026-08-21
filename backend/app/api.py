@@ -2812,6 +2812,54 @@ def provision_platform_tenant(
         audit_payload=bootstrap_audit,
     )
     if not created:
+        # A previous platform bootstrap may have created the tenant document
+        # but failed before writing its owner membership (for example during a
+        # rolling Firestore migration). Repair that bounded, metadata-only
+        # state instead of leaving the tenant permanently undiscoverable.
+        existing_tenant = load_tenant(tenant_id) or {}
+        existing_memberships = list_tenant_memberships(tenant_id)
+        if (
+            str(existing_tenant.get("status", "")).casefold() == "active"
+            and not existing_memberships
+        ):
+            repaired = persist_tenant_membership(
+                {
+                    "tenant_id": tenant_id,
+                    "email": owner_email,
+                    "role": "owner",
+                    "status": "active",
+                    "source": "platform_oidc_membership_repair",
+                    "configured_by": platform["email"],
+                    "updated_at": now,
+                }
+            )
+            repair_audit = persist_tenant_audit_event(
+                {
+                    **bootstrap_audit,
+                    "event_id": f"tenant-audit-{uuid4().hex}",
+                    "event_type": "tenant_membership_repaired",
+                    "status": "active",
+                    "repair": "missing_owner_membership",
+                }
+            )
+            return {
+                "status": "active",
+                "tenant_id": tenant_id,
+                "owner_email": owner_email,
+                "membership_id": repaired["membership_id"],
+                "secret_references": {
+                    connector: tenant_connector_secret_name(tenant_id, connector)
+                    for connector in ("jira", "confluence", "slack", "github", "salesforce")
+                },
+                "operator_signing_secret": tenant_operator_signing_secret_name(tenant_id),
+                "credential_values_exposed": False,
+                "audit_event_id": repair_audit["event_id"],
+                "repaired_membership": True,
+                "next_step": (
+                    "Provision the deterministic Secret Manager containers out of band, "
+                    "then add provider values and activate each owner binding."
+                ),
+            }
         raise HTTPException(status_code=409, detail="tenant_already_exists")
     membership_id = base64.urlsafe_b64encode(
         f"{tenant_id}:{owner_email}".encode()
