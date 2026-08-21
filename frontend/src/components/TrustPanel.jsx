@@ -1,8 +1,27 @@
-import { LockKeyhole, Scale, Server, ShieldCheck } from "lucide-react";
+import { Activity, Database, ListChecks, LockKeyhole, Scale, Server, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getOpsSummary } from "../api";
 
 export default function TrustPanel({ actionRecord }) {
+  const [ops, setOps] = useState(null);
   const jiraWasWritten = actionRecord?.jira_status === "created" || actionRecord?.jira_status === "reused" || actionRecord?.jira_status === "reversed";
   const jiraTrustLabel = actionRecord?.jira_status === "reversed" ? "Scoped Jira handoff reversed; customer systems unchanged" : "One scoped Jira handoff; customer systems unchanged";
+  useEffect(() => {
+    let active = true;
+    const refresh = () => getOpsSummary().then((payload) => active && setOps(payload)).catch(() => active && setOps(null));
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+  const sourceHealth = ops?.source_health || [];
+  const healthySources = sourceHealth.filter((source) => source.status === "healthy").length;
+  const deadLettered = ops?.jobs?.dead_lettered;
+  const queuedJobs = ops?.jobs?.by_status?.queued;
+  const connectorLanes = Object.values(ops?.connectors || {}).filter(Boolean).length;
+  const runtimeLabel = ops ? `${ops.model || "Agent runtime"} · ${ops.persistence || "persistence unavailable"}` : "Deployment telemetry unavailable";
   return (
     <section className="panel trust-panel" id="settings-section">
       <header className="panel-header"><div><h2>Trust and deployment posture</h2><span className="live-label">Production deployment</span></div><span className="muted">Public demo lane is isolated</span></header>
@@ -11,6 +30,16 @@ export default function TrustPanel({ actionRecord }) {
         <div><ShieldCheck size={18} /><strong>Deterministic gate</strong><small>Agent cannot approve; writes require the human gate</small></div>
         <div><LockKeyhole size={18} /><strong>Evidence binding</strong><small>Every packet carries its source hash</small></div>
         <div><Scale size={18} /><strong>Bounded actions</strong><small>{jiraWasWritten ? jiraTrustLabel : "Prepared packets; signed operator required for writes"}</small></div>
+      </div>
+      <div className="ops-pulse" aria-label="Live operational pulse">
+        <div className="ops-pulse-heading"><strong>Live operational pulse</strong><span>{ops ? `Refreshed ${new Date(ops.generated_at).toLocaleTimeString()}` : "Reading deployment telemetry…"}</span></div>
+        <div className="ops-pulse-grid">
+          <div><Activity size={15} /><strong>{ops ? `${healthySources}/${sourceHealth.length}` : "—"}</strong><small>sources healthy</small></div>
+          <div><ListChecks size={15} /><strong>{ops ? `${deadLettered || 0}` : "—"}</strong><small>dead-lettered jobs · {queuedJobs || 0} queued</small></div>
+          <div><Database size={15} /><strong>{ops ? connectorLanes : "—"}</strong><small>connector lanes configured</small></div>
+          <div><ShieldCheck size={15} /><strong>{ops ? "Signed" : "—"}</strong><small>{ops ? "approval required for writes" : "guardrail status unavailable"}</small></div>
+        </div>
+        <p className="ops-pulse-note">{runtimeLabel}. This is deployment telemetry only; it contains no customer content or outcome claims.</p>
       </div>
       <p className="source-note">This public console is intentionally identity-free for judging. It is not an enterprise authentication claim, and it fails closed when the live backend is unavailable.</p>
     </section>
