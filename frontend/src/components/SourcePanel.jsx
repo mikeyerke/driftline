@@ -20,7 +20,7 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
   const isRegisteredPublic = dataMode === "operator_registered_public" || selectedDefinition?.mode === "public_only";
   const isDeterministicFixture = isSyntheticCompetitorFixture || evidence?.data_mode === "synthetic_demo";
   const sourceBadge = isSyntheticCompetitorFixture
-    ? "Synthetic competitor fixture"
+    ? isPublic ? "Publicly pinned synthetic fixture" : "Synthetic competitor fixture"
     : dataMode === "synthetic_demo"
       ? "Synthetic replay"
       : isRegisteredPublic

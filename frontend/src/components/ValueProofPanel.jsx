@@ -12,7 +12,7 @@ const outcomeLabel = (value) => value
 
 const modeLabel = (value) => {
   if (value === "synthetic_demo") return "Synthetic replay";
-  if (value === "public_source") return "Public source";
+  if (value === "public_source") return "Pinned public fixture";
   if (value === "live") return "Live tenant run";
   return outcomeLabel(value);
 };
@@ -43,14 +43,15 @@ export default function ValueProofPanel() {
   return (
     <section ref={panelRef} className="panel value-proof-panel" aria-labelledby="value-proof-title">
       <header className="panel-header">
-        <div><h2 id="value-proof-title"><Gauge size={17} />Value proof</h2><span className="live-label">Observed demo telemetry</span></div>
+        <div><h2 id="value-proof-title"><Gauge size={17} />Value proof</h2><span className="live-label synthetic">Evaluation-only records</span></div>
         <span className="muted">Operational utility, not invented ROI</span>
       </header>
+      <p className="value-proof-scope">These are reproducible records from the isolated Driftline deployment, not users, customers, or revenue claims.</p>
       {!nearViewport && <p className="multimodal-empty">Observed deployment evidence loads when this panel enters view.</p>}
       {nearViewport && loading && <p className="multimodal-empty"><Activity size={15} className="spin" />Reading bounded deployment evidence…</p>}
       {!loading && proof && <>
         <div className="value-proof-grid">
-          <div><Activity size={16} /><strong>{metric(observed.workflows)}</strong><small>workflows recorded</small></div>
+          <div><Activity size={16} /><strong>{metric(observed.workflows)}</strong><small>evaluation workflows</small></div>
           <div><CheckCircle2 size={16} /><strong>{metric(observed.cards_with_named_owners)}</strong><small>cards with named owners</small></div>
           <div><ShieldCheck size={16} /><strong>{metric(observed.workflows_reversed_or_reopened)}</strong><small>reopened or reversed</small></div>
           <div><Clock3 size={16} /><strong>{seconds(latency.p50)}</strong><small>approval latency p50 · n={latencySamples}</small></div>

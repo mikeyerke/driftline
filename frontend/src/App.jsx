@@ -375,7 +375,7 @@ export default function App() {
         </header>
 
         <div className="content">
-        <div className="workspace-banner"><strong>Production control plane</strong><span>{operatorSession.identityToken ? `Authenticated tenant lane · ${operatorSession.tenantId} · deterministic human gate` : "Public evaluation lane · live allowlisted sources · deterministic human gate"}</span><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Packet-safe evaluation")}</span></div>
+        <div className="workspace-banner"><strong>Production control plane</strong><span>{operatorSession.identityToken ? `Authenticated tenant lane · ${operatorSession.tenantId} · deterministic human gate` : "Public evaluation lane · pinned synthetic scenarios · deterministic human gate"}</span><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Packet-safe evaluation")}</span></div>
           <section id="overview-section" className="overview-section">
             <p className="product-orientation">{approved ? "Driftline verified the change, recorded the approved operating plan, and is tracking owner closure." : "Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval."}</p>
             <section className="incident-header">

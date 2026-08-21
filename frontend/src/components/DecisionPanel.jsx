@@ -32,6 +32,8 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
     const approver = approval?.approver || "Demo operator";
     const initials = approver.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
     const auditEvent = approval?.audit_event_id || "Not persisted in local fallback";
+    const externalSystemsChanged = Boolean(actionRecord?.external_systems_changed || actionRecord?.external_write);
+    const actionStatus = actionRecord?.status || "recorded";
     return (
       <aside className="decision-panel resolved">
         <div className="decision-title"><span className="success-icon"><Check size={17} /></span><h2>Action plan recorded</h2></div>
@@ -46,6 +48,18 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
             ? `One approved operational output is versioned inside the isolated Driftline project${["created", "reused", "reactivated"].includes(actionRecord?.jira_status) ? "; one bounded Jira issue was recorded" : ""}; no customer-facing system was changed.`
             : "No server decision was recorded."}
         </p>
+        {actionRecord && <section className="action-receipt" aria-label="Proof of action">
+          <header className="action-receipt-header">
+            <div><strong>Proof of action</strong><small>Durable output · reversible lifecycle</small></div>
+            <span className={`action-receipt-state ${actionStatus}`}>{actionStatus.replaceAll("_", " ")}</span>
+          </header>
+          <div className="action-receipt-grid">
+            <div><strong>1</strong><span>Firestore action</span><code>{actionRecord.action_id}</code></div>
+            <div><strong>2</strong><span>Cloud Storage</span><code>{actionRecord.storage_status || "not configured"}</code></div>
+            <div><strong>3</strong><span>Rollback path</span><code>{actionRecord.reversible ? "available" : "not available"}</code></div>
+          </div>
+          <p className="action-receipt-footer"><span>External systems changed</span><b className={externalSystemsChanged ? "changed" : "unchanged"}>{externalSystemsChanged ? "Yes · scoped connector" : "No · packet-safe lane"}</b></p>
+        </section>}
         <div className="audit-id"><strong>Audit event</strong><span>{auditEvent}</span></div>
         {actionRecord && <div className="audit-id"><strong>Firestore action record</strong><span>{actionRecord.action_id} · {actionRecord.status}</span></div>}
         {actionRecord?.storage_status && <div className="audit-id"><strong>Cloud Storage artifact</strong><span>{actionRecord.storage_status === "persisted" ? `${actionRecord.artifact_kind === "rollback" ? "Rollback marker" : "Versioned packet"} persisted` : actionRecord.storage_status}</span>{actionRecord.artifact_uri && <code className="artifact-uri">{actionRecord.artifact_uri}</code>}</div>}
