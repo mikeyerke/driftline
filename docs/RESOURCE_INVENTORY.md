@@ -16,7 +16,7 @@ Checked `2026-08-21T10:02:08Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00096-shm` at 100% traffic.
+  `driftline-00097-rdn` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -587,15 +587,15 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00096-shm` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00097-rdn` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 10%, 25%, 50%, 75%, 90%, and 100% current-spend thresholds; default
   billing-account recipients remain enabled and no custom notification channel
   is configured.
-- Deployed runtime source: `510be63`; Cloud Build
-  `49245582-02c4-4cf8-b9a3-97763eaf1a2a`.
+- Deployed runtime source: `c8966fa`; Cloud Build
+  `8d62f466-d179-4a54-bfb9-0d90fbfa7c4c`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
@@ -3782,6 +3782,25 @@ is no longer needed.
 - A fresh production browser load showed the disclosure and no console errors
   or warnings; `/health` and `scripts/verify_production.sh` passed with zero
   recent Cloud Run errors.
+
+## 2026-08-21 structured-analysis recovery release (live)
+
+- Source commit `c8966fa` (`Retry transient structured analysis shape errors`)
+  passed 242 backend tests, Ruff, frontend production build, and diff checks.
+  Cloud Build `8d62f466-d179-4a54-bfb9-0d90fbfa7c4c` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00097-rdn` at 100% traffic.
+- The strict Gemini impact-analysis seam now retries a transient schema-shape
+  failure with an explicit JSON string-type repair instruction, while still
+  rejecting wrong evidence hashes, unknown artifacts, and policy violations.
+  A regression test proves the first malformed `summary` response is retried
+  and the repaired response remains evidence-bound.
+- A fresh browser-driven default competitor scan completed with
+  `gemini_structured` analysis, `gemini-3.5-flash`, exactly
+  `inspect_source_change` and `get_workflow_state`, four evidence-bound
+  artifacts, and no fallback or browser console errors. The workflow remained
+  at the deterministic human approval gate.
+- `/health` and `scripts/verify_production.sh` passed on the same revision with
+  zero recent Cloud Run errors.
 
 ## 2026-08-21 billing guardrail hardening (live)
 
