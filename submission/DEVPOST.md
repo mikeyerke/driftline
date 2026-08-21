@@ -136,7 +136,7 @@ created during the contest.
   project-scoped budget guardrail.
 - The current active release is source commit `2b35881`, Cloud Build
   `09f36c8f-43e4-469f-a170-01a317090b6c`, and Cloud Run revision
-  `driftline-00084-7bh` at 100% traffic. It passed 239 backend tests, Ruff,
+  `driftline-00084-7bh` at 100% traffic. It passed 240 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and

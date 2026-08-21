@@ -29,7 +29,7 @@ Checked `2026-08-21T08:20:00Z` with the active gcloud project set to
 
 ## 2026-08-21 multimodal delivery and cache release (live)
 
-- Source commit `2b35881` passed the full 239-test suite, Ruff,
+- Source commit `2b35881` passed the full 240-test suite, Ruff,
   `git diff --check`, and the frontend production build. Cloud Build
   `09f36c8f-43e4-469f-a170-01a317090b6c` completed `SUCCESS`; Cloud Run
   revision `driftline-00084-7bh` serves 100% of traffic.
