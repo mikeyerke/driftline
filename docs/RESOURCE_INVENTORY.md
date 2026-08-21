@@ -40,11 +40,11 @@ Checked `2026-08-21T16:20:00Z` with the active gcloud project set to
   `google_adk`/`gemini-3.5-flash` structured impact and Decision Copilot trace,
   passing deterministic policy review, matching evidence hashes on all four
   artifacts and citations, four reversible packets, and no external write.
-  Fresh run: job `job-00a15eaba608` / workflow
-  `adfb0073-5331-4796-8f54-7e27f66e189b`; packet persisted and reversed with
+  Fresh run: job `job-c09b8c068d9a` / workflow
+  `aa77cd13-282a-436a-9929-dcb47ad91cc7`; packet persisted and reversed with
   `external_write=false` and `external_systems_changed=false`.
-- A separate fresh live-agent proof passed on job `job-19adf8d0c447` /
-  workflow `4e2d3d26-db4d-48f9-ad59-52c102091877` with
+- A separate fresh live-agent proof passed on job `job-90b4b6737841` /
+  workflow `5c48a344-f05e-4655-baf8-02f1ac54809b` with
   `data_mode=public_source`, `needs_approval`, both allowlisted tools, four
   artifacts, five audit events, and two Decision Copilot options. No
   connector write was attempted.
@@ -66,11 +66,11 @@ Checked `2026-08-21T16:20:00Z` with the active gcloud project set to
   not change.
 - `scripts/verify_production.sh` passed on this revision with zero recent
   Cloud Run errors. `scripts/verify_live_agent.sh` created job
-  `job-19adf8d0c447` / workflow `4e2d3d26-db4d-48f9-ad59-52c102091877` and
+  `job-90b4b6737841` / workflow `5c48a344-f05e-4655-baf8-02f1ac54809b` and
   proved `needs_approval`, `public_source`, Gemini 3.5 Flash, Google ADK, two
   allowlisted tools, four artifacts, five audit events, and two decision
   options. `scripts/verify_public_approval_undo.sh` created job
-  `job-00a15eaba608` / workflow `adfb0073-5331-4796-8f54-7e27f66e189b` and
+  `job-c09b8c068d9a` / workflow `aa77cd13-282a-436a-9929-dcb47ad91cc7` and
   proved persisted packet -> reversal with both external-write flags false.
 - GitHub Actions run `32500963459` passed 248 backend tests, Ruff, the
   frontend production build, standalone image build, and repository hygiene.

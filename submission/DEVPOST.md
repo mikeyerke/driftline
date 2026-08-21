@@ -122,8 +122,8 @@ The immutable image digest is
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-19adf8d0c447` / workflow
-  `4e2d3d26-db4d-48f9-ad59-52c102091877` returned `needs_approval`,
+- Live agent check: fresh job `job-90b4b6737841` / workflow
+  `5c48a344-f05e-4655-baf8-02f1ac54809b` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -135,8 +135,8 @@ The immutable image digest is
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-00a15eaba608` / workflow
-  `adfb0073-5331-4796-8f54-7e27f66e189b` persisted the packet, reversed the
+- Approval/undo check: fresh job `job-c09b8c068d9a` / workflow
+  `aa77cd13-282a-436a-9929-dcb47ad91cc7` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Browser QA: desktop and mobile Lighthouse navigation both scored 100 for

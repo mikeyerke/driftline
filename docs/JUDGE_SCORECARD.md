@@ -35,10 +35,10 @@ Current release: source `7747baa`, Cloud Run `driftline-00124-ln5`, Cloud Build
   packet record, and timeline; the undo response persisted
   `action-63355af11e1c35cb5150` as `reversed` with all connector external-write
   flags false.
-- `scripts/verify_live_agent.sh`: fresh job `job-19adf8d0c447`, workflow
-  `4e2d3d26-db4d-48f9-ad59-52c102091877`, five audit events and four artifacts.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-00a15eaba608`,
-  workflow `adfb0073-5331-4796-8f54-7e27f66e189b`, packet persisted and
+- `scripts/verify_live_agent.sh`: fresh job `job-90b4b6737841`, workflow
+  `5c48a344-f05e-4655-baf8-02f1ac54809b`, five audit events and four artifacts.
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-c09b8c068d9a`,
+  workflow `aa77cd13-282a-436a-9929-dcb47ad91cc7`, packet persisted and
   reversed with both external-write flags false. The verifier now also fails
   closed unless the approval journey carries structured Gemini impact/Decision
   Copilot options, passing deterministic policy review, and matching evidence
