@@ -44,7 +44,8 @@ Checked `2026-08-21T21:43Z` with the active gcloud project set to
   `sha256:d3ec8b1aaa2e8973b3d1f33bfde7ea31215e09cbc15babb741ea7770903b9100`.
 - Focused impact-map secondary nodes retain readable contrast while remaining
   visually subordinate; fresh desktop QA showed seven dimmed siblings, a
-  prominent selected work surface, and no horizontal overflow.
+  prominent selected work surface, and no horizontal overflow. A final 390x844
+  mobile check reported `scrollWidth=390` and retained the map/inspector.
 - `scripts/verify_production.sh` passed with zero recent Cloud Run errors.
   Fresh live-agent proof returned `job-0386cee0979b` / workflow
   `0cf5ae56-19af-449a-87cd-9cfcfbafa18b`, `needs_approval`, public-source mode,
