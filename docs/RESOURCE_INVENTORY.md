@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T21:20Z` with the active gcloud project set to
+Checked `2026-08-21T21:36Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00138-bcf` at 100% traffic. Its immutable serving image is
-  `sha256:00852752feb22432f4dc1b14d85e969263cb89da1af3f47266a0760b610b6323`.
+  `driftline-00141-x97` at 100% traffic. Its immutable serving image is
+  `sha256:b291820568db59bf60f51ae5b81ec39279e325dd6016e6da70ab474cecdac9d5`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -33,7 +33,29 @@ Checked `2026-08-21T21:20Z` with the active gcloud project set to
   direct `gcloud run services describe` output above is the current-state
   authority.
 
-## 2026-08-21 full pre-scan graph release (live)
+## 2026-08-21 directional impact-focus release (live)
+
+- Source commit `5e51bec` passed GitHub Actions run `32528922025` (258 backend
+  tests, Ruff, frontend production build, standalone image build, and
+  repository hygiene) and deployed through Cloud Build
+  `facf9edd-5d63-49e0-acab-1c51614ca9b8` (`SUCCESS`, 3m22s).
+- Cloud Run revision `driftline-00141-x97` serves 100% traffic with immutable
+  image digest
+  `sha256:b291820568db59bf60f51ae5b81ec39279e325dd6016e6da70ab474cecdac9d5`.
+- Impact-map focus now follows directed evidence semantics: a source fans out
+  through every downstream stage, while an artifact highlights only its source
+  path and downstream handoffs and dims sibling work. Fresh desktop browser QA
+  verified source fan-out and pricing-battlecard isolation with no horizontal
+  overflow.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors.
+  Fresh live-agent proof returned `job-01ef54f988fe` / workflow
+  `a14384b1-a3b5-45e9-ae80-78144e336ea5`, `needs_approval`, public-source mode,
+  Gemini 3.5 Flash through Google ADK, two allowlisted tools, four artifacts,
+  five audit events, and two decision options. Approval/undo proof passed on
+  the same workflow, persisting the packet and reversing the operational output
+  with `external_write=false` and `external_systems_changed=false`.
+
+## 2026-08-21 full pre-scan graph release (historical serving revision)
 
 - Source commit `9a23fd4` passed GitHub Actions run `32527512451` (258 backend
   tests, Ruff, frontend production build, standalone image build, and
