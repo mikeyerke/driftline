@@ -1,6 +1,8 @@
 import { Circle, Clock3, ExternalLink } from "lucide-react";
 import { artifactIcons } from "./Icons";
 
+const artifactRowId = (name) => `artifact-row-${String(name || "artifact").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+
 export default function ArtifactTable({ items, onSelect, selected }) {
   const statusFor = (index, fallback) => {
     return fallback || ["Draft ready", "Draft ready", "Draft ready", "Draft ready"][index];
@@ -23,7 +25,7 @@ export default function ArtifactTable({ items, onSelect, selected }) {
                 }
               };
               return (
-                <tr className={selected === item.name ? "selected-row" : ""} key={item.name} tabIndex={0} aria-selected={selected === item.name} onClick={() => onSelect(item.name)} onKeyDown={selectRow}>
+                <tr id={artifactRowId(item.name)} className={selected === item.name ? "selected-row" : ""} key={item.name} tabIndex={0} aria-selected={selected === item.name} onClick={() => onSelect(item.name)} onKeyDown={selectRow}>
                   <td><Icon size={16} />{item.name}</td><td>{item.owner}</td><td>{item.action}</td>
                   <td><span className={`tag ${item.risk.toLowerCase()}`}>{item.risk.charAt(0).toUpperCase() + item.risk.slice(1)}</span></td>
                   <td className={`status status-${status.toLowerCase().replaceAll(" ", "-")}`}>

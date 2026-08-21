@@ -31,6 +31,10 @@ function displayStatus(status) {
   return (status || "draft_ready").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function artifactRowId(name) {
+  return `artifact-row-${String(name || "artifact").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+}
+
 function defaultDecisionsFor(state) {
   return (state?.impacts || []).reduce((result, item) => {
     result[item.name] = item.name === "CRM guidance"
@@ -357,6 +361,13 @@ export default function App() {
     setArtifactDecisions((current) => ({ ...current, [name]: decision }));
   };
 
+  const focusArtifactWorklist = (name) => {
+    setSelectedArtifact(name);
+    window.requestAnimationFrame(() => {
+      document.getElementById(artifactRowId(name))?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Skip to main content</a>
@@ -411,7 +422,7 @@ export default function App() {
               <div className="main-column">
                 <div className="upper-grid">
                   <EvidenceDiff collapsed={evidenceCollapsed} onToggle={() => setEvidenceCollapsed((current) => !current)} evidence={evidence} />
-                  <ImpactMap items={impacts} graph={workflowState?.impact_graph} approved={approved} sourceName={evidence.source_name} sourceCategory={selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} onSelectArtifact={setSelectedArtifact} />
+                  <ImpactMap items={impacts} graph={workflowState?.impact_graph} approved={approved} sourceName={evidence.source_name} sourceCategory={selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} onSelectArtifact={focusArtifactWorklist} />
                 </div>
                 <ArtifactTable items={impacts} onSelect={setSelectedArtifact} selected={selectedArtifact} />
                 <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} />
