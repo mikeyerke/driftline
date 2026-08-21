@@ -588,6 +588,30 @@ def test_hmac_required_tenant_signer_fails_closed_when_secret_is_missing(monkeyp
     assert response.json()["detail"] == "Tenant signing secret is unavailable"
 
 
+def test_production_operator_lane_rejects_hmac_without_google_identity(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY", "true")
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "break-glass-secret")
+    token = hmac.new(
+        b"break-glass-secret",
+        b"connector-context-summary:OIDC required",
+        hashlib.sha256,
+    ).hexdigest()
+    response = client.post(
+        "/api/connectors/context/summary",
+        json={
+            "operator": "OIDC required",
+            "tenant_id": "driftline-demo",
+            "approval_token": token,
+        },
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == (
+        "Google operator identity is required for this deployment"
+    )
+
+
 def test_hmac_can_use_the_durable_tenant_directory_without_redeployment(monkeypatch) -> None:
     tenant_id = "durable-directory-acme"
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")

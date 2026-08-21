@@ -5,9 +5,9 @@ Driftline has two deliberately separate approval lanes:
 | Lane | Who can use it | Connector behavior | Purpose |
 | --- | --- | --- | --- |
 | Public demo | A named demo actor in the public console | Prepared-only packet; no external writes | Reliable judging and reproducible synthetic demonstration |
-| Signed operator | An operator with a Google OIDC token or isolated approval secret | Configured, least-privilege connector handoffs and source onboarding may run | Authenticated production-style verification |
+| Signed operator | An operator with a Google OIDC token (the production requirement) | Configured, least-privilege connector handoffs and source onboarding may run | Authenticated production-style verification |
 
-Connector environment variables do not authorize a public write by themselves. The API checks the approval identity scope before calling Jira, Confluence, Slack, or GitHub. A public demo approval is recorded with `scope=sandbox_packet_only`; a signed approval is recorded with `scope=configured`. Signed approvals use a Google OIDC token whose subject/email is resolved against the durable Firestore tenant membership directory; a static email mapping is retained only for local/bootstrap compatibility. The HMAC secret remains a break-glass isolated lane.
+Connector environment variables do not authorize a public write by themselves. The API checks the approval identity scope before calling Jira, Confluence, Slack, or GitHub. A public demo approval is recorded with `scope=sandbox_packet_only`; a signed approval is recorded with `scope=configured`. Signed approvals use a Google OIDC token whose subject/email is resolved against the durable Firestore tenant membership directory; a static email mapping is retained only for local/bootstrap compatibility. The production Cloud Run deployment sets `DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY=true`, so the HMAC secret cannot authorize a production operator request. HMAC remains an explicit local/bootstrap break-glass lane only.
 
 Undo follows the same boundary. A demo packet can be reopened without contacting an external system. A workflow that changed a configured connector requires a signed operator to reverse it. This prevents a public actor from creating or reversing customer-system work even if an isolated deployment happens to contain credentials.
 

@@ -1058,6 +1058,18 @@ def _verify_approval_mode(
             "tenant_id": principal.tenant_id,
             "role": principal.role,
         }
+    # Production tenant lanes should use short-lived Google OIDC identities,
+    # not a replayable break-glass bearer value. Keep the HMAC path available
+    # only when an operator explicitly opts into it (local/bootstrap or an
+    # incident runbook), and fail closed when the deployment requires OIDC.
+    if (
+        os.getenv("DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY", "false").casefold()
+        == "true"
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Google operator identity is required for this deployment",
+        )
     # A deployment-wide signer is retained only as an explicit compatibility
     # fallback. SaaS deployments can set a deterministic, infrastructure-owned
     # per-tenant secret prefix and require every break-glass request to use the
