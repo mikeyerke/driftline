@@ -45,6 +45,10 @@ Checked `2026-08-21T07:47:00Z` with the active gcloud project set to
   the durable job reached `needs_approval`, the UI rendered the live
   `gemini-3.5-flash` ADK trace with `inspect_source_change` and
   `get_workflow_state`, and the browser captured no warning or error logs.
+- The same browser probe at a 390x844 mobile viewport measured
+  `innerWidth=390`, `documentElement.scrollWidth=390`, and `body.scrollWidth=390`,
+  confirming no horizontal overflow on the production console; the temporary
+  viewport override was reset afterward.
 
 ## 2026-08-21 scheduler deduplication release (live)
 
