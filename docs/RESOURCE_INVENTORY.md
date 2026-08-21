@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T07:59:00Z` with the active gcloud project set to
+Checked `2026-08-21T08:20:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00080-j9m` at 100% traffic.
+  `driftline-00084-7bh` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,24 @@ Checked `2026-08-21T07:59:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 multimodal delivery and cache release (live)
+
+- Source commit `2b35881` passed the full 239-test suite, Ruff,
+  `git diff --check`, and the frontend production build. Cloud Build
+  `09f36c8f-43e4-469f-a170-01a317090b6c` completed `SUCCESS`; Cloud Run
+  revision `driftline-00084-7bh` serves 100% of traffic.
+- The live visual registry is pinned to commit `d51a3c8` and now serves
+  768x512 JPEG evidence bytes (about 68–70 KiB each) instead of the previous
+  1536px PNG-derived payloads. `/api/multimodal/evidence/promise-card` returns
+  `public_source`, `image/jpeg`, the pinned source URLs, and fresh SHA-256
+  hashes.
+- Fingerprinted Vite JavaScript/CSS assets now return
+  `Cache-Control: public, max-age=31536000, immutable`. A fresh Lighthouse
+  run measured 792 KiB total transfer, 100% accessibility, best practices,
+  SEO, and agentic browsing scores, no console errors, and no inspector issues.
+- The Google Identity stylesheet policy now includes the exact `/gsi/` path
+  and an explicit `style-src-elem` directive; the live response contains both.
 
 ## 2026-08-21 recoverable console release (live)
 
