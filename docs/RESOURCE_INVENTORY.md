@@ -41,6 +41,10 @@ Checked `2026-08-21T07:47:00Z` with the active gcloud project set to
 - The deployed auth client is still pending replacement with a new OAuth client
   created inside this isolated project; the current `32555940559...` value is
   retained only until that action is completed and live sign-in is reverified.
+- A fresh logged-out browser journey on this revision completed **Run scan**;
+  the durable job reached `needs_approval`, the UI rendered the live
+  `gemini-3.5-flash` ADK trace with `inspect_source_change` and
+  `get_workflow_state`, and the browser captured no warning or error logs.
 
 ## 2026-08-21 scheduler deduplication release (live)
 
