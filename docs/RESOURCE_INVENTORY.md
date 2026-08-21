@@ -10,6 +10,25 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
+## Current state snapshot (authoritative)
+
+Checked after the latest live verification on 2026-08-21 UTC. The release
+entries below are append-only history; they are not a substitute for this
+snapshot.
+
+- Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
+- Active Cloud Run revision: `driftline-00035-htz` at 100% traffic, scale to
+  zero, one-instance cap.
+- Deployed runtime source: `f73b067`; current repository HEAD may be newer
+  documentation-only commits.
+- `/health`: HTTP 200, Firestore persistence enabled, async jobs enabled.
+- Current public registry: five pinned judge fixtures only. No arbitrary
+  competitor source is registered.
+- Signed connector health: Jira, Confluence, Slack, and GitHub healthy;
+  Salesforce `not_configured`; credential values redacted.
+- Signed pilot report: `status=not_measured`, `record_count=0`.
+- Final video upload and Devpost submission: not completed.
+
 ## 2026-08-20 reproducible isolated deploy identity (live)
 
 - Source commit `97a3ed8` pins `cloudbuild.yaml` to the dedicated
