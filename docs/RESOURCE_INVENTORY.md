@@ -12,7 +12,7 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T14:29:35Z` with the active gcloud project set to
+Checked `2026-08-21T14:37:36Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
@@ -26,6 +26,32 @@ Checked `2026-08-21T14:29:35Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 final live pressure pass (current revision)
+
+- `scripts/verify_production.sh` passed against `driftline-00119-xck`: the
+  isolated project, Firestore persistence, asynchronous Cloud Tasks, signed
+  scheduler, uptime check, alert policy, and zero recent Cloud Run errors were
+  all confirmed.
+- The proofs were run sequentially to avoid source-job deduplication hiding a
+  boundary: `scripts/verify_live_agent.sh` created job
+  `job-d65cdc6bc772` / workflow `4a88bf26-8703-4101-a4c9-ffcd7e88bb26` and
+  directly proved `status=needs_approval`, `data_mode=public_source`,
+  `model=gemini-3.5-flash`, `execution_mode=google_adk`, both allowlisted
+  tools, four artifacts, five audit events, and two Decision Copilot options.
+  The separate packet-safety verifier created job `job-9d822a772cee` /
+  workflow `f1d3b824-e7d3-4092-b422-30da31bad164` and proved persisted
+  packet → reversal with `external_write=false` and
+  `external_systems_changed=false`.
+- In logged-out Chrome on the public alias, the real UI **Approve action plan**
+  transition recorded a packet and the **Reopen decision** transition returned
+  to the deterministic gate with the visible status
+  `Decision reopened · no external systems were changed`. Desktop and mobile
+  checks found no document overflow; the current page had no console messages.
+  Lighthouse snapshot checks were 100 for accessibility, best practices, SEO,
+  and agentic browsing on both device profiles (40/40 each).
+- This pass made no connector call and no external-system mutation. The public
+  lane remains packet-only by design.
 
 ## 2026-08-21 Gemini structured-output resilience release (live)
 
