@@ -349,7 +349,7 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} sourceHealth={sourceHealth} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onRegistered={() => { getSources().then((payload) => setSources(payload.sources || [])).catch(() => {}); getMonitorRegistry().then((payload) => setSourceHealth(payload.sources || [])).catch(() => {}); }} />
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} sources={sources} sourceHealth={sourceHealth} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onRegistered={(payload) => { if (payload?.source?.source_id) setSelectedSource(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); getMonitorRegistry().then((next) => setSourceHealth(next.sources || [])).catch(() => {}); }} />
           <ChangeGenomePanel />
           <ValueProofPanel />
           <RunHistory jobs={recentJobs} loading={historyLoading} />

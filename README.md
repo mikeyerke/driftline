@@ -33,7 +33,9 @@ URL: after onboarding, selecting that source and pressing **Run scan** queues a
 tenant-bound `monitor` job rather than the synthetic fixture lane. A registered
 source therefore follows the real fetch, append-only baseline, ADK analysis, and
 approval path from the product UI; pinned fixtures remain available separately
-for deterministic judging.
+for deterministic judging. The onboarding form supports bounded HTML, plain
+text, and RSS/Atom parsers and selects the newly registered source for the next
+scan automatically.
 
 Every scheduled monitor job also carries the exact registered source ID through
 the durable job record, ADK turn, and append-only observation ledger.

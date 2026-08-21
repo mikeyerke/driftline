@@ -10,7 +10,7 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
   const [registering, setRegistering] = useState(false);
   const [registerMessage, setRegisterMessage] = useState("");
   const [registerError, setRegisterError] = useState("");
-  const [form, setForm] = useState({ source_id: "", name: "", url: "", category: "Competitor source", change_type: "Public promise change", owner: "Product Marketing", cadence: "24h" });
+  const [form, setForm] = useState({ source_id: "", name: "", url: "", category: "Competitor source", change_type: "Public promise change", owner: "Product Marketing", cadence: "24h", parser: "html" });
   const healthById = Object.fromEntries(sourceHealth.map((item) => [item.source_id, item]));
   const selectedDefinition = sources.find((source) => source.source_id === (selectedSource || evidence?.source_id));
   const isSyntheticCompetitorFixture = selectedDefinition?.source_kind === "competitor_public";
@@ -43,7 +43,7 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
       const payload = await registerSource(form);
       onRegistered?.(payload);
       setRegisterMessage(payload.baseline?.status === "baseline_established" ? "Source registered · baseline established" : "Source registered · scheduler will retry the baseline");
-      setForm({ source_id: "", name: "", url: "", category: "Competitor source", change_type: "Public promise change", owner: "Product Marketing", cadence: "24h" });
+      setForm({ source_id: "", name: "", url: "", category: "Competitor source", change_type: "Public promise change", owner: "Product Marketing", cadence: "24h", parser: "html" });
     } catch (error) {
       setRegisterError(error.message || "Source registration failed");
     } finally {
@@ -77,7 +77,7 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
             })}
           </div>
         </div>
-        <label className="source-selector">Scenario for next scan<select id="scenario-source" name="scenario-source" value={selectedSource || evidence?.source_id || "public/pricing"} onChange={(event) => onSourceChange?.(event.target.value)}><optgroup label="Own surfaces">{sources.filter((source) => source.category?.startsWith("Own")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}</option>)}</optgroup><optgroup label="Competitor surfaces">{sources.filter((source) => source.category?.startsWith("Competitor")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name} · synthetic fixture</option>)}</optgroup></select></label>
+        <label className="source-selector">Scenario for next scan<select id="scenario-source" name="scenario-source" value={selectedSource || evidence?.source_id || "public/pricing"} onChange={(event) => onSourceChange?.(event.target.value)}><optgroup label="Own surfaces">{sources.filter((source) => source.category?.startsWith("Own")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}{source.source_kind === "competitor_public" ? " · synthetic fixture" : ""}</option>)}</optgroup><optgroup label="Competitor surfaces">{sources.filter((source) => source.category?.startsWith("Competitor")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}{source.source_kind === "competitor_public" ? " · synthetic fixture" : ""}</option>)}</optgroup></select></label>
         <div className="monitor-source-list">
           {sources.map((source) => <span className={source.source_id === (selectedSource || evidence?.source_id) ? "monitor-source active" : "monitor-source"} key={source.source_id}><b>{source.name}{source.source_kind === "competitor_public" ? " · synthetic fixture" : ""}</b><small>{source.category} · {source.change_type}</small></span>)}
         </div>
@@ -91,6 +91,7 @@ export default function SourcePanel({ evidence, dataMode, sources = [], sourceHe
             <label>Change type<input required name="change_type" value={form.change_type} onChange={updateForm} maxLength={100} /></label>
             <label>Owner<input required name="owner" value={form.owner} onChange={updateForm} maxLength={100} /></label>
             <label>Cadence<select name="cadence" value={form.cadence} onChange={updateForm}><option value="6h">Every 6 hours</option><option value="12h">Every 12 hours</option><option value="24h">Daily</option></select></label>
+            <label>Parser<select name="parser" value={form.parser} onChange={updateForm}><option value="html">HTML page</option><option value="text">Plain text</option><option value="rss">RSS / Atom feed</option></select></label>
             <button className="primary source-onboarding-submit" type="submit" disabled={registering}>{registering ? "Registering…" : "Register and baseline"}</button>
             {registerMessage && <p className="source-onboarding-success" role="status">{registerMessage}</p>}
             {registerError && <p className="source-onboarding-error" role="alert">{registerError}</p>}
