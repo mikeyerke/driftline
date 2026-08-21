@@ -200,7 +200,8 @@ created during the contest.
   and `scrollX=0`, while the activity, run-history, and worklist panels retain
   their intentional inner horizontal scroll. Desktop and mobile Lighthouse each
   passed all 57 checks with 100 scores and the browser console had no messages.
-- The anonymous public-source Change Card on `driftline-00038-2gq` was
+- The anonymous public-source Change Card on the current `driftline-00054-zsp`
+  deployment was
   rechecked after a truthfulness fix: it displays `CRM context unavailable`
   and `No CRM context was read in this run`, never `Permissioned business
   context` without a connected Salesforce tenant.
@@ -208,8 +209,8 @@ created during the contest.
   persisted its private packet, and kept every connector `prepared_only` with
   `external_write=false`. A named Product Marketing demo actor then claimed
   and completed one owner action; the live value endpoint reports this as
-  public-demo telemetry only (1 of 32 action items, 3.1%), not customer ROI.
-- The latest public packet proof on `driftline-00038-2gq` contains
+  public-demo telemetry only (1 of 24 action items, 4.2%), not customer ROI.
+- The latest public packet proof on `driftline-00054-zsp` contains
   `isolated public-demo output` rather than the old sandbox wording; approval
   persisted the packet and undo returned `needs_approval` with both
   `external_write=false` and `external_systems_changed=false`.

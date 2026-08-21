@@ -201,8 +201,8 @@ snapshot.
 - Signed pilot report remains `status=not_measured`, `record_count=0`; the
   authenticated fixture/Jira proof above is an operational canary, not a
   customer outcome measurement.
-- Public-demo value proof: 50 workflows, 41 source observations, 32
-  human-owned action items, 1 completed action (3.1%), 0 external writes.
+- Public-demo value proof: 45 workflows, 41 source observations, 24
+  human-owned action items, 1 completed action (4.2%), 0 external writes.
 - Final video upload and Devpost submission: not completed.
 
 ## 2026-08-20 reproducible isolated deploy identity (live)
