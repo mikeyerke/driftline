@@ -24,7 +24,9 @@ function GraphNode({ node, focused, dimmed, onSelect }) {
       type="button"
       className={stateClass}
       aria-pressed={focused}
+      aria-current={focused ? "true" : undefined}
       aria-label={`${meta.label}: ${node.label}${node.meta ? `, ${node.meta}` : ""}`}
+      title={`${node.label}${node.meta ? ` · ${node.meta}` : ""}`}
       onClick={() => onSelect(node)}
     >
       <span className="impact-graph-icon"><Icon size={15} aria-hidden="true" /></span>
@@ -164,6 +166,19 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
       .filter(Boolean)
     : [];
   const meta = focusedNode ? (kindMeta[focusedNode.kind] || kindMeta.artifact) : null;
+  const connectorStats = useMemo(() => displayColumns.slice(0, -1).map((column, index) => {
+    const nextColumn = displayColumns[index + 1];
+    const fromIds = new Set(column.nodes.map((node) => node.id));
+    const toIds = new Set(nextColumn.nodes.map((node) => node.id));
+    const links = displayEdges.filter((edge) => fromIds.has(edge.from) && toIds.has(edge.to));
+    const activeLinks = focusedNodeId
+      ? links.filter((edge) => focusedIds.has(edge.from) && focusedIds.has(edge.to))
+      : links;
+    return { total: links.length, active: activeLinks.length };
+  }), [displayColumns, displayEdges, focusedIds, focusedNodeId]);
+  const focusInstruction = focusedNode
+    ? `${Math.max(0, focusedIds.size - 1)} connected nodes · ${connectorStats.reduce((sum, connector) => sum + connector.active, 0)} links in focus`
+    : `${displayEdges.length} evidence links · select a node to trace the work`;
 
   const selectNode = (node) => {
     setFocusedNodeId(node.id);
@@ -174,7 +189,7 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
     <section className="panel impact-panel" aria-labelledby="impact-map-title">
       <header className="panel-header impact-map-header">
         <div className="impact-map-title-group"><h2 id="impact-map-title">Offering impact map</h2><span className="live-label public"><Radio size={12} />{approved ? "Handoff plan" : "Decision scope"}</span></div>
-        <div className="impact-map-header-tools"><span className="impact-map-instruction"><MousePointer2 size={13} /> Select a node to trace the work</span><span className="muted">Change → business consequence</span></div>
+        <div className="impact-map-header-tools"><span className="impact-map-instruction"><MousePointer2 size={13} /> {focusInstruction}</span><span className="muted">Change → business consequence</span></div>
       </header>
       <div className="impact-map-summary">
         <div><span>Change type</span><strong>{summary.change_type || previewChangeType}</strong></div>
@@ -190,7 +205,10 @@ export default function ImpactMap({ items, graph, approved, sourceName, sourceCa
               <div className="impact-graph-nodes">
                 {column.nodes.map((node) => <GraphNode node={node} key={node.id} focused={focusedNodeId === node.id} dimmed={Boolean(focusedNodeId) && !focusedIds.has(node.id)} onSelect={selectNode} />)}
               </div>
-              {index < displayColumns.length - 1 && <ArrowRight className="impact-graph-arrow" size={17} aria-hidden="true" />}
+              {index < displayColumns.length - 1 && <div className={`impact-graph-connector${focusedNodeId ? " focused" : ""}`} aria-hidden="true">
+                <ArrowRight className="impact-graph-arrow" size={17} />
+                <span>{focusedNodeId ? `${connectorStats[index].active}/${connectorStats[index].total} linked` : `${connectorStats[index].total} links`}</span>
+              </div>}
             </div>
           );
         })}

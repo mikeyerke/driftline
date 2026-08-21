@@ -89,8 +89,19 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
               const status = deferred ? "deferred" : loading ? "checking" : unavailable ? "unavailable" : health?.status || "needs_baseline";
               const statusLabel = deferred ? "Loads when in view" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status.replaceAll("_", " ");
               const freshness = deferred ? "Freshness read is deferred to keep the console fast" : loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
+              const observationResult = deferred || loading || unavailable
+                ? null
+                : health?.last_observation_status === "unchanged"
+                  ? "Last check · no material change"
+                  : health?.last_observation_status === "changed"
+                    ? "Last check · material change"
+                    : health?.last_observation_status === "baseline_established"
+                      ? "Last check · baseline established"
+                      : health?.last_observation_status === "observed"
+                        ? "Last check · observed"
+                        : null;
               const nextDue = health?.next_due_at ? `Next due ${new Date(health.next_due_at).toLocaleString()}` : `Cadence ${source.cadence || "scheduled"}`;
-              return <div className={`registry-health-card ${status}`} key={source.source_id}><span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span><strong>{source.name}</strong><small>{freshness}</small><small>{nextDue}</small></div>;
+              return <div className={`registry-health-card ${status}`} key={source.source_id}><span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span><strong>{source.name}</strong><small>{freshness}</small>{observationResult && <small className={`registry-health-result ${health?.last_observation_status}`}>{observationResult}</small>}<small>{nextDue}</small></div>;
             })}
           </div>
         </div>
@@ -120,7 +131,7 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
             ? <p className="empty-state">Freshness history loads when this panel enters view.</p>
             : history.length === 0
             ? <p className="empty-state">No scheduled observations yet for this source. A demo replay does not rewrite the monitor ledger.</p>
-            : <ol>{history.map((observation) => <li key={`${observation.retrieved_at}-${observation.snapshot_hash}`}><span><b>{new Date(observation.retrieved_at).toLocaleString()}</b><small>{observation.snapshot_hash.slice(0, 12)}… · {observation.data_mode.replaceAll("_", " ")}</small></span><code>{observation.body}</code></li>)}</ol>}
+            : <ol>{history.map((observation) => <li key={`${observation.retrieved_at}-${observation.snapshot_hash}`}><span><b>{new Date(observation.retrieved_at).toLocaleString()}</b><small>{observation.snapshot_hash.slice(0, 12)}… · {observation.data_mode.replaceAll("_", " ")}</small><small className={`source-history-status ${observation.comparison_status || "observed"}`}>{(observation.comparison_status || "observed").replaceAll("_", " ")}</small></span><code>{observation.body}</code></li>)}</ol>}
         </div>
       </div>
       <MultimodalEvidencePanel assetId="promise-card" mode="live" />

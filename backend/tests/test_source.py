@@ -56,6 +56,39 @@ def test_public_adapter_records_history_and_labels_public_data(monkeypatch) -> N
     assert second["confidence"] != 0.99
 
 
+def test_source_health_exposes_noop_result_from_adjacent_hashes(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SOURCE_MODE", "public")
+    monkeypatch.setenv(
+        "DRIFTLINE_PUBLIC_SOURCE_URL",
+        "https://raw.githubusercontent.com/mikeyerke/driftline/abc/fixtures/public-pricing-after.txt",
+    )
+    monkeypatch.setattr(source, "urlopen", lambda request, timeout: _Response("same body"))
+    store = InMemorySnapshotStore()
+    monkeypatch.setattr(source, "_default_public_store", lambda: store)
+
+    first = source.inspect_allowlisted_source("public/pricing")
+    assert first["status"] == "baseline_established"
+    health_after_first = source.source_registry_health(
+        now=datetime(2026, 1, 1, tzinfo=UTC)
+    )
+    pricing_after_first = next(
+        item for item in health_after_first if item["source_id"] == "public/pricing"
+    )
+    assert pricing_after_first["last_observation_status"] == "baseline_established"
+
+    second = source.inspect_allowlisted_source("public/pricing")
+    assert second["status"] == "unchanged"
+    health_after_second = source.source_registry_health(
+        now=datetime(2026, 1, 1, tzinfo=UTC)
+    )
+    pricing_after_second = next(
+        item for item in health_after_second if item["source_id"] == "public/pricing"
+    )
+    assert pricing_after_second["last_observation_status"] == "unchanged"
+    history = source.list_source_history("public/pricing", store=store)
+    assert history[0]["comparison_status"] == "unchanged"
+
+
 def test_demo_replay_compares_public_body_to_published_baseline(monkeypatch) -> None:
     monkeypatch.setenv(
         "DRIFTLINE_PUBLIC_SOURCE_URL",

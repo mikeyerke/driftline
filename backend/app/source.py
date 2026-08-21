@@ -873,8 +873,24 @@ def list_source_history(
         store=store or _default_public_store(),
         limit=limit,
     )
-    for record in history:
+    # The ledger stores immutable observations, not a mutable "current
+    # status" flag. Derive the comparison result from adjacent hashes so a
+    # repeated monitor read is visibly a no-op instead of looking like another
+    # change. The oldest row in a truncated page is intentionally labelled
+    # ``observed`` because its prior observation may be outside the page.
+    for index, record in enumerate(history):
         record["source_id"] = source_id
+        older = history[index + 1] if index + 1 < len(history) else None
+        if older is None:
+            record["comparison_status"] = (
+                "baseline_established" if len(history) == 1 else "observed"
+            )
+        else:
+            record["comparison_status"] = (
+                "unchanged"
+                if record.get("snapshot_hash") == older.get("snapshot_hash")
+                else "changed"
+            )
     return history
 
 
@@ -972,6 +988,11 @@ def source_registry_health(
             status = "stale"
         else:
             status = "healthy"
+        last_observation_status = (
+            str(latest.get("comparison_status"))
+            if latest and latest.get("comparison_status")
+            else None
+        )
         failure = _latest_source_failure(
             source_id,
             tenant_id=tenant_id,
@@ -1000,6 +1021,7 @@ def source_registry_health(
                 "observation_count": len(observations),
                 "last_observed_at": latest.get("retrieved_at") if latest else None,
                 "last_data_mode": latest.get("data_mode") if latest else None,
+                "last_observation_status": last_observation_status,
                 "last_snapshot_hash": latest.get("snapshot_hash") if latest else None,
                 "last_failure_at": failure.get("failed_at") if failure else None,
                 "last_failure_reason": failure.get("reason") if failure else None,
