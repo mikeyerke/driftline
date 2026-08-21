@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T22:07Z` with the active gcloud project set to
+Checked `2026-08-21T22:24Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00144-k89` at 100% traffic. Its immutable serving image is
-  `sha256:bd92080f10b6e8ecef912b4f0d6e8db79bff420067ff9d02fc6be44048b20a52`.
+  `driftline-00145-z6x` at 100% traffic. Its immutable serving image is
+  `sha256:64e5f6e1894f63de49e07de02e8a6c8cc2baa2769c27aafaa3165c97ae4ab719`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -33,7 +33,31 @@ Checked `2026-08-21T22:07Z` with the active gcloud project set to
   direct `gcloud run services describe` output above is the current-state
   authority.
 
-## 2026-08-21 map utility and no-op monitoring release (current serving revision)
+## 2026-08-21 owner queue closure release (current serving revision)
+
+- Source commit `e8c69f6` passed GitHub Actions run `32532231984` (259 backend
+  tests, Ruff, frontend production build, standalone image build, and
+  repository hygiene) and deployed through Cloud Build
+  `423a66fc-4a2b-4b4c-9536-68782d3e8ae3` (`SUCCESS`, 3m12s).
+- Cloud Run revision `driftline-00145-z6x` serves 100% traffic with immutable
+  image digest
+  `sha256:64e5f6e1894f63de49e07de02e8a6c8cc2baa2769c27aafaa3165c97ae4ab719`.
+- The owner action queue now exposes all/open/closed filters and keeps the
+  evidence hash, priority, due date, and stable idempotency key visible for
+  each row. A fresh public workflow proved the filter counts (`All 4`,
+  `Open 4`, `Closed 0`), then a named demo actor claimed and completed one
+  action; the queue updated to `1/4 completed`, `Open 3`, `Closed 1` with no
+  external write.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors.
+  Fresh live-agent proof returned `job-6e23698afe8d` / workflow
+  `2dd81431-3cb9-4837-b5c1-3623fa987dcc`, `needs_approval`, public-source mode,
+  Gemini 3.5 Flash through Google ADK, two allowlisted tools, four artifacts,
+  five audit events, and two decision options. Approval/undo proof returned
+  `job-103a3bcb0f76` / workflow `f802ba0d-146b-4e0e-bb13-88528d8b253f`,
+  persisted the packet, reversed the operational output, and recorded
+  `external_write=false` and `external_systems_changed=false`.
+
+## 2026-08-21 map utility and no-op monitoring release (historical serving revision)
 
 - Source commits `f6ba47f` and `584715b` passed GitHub Actions run
   `32531130663` (259 backend tests, Ruff, frontend production build,
