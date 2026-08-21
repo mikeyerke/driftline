@@ -32,7 +32,7 @@ asynchronously; the ADK coordinator verifies evidence, maps the affected
 offering and business domains, and drafts updates for each downstream work
 surface. When a change touches a contractual expectation,
 deterministic policy pauses the workflow and requests a named human decision.
-After approval, Driftline creates an evidence-linked sandbox packet, an owner
+After approval, Driftline creates an evidence-linked public-demo packet, an owner
 review item, or a queued item per artifact. Each artifact also receives a
 durable human-owned action item with an idempotency key and evidence hash; a
 named reviewer can claim and complete it without giving the model write access.
@@ -105,7 +105,7 @@ The React console calls FastAPI on the same Cloud Run service. A scan creates a
 Firestore job, Cloud Tasks dispatches an OIDC-authenticated worker request, and
 the ADK run records its model/tool trace against the resulting workflow. The
 deterministic workflow engine creates evidence, impact records, approval
-interrupts, sandbox packets, and audit events. Firestore persists the job,
+interrupts, public-demo packets, and audit events. Firestore persists the job,
 whole workflow, source history, and each audit event. A workflow loaded after a
 process restart is restored into the policy engine before approval or reopening
 is accepted. Cloud Scheduler's monitor path records a baseline or no-change
@@ -138,12 +138,16 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
+- The current live revision is `driftline-00043-xkb` from source commit
+  `9431006`, deployed by Cloud Build
+  `351447cf-e436-41c6-ace9-0fdab19d639e`; it serves 100% of traffic with the
+  same scale-to-zero and one-instance guardrails.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `1c71473`, deployed through Cloud Build
-  `bfc15321-f8f2-40d8-bf02-e3ba96ab5d7b` as Cloud Run revision
-  `driftline-00038-2gq` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32436210206` passed the backend tests,
+  The deployed runtime source is commit `9431006`, deployed through Cloud Build
+  `351447cf-e436-41c6-ace9-0fdab19d639e` as Cloud Run revision
+  `driftline-00043-xkb` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32437783883` passed the backend tests,
   frontend build, and standalone image build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
   user fields; a fresh browser run had no console errors and Lighthouse scored
@@ -155,7 +159,7 @@ created during the contest.
   approval, reopen, and dismissal. Fresh browser QA passed the live scan,
   evidence, approval, completion, activity log, timeline, and 390px mobile path
   without console errors.
-- On 2026-08-21, the current `driftline-00038-2gq` revision was rechecked end to
+- On 2026-08-21, the preceding `driftline-00038-2gq` revision was rechecked end to
   end: `/health` returned Firestore persistence and async jobs; a direct ADK
   run returned HTTP 200 with `persisted=true`, `model=gemini-3.5-flash`, and
   exactly `inspect_source_change` plus `get_workflow_state`; a public demo
@@ -167,15 +171,20 @@ created during the contest.
   signed aggregate context probe returned Jira `KAN` (18 issues), Confluence
   `DRIFT` (5 pages), Slack `C0BRGFUSADA` (27 recent messages), and GitHub (0
   open issues and 0 open pull requests) with aggregate-only redaction.
+- The current responsive release was rechecked at a 390px emulated viewport:
+  the document reports `bodyScrollWidth=500`, `documentElement.scrollWidth=500`,
+  and `scrollX=0`, while the activity, run-history, and worklist panels retain
+  their intentional inner horizontal scroll. Desktop and mobile Lighthouse each
+  passed all 57 checks with 100 scores and the browser console had no messages.
 - The anonymous public-source Change Card on `driftline-00038-2gq` was
   rechecked after a truthfulness fix: it displays `CRM context unavailable`
   and `No CRM context was read in this run`, never `Permissioned business
   context` without a connected Salesforce tenant.
-- A fresh public sandbox run selected the reviewed Gemini copilot option,
+- A fresh public-demo run selected the reviewed Gemini copilot option,
   persisted its private packet, and kept every connector `prepared_only` with
   `external_write=false`. A named Product Marketing demo actor then claimed
   and completed one owner action; the live value endpoint reports this as
-  sandbox telemetry only (1 of 32 action items, 3.1%), not customer ROI.
+  public-demo telemetry only (1 of 32 action items, 3.1%), not customer ROI.
 - The latest public packet proof on `driftline-00038-2gq` contains
   `isolated public-demo output` rather than the old sandbox wording; approval
   persisted the packet and undo returned `needs_approval` with both

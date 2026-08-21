@@ -22,6 +22,21 @@ project number: 724959673622
   `persisted=true`, `execution_mode=google_adk`, `model=gemini-3.5-flash`, and
   `data_mode=public_source`. No external connector write was performed.
 
+## 2026-08-21 responsive production-control-plane rollout (live)
+
+- Source commit `9431006` passed GitHub Actions `32437783883` and Cloud Build
+  `351447cf-e436-41c6-ace9-0fdab19d639e` completed `SUCCESS`.
+- Cloud Run revision `driftline-00043-xkb` serves 100% of traffic with the
+  existing scale-to-zero and one-instance guardrails. The release contains the
+  live operational pulse and contains the intentional activity, history, and
+  worklist scrollers so they cannot expand the document viewport on mobile.
+- A public 390px emulation probe reported `bodyScrollWidth=500`,
+  `documentElement.scrollWidth=500`, and `scrollX=0` while the nested scrollers
+  remained independently scrollable (`920`, `871`, and `780`px content widths).
+  Desktop and mobile Lighthouse navigation audits each passed 57/57 checks with
+  100 scores for accessibility, best practices, SEO, and agentic browsing; the
+  browser console had no messages.
+
 ## 2026-08-21 packet-language rollout (live)
 
 - Source commit `1c71473` passed GitHub Actions `32436210206` and Cloud Build
@@ -38,12 +53,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00038-2gq` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00043-xkb` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `1c71473`; Cloud Build `bfc15321-f8f2-40d8-bf02-e3ba96ab5d7b`.
+- Deployed runtime source: `9431006`; Cloud Build `351447cf-e436-41c6-ace9-0fdab19d639e`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
@@ -56,7 +71,7 @@ snapshot.
   `/api/jobs`, and `/api/sources` returned no token/secret fields; connector,
   tenant-policy, and failure-ledger routes remained signed-only.
 - Signed pilot report: `status=not_measured`, `record_count=0`.
-- Public sandbox value proof: 50 workflows, 41 source observations, 32
+- Public-demo value proof: 50 workflows, 41 source observations, 32
   human-owned action items, 1 completed action (3.1%), 0 external writes.
 - Final video upload and Devpost submission: not completed.
 

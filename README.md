@@ -167,7 +167,7 @@ Scheduler runs the historical monitor every
 six hours and records `baseline_established`, `unchanged`, or `changed` in a
 Firestore snapshot ledger. Cloud Run serves the API and web console in one
 container, with Firestore as the durable workflow, job, source-history, and
-audit store. Approved sandbox packets, one approved operational output, and
+audit store. Approved public-demo packets, one approved operational output, and
 undo markers are also persisted as private, versioned Cloud Storage objects in
 the isolated project. The
 synthetic replay remains available for predictable judging. If a real Gemini
@@ -179,7 +179,7 @@ fans out one bounded monitor job per registered source (or a single canary when
 is still constrained by the same allowlist and ADK tool policy. The operator
 console exposes `/api/monitor/registry` freshness state and `/api/ops/summary`
 runtime/connector guardrails without exposing credentials. Both live and
-identity-free preview mutations are query-capped and rate-limited to bound
+identity-free public-demo mutations are query-capped and rate-limited to bound
 demo spend. Public Gemini visual analysis is also capped at 10 calls per hour
 and returns a retry hint when the window is exhausted. Signed agent calls and workflow mutations use separate per-tenant
 budgets, so one tenant cannot consume another tenant's allowance. The signed
