@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T11:46:33Z` with the active gcloud project set to
+Checked `2026-08-21T11:55:15Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00103-p6d` at 100% traffic.
+  `driftline-00104-8vc` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,21 @@ Checked `2026-08-21T11:46:33Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 immutable fixture release (live)
+
+- Source commit `25a1bd3` was deployed by Cloud Build
+  `3b82b514-b213-4106-aec2-4d337b574431` (`SUCCESS`) as Cloud Run revision
+  `driftline-00104-8vc` at 100% traffic.
+- Production now pins all five public source URLs to immutable GitHub commits:
+  own pricing/terms remain pinned to `a48f7eb`, and competitor pricing,
+  offering, and blog fixtures are pinned to `19fc1e2`. This removes branch
+  drift from the judge workflow and the reproducibility scripts.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors. A
+  fresh `scripts/verify_live_agent.sh` run proved job `job-934ea8ae11a7` /
+  workflow `4f5bbaf9-d3a7-4372-857f-ae3cd52821ea` reached `needs_approval`
+  through `gemini-3.5-flash`, Google ADK, both allowlisted tools, four
+  artifacts, and five audit events.
 
 ## 2026-08-21 public scan race-closure release (live)
 
