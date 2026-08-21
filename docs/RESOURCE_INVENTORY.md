@@ -52,6 +52,15 @@ Checked `2026-08-21T14:37:36Z` with the active gcloud project set to
   and agentic browsing on both device profiles (40/40 each).
 - This pass made no connector call and no external-system mutation. The public
   lane remains packet-only by design.
+- A least-privilege IAM audit found an obsolete conditional project-level
+  `roles/secretmanager.secretVersionAdder` grant on the shared runtime for the
+  legacy `driftline-sf-driftline-demo` secret. It was removed from
+  `driftline-hackathon-2026`; the runtime now retains only its intended
+  project roles (`roles/aiplatform.user`, `roles/datastore.user`, and
+  `roles/cloudtasks.enqueuer`). The per-tenant impersonated identity still
+  owns the exact connector-secret accessor/version-adder grants provisioned by
+  `scripts/provision_tenant_connector_secrets.sh`. `/health` remained 200
+  immediately after the change.
 
 ## 2026-08-21 Gemini structured-output resilience release (live)
 
