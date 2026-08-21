@@ -3085,3 +3085,34 @@ is no longer needed.
 - The public browser still rendered the Google operator control and the
   packet-safe public lane after a fresh navigation. No credentials are stored
   in browser storage or exposed to the packet URL.
+
+## 2026-08-21 registered-source onboarding proof (live)
+
+- Source commit `a4f675a` (`Harden pinned source fetch compatibility`) passed
+  GitHub Actions run `32449633360` (`success`), including 95 targeted source
+  and API tests, Ruff, and the frontend production build. The pinned HTTPS
+  adapter now consumes Python-version-specific `check_hostname` arguments
+  without weakening SSL hostname verification.
+- Cloud Build `dd23aeae-fec2-45e9-b383-9e956367e7d7` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00061-46f` at 100% traffic. The active
+  image digest is
+  `sha256:8cdd40105bd51c275e42f2af3cc1d99a9be92e22181c44b56c8f68351d4a2a14`.
+  The active project remained `driftline-hackathon-2026`; Cloud Run remains
+  scale-to-zero with max one instance, 512 MiB, one CPU, 20 concurrency, and a
+  300-second timeout.
+- `/health` returned HTTP 200 and `/api/auth/config` confirmed Google OIDC is
+  enabled while the anonymous lane remains `packet_only`. The current
+  revision had no new `severity>=ERROR` entries after deployment.
+- A signed OIDC operator registered the exact public URL
+  `https://raw.githubusercontent.com/mikeyerke/driftline/main/README.md` as
+  `custom/driftline-readme` for tenant `driftline-demo`. The API returned HTTP
+  200 with `status=registered`, `baseline.status=baseline_established`, and
+  an append-only snapshot hash. A subsequent signed registry read returned six
+  sources including the custom source; the monitor registry reported it as
+  `healthy` with one observation. No competitor target was invented or
+  registered.
+- The first live attempt on revision `driftline-00059-8rr` exposed a real
+  Python 3.12 adapter defect and returned HTTP 500; that error was not hidden.
+  The compatibility fix was deployed and the same authenticated action then
+  completed successfully on `driftline-00061-46f`. This is the production
+  source-onboarding evidence; it is not a claim of arbitrary crawling.

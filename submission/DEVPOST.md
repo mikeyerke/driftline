@@ -138,16 +138,17 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The current live revision is `driftline-00056-d8c` from source commit
-  `f937d60`, deployed by Cloud Build
-  `dbde9432-0fdc-437f-ae57-1ef4c1f09f16`; it serves 100% of traffic with the
-  same scale-to-zero and one-instance guardrails.
+- The latest live revision is `driftline-00061-46f` from source commit
+  `a4f675a`, deployed by Cloud Build
+  `dd23aeae-fec2-45e9-b383-9e956367e7d7`; it serves 100% of traffic with the
+  same scale-to-zero and one-instance guardrails. Its image digest is
+  `sha256:8cdd40105bd51c275e42f2af3cc1d99a9be92e22181c44b56c8f68351d4a2a14`.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `f937d60`, deployed through Cloud Build
-  `dbde9432-0fdc-437f-ae57-1ef4c1f09f16` as Cloud Run revision
-  `driftline-00056-d8c` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32446842617` passed; the
+  The deployed runtime source is commit `a4f675a`, deployed through Cloud Build
+  `dd23aeae-fec2-45e9-b383-9e956367e7d7` as Cloud Run revision
+  `driftline-00061-46f` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32449633360` passed; the
   local release gate also passed all 225 backend tests, Ruff, and the frontend
   production build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
@@ -220,7 +221,7 @@ created during the contest.
   and `scrollX=0`, while the activity, run-history, and worklist panels retain
   their intentional inner horizontal scroll. Desktop and mobile Lighthouse each
   passed all 57 checks with 100 scores and the browser console had no messages.
-- The anonymous public-source Change Card on the current `driftline-00056-d8c`
+- The anonymous public-source Change Card on the current `driftline-00061-46f`
   deployment was
   rechecked after a truthfulness fix: it displays `CRM context unavailable`
   and `No CRM context was read in this run`, never `Permissioned business
@@ -230,13 +231,14 @@ created during the contest.
   `external_write=false`. A named Product Marketing demo actor then claimed
   and completed one owner action; the live value endpoint reports this as
   public-demo telemetry only (1 of 24 action items, 4.2%), not customer ROI.
-- The latest public packet proof on `driftline-00056-d8c` contains
+- The latest public packet proof on `driftline-00061-46f` contains
   `isolated public-demo output` rather than the old sandbox wording; approval
   persisted the packet and undo returned `needs_approval` with both
   `external_write=false` and `external_systems_changed=false`.
-- The signed source registry read returned only the five pinned fixtures. The
-  research references in the README are not registered live competitor
-  sources.
+- The signed source registry read returned the five pinned fixtures plus the
+  verified operator-registered own-product source
+  `custom/driftline-readme`. The research references in the README are not
+  registered live competitor sources; no competitor target was invented.
 - The tenant credential data plane is now canonical and fail-closed: durable
   tenant memberships, per-tenant Secret Manager namespaces, impersonated
   service identities, pinned versions, rotation/revocation, operation scopes,

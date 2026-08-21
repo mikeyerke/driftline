@@ -318,10 +318,10 @@ query credentials, fragments, and untrusted hosts before persistence or use.
 The research notes reference public material from vendors such as Crayon,
 Kompyte, and Visualping as examples of competitive-intelligence workflows.
 Those pages are not registered live sources in this deployment. The deployed
-registry currently contains only the five pinned fixtures above; a tenant
-operator must explicitly register any additional exact HTTPS source. Driftline
-does not claim that a vendor page change is ground truth for a customer's
-product.
+registry contains the five pinned fixtures above plus one verified
+operator-registered own-product README source; a tenant operator must
+explicitly register any additional exact HTTPS source. Driftline does not
+claim that a vendor page change is ground truth for a customer's product.
 
 ### Verified Jira connector
 
