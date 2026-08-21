@@ -15,9 +15,18 @@ function aggregateLabel(system, data = {}) {
     const total = data.objects.reduce((sum, item) => sum + Number(item.total || 0), 0);
     return `${data.objects.length} objects · ${total} records`;
   }
+  if (data.authorization_required) return "OAuth consent required";
   if (data.status === "not_configured") return "Not configured";
   if (data.status === "failed") return "Read failed";
   return "Aggregate context available";
+}
+
+function contextStatusLabel(data = {}, binding, healthy) {
+  if (healthy) return "Read verified";
+  if (data.authorization_required) return "Authorization required";
+  if (data.status === "not_configured") return "Not configured";
+  if (data.status === "failed") return "Read failed";
+  return data.status || binding?.status || "Attention";
 }
 
 export default function IntegrationPanel({ targets = [], approved, dismissed, actionRecord, operatorSession }) {
@@ -81,7 +90,7 @@ export default function IntegrationPanel({ targets = [], approved, dismissed, ac
             const binding = health?.checks?.find((item) => item.connector === key);
             const healthy = summary.status === "ok" && (!binding || binding.status === "healthy");
             return <div className="connector-context-card" key={system}>
-              <span className={healthy ? "connector-context-status ready" : "connector-context-status"}>{healthy ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{healthy ? "Read verified" : (summary.status || binding?.status || "Attention")}</span>
+              <span className={healthy ? "connector-context-status ready" : "connector-context-status"}>{healthy ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{contextStatusLabel(summary, binding, healthy)}</span>
               <strong>{system}</strong>
               <small>{aggregateLabel(system, summary)}</small>
             </div>;
