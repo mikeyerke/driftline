@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `efc37db`, Cloud Build
-  `ab382c57-979e-4db0-99ee-5818575daa49`, and Cloud Run revision
-  `driftline-00105-cw4` at 100% traffic. It passed 243 backend tests, Ruff,
+- The current active release is source commit `a2b66f4`, Cloud Build
+  `7ab6adb1-7b82-4244-b3b4-cd4c2b893b54`, and Cloud Run revision
+  `driftline-00106-7k7` at 100% traffic. It passed 243 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -181,12 +181,16 @@ created during the contest.
   The latest live verifier created job `job-934ea8ae11a7` / workflow
   `4f5bbaf9-d3a7-4372-857f-ae3cd52821ea` and again proved the model, ADK,
   allowlisted tools, four artifacts, and deterministic gate.
-  The current release `efc37db` is revision `driftline-00105-cw4` and its
+  The preceding production-lane release `efc37db` was revision
+  `driftline-00105-cw4` and its
   verifier created job `job-46795fbe6b7b` / workflow
   `4df6bb1b-6122-4573-92aa-4be0c0330fb2`. A public approval on that exact
   workflow persisted `firestore_change_packet` and a Cloud Storage artifact
   with `external_write=false` and `external_systems_changed=false`; the new
   judge scorecard maps this proof directly to the official rubric.
+  The current revision also exposes a plain-language allowlisted-work rail in
+  the Agent run panel, making the two read/state tool calls visible as
+  completed work rather than leaving the judge to infer them from raw names.
   It also includes a recoverable frontend error boundary so a render failure
   cannot present a blank console or imply that persisted workflow state was
   lost.
