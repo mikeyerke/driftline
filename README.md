@@ -86,9 +86,10 @@ The hosted console exposes the production operator lane directly. Choose
 **Sign in with Google** to obtain a short-lived ID token in memory; Driftline
 discovers only the active tenant memberships attached to that Google identity.
 Selecting a tenant switches scans, approvals, action-item updates, and undo to
-the same tenant-scoped OIDC boundary used by the API. The browser never sees a
-connector credential, stores the ID token, or receives raw connector data. A
-logged-out visitor remains on the packet-safe public lane.
+the same tenant-scoped OIDC boundary used by the API. The token is sent only in
+an `Authorization` header, never duplicated into JSON or URLs; the browser
+never sees a connector credential, stores the ID token, or receives raw
+connector data. A logged-out visitor remains on the packet-safe public lane.
 
 ### The utility wedge: a Change Card, not an alert
 

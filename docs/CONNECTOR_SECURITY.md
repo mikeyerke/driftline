@@ -214,7 +214,10 @@ request cannot select a tenant by query parameter alone.
   tenant. It never returns credential values. Only an owner can register or
   activate a binding; operator/viewer identities cannot rebind a tenant.
 - `/api/operator/sources` is the only source-registration path and requires a signed or Google-verified operator identity.
-- The signed operator path is exercised separately from public browser QA; its token is never committed or returned by the API.
+- The signed operator path is exercised separately from public browser QA; its
+  short-lived Google ID token is held in memory and sent only in an
+  `Authorization` header, never committed, placed in a URL, duplicated into a
+  JSON body, or returned by the API.
 
 ## Tenant-specific break-glass signing
 

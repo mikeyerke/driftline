@@ -95,3 +95,7 @@ jobs:
             echo 'Tracked credential material is forbidden.' >&2
             exit 1
           fi
+          if rg -n 'identity_token\s*:\s*operatorSession\.identityToken' frontend/src/api.js; then
+            echo 'Google ID tokens must stay in Authorization headers, not JSON bodies.' >&2
+            exit 1
+          fi

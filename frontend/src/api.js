@@ -27,11 +27,13 @@ export function clearOperatorSession() {
 
 function signedContext() {
   if (!operatorSession.identityToken || !operatorSession.tenantId) return {};
+  // Keep the short-lived Google ID token in the Authorization header only.
+  // The API middleware reads that header for every signed route; duplicating
+  // it in JSON would unnecessarily widen exposure to request-body telemetry.
   return {
     operator: operatorSession.email || "Google operator",
     tenant_id: operatorSession.tenantId,
     approval_mode: "signed",
-    identity_token: operatorSession.identityToken,
   };
 }
 
@@ -60,6 +62,7 @@ export function startDemoJob(sourceId = "public/pricing", runMode = null) {
   const tenantRunMode = runMode || "tenant_demo";
   return request("/api/jobs/demo", {
     method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
     body: JSON.stringify({
       query: `Inspect the selected allowlisted source change, verify the evidence, map the affected offerings and downstream artifacts, and stop at the human approval gate.`,
       user_id: "demo-operator",
@@ -72,7 +75,6 @@ export function startDemoJob(sourceId = "public/pricing", runMode = null) {
             user_id: operatorSession.email || "google-operator",
             operator: operatorSession.email || "Google operator",
             tenant_id: operatorSession.tenantId,
-            identity_token: operatorSession.identityToken,
           }
         : {}),
     }),
@@ -135,6 +137,7 @@ export function getMonitorRegistry() {
 export function registerSource(source) {
   return request("/api/operator/sources", {
     method: "POST",
+    authenticated: true,
     body: JSON.stringify({
       ...source,
       tenant_id: operatorSession.tenantId,
@@ -250,6 +253,7 @@ export function getMemorySummary(limit = 50) {
 export function approveWorkflow(workflowId, artifactDecisions, decision = "grandfather_existing_customers", copilotOptionId = null, copilotArtifactOverride = false, copilotOverrideReason = null) {
   return request(`/api/workflows/${workflowId}/approve`, {
     method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
     body: JSON.stringify({
       approver: operatorSession.email || "Demo operator",
       decision,
@@ -265,6 +269,7 @@ export function approveWorkflow(workflowId, artifactDecisions, decision = "grand
 export function undoWorkflow(workflowId) {
   return request(`/api/workflows/${workflowId}/undo`, {
     method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
     body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
   });
 }
@@ -272,6 +277,7 @@ export function undoWorkflow(workflowId) {
 export function dismissWorkflow(workflowId, reason = "Reviewed as non-material for the current segment") {
   return request(`/api/workflows/${workflowId}/dismiss`, {
     method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
     body: JSON.stringify({ actor: operatorSession.email || "Demo operator", reason, ...signedContext() }),
   });
 }
@@ -279,6 +285,7 @@ export function dismissWorkflow(workflowId, reason = "Reviewed as non-material f
 export function claimAction(workflowId, itemId) {
   return request(`/api/workflows/${workflowId}/actions/${itemId}/claim`, {
     method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
     body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
   });
 }
@@ -286,6 +293,7 @@ export function claimAction(workflowId, itemId) {
 export function completeAction(workflowId, itemId) {
   return request(`/api/workflows/${workflowId}/actions/${itemId}/complete`, {
     method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
     body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
   });
 }
@@ -293,6 +301,7 @@ export function completeAction(workflowId, itemId) {
 export function failAction(workflowId, itemId, reason = "Owner action needs a retry") {
   return request(`/api/workflows/${workflowId}/actions/${itemId}/fail`, {
     method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
     body: JSON.stringify({ actor: operatorSession.email || "Demo operator", reason, ...signedContext() }),
   });
 }
@@ -300,6 +309,7 @@ export function failAction(workflowId, itemId, reason = "Owner action needs a re
 export function retryAction(workflowId, itemId) {
   return request(`/api/workflows/${workflowId}/actions/${itemId}/retry`, {
     method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
     body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
   });
 }
