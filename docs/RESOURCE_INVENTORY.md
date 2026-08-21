@@ -72,6 +72,15 @@ Checked `2026-08-21T14:37:36Z` with the active gcloud project set to
   up. The private Cloud Storage artifact bucket was also confirmed with the
   Driftline production labels. The production verifier now checks that the
   repository cleanup policy remains active with dry-run disabled.
+- Post-cleanup smoke remained green: `scripts/verify_production.sh` still
+  reported revision `driftline-00119-xck`, 100% traffic, no recent Cloud Run
+  errors, and the new IAM/retention checks. A fresh live ADK/Gemini proof then
+  created job `job-ed93c4af7c56` / workflow
+  `cf2eb65d-6a24-4c74-a212-c43d780911bf` with the same model, tools, artifacts,
+  audit events, and `needs_approval` contract. The separate packet-safety
+  proof created job `job-d136450305b6` / workflow
+  `d5d64316-12c0-4c1c-a977-323a048df5d4` and again proved persisted packet →
+  reversal with both external-write flags false.
 
 ## 2026-08-21 Gemini structured-output resilience release (live)
 
