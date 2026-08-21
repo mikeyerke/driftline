@@ -3277,3 +3277,19 @@ is no longer needed.
   response explicitly records that evidence was preserved after a bounded
   agent retry; the linked workflow is `needs_approval` with the new snapshot
   hash. No external connector write was attempted.
+
+## 2026-08-21 rejected-query log hardening (live)
+
+- Source commit `d1367f3` (`Strip rejected auth parameters from logs`) passed
+  234 backend tests, Ruff, the frontend production build, and diff checks.
+  Hosted GET requests that contain `approval_token` or `identity_token` are
+  rejected and those parameters are removed from the mutable ASGI query scope
+  before the access logger can record the request line.
+- Cloud Build `bb993352-fe78-425b-b14f-14345801ec98` completed `SUCCESS` and
+  deployed Cloud Run revision `driftline-00070-ckt` at 100% traffic. The image
+  digest is
+  `sha256:6a1da1d77f9a8c759283eca31d309cb44325e565d74066b0e89cb8c871fc5436`.
+- `/health` and `/api/auth/config` returned successfully. A deployed fake
+  query-token probe returned HTTP 400; subsequent Cloud Logging scans for the
+  revision found zero `identity_token` query fields, zero request URLs
+  containing that parameter, and zero `severity>=ERROR` entries.
