@@ -161,6 +161,11 @@ created during the contest.
   `decision_reopened` event with a durable reversal marker. This is direct
   production-path evidence; it does not claim a third-party connector write
   from the anonymous lane.
+- The same workflow then exercised owner follow-through: Product Marketing
+  claimed and completed the `Pricing battlecard` action. The durable record
+  reports four action items, one completed, zero failed, and a 25% closure rate;
+  the append-only audit contains both claim and completion events. This is an
+  observed deployment metric, not a customer outcome or ROI claim.
   Multimodal evidence is pinned to an immutable asset commit and served as
   smaller JPEG bytes; fingerprinted frontend bundles are immutable-cacheable.
   The public console also avoids a render-blocking third-party font request;

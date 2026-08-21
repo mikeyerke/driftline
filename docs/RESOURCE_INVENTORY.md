@@ -116,6 +116,20 @@ Checked `2026-08-21T08:35:00Z` with the active gcloud project set to
 - Browser error/warning logs were empty and Cloud Logging showed no severity
   `ERROR` entries for the run window.
 
+## 2026-08-21 owner follow-through canary (live)
+
+- The same deployed workflow was approved again and its first owner action,
+  `Pricing battlecard` for Product Marketing, was claimed and completed from
+  the public console.
+- The durable job record now reports `status=complete`; Firestore-backed
+  closure state reports four action items, one completed, zero failed, zero
+  reversed, and `completion_rate=0.25`, with the next step to assign and close
+  the remaining owner actions. The append-only audit contains both the claim
+  and completion events.
+- Browser error/warning logs remained empty and Cloud Logging showed no
+  severity `ERROR` entries after the closure canary. This is an observed
+  operational metric for the isolated deployment, not a customer ROI claim.
+
 ## 2026-08-21 fontless console performance release (live)
 
 - Source commit `02b2e41` passed the full 240-test suite, Ruff,
