@@ -503,6 +503,59 @@ def test_confluence_page_creation_is_marker_idempotent() -> None:
     assert "Driftline action action-1" in body["body"]["storage"]["value"]
 
 
+def test_confluence_reactivates_a_reversed_page_without_overwriting_history() -> None:
+    requests = []
+    responses = [
+        {
+            "results": [
+                {"id": "page-42", "_links": {"webui": "/wiki/page-42"}}
+            ]
+        },
+        {"metadata": {"labels": {"results": [{"name": "driftline-reversed"}]}}},
+        {},
+        {},
+    ]
+
+    def opener(request, timeout):
+        requests.append(request)
+        return _Response(responses.pop(0))
+
+    connector = ConfluenceConnector(
+        ConfluenceConfig(
+            enabled=True,
+            base_url="https://example.atlassian.net/wiki/",
+            email="operator@example.com",
+            token="test-token",
+            space_key="PMM",
+        ),
+        opener=opener,
+    )
+    result = connector.create_or_reuse_page(
+        action_id="action-1",
+        workflow_id="wf-1",
+        source_name="Competitor pricing",
+        evidence_hash="a" * 64,
+        artifact="Comparison map",
+        owner="Product Marketing",
+        proposed="Refresh the row.",
+    )
+
+    assert result["status"] == "reactivated"
+    assert result["idempotent"] is True
+    assert requests[1].full_url.endswith(
+        "/rest/api/content/page-42?expand=metadata.labels"
+    )
+    assert requests[2].method == "DELETE"
+    assert requests[2].full_url.endswith(
+        "/rest/api/content/page-42/label/global/driftline-reversed"
+    )
+    assert requests[3].method == "POST"
+    assert json.loads(requests[3].data) == {
+        "prefix": "global",
+        "name": "driftline-active",
+    }
+
+
 def test_slack_message_creation_reuses_marker() -> None:
     requests = []
     responses = [
@@ -534,6 +587,49 @@ def test_slack_message_creation_reuses_marker() -> None:
     assert "Driftline action action-1" in post["text"]
 
 
+def test_slack_reactivates_after_a_reversal_message() -> None:
+    requests = []
+    responses = [
+        {
+            "ok": True,
+            "messages": [
+                {"ts": "1710000000.000001", "text": "Driftline action action-1"},
+                {
+                    "ts": "1710000000.000002",
+                    "text": "Driftline action action-1 was reversed by a named human reviewer.",
+                },
+            ],
+        },
+        {"ok": True, "ts": "1710000000.000003"},
+    ]
+
+    def opener(request, timeout):
+        requests.append(request)
+        return _Response(responses.pop(0))
+
+    connector = SlackConnector(
+        SlackConfig(enabled=True, token="xoxb-test", channel_id="C123"),
+        opener=opener,
+    )
+    result = connector.create_or_reuse_message(
+        action_id="action-1",
+        workflow_id="wf-1",
+        artifact="Comparison map",
+        owner="Product Marketing",
+        proposed="Refresh the row.",
+    )
+
+    assert result == {
+        "status": "reactivated",
+        "message_ts": "1710000000.000003",
+        "idempotent": True,
+    }
+    assert requests[1].full_url.endswith("chat.postMessage")
+    body = json.loads(requests[1].data)
+    assert body["client_msg_id"] == "action-1:reactivate"
+    assert "reactivated" in body["text"]
+
+
 def test_github_issue_creation_is_repository_scoped_and_idempotent() -> None:
     requests = []
     responses = [
@@ -563,6 +659,51 @@ def test_github_issue_creation_is_repository_scoped_and_idempotent() -> None:
     body = json.loads(requests[1].data)
     assert body["labels"] == ["driftline-active", "driftline-approval-gated"]
     assert "Driftline action action-1" in body["body"]
+
+
+def test_github_reactivates_reversed_issue_labels() -> None:
+    requests = []
+    responses = [
+        [
+            {
+                "number": 7,
+                "html_url": "https://github.com/acme/docs/issues/7",
+                "title": "[Driftline] Comparison map",
+                "body": "Driftline action action-1",
+                "labels": [{"name": "driftline-reversed"}],
+            }
+        ],
+        {"labels": [{"name": "driftline-active"}]},
+    ]
+
+    def opener(request, timeout):
+        requests.append(request)
+        return _Response(responses.pop(0))
+
+    connector = GitHubConnector(
+        GitHubConfig(enabled=True, token="ghp-test", owner="acme", repo="docs"),
+        opener=opener,
+    )
+    result = connector.create_or_reuse_issue(
+        action_id="action-1",
+        workflow_id="wf-1",
+        artifact="Comparison map",
+        owner="Product Marketing",
+        proposed="Refresh the row.",
+        evidence_hash="a" * 64,
+    )
+
+    assert result == {
+        "status": "reactivated",
+        "issue_number": 7,
+        "issue_url": "https://github.com/acme/docs/issues/7",
+        "idempotent": True,
+    }
+    assert requests[1].method == "POST"
+    assert requests[1].full_url.endswith("/repos/acme/docs/issues/7/labels")
+    assert json.loads(requests[1].data) == {
+        "labels": ["driftline-active", "driftline-approval-gated"]
+    }
 
 
 def test_salesforce_defaults_to_read_only_prepared_contract(monkeypatch) -> None:

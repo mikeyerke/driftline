@@ -1148,6 +1148,15 @@ class ConfluenceConnector:
             )
         existing = (result.get("results") or [None])[0]
         if existing:
+            page_id = str(existing.get("id"))
+            if self._page_was_reversed(page_id):
+                self._reactivate_page(page_id, action_id)
+                return {
+                    "status": "reactivated",
+                    "page_id": existing.get("id"),
+                    "page_url": self._page_url(existing),
+                    "idempotent": True,
+                }
             return {
                 "status": "reused",
                 "page_id": existing.get("id"),
@@ -1187,6 +1196,67 @@ class ConfluenceConnector:
             "page_url": self._page_url(created),
             "idempotent": False,
         }
+
+    def _page_was_reversed(self, page_id: str) -> bool:
+        """Detect only Driftline's own reversal marker before reusing a page."""
+        if self._uses_v2_gateway:
+            current = self._request(
+                "GET",
+                f"/api/v2/pages/{quote(page_id, safe='')}",
+                query={"body-format": "storage"},
+            )
+            value = str(((current.get("body") or {}).get("storage") or {}).get("value", ""))
+            return "was reversed by a named human reviewer" in value
+        current = self._request(
+            "GET",
+            f"/rest/api/content/{quote(page_id, safe='')}",
+            query={"expand": "metadata.labels"},
+        )
+        labels = {
+            str(item.get("name"))
+            for item in (((current.get("metadata") or {}).get("labels") or {}).get("results") or [])
+            if isinstance(item, dict)
+        }
+        return "driftline-reversed" in labels
+
+    def _reactivate_page(self, page_id: str, action_id: str) -> None:
+        """Append a reactivation audit marker without overwriting page history."""
+        if self._uses_v2_gateway:
+            current = self._request(
+                "GET",
+                f"/api/v2/pages/{quote(page_id, safe='')}",
+                query={"body-format": "storage"},
+            )
+            version = current.get("version", {}).get("number")
+            if not isinstance(version, int):
+                raise ConnectorError("confluence_page_version_missing")
+            storage = (current.get("body") or {}).get("storage") or {}
+            value = storage.get("value", "")
+            value += (
+                f"<p>Driftline action {html.escape(action_id)} was reactivated by "
+                "a named human reviewer.</p>"
+            )
+            self._request(
+                "PUT",
+                f"/api/v2/pages/{quote(page_id, safe='')}",
+                {
+                    "id": page_id,
+                    "status": current.get("status", "current"),
+                    "title": current.get("title", "Driftline page"),
+                    "body": {"representation": "storage", "value": value},
+                    "version": {"number": version + 1, "message": "Driftline reactivation"},
+                },
+            )
+            return
+        self._request(
+            "DELETE",
+            f"/rest/api/content/{quote(page_id, safe='')}/label/global/driftline-reversed",
+        )
+        self._request(
+            "POST",
+            f"/rest/api/content/{quote(page_id, safe='')}/label",
+            {"prefix": "global", "name": "driftline-active"},
+        )
 
     def reverse_page(self, page_id: str, action_id: str) -> dict[str, Any]:
         if self._uses_v2_gateway:
@@ -1381,6 +1451,22 @@ class SlackConnector:
             None,
         )
         if existing:
+            reversed_marker = f"{marker} was reversed by a named human reviewer."
+            if any(reversed_marker in message.get("text", "") for message in history.get("messages", [])):
+                result = self._request(
+                    "POST",
+                    "chat.postMessage",
+                    {
+                        "channel": self.config.channel_id,
+                        "text": f"{marker} was reactivated by a named human reviewer.",
+                        "client_msg_id": f"{action_id}:reactivate",
+                    },
+                )
+                return {
+                    "status": "reactivated",
+                    "message_ts": result.get("ts"),
+                    "idempotent": True,
+                }
             return {"status": "reused", "message_ts": existing.get("ts"), "idempotent": True}
         result = self._request(
             "POST",
@@ -1535,6 +1621,23 @@ class GitHubConnector:
             None,
         )
         if existing:
+            labels = {
+                str(label.get("name"))
+                for label in existing.get("labels") or []
+                if isinstance(label, dict)
+            }
+            if "driftline-reversed" in labels:
+                self._request(
+                    "POST",
+                    f"{base}/issues/{existing.get('number')}/labels",
+                    {"labels": ["driftline-active", "driftline-approval-gated"]},
+                )
+                return {
+                    "status": "reactivated",
+                    "issue_number": existing.get("number"),
+                    "issue_url": existing.get("html_url"),
+                    "idempotent": True,
+                }
             return {"status": "reused", "issue_number": existing.get("number"), "issue_url": existing.get("html_url"), "idempotent": True}
         created = self._request(
             "POST",
