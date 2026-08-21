@@ -18,6 +18,18 @@ def test_change_card_is_evidence_bound_and_labels_demo_exposure() -> None:
     assert card["change_card_id"].startswith("card-")
 
 
+def test_public_source_does_not_claim_permissioned_crm_exposure() -> None:
+    state = DriftlineWorkflow().start_demo(source_id="public/pricing", data_mode="public_source")
+    exposure = state.change_card["exposure"]
+
+    assert exposure["mode"] == "internal_context_unavailable"
+    assert exposure["available"] is False
+    assert exposure["opportunity_count"] is None
+    assert exposure["renewal_count"] is None
+    assert "No CRM context" in exposure["label"]
+    assert any("No CRM" in note for note in state.change_card["disclosures"])
+
+
 def test_change_card_closure_tracks_completed_owner_work() -> None:
     workflow = DriftlineWorkflow()
     state = workflow.start_demo()

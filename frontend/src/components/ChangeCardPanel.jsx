@@ -8,6 +8,11 @@ export default function ChangeCardPanel({ card }) {
   const exposure = card.exposure || {};
   const sourceQuality = card.source_quality || {};
   const closure = card.closure || {};
+  const exposureTitle = exposure.mode === "connected_internal_data"
+    ? "Permissioned business context"
+    : exposure.mode === "synthetic_demo"
+      ? "Illustrative scenario"
+      : "CRM context unavailable";
   return (
     <section className="change-card panel" aria-labelledby="change-card-title">
       <header className="panel-header change-card-header">
@@ -28,7 +33,7 @@ export default function ChangeCardPanel({ card }) {
         </div>
         <div className="change-card-block exposure-block">
           <span className="change-card-kicker"><UsersRound size={13} />Internal exposure</span>
-          <strong>{exposure.available ? "Permissioned business context" : "Awaiting CRM context"}</strong>
+          <strong>{exposureTitle}</strong>
           <p>{exposure.label || "Internal exposure is not available."}</p>
           <div className="exposure-stats">
             <span><b>{exposure.opportunity_count ?? "—"}</b> open opportunities</span>

@@ -195,22 +195,29 @@ def build_change_card(
                 "evidence_bound": True,
             }
         )
-    exposure_mode = (
-        "synthetic_demo" if data_mode == "synthetic_demo" else "connected_internal_data"
-    )
+    # A public source snapshot is not an internal CRM read. Keep the exposure
+    # contract fail-closed until a future connector-aware workflow explicitly
+    # supplies verified internal context; never infer permissioned exposure
+    # from the fact that a public source was fetched successfully.
+    exposure_mode = {
+        "synthetic_demo": "synthetic_demo",
+        "live": "connected_internal_data",
+    }.get(data_mode, "internal_context_unavailable")
     exposure = {
         "mode": exposure_mode,
         "label": (
             "Illustrative scenario only — not CRM data"
             if exposure_mode == "synthetic_demo"
             else "Derived from permissioned internal systems"
+            if exposure_mode == "connected_internal_data"
+            else "No CRM context was read in this run"
         ),
         "opportunity_count": None,
         "renewal_count": None,
         "affected_asset_count": len(impact_items),
-        "available": exposure_mode != "synthetic_demo",
+        "available": exposure_mode == "connected_internal_data",
         "next_connector": "Salesforce read-only consent"
-        if exposure_mode == "synthetic_demo"
+        if exposure_mode != "connected_internal_data"
         else None,
     }
     source_quality = {
@@ -256,7 +263,11 @@ def build_change_card(
         "closure": _closure(action_items, approval),
         "disclosures": [
             "Observed source evidence is separate from inferred impact.",
-            "Synthetic exposure is illustrative until a permissioned CRM connection is verified.",
+            (
+                "Internal exposure is derived from a permissioned connector read."
+                if exposure_mode == "connected_internal_data"
+                else "No CRM or opportunity data was read in this run; exposure remains unavailable."
+            ),
             "Approval and external actions remain deterministic and human-controlled.",
         ],
     }
