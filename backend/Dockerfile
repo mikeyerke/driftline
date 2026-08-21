@@ -1,5 +1,9 @@
 FROM python:3.12-slim
 WORKDIR /app
+# Keep standalone and production images equally tolerant of transient package
+# registry latency without allowing an unbounded dependency install.
+ENV UV_HTTP_TIMEOUT=120
+ENV UV_HTTP_RETRIES=5
 COPY pyproject.toml uv.lock ./
 COPY app ./app
 # Keep the standalone backend image on the same reviewed resolution as the

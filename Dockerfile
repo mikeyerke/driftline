@@ -7,6 +7,11 @@ RUN npm run build
 
 FROM python:3.12-slim
 ENV DRIFTLINE_REJECT_QUERY_AUTH=true
+# Cloud Build can cold-pull the Google ADK dependency graph. Keep transient
+# PyPI extraction latency from turning a verified source release into a false
+# deployment failure, while retaining a bounded timeout and retry count.
+ENV UV_HTTP_TIMEOUT=120
+ENV UV_HTTP_RETRIES=5
 WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./
 COPY backend/app ./app
