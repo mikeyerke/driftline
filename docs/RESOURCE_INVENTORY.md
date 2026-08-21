@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T07:02:20Z` with the active gcloud project set to
+Checked `2026-08-21T07:08:40Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00074-vl4` at 100% traffic.
+  `driftline-00075-xt7` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -26,6 +26,20 @@ Checked `2026-08-21T07:02:20Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 source onboarding parser and selection release (live)
+
+- Source commit `810e35f` passed 237 backend tests, Ruff, `git diff --check`,
+  and the frontend production build. Cloud Build
+  `40fca7a7-d934-448a-82f7-5a811cc2710c` completed `SUCCESS`; Cloud Run
+  revision `driftline-00075-xt7` serves 100% of traffic.
+- The authenticated onboarding form now supports the bounded HTML, plain-text,
+  and RSS/Atom parser contracts already enforced by the backend. It selects a
+  newly registered source for the next scan, and registered competitor sources
+  are no longer mislabeled as synthetic in the source selector.
+- Post-deploy probes returned `/health` HTTP 200, Google OIDC auth config, the
+  public console title, 100% traffic, scale-to-zero/max-one guardrails, and
+  zero severity `ERROR` entries for the active revision.
 
 ## 2026-08-21 direct registered-source agent lane (live)
 
