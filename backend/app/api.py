@@ -158,6 +158,7 @@ from .simulator import simulate_scenarios
 from .source import (
     inspect_allowlisted_source,
     list_allowlisted_sources,
+    list_source_histories,
     list_source_history,
     register_operator_source,
     scheduler_source_entries,
@@ -212,6 +213,11 @@ async def security_headers(request: Request, call_next):
         # API responses can contain tenant-scoped metadata or one-time OAuth
         # handoff state. Never let a browser, proxy, or shared intermediary
         # retain those responses beyond the request.
+        response.headers["Cache-Control"] = "no-store"
+    elif request.url.path == "/health":
+        # Health is intentionally public for Cloud Run/Uptime checks, but its
+        # persistence and async-job flags describe the active deployment. Do
+        # not let a browser or intermediary serve a stale control-plane state.
         response.headers["Cache-Control"] = "no-store"
     elif request.url.path.startswith("/assets/") and response.status_code == 200:
         # Vite fingerprints production bundles, so immutable caching is safe
@@ -4124,10 +4130,11 @@ def get_memory_summary(
             tenant_id,
         )
     source_tenant = identity.get("tenant_id") if identity else None
-    source_observations = {
-        source_id: list_source_history(source_id, bounded_limit, source_tenant)
-        for source_id in source_definitions(source_tenant)
-    }
+    source_observations = list_source_histories(
+        list(source_definitions(source_tenant)),
+        limit=bounded_limit,
+        tenant_id=source_tenant,
+    )
     with _jobs_lock:
         workflow_records = list(workflow_store._runs.values())
     workflows = [

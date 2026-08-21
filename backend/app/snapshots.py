@@ -227,15 +227,26 @@ class FirestoreSnapshotStore:
 
     def history(self, source_id: str, limit: int = 20) -> list[SnapshotRecord]:
         bounded_limit = max(1, min(limit, 100))
+        from google.cloud import firestore
+
         reference = self._client.collection(self._collection).document(
             _firestore_document_key(source_id)
         )
-        observations = list(reference.collection("observations").stream())
+        # Ask Firestore for only the newest bounded observations.  The old
+        # implementation streamed the complete append-only subcollection and
+        # sorted it in Python, which made the public monitor panels grow
+        # linearly with a source's history even though they only render the
+        # newest page.
+        observations = list(
+            reference.collection("observations")
+            .order_by("retrieved_at", direction=firestore.Query.DESCENDING)
+            .limit(bounded_limit)
+            .stream()
+        )
         records = [
             SnapshotRecord.from_dict(snapshot.to_dict() or {})
             for snapshot in observations
         ]
-        records.sort(key=lambda item: item.retrieved_at, reverse=True)
         return records[:bounded_limit]
 
 

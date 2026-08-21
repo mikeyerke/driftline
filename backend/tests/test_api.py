@@ -21,6 +21,7 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert response.headers["cache-control"] == "no-store"
     assert response.headers["permissions-policy"] == (
         "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     )

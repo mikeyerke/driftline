@@ -144,6 +144,15 @@ def test_source_registry_health_is_bounded_and_labels_synthetic_data() -> None:
     )
 
 
+def test_source_histories_preserve_requested_order() -> None:
+    histories = source.list_source_histories(
+        ["competitor/blog", "public/pricing"], limit=2
+    )
+
+    assert list(histories) == ["competitor/blog", "public/pricing"]
+    assert set(histories) == {"competitor/blog", "public/pricing"}
+
+
 def test_builtin_fixture_urls_are_immutable() -> None:
     fixture_sources = [
         definition

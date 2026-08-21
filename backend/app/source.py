@@ -11,6 +11,7 @@ import socket
 import ssl
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
@@ -816,7 +817,11 @@ def list_allowlisted_sources(tenant_id: str | None = None) -> list[dict[str, str
 
 
 def list_source_history(
-    source_id: str, limit: int = 20, tenant_id: str | None = None
+    source_id: str,
+    limit: int = 20,
+    tenant_id: str | None = None,
+    *,
+    store: SnapshotStore | None = None,
 ) -> list[dict[str, str]]:
     """Return append-only observations for one allowlisted source."""
 
@@ -827,12 +832,42 @@ def list_source_history(
         return []
     history = snapshot_history(
         _snapshot_storage_key(source_id, tenant_id, definition),
-        store=_default_public_store(),
+        store=store or _default_public_store(),
         limit=limit,
     )
     for record in history:
         record["source_id"] = source_id
     return history
+
+
+def list_source_histories(
+    source_ids: list[str],
+    *,
+    limit: int = 20,
+    tenant_id: str | None = None,
+) -> dict[str, list[dict[str, str]]]:
+    """Read a bounded set of source ledgers concurrently.
+
+    The monitor and change-memory panels ask for the same small, allowlisted
+    source set. Sharing one Firestore client and overlapping the I/O keeps a
+    cold Cloud Run instance responsive while preserving deterministic output
+    order and tenant scoping.
+    """
+    bounded_ids = list(source_ids)
+    if not bounded_ids:
+        return {}
+    store = _default_public_store()
+    with ThreadPoolExecutor(max_workers=min(8, len(bounded_ids))) as executor:
+        histories = executor.map(
+            lambda source_id: list_source_history(
+                source_id,
+                limit=limit,
+                tenant_id=tenant_id,
+                store=store,
+            ),
+            bounded_ids,
+        )
+        return dict(zip(bounded_ids, histories))
 
 
 def _parse_iso(value: object) -> datetime | None:
@@ -856,8 +891,17 @@ def source_registry_health(
     """
     current = now or datetime.now(UTC)
     health: list[dict[str, object]] = []
-    for source_id, definition in source_definitions(tenant_id).items():
-        observations = list_source_history(source_id, limit=20, tenant_id=tenant_id)
+    definitions = source_definitions(tenant_id)
+    # The registry is intentionally bounded (five pinned fixtures plus a small
+    # tenant quota). Reading each source's append-only ledger concurrently keeps
+    # an always-on health panel responsive without widening the monitor or
+    # making unbounded Firestore work. The helper reconstructs results in input
+    # order so the UI and scheduler remain deterministic.
+    observations_by_source = list_source_histories(
+        list(definitions), limit=20, tenant_id=tenant_id
+    )
+    for source_id, definition in definitions.items():
+        observations = observations_by_source.get(source_id, [])
         latest = observations[0] if observations else None
         retrieved = _parse_iso(latest.get("retrieved_at") if latest else None)
         sla_hours = int(definition["freshness_sla_hours"])
