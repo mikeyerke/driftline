@@ -2695,6 +2695,10 @@ is no longer needed.
   `execution_mode=google_adk` and `model=gemini-3.5-flash`. The rendered Change
   Card now says `CRM context unavailable` and `No CRM context was read in this
   run`; it does not claim permissioned business context for an anonymous run.
+- A direct anonymous `POST /api/agent/run` canary on the same public revision
+  returned HTTP 200 with `persisted=true`, `execution_mode=google_adk`,
+  `model=gemini-3.5-flash`, and a Firestore-backed workflow in
+  `needs_approval`.
 - Desktop and 390px mobile Lighthouse navigation audits each passed all 57
   checks (100 accessibility, best practices, SEO, and agentic browsing).
   Chrome reported no console messages after the mobile navigation audit.
