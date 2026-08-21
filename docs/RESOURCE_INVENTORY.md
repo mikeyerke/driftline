@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T22:24Z` with the active gcloud project set to
+Checked `2026-08-21T22:42Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00145-z6x` at 100% traffic. Its immutable serving image is
-  `sha256:64e5f6e1894f63de49e07de02e8a6c8cc2baa2769c27aafaa3165c97ae4ab719`.
+  `driftline-00146-knx` at 100% traffic. Its immutable serving image is
+  `sha256:05cba51e429028b875856a5fef3ca9d1a832e349f76b7ecadb94053076484bfd`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -33,7 +33,30 @@ Checked `2026-08-21T22:24Z` with the active gcloud project set to
   direct `gcloud run services describe` output above is the current-state
   authority.
 
-## 2026-08-21 owner queue closure release (current serving revision)
+## 2026-08-21 map-to-worklist handoff release (current serving revision)
+
+- Source commit `cf3ac52` passed GitHub Actions run `32533094817` (259 backend
+  tests, Ruff, frontend production build, standalone image build, and
+  repository hygiene) and deployed through Cloud Build
+  `87ac57a9-4fbd-42e2-9400-4e51f68acf31` (`SUCCESS`, 2m47s).
+- Cloud Run revision `driftline-00146-knx` serves 100% traffic with immutable
+  image digest
+  `sha256:05cba51e429028b875856a5fef3ca9d1a832e349f76b7ecadb94053076484bfd`.
+- Selecting the live `Pricing battlecard` node in the interactive impact map
+  now selects the matching worklist row and scrolls it into view; browser proof
+  reported `scrollY=1471.5`, `selected-row`, and the row fully visible in the
+  viewport. The map inspector's “Open worklist row” handoff is therefore a
+  real navigation into the downstream artifact, not just a state change.
+- `scripts/verify_production.sh` passed with zero recent Cloud Run errors.
+  Fresh live-agent proof returned `job-7b30aa304ccc` / workflow
+  `293433b0-1392-400e-8bff-dc8ca0ad969a`, `needs_approval`, public-source mode,
+  Gemini 3.5 Flash through Google ADK, two allowlisted tools, four artifacts,
+  five audit events, and two decision options. Approval/undo proof returned
+  `job-52f6d5b1d6c4` / workflow `5d062165-20d5-4c19-bebc-b814b9104b5a`,
+  persisted the packet, reversed the operational output, and recorded
+  `external_write=false` and `external_systems_changed=false`.
+
+## 2026-08-21 owner queue closure release (historical serving revision)
 
 - Source commit `e8c69f6` passed GitHub Actions run `32532231984` (259 backend
   tests, Ruff, frontend production build, standalone image build, and

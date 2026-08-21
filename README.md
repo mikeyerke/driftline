@@ -506,11 +506,11 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit `e8c69f6`, Cloud Build
-`423a66fc-4a2b-4b4c-9536-68782d3e8ae3`, and Cloud Run revision
-`driftline-00145-z6x` at 100% traffic. Its immutable image digest is
-`sha256:64e5f6e1894f63de49e07de02e8a6c8cc2baa2769c27aafaa3165c97ae4ab719`.
-GitHub Actions run `32532231984` passed 259 backend tests, Ruff, the frontend
+The current serving release is source commit `cf3ac52`, Cloud Build
+`87ac57a9-4fbd-42e2-9400-4e51f68acf31`, and Cloud Run revision
+`driftline-00146-knx` at 100% traffic. Its immutable image digest is
+`sha256:05cba51e429028b875856a5fef3ca9d1a832e349f76b7ecadb94053076484bfd`.
+GitHub Actions run `32533094817` passed 259 backend tests, Ruff, the frontend
 production build, a standalone image build, and repository-hygiene checks.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
@@ -519,7 +519,8 @@ made no external connector writes. The impact map now exposes link counts,
 focused evidence paths, and worklist handoffs, while the append-only source
 registry visibly reports no-op checks as `unchanged`. The owner action queue
 now filters all/open/closed work while keeping evidence hashes and idempotency
-keys visible. At 1280px the map gets
+keys visible. Selecting a work-surface node in the map now scrolls to the
+matching worklist row. At 1280px the map gets
 the full control-plane width; a 390x844 check has no horizontal overflow. See
 [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md) for exact proof
 identifiers and the remaining unmeasured customer outcomes.
@@ -528,8 +529,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-6e23698afe8d` / `2dd81431-3cb9-4837-b5c1-3623fa987dcc` for the live agent
-and `job-103a3bcb0f76` / `f802ba0d-146b-4e0e-bb13-88528d8b253f` for the
+`job-7b30aa304ccc` / `293433b0-1392-400e-8bff-dc8ca0ad969a` for the live agent
+and `job-52f6d5b1d6c4` / `5d062165-20d5-4c19-bebc-b814b9104b5a` for the
 approval/undo proof. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
 removed from this isolated project. The signed browser client sends its
