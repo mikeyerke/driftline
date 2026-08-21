@@ -670,7 +670,10 @@ def test_github_reactivates_reversed_issue_labels() -> None:
                 "html_url": "https://github.com/acme/docs/issues/7",
                 "title": "[Driftline] Comparison map",
                 "body": "Driftline action action-1",
-                "labels": [{"name": "driftline-reversed"}],
+                "labels": [
+                    {"name": "customer-owned"},
+                    {"name": "driftline-reversed"},
+                ],
             }
         ],
         {"labels": [{"name": "driftline-active"}]},
@@ -702,8 +705,42 @@ def test_github_reactivates_reversed_issue_labels() -> None:
     assert requests[1].method == "POST"
     assert requests[1].full_url.endswith("/repos/acme/docs/issues/7/labels")
     assert json.loads(requests[1].data) == {
-        "labels": ["driftline-active", "driftline-approval-gated"]
+        "labels": ["customer-owned", "driftline-active", "driftline-approval-gated"]
     }
+
+
+def test_github_reversal_preserves_non_driftline_labels() -> None:
+    requests = []
+    responses = [
+        {
+            "number": 7,
+            "labels": [
+                {"name": "customer-owned"},
+                {"name": "driftline-active"},
+                {"name": "driftline-approval-gated"},
+            ],
+        },
+        {},
+        {},
+    ]
+
+    def opener(request, timeout):
+        requests.append(request)
+        return _Response(responses.pop(0))
+
+    connector = GitHubConnector(
+        GitHubConfig(enabled=True, token="ghp-test", owner="acme", repo="docs"),
+        opener=opener,
+    )
+    result = connector.reverse_issue(7, "action-1")
+
+    assert result == {"status": "reversed", "issue_number": 7}
+    assert requests[0].method == "GET"
+    assert requests[1].method == "POST"
+    assert json.loads(requests[1].data) == {
+        "labels": ["customer-owned", "driftline-reversed"]
+    }
+    assert requests[2].method == "POST"
 
 
 def test_salesforce_defaults_to_read_only_prepared_contract(monkeypatch) -> None:

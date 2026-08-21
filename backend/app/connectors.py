@@ -1610,6 +1610,18 @@ class GitHubConnector:
         except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise ConnectorError(f"github_request_failed:{method}:{path}") from exc
 
+    @staticmethod
+    def _preserved_labels(issue: dict[str, Any], replacement: str) -> list[str]:
+        """Keep customer labels while replacing only Driftline-owned state."""
+        owned = {"driftline-active", "driftline-approval-gated", "driftline-reversed"}
+        labels = [
+            str(label.get("name"))
+            for label in issue.get("labels") or []
+            if isinstance(label, dict) and label.get("name")
+        ]
+        preserved = [label for label in labels if label not in owned]
+        return [*preserved, replacement]
+
     def create_or_reuse_issue(
         self, *, action_id: str, workflow_id: str, artifact: str, owner: str, proposed: str, evidence_hash: str
     ) -> dict[str, Any]:
@@ -1630,7 +1642,12 @@ class GitHubConnector:
                 self._request(
                     "POST",
                     f"{base}/issues/{existing.get('number')}/labels",
-                    {"labels": ["driftline-active", "driftline-approval-gated"]},
+                    {
+                        "labels": self._preserved_labels(
+                            existing, "driftline-active"
+                        )
+                        + ["driftline-approval-gated"]
+                    },
                 )
                 return {
                     "status": "reactivated",
@@ -1652,7 +1669,12 @@ class GitHubConnector:
 
     def reverse_issue(self, issue_number: int, action_id: str) -> dict[str, Any]:
         base = f"/repos/{quote(self.config.owner)}/{quote(self.config.repo)}"
-        self._request("POST", f"{base}/issues/{issue_number}/labels", {"labels": ["driftline-reversed"]})
+        issue = self._request("GET", f"{base}/issues/{issue_number}")
+        self._request(
+            "POST",
+            f"{base}/issues/{issue_number}/labels",
+            {"labels": self._preserved_labels(issue, "driftline-reversed")},
+        )
         self._request("POST", f"{base}/issues/{issue_number}/comments", {"body": f"Driftline action {action_id} was reversed by a named human reviewer."})
         return {"status": "reversed", "issue_number": issue_number}
 
