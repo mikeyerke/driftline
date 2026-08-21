@@ -115,6 +115,12 @@ proof** panel reads the same bounded endpoint, making observed deployment
 utility and unmeasured customer outcomes visible without turning synthetic
 activity into a business claim.
 
+Authenticated tenant operators also get a bounded **Pilot measurement** panel
+for recording aggregate before/after minutes and optional outcome evidence.
+These records remain explicitly operator-reported and unverified until
+reviewed; Driftline never accepts customer names, raw notes, or CRM records in
+this lane.
+
 For an authenticated operator, `POST /api/connectors/context/summary` adds a
 bounded internal-workload view before approval: fixed-scope Jira, Confluence,
 Slack, and GitHub connectors return aggregate counts only. It is signed-only,

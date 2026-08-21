@@ -149,6 +149,24 @@ export function getValueProof() {
   return request("/api/ops/value-proof");
 }
 
+export function getPilotReport(cohortLabel = "") {
+  const params = new URLSearchParams();
+  if (cohortLabel.trim()) params.set("cohort_label", cohortLabel.trim());
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/ops/pilot-report?${params.toString()}`, { authenticated: true });
+}
+
+export function recordOutcomeMeasurement(measurement) {
+  return request("/api/ops/outcomes", {
+    method: "POST",
+    authenticated: true,
+    body: JSON.stringify({ ...measurement, ...signedContext() }),
+  });
+}
+
 export function getSourceHistory(sourceId, limit = 8) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (operatorSession.identityToken && operatorSession.tenantId) {
