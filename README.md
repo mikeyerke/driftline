@@ -518,8 +518,10 @@ curl -fsS "$BASE/health"
 
 `verify_live_agent.sh` creates one bounded public workflow and waits for the
 human approval gate. It fails closed unless the deployed response proves
-`gemini-3.5-flash`, `google_adk`, `gemini_structured`, both allowlisted tool
-calls, four mapped artifacts, and durable audit events. The identity-free
+`gemini-3.5-flash`, `google_adk`, a genuine structured impact pass, a genuine
+structured decision-copilot pass with a passing deterministic policy review,
+both allowlisted tool calls, four mapped artifacts, and durable audit events.
+The identity-free
 deterministic `/api/workflows/demo` endpoint remains the fallback for judging
 when a live source or model quota is temporarily unavailable; the verifier
 will retry that permitted fallback for up to three bounded runs, but never

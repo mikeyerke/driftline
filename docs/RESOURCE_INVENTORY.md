@@ -12,11 +12,11 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T13:09:35Z` with the active gcloud project set to
+Checked `2026-08-21T13:20:57Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00111-xr2` at 100% traffic.
+  `driftline-00112-v69` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -81,6 +81,31 @@ Checked `2026-08-21T13:09:35Z` with the active gcloud project set to
   At 390×844 mobile width, body/document scroll width remained 390px and the
   Lighthouse snapshot scored 100 for accessibility, best practices, SEO, and
   agentic browsing.
+
+## 2026-08-21 public quota and dual-Gemini proof release (live)
+
+- Source commit `e68b55b` was deployed by Cloud Build
+  `277d5f06-cac9-4395-bc90-3d1682f1260b` (`SUCCESS`, 3m01s) as Cloud Run
+  revision `driftline-00112-v69` at 100% traffic. The anonymous evaluation
+  lane now has its own bounded `20 calls / 3600s` Gemini bucket, separate from
+  the signed tenant allowance of `10 calls / 3600s`; this prevents repeated
+  evaluator runs from starving an authenticated pilot without opening an
+  unbounded public model proxy.
+- `scripts/verify_production.sh` passed on the new revision with Firestore,
+  async tasks, monitoring, and zero recent Cloud Run errors. The strengthened
+  `scripts/verify_live_agent.sh` passed job `job-1fbf4e290e68` / workflow
+  `58972084-55c9-46a9-b443-613d951ea9bc` through the real coordinator,
+  evidence-bound Gemini impact analyst, Gemini decision copilot (2 options),
+  Google ADK, both allowlisted tools, four artifacts, five audit events, and
+  the deterministic `needs_approval` gate.
+- `scripts/verify_public_approval_undo.sh` passed independently on job
+  `job-f9979a4981c4` / workflow `2ec4f44a-4349-4011-996c-dae2b0ae1b71`:
+  approval persisted the private packet, undo persisted the reversal, and the
+  final response retained `external_write=false` and
+  `external_systems_changed=false`.
+- GitHub Actions run `32485900320` passed for source `e68b55b` (245 backend
+  tests, Ruff, frontend production build, standalone lockfile-pinned image,
+  and shell release-helper hygiene).
 
 ## 2026-08-21 production-lane and judge-proof release (live)
 

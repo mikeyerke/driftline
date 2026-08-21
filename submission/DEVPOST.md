@@ -137,9 +137,9 @@ created during the contest.
 - A live isolated Cloud Run, Cloud Tasks, and Firestore deployment with a
   dedicated runtime identity, scale-to-zero configuration, and a
   project-scoped budget guardrail.
-- The current active release is source commit `ec65176`, Cloud Build
-  `aa5659ff-045f-44e2-ac47-e24add7a2d76`, and Cloud Run revision
-  `driftline-00111-xr2` at 100% traffic. It passed 244 backend tests, Ruff,
+- The current active release is source commit `e68b55b`, Cloud Build
+  `277d5f06-cac9-4395-bc90-3d1682f1260b`, and Cloud Run revision
+  `driftline-00112-v69` at 100% traffic. It passed 245 backend tests, Ruff,
   the frontend production build, and isolated deployment probes. The console
   and signed direct-agent API route authenticate operator-registered URLs
   through the real monitor lane, support bounded HTML/text/RSS onboarding, and
@@ -171,20 +171,21 @@ created during the contest.
   workflow returned to `needs_approval` with a rollback marker and
   `external_systems_changed=false`. This is the demonstrated reversible
   change-to-action loop, not a claim of an external connector write.
-  The final release proof was rerun after the public-console clarity patch:
+  The final release proof was rerun after the public-console clarity patch and
+  public-quota hardening:
   `scripts/verify_production.sh` reported Firestore persistence, scheduler and
   task health, enabled monitoring, and zero recent Cloud Run errors; a fresh
-  `scripts/verify_live_agent.sh` run created job `job-b3bd92a2bece` /
-  workflow `9ac6363b-dbcd-4f53-87d8-dabebe496b69` and proved the live
-  `gemini-3.5-flash` + Google ADK path, both allowlisted tools, four artifacts,
-  five audit events, and `needs_approval`. The credential-free
+  `scripts/verify_live_agent.sh` run created job `job-1fbf4e290e68` /
+  workflow `58972084-55c9-46a9-b443-613d951ea9bc` and proved the live
+  coordinator, Gemini impact analyst, Gemini decision copilot (2 options),
+  Google ADK path, both allowlisted tools, four artifacts, five audit events,
+  and `needs_approval`. The credential-free
   `scripts/verify_public_approval_undo.sh` separately created job
-  `job-bf2ff1ed5385` / workflow `a801162e-eae5-40c9-a4b0-3fc7e6cf8e8a` and
+  `job-f9979a4981c4` / workflow `2ec4f44a-4349-4011-996c-dae2b0ae1b71` and
   proved persisted packet → durable undo with both external-write flags false.
-  GitHub Actions run `32485421474` passed the current repository HEAD
-  (`6ea74a3`) across backend tests/lint, frontend build, image build, and shell
-  hygiene; the serving runtime remains the exact `ec65176` / `00111-xr2`
-  deployment above.
+  GitHub Actions run `32485900320` passed source `e68b55b` across backend
+  tests/lint, frontend build, image build, and shell hygiene; the serving
+  runtime is the exact `e68b55b` / `00112-v69` deployment above.
   The current console release labels deterministic pre-run fixtures clearly,
   limits the anonymous history view to the latest three tenantless runs, and
   makes owner-action closure visible after approval. The live verifier now

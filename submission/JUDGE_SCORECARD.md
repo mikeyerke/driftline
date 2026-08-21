@@ -67,8 +67,10 @@ curl -fsS "$BASE/health"
 The scripts fail closed unless the public service is healthy, the active Cloud
 Run deployment is in the isolated project, the live job reaches
 `needs_approval`, the response proves `gemini-3.5-flash` and `google_adk`, the
-two allowlisted tools are present, and the evidence-bound artifacts and audit
-events are persisted. The live verifier retries the explicitly permitted
+two allowlisted tools are present, both the impact analyst and decision
+copilot are genuine structured Gemini turns with a passing red-team review,
+and the evidence-bound artifacts and audit events are persisted. The live
+verifier retries the explicitly permitted
 anonymous deterministic fallback for up to three bounded runs, but still
 fails unless a genuine Gemini structured turn is proven. The full local gate
 is:
