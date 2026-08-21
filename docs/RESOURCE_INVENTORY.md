@@ -12,12 +12,12 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-21T17:00:00Z` with the active gcloud project set to
+Checked `2026-08-21T17:20:00Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00127-wf9` at 100% traffic. Its immutable serving image is
-  `sha256:2aa709595bc2c9f37e7fffe6e1c704501afa772145c9b2fda40968b323a7358d`.
+  `driftline-00128-jk6` at 100% traffic. Its immutable serving image is
+  `sha256:75a5be4b8498d7801c112b23ad6898ca239d8640a8bea4f184660c646f1f5312`.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -29,6 +29,28 @@ Checked `2026-08-21T17:00:00Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
+
+## 2026-08-21 evaluation-boundary and proof-of-action polish (live)
+
+- Source commit `75c548a` was deployed by Cloud Build
+  `7b4e3e38-ac52-4969-8384-2c320e68206d` (`SUCCESS`, 3m13s) as Cloud Run
+  revision `driftline-00128-jk6` at 100% traffic. The immutable image digest is
+  `sha256:75a5be4b8498d7801c112b23ad6898ca239d8640a8bea4f184660c646f1f5312`.
+- The public banner and value-proof panel now call the lane what it is:
+  pinned synthetic scenarios and evaluation-only deployment records, not
+  customer usage or ROI. The approved state adds a compact proof-of-action
+  receipt for the Firestore action, Cloud Storage persistence, rollback path,
+  and external-write posture.
+- Local verification passed 252 backend tests, Ruff, `git diff --check`, and
+  the frontend production build (`311.14 kB`, `91.90 kB` gzip). GitHub Actions
+  run `32507129217` passed the repository gates.
+- Fresh exact-revision live agent proof passed on job `job-3201fe30b934` /
+  workflow `65b3b8ac-1d2a-4784-8c61-fe730c4a2d45` with `needs_approval`,
+  `public_source`, Gemini 3.5 Flash, Google ADK, two allowlisted tools, four
+  artifacts, five audit events, and two Decision Copilot options.
+- Fresh exact-revision approval/undo proof passed on job `job-a1292d0eec96` /
+  workflow `152b2b5d-0ddd-476c-93a5-a8f835ca5d90`; the packet persisted, the
+  operational output reversed, and both external-write flags were false.
 
 ## 2026-08-21 cadence-aware monitor release (live)
 
