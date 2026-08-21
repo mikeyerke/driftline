@@ -1,7 +1,7 @@
 # Google All Things Agentic — verified submission requirements
 
 Checked against the official Devpost overview, rules, judging criteria, and
-key-date endpoints on August 20, 2026. The canonical sources are:
+key-date endpoints on August 21, 2026. The canonical sources are:
 
 - [Contest overview](https://allthingsagentichackathon.devpost.com/)
 - [Official rules](https://allthingsagentichackathon.devpost.com/rules)
