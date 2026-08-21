@@ -16,7 +16,7 @@ Checked `2026-08-21T10:02:08Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00095-nph` at 100% traffic.
+  `driftline-00096-shm` at 100% traffic.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`
@@ -587,15 +587,15 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00095-nph` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00096-shm` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 10%, 25%, 50%, 75%, 90%, and 100% current-spend thresholds; default
   billing-account recipients remain enabled and no custom notification channel
   is configured.
-- Deployed runtime source: `2f7865d`; Cloud Build
-  `c1ffee0f-3ebd-44b3-8ec1-8b2e82979c32`.
+- Deployed runtime source: `510be63`; Cloud Build
+  `49245582-02c4-4cf8-b9a3-97763eaf1a2a`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.
@@ -3766,6 +3766,22 @@ is no longer needed.
 - A fresh production browser load showed the preview labels with no console
   errors; `/health` and `scripts/verify_production.sh` passed with zero recent
   Cloud Run errors.
+
+## 2026-08-21 multimodal disclosure release (live)
+
+- Source commit `510be63` (`Clarify multimodal reference evidence`) passed the
+  local 241-test backend suite, Ruff, frontend production build, and diff
+  checks. Cloud Build `49245582-02c4-4cf8-b9a3-97763eaf1a2a` completed
+  `SUCCESS` and deployed Cloud Run revision `driftline-00096-shm` at 100%
+  traffic.
+- The visual panel now calls its bounded allowlisted concept asset a
+  `Multimodal reference pair` and discloses that the selected source's text
+  evidence and hash remain authoritative. The Gemini vision seam remains
+  available without implying that the concept image is a screenshot of the
+  selected competitor source.
+- A fresh production browser load showed the disclosure and no console errors
+  or warnings; `/health` and `scripts/verify_production.sh` passed with zero
+  recent Cloud Run errors.
 
 ## 2026-08-21 billing guardrail hardening (live)
 
