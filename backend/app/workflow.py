@@ -17,7 +17,7 @@ from .models import (
 
 DEMO_BEFORE = "Enterprise includes unlimited audit-log retention."
 DEMO_AFTER = "Enterprise includes 365-day audit-log retention."
-DEMO_SOURCE_URL = "https://raw.githubusercontent.com/mikeyerke/driftline/main/fixtures/public-pricing-after.txt"
+DEMO_SOURCE_URL = "https://raw.githubusercontent.com/mikeyerke/driftline/a48f7eb/fixtures/public-pricing-after.txt"
 
 
 def _evidence_digest(before: str, after: str) -> str:

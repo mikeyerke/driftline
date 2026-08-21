@@ -144,6 +144,19 @@ def test_source_registry_health_is_bounded_and_labels_synthetic_data() -> None:
     )
 
 
+def test_builtin_fixture_urls_are_immutable() -> None:
+    fixture_sources = [
+        definition
+        for definition in source.SOURCE_DEFINITIONS.values()
+        if definition.get("fixture")
+    ]
+
+    assert fixture_sources
+    assert all("raw.githubusercontent.com" in definition["url"] for definition in fixture_sources)
+    assert all("/main/" not in definition["url"] for definition in fixture_sources)
+    assert all("/fixtures/" in definition["url"] for definition in fixture_sources)
+
+
 def test_source_registry_health_surfaces_latest_fetch_failure() -> None:
     source._SOURCE_FAILURES_MEMORY.clear()
     definition = source.SOURCE_DEFINITIONS["competitor/pricing"]
