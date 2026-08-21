@@ -43,11 +43,10 @@ never accepts a token value.
 The helper also creates the deterministic service identity
 `driftline-<tenant-prefix>-<hash>@driftline-hackathon-2026.iam.gserviceaccount.com`
 and `driftline-tenant-operator-acme`, an empty
-tenant-specific break-glass signer container. Google OIDC is the preferred
-operator identity; if a signed fallback is needed, generate a random value
-out of band and add it to that exact secret. Driftline's hosted release is
-configured with `DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS=true`, so a
-deployment-wide signer cannot authorize a tenant-scoped request.
+tenant-specific break-glass signer container. Google OIDC is the hosted
+operator identity. A random fallback value may be generated out of band for
+explicit local/bootstrap incident use; Driftline's hosted release also sets
+`DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY=true` and rejects that fallback.
 
 ## 2. Start a secret-free enrollment (recommended)
 

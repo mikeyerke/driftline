@@ -30,10 +30,10 @@ Firestore membership directory. `DRIFTLINE_TENANT_MEMBERS` remains a local or
 bootstrap compatibility mapping only. `viewer` identities can inspect status, while
 `operator` and `owner` identities can start signed connector work; Salesforce
 OAuth start, disconnect, and binding lifecycle operations require an `owner`.
-The public demo has no tenant authority and
-can only create sandbox packets. The HMAC break-glass path is additionally
-restricted by the explicit `DRIFTLINE_HMAC_TENANTS` allowlist and returns a
-forbidden response for unknown tenants; it is not a wildcard tenant selector.
+The public demo has no tenant authority and can only create sandbox packets.
+Hosted operator requests require Google OIDC; the HMAC break-glass path is
+available only for explicit local/bootstrap use and is not a wildcard tenant
+selector.
 
 Connector credentials are now tenant-bound for every external integration.
 Each signed approval resolves a tenant principal first, then loads only the
@@ -135,7 +135,8 @@ Tenant identity also propagates through asynchronous monitor jobs and ADK
 execution into the resulting workflow state. Signed approve, dismiss, and undo
 operations require an exact workflow/tenant match. Tenant-bound job and
 workflow reads (including packets, action items, and scenario previews) use the
-same signed HMAC/OIDC boundary; unauthenticated public history filters those
+same signed OIDC boundary in hosted deployments; local/bootstrap HMAC is an
+explicit compatibility path. Unauthenticated public history filters those
 records out. Append-only change memory and operator summary counts use the same
 filter, so a public console cannot infer another tenant's workflow details.
 The judge-facing synthetic workflow remains deliberately tenantless and
@@ -162,10 +163,10 @@ fallback.
 The direct `POST /api/agent/run` endpoint has the same two lanes. The public
 judge request may omit identity fields and runs only a tenantless synthetic or
 allowlisted public-source turn. A real operator supplies `operator`,
-`tenant_id`, and either the Google OIDC identity or the tenant-bound HMAC
-approval token; the route verifies the principal, reserves the tenant's agent
-quota, and passes that tenant into ADK source inspection and Firestore workflow
-state. Supplying only a tenant ID or an unallowlisted source is rejected before
+`tenant_id`, and a Google OIDC identity; the route verifies the principal,
+reserves the tenant's agent quota, and passes that tenant into ADK source
+inspection and Firestore workflow state. Supplying only a tenant ID or an
+unallowlisted source is rejected before
 any model call. This keeps the fast direct ADK path from becoming a credential
 or cross-tenant escape hatch while preserving a reliable public demo.
 
@@ -214,12 +215,13 @@ request cannot select a tenant by query parameter alone.
 
 ## Tenant-specific break-glass signing
 
-Google OIDC is the normal operator path. For a controlled fallback, the
+Google OIDC is the only hosted operator path. For explicit local/bootstrap
+break-glass use, the
 runtime derives `driftline-tenant-operator-<tenant>` from the authenticated
 tenant and reads that exact Secret Manager resource; request bodies cannot
-choose a secret name. The hosted deployment requires this tenant signer and
-fails closed when it is missing, so a deployment-wide HMAC token cannot cross
-tenant boundaries. Each signer is labeled with its tenant and is readable only
+choose a secret name. The hosted deployment rejects this fallback, so a
+deployment-wide HMAC token cannot cross tenant boundaries. Each signer is
+labeled with its tenant and is readable only
 by the derived tenant service identity. The shared Cloud Run runtime can
 impersonate that exact identity but is not a direct Secret Manager reader.
 Rotate it by adding a new version through infrastructure, then retire the old

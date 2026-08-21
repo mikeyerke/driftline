@@ -226,16 +226,16 @@ The direct `POST /api/agent/run` route has an explicit two-lane contract. The
 anonymous judge request is tenantless, limited to an allowlisted source, and
 replaced with a fixed safe instruction so caller text never becomes a public
 Gemini prompt or durable ledger field. A real operator can add `operator`,
-`tenant_id`, and a Google OIDC or HMAC approval token; Driftline then verifies
+`tenant_id`, and a Google OIDC approval token; Driftline then verifies
 the principal, reserves that tenant's agent quota, and preserves the operator's
 query in the signed tenant workflow. Partial identity or unallowlisted-source
 requests fail before a model call.
 In the Firestore deployment, signed tenant reservations use a transactional
 window counter so concurrent Cloud Run instances cannot race past the same
 limit; local development uses a process-local fallback.
-Google OIDC is preferred for operators; the hosted break-glass fallback uses
-the deterministic `driftline-tenant-operator-<tenant>` signer secret and fails
-closed rather than accepting one deployment-wide HMAC key for every tenant.
+Google OIDC is required for hosted operators. The deterministic
+`driftline-tenant-operator-<tenant>` signer remains available only for explicit
+local/bootstrap break-glass use; the hosted deployment rejects it.
 The hosted runtime also checks the durable Firestore tenant directory, so an
 active, provisioned tenant can be admitted without editing a deployment-wide
 allowlist; disabled or unreadable tenant records fail closed.

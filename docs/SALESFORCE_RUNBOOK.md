@@ -9,7 +9,8 @@ provisions a tenant-scoped OAuth client and secret.
 - OAuth authorization-code start and one-time state callback.
 - PKCE authorization with an S256 code challenge; the verifier is kept only
   in the expiring server-side OAuth state and is never sent to the browser.
-- Google OIDC/HMAC signed operator gate before a connection can start.
+- Google OIDC signed operator gate before a connection can start; the hosted
+  deployment rejects the local/bootstrap HMAC break-glass path.
 - Tenant and role binding (`viewer`, `operator`, `owner`).
 - Refresh-token storage in the same deterministic tenant connector namespace
   as every other connector: `driftline-tenant-<tenant-id>-salesforce`.
