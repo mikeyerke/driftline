@@ -30,7 +30,10 @@ Firestore membership directory. `DRIFTLINE_TENANT_MEMBERS` remains a local or
 bootstrap compatibility mapping only. `viewer` identities can inspect status, while
 `operator` and `owner` identities can start signed connector work; Salesforce
 OAuth start, disconnect, and binding lifecycle operations require an `owner`.
-The public demo has no tenant authority and can only create sandbox packets.
+The public evaluation lane has no tenant authority and can only create isolated
+Driftline change packets. Those packets are real, durable outputs inside the
+isolated Google Cloud project; they do not pretend to mutate a customer's
+systems.
 Hosted operator requests require Google OIDC; the HMAC break-glass path is
 available only for explicit local/bootstrap use and is not a wildcard tenant
 selector.

@@ -291,7 +291,7 @@ class DriftlineWorkflow:
         state.action_record = {
             "action_id": action_id,
             "change_card_id": card_id,
-            "kind": "firestore_sandbox_packet",
+            "kind": "firestore_change_packet",
             "status": "active",
             "workflow_id": state.workflow_id,
             "evidence_hash": state.evidence.evidence_hash,

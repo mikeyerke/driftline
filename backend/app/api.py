@@ -799,7 +799,12 @@ def _enforce_workflow_tenant(
     scope = approval_identity.get("scope")
     # Keep accepting the legacy value for persisted/local identities, but use
     # the production-facing name for all new public decisions.
-    if scope in {"public_packet_only", "sandbox_packet_only"}:
+    if scope in {
+        "public_evaluation_packet_only",
+        # Backwards-compatible values for locally persisted identities.
+        "public_packet_only",
+        "sandbox_packet_only",
+    }:
         if state.tenant_id is not None:
             raise HTTPException(
                 status_code=403,
@@ -1053,7 +1058,7 @@ def _verify_approval_mode(
         return {
             "mode": "demo",
             "identity": "named_demo_actor",
-            "scope": "public_packet_only",
+            "scope": "public_evaluation_packet_only",
             "tenant_id": principal.tenant_id,
             "role": principal.role,
         }
@@ -3793,7 +3798,7 @@ def get_value_proof(
         "scope": (
             "observed_tenant_records"
             if identity
-            else "observed_driftline_sandbox_records"
+            else "observed_driftline_public_evaluation_records"
         ),
         "observed": {
             "jobs": len(jobs),

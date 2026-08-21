@@ -11,6 +11,10 @@ execute least-privilege, idempotent, reversible connector actions. This is a
 real deployed control plane with a deliberately safe public surface, not a
 claim that an unauthenticated visitor can mutate a customer's systems.
 
+For the fastest rubric-aligned review, see the [judge scorecard](submission/JUDGE_SCORECARD.md):
+it maps the official 40/30/30 judging weights to the live journey, architecture,
+and reproducible release checks.
+
 The default demonstration models a competitor price change from $49 to $59 per
 seat per month, then traces the impact into a comparison map, pricing
 battlecard, deal-desk guidance, and executive brief. The console can also run

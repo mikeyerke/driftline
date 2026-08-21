@@ -34,7 +34,7 @@ def test_named_approval_resumes_and_publishes_bounded_artifacts() -> None:
         "owner_review",
         "queued",
     ]
-    assert result.action_record["kind"] == "firestore_sandbox_packet"
+    assert result.action_record["kind"] == "firestore_change_packet"
     assert result.action_record["status"] == "active"
     assert result.action_record["external_systems_changed"] is False
 
