@@ -176,12 +176,12 @@ entries below are append-only history; they are not a substitute for this
 snapshot.
 
 - Public URL: `https://driftline-xvxczqg62a-uc.a.run.app/`
-- Active Cloud Run revision: `driftline-00052-f75` at 100% traffic, scale to
+- Active Cloud Run revision: `driftline-00054-zsp` at 100% traffic, scale to
   zero, one-instance cap.
 - Cloud Run limits: 1 vCPU, 512 MiB, concurrency 20, max scale 1, no minimum
   scale. Billing budget `Driftline $10 Guardrail` is filtered to this project
   with 25%, 50%, 75%, 90%, and 100% thresholds.
-- Deployed runtime source: `453c2c6`; Cloud Build `b0f238a7-37e9-4626-a6e4-e859c41f4dfe`.
+- Deployed runtime source: `d4ee7ef`; Cloud Build `38145a16-6eab-46e7-90b5-2b2d4b41d09f`.
 - The public console now presents the live service as a production control
   plane with an explicit public-demo safety mode; anonymous judging remains
   packet-only and cannot write to customer systems.

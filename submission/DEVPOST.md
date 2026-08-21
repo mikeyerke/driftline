@@ -138,16 +138,17 @@ created during the contest.
   `db3305b1-7770-4cec-a7f3-e468eb4210f5`) presents the console as a production
   control plane while keeping the anonymous judging lane explicitly packet-only
   and isolated from customer writes.
-- The current live revision is `driftline-00052-f75` from source commit
-  `453c2c6`, deployed by Cloud Build
-  `b0f238a7-37e9-4626-a6e4-e859c41f4dfe`; it serves 100% of traffic with the
+- The current live revision is `driftline-00054-zsp` from source commit
+  `d4ee7ef`, deployed by Cloud Build
+  `38145a16-6eab-46e7-90b5-2b2d4b41d09f`; it serves 100% of traffic with the
   same scale-to-zero and one-instance guardrails.
 - The deployed public path has returned `execution_mode=google_adk`,
   `model=gemini-3.5-flash`, and allowlisted tool calls in direct live probes.
-  The deployed runtime source is commit `453c2c6`, deployed through Cloud Build
-  `b0f238a7-37e9-4626-a6e4-e859c41f4dfe` as Cloud Run revision
-  `driftline-00052-f75` at 100% traffic after local and CI gates passed. The
-  latest repository verification run `32442923011` passed on this commit; the
+  The deployed runtime source is commit `d4ee7ef`, deployed through Cloud Build
+  `38145a16-6eab-46e7-90b5-2b2d4b41d09f` as Cloud Run revision
+  `driftline-00054-zsp` at 100% traffic after local and CI gates passed. The
+  latest repository verification run `32445110698` passed on the follow-up
+  evidence commit; the
   local release gate also passed all 224 backend tests, Ruff, and the frontend
   production build. A live direct-agent canary
   returned the two allowlisted tool calls without echoing anonymous query or
@@ -160,6 +161,10 @@ created during the contest.
   approval, reopen, and dismissal. Fresh browser QA passed the live scan,
   evidence, approval, completion, activity log, timeline, and 390px mobile path
   without console errors.
+- The final smoke workflow `de3f6c7f-4a59-4005-ad24-4968bf3a50c4` reached
+  `needs_approval` on this revision; signed public-demo approval persisted four
+  packets with `external_write=false`, and immediate undo persisted the
+  reversal marker. Current-revision logs contained no `ERROR` entries.
 - A signed `tenant_demo` fixture pilot on the current revision carried tenant
   `driftline-demo` through real ADK/Gemini into Firestore as
   `synthetic_tenant_demo`. After named human approval, the isolated Jira
