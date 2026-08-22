@@ -1827,6 +1827,41 @@ def _salesforce_connection_metadata(
     return connection, binding, connected
 
 
+def _record_salesforce_health_status(
+    tenant_id: str,
+    status: str,
+    *,
+    reason: str | None = None,
+) -> None:
+    """Persist bounded Salesforce health metadata without CRM or credentials.
+
+    A health probe is an operator-triggered read, so its recovery state should
+    survive a page reload. Keep the connection itself separate from the probe
+    result: an OAuth connection can remain present while its refresh token
+    needs reauthorization. Persistence failures must not turn a provider
+    response into an application outage.
+    """
+    try:
+        connection = load_salesforce_connection(tenant_id)
+        if not connection:
+            return
+        payload = {
+            **connection,
+            "health_status": status,
+            "health_checked_at": utc_now(),
+        }
+        if reason:
+            payload["health_reason"] = reason
+        else:
+            payload.pop("health_reason", None)
+        persist_salesforce_connection(payload)
+    except Exception as exc:  # noqa: BLE001  # metadata must not mask provider health.
+        logger.warning(
+            "Salesforce health metadata persistence failed: %s",
+            type(exc).__name__,
+        )
+
+
 def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
     """Return aggregate Salesforce context for the signed internal lane.
 
@@ -1862,15 +1897,25 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
             access_token=str(token["access_token"]),
             instance_url=str(connection["instance_url"]),
         )
-        return {
+        summary = {
             **client.health_summary(),
             "scope": "read_only_crm",
             "external_read": True,
             "redaction": "aggregate_metadata_only",
         }
+        _record_salesforce_health_status(
+            tenant_id,
+            str(summary.get("status", "connected_read_only")),
+        )
+        return summary
     except (ConnectorError, CredentialBrokerError) as exc:
         logger.warning("salesforce context read failed: %s", exc)
         if isinstance(exc, SalesforceReauthorizationRequired):
+            _record_salesforce_health_status(
+                tenant_id,
+                "reauthorization_required",
+                reason="refresh_token_rejected",
+            )
             return {
                 "status": "reauthorization_required",
                 "mode": "read_only_context",
@@ -1944,21 +1989,32 @@ def salesforce_status(
     connection, binding, connected = _salesforce_connection_metadata(safe_tenant)
     instance_url = str(connection.get("instance_url", "")).rstrip("/")
     hostname = urlparse(instance_url).hostname if instance_url else None
+    persisted_health = str(connection.get("health_status", "")).casefold()
+    status = (
+        "reauthorization_required"
+        if connected and persisted_health == "reauthorization_required"
+        else "connected_read_only"
+        if connected
+        else readiness.get("status", "not_configured")
+    )
     return {
         "tenant_id": safe_tenant,
         "connector": "salesforce",
-        "status": "connected_read_only" if connected else readiness.get("status", "not_configured"),
+        "status": status,
         "mode": "read_only_context" if connected else readiness.get("mode", "prepared_only"),
         "external_write": False,
         "scope": readiness.get("scope", "read_only_context"),
         "allowed_objects": readiness.get("allowed_objects", ["Product2", "PricebookEntry", "Opportunity"]),
         "authorization_required": bool(
-            not connected and readiness.get("status") == "oauth_ready"
+            status == "reauthorization_required"
+            or not connected and readiness.get("status") == "oauth_ready"
         ),
         "instance_hostname": hostname,
         "connected_at": connection.get("connected_at") if connected else None,
         "binding_status": binding.get("status") if binding else None,
         "verified_at": binding.get("verified_at") if connected else None,
+        "health_checked_at": connection.get("health_checked_at") if connected else None,
+        "health_reason": connection.get("health_reason") if status == "reauthorization_required" else None,
         "credential_values_exposed": False,
     }
 
@@ -2084,6 +2140,8 @@ def salesforce_oauth_callback(
                 "status": "connected_read_only",
                 "connected_at": utc_now(),
                 "operator_email": callback_state.get("email", ""),
+                "health_status": "pending",
+                "health_checked_at": None,
             }
         )
         persist_tenant_audit_event(
@@ -2152,6 +2210,10 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
             instance_url=str(connection["instance_url"]),
         )
         result = client.health_summary()
+        _record_salesforce_health_status(
+            tenant_id,
+            str(result.get("status", "connected_read_only")),
+        )
         return {"tenant_id": tenant_id, **result}
     except (ConnectorError, CredentialBrokerError) as exc:
         # Keep the public response deliberately generic, but preserve the
@@ -2181,6 +2243,11 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
             root_detail,
         )
         if isinstance(exc, SalesforceReauthorizationRequired):
+            _record_salesforce_health_status(
+                tenant_id,
+                "reauthorization_required",
+                reason="refresh_token_rejected",
+            )
             return {
                 "tenant_id": tenant_id,
                 "status": "reauthorization_required",

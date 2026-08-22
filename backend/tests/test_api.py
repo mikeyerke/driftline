@@ -1003,6 +1003,60 @@ def test_salesforce_status_returns_tenant_metadata_without_credentials(monkeypat
     assert "secret" not in payload
 
 
+def test_salesforce_status_surfaces_persisted_reauthorization_state(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *_args, **_kwargs: {
+            "tenant_id": "salesforce-acme",
+            "role": "owner",
+            "identity": "signed_operator",
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {
+            "status": "oauth_ready",
+            "mode": "awaiting_authorization",
+            "scope": "read_only_context",
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "load_salesforce_connection",
+        lambda _tenant: {
+            "tenant_id": "salesforce-acme",
+            "status": "connected_read_only",
+            "instance_url": "https://acme.my.salesforce.com",
+            "health_status": "reauthorization_required",
+            "health_checked_at": "2026-08-22T01:00:00Z",
+            "health_reason": "refresh_token_rejected",
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "load_connector_binding",
+        lambda *_args: {
+            "status": "active",
+            "secret_name": "driftline-tenant-salesforce-acme-salesforce",
+        },
+    )
+
+    response = client.get(
+        "/api/connectors/salesforce/status",
+        params={"operator": "Owner", "tenant_id": "salesforce-acme"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "reauthorization_required"
+    assert payload["authorization_required"] is True
+    assert payload["health_reason"] == "refresh_token_rejected"
+    assert payload["health_checked_at"] == "2026-08-22T01:00:00Z"
+    assert payload["credential_values_exposed"] is False
+
+
 def test_salesforce_context_is_explicitly_unconfigured_before_oauth(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
     monkeypatch.setattr(
