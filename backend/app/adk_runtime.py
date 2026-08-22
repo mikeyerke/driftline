@@ -189,7 +189,7 @@ async def run_agent_task(
                 persist_workflow(state)
             try:
                 structured = await analyze_workflow(state)
-                analysis_info = analysis_trace(structured)
+                analysis_info = analysis_trace(structured, state.internal_context)
                 # Gemini may replace deterministic draft text or risk labels
                 # after the source tool creates the workflow. Rebuild the
                 # decision card so the UI and durable state cannot drift from
@@ -220,7 +220,9 @@ async def run_agent_task(
                 persist_workflow(state)
             try:
                 copilot, policy = await analyze_decision(state)
-                decision_info = decision_trace(copilot, policy)
+                decision_info = decision_trace(
+                    copilot, policy, internal_context=state.internal_context
+                )
             except AnalysisUnavailable as exc:
                 if run_mode != "demo":
                     raise
@@ -230,6 +232,7 @@ async def run_agent_task(
                     red_team_review(fallback, state),
                     mode="deterministic_demo_fallback",
                     reason=str(exc),
+                    internal_context=state.internal_context,
                 )
             state.agent_trace = _agent_trace_payload(
                 started_at=started_at,

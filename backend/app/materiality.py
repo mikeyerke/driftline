@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Any
 
+from .guardrails import guard_untrusted_text
+
 _PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
     "Own pricing": {
         "score": 94,
@@ -169,6 +171,72 @@ def normalize_internal_context(value: Mapping[str, Any] | None) -> dict[str, Any
         "attempted_connector_count": attempted,
         "verified_connector_count": verified,
         "connectors": connectors,
+        "redaction": "aggregate_metadata_only",
+    }
+
+
+def model_internal_context(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Project connector context into the model's aggregate-only input seam.
+
+    ``normalize_internal_context`` is the durable-state boundary.  This
+    second, explicit projection keeps the prompt contract just as narrow if a
+    future normalization field is added for UI or audit use: Gemini receives
+    connector status, scope, bounded counts, and the allowlisted Salesforce
+    object metadata only.  It never receives connector response bodies,
+    record fields, credentials, or customer outcomes.
+    """
+    normalized = normalize_internal_context(value)
+    safe_connectors: dict[str, dict[str, Any]] = {}
+    for connector, payload in normalized["connectors"].items():
+        if not isinstance(payload, Mapping):
+            continue
+        safe: dict[str, Any] = {
+            "status": guard_untrusted_text(
+                payload.get("status", "unknown"), max_chars=48
+            ).text,
+            "external_read": bool(payload.get("external_read")),
+            "scope": guard_untrusted_text(
+                payload.get("scope", "aggregate_context"), max_chars=120
+            ).text,
+            "redaction": "aggregate_metadata_only",
+        }
+        for field in _CONTEXT_COUNT_FIELDS:
+            if field in payload:
+                safe[field] = int(payload[field])
+        if connector == "salesforce" and isinstance(payload.get("objects"), list):
+            safe["objects"] = [
+                {
+                    "object": guard_untrusted_text(
+                        item.get("object", ""), max_chars=80
+                    ).text,
+                    "total": int(item.get("total", 0)),
+                    "fields": [
+                        guard_untrusted_text(field, max_chars=80).text
+                        for field in item.get("fields", [])
+                    ],
+                }
+                for item in payload["objects"]
+                if isinstance(item, Mapping)
+            ]
+        safe_connectors[connector] = safe
+    return {
+        "status": str(normalized["status"]),
+        "attempted_connector_count": int(normalized["attempted_connector_count"]),
+        "verified_connector_count": int(normalized["verified_connector_count"]),
+        "connectors": safe_connectors,
+        "redaction": "aggregate_metadata_only",
+    }
+
+
+def model_context_provenance(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Return prompt-use metadata safe to persist in the redacted trace."""
+    projected = model_internal_context(value)
+    return {
+        "status": projected["status"],
+        "attempted_connector_count": projected["attempted_connector_count"],
+        "verified_connector_count": projected["verified_connector_count"],
+        "connector_names": sorted(projected["connectors"]),
+        "used_in_prompt": projected["verified_connector_count"] > 0,
         "redaction": "aggregate_metadata_only",
     }
 

@@ -71,6 +71,12 @@ to a third-party system.
 6. Approval persists a versioned packet and append-only audit events. Undo
    appends a reversal marker and returns the workflow to the decision state.
 
+In the signed tenant lane, both model turns also receive a guarded,
+aggregate-only projection of verified Jira/Confluence/Slack/GitHub/Salesforce
+context. Counts can qualify urgency or owner routing, but raw records,
+credentials, and customer outcomes never enter the prompt or trace; the public
+judge lane receives an explicit unavailable context shape.
+
 The public fixture moves `Competitor Pro` from `$49` to `$59` per seat per
 month. It is synthetic and visibly labelled as such. The console also exposes
 the append-only source ledger, recurring change memory, a bounded Gemini vision

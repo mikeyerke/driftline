@@ -25,6 +25,10 @@ The evaluator never asks Gemini to grade itself. It runs deterministic
 assertions against a workflow snapshot and its bounded `agent_trace` fields.
 The golden fixture is synthetic and exists only to make CI reproducible; it is
 not a customer outcome, ROI measurement, or proof that a model was called.
+For signed tenant runs, the trace may also include redacted context provenance
+(connector names, bounded counts, and whether the aggregate projection was
+used in the prompts); it never stores the projection's labels, source text,
+records, or credentials.
 
 ## Fail-closed thresholds
 

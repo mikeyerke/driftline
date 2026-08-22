@@ -124,8 +124,10 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 - Signed tenant `live`, `tenant_demo`, and `monitor` runs can attach a second,
   normalized aggregate connector read to the Change Card. Only fixed scopes,
   bounded counts, and allowlisted Salesforce object metadata survive; an
-  `internal_context_reader` audit event records the attachment. The anonymous
-  judge lane never calls this seam.
+  `internal_context_reader` audit event records the attachment. Both the
+  impact analyst and Decision Copilot receive a guarded aggregate-only prompt
+  projection, while the redacted trace records only context provenance. The
+  anonymous judge lane never calls this seam.
 - Cloud Run is isolated to `driftline-hackathon-2026`, scale-to-zero, and
   max-one instance; the runtime has no project-level Secret Manager access.
 

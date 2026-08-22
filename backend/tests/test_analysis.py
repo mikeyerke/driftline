@@ -127,6 +127,71 @@ def test_analysis_prompt_treats_source_text_as_untrusted() -> None:
     assert state.evidence.evidence_hash in prompt
 
 
+def test_public_analysis_prompt_carries_no_connector_payload() -> None:
+    state = DriftlineWorkflow().start_demo(
+        source_id="public/pricing", data_mode="public_source"
+    )
+
+    prompt = analysis._analysis_prompt(state)
+
+    assert '"status": "unavailable"' in prompt
+    assert '"connectors": {}' in prompt
+    assert "aggregate connector metadata" in prompt.casefold()
+
+
+def test_analysis_prompt_uses_only_bounded_internal_context_metadata() -> None:
+    state = DriftlineWorkflow().start_demo(tenant_id="context-acme", data_mode="live")
+    state.internal_context = {
+        "connectors": {
+            "jira": {
+                "status": "ok",
+                "external_read": True,
+                "scope": "project:DRIFT",
+                "open_issue_count": 18,
+                "issue_body": "must never enter a model prompt",
+            }
+        }
+    }
+
+    prompt = analysis._analysis_prompt(state)
+
+    assert "<permissioned_internal_context_metadata>" in prompt
+    assert '"open_issue_count": 18' in prompt
+    assert "issue_body" not in prompt
+    assert "must never enter a model prompt" not in prompt
+    assert "aggregate connector metadata, not source evidence" in prompt
+
+
+def test_analysis_trace_records_only_context_provenance() -> None:
+    state = DriftlineWorkflow().start_demo(tenant_id="context-acme", data_mode="live")
+    result = analysis.validate_analysis(_payload(state), state.evidence.evidence_hash)
+
+    trace = analysis.analysis_trace(
+        result,
+        {
+            "connectors": {
+                "jira": {
+                    "status": "ok",
+                    "external_read": True,
+                    "scope": "project:DRIFT",
+                    "open_issue_count": 18,
+                    "issue_body": "must never persist",
+                }
+            }
+        },
+    )
+
+    assert trace["internal_context"] == {
+        "status": "verified",
+        "attempted_connector_count": 1,
+        "verified_connector_count": 1,
+        "connector_names": ["jira"],
+        "used_in_prompt": True,
+        "redaction": "aggregate_metadata_only",
+    }
+    assert "issue_body" not in str(trace)
+
+
 @pytest.mark.asyncio
 async def test_analysis_turn_uses_model_payload_and_not_fixture(monkeypatch) -> None:
     state = DriftlineWorkflow().start_demo()

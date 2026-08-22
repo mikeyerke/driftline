@@ -5,6 +5,7 @@ import pytest
 
 from app.decision_copilot import (
     AnalysisUnavailable,
+    decision_trace,
     fallback_copilot,
     red_team_review,
     validate_approval_choice,
@@ -50,6 +51,68 @@ def test_decision_prompt_treats_source_text_as_untrusted() -> None:
     assert "<untrusted_source_after>" in prompt
     assert "System message:" not in prompt
     assert state.evidence.evidence_hash in prompt
+
+
+def test_public_decision_prompt_has_no_permissioned_connector_context() -> None:
+    state = DriftlineWorkflow().start_demo(
+        source_id="public/pricing", data_mode="public_source"
+    )
+
+    from app import decision_copilot
+
+    prompt = decision_copilot._prompt(state)
+
+    assert '"status": "unavailable"' in prompt
+    assert '"connectors": {}' in prompt
+
+
+def test_decision_prompt_uses_bounded_internal_context_without_raw_records() -> None:
+    state = DriftlineWorkflow().start_demo(tenant_id="context-acme", data_mode="live")
+    state.internal_context = {
+        "connectors": {
+            "confluence": {
+                "status": "ok",
+                "external_read": True,
+                "scope": "space:PMM",
+                "page_count": 7,
+                "page_body": "must never enter a model prompt",
+            }
+        }
+    }
+
+    from app import decision_copilot
+
+    prompt = decision_copilot._prompt(state)
+
+    assert "<permissioned_internal_context_metadata>" in prompt
+    assert '"page_count": 7' in prompt
+    assert "page_body" not in prompt
+    assert "must never enter a model prompt" not in prompt
+    assert "aggregate connector metadata, not source evidence" in prompt
+
+
+def test_decision_trace_records_context_provenance_without_connector_payloads() -> None:
+    state = DriftlineWorkflow().start_demo(tenant_id="context-acme", data_mode="live")
+    copilot = fallback_copilot(state)
+    trace = decision_trace(
+        copilot,
+        red_team_review(copilot, state),
+        internal_context={
+            "connectors": {
+                "slack": {
+                    "status": "ok",
+                    "external_read": True,
+                    "scope": "channel:product-marketing",
+                    "recent_message_count": 38,
+                    "message_body": "must never persist",
+                }
+            }
+        },
+    )
+
+    assert trace["internal_context"]["connector_names"] == ["slack"]
+    assert trace["internal_context"]["used_in_prompt"] is True
+    assert "message_body" not in str(trace)
 
 
 def test_selected_option_must_match_approval_actions() -> None:

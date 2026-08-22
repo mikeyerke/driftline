@@ -170,6 +170,16 @@ Jira,
 Confluence, Slack, and GitHub remain aggregate-only connector evidence, not
 customer-pilot outcomes.
 
+When a verified tenant run does attach context, both Gemini turns also receive
+a second, explicit aggregate-only projection: the impact analyst can use
+bounded counts to qualify owner priority, and the Decision Copilot can use
+them to qualify tradeoffs or urgency. Prompt-like connector labels are
+guarded, raw records and credentials are excluded, and the persisted agent
+trace records only connector names/counts plus `used_in_prompt=true`; the model
+still cannot turn aggregate metadata into a customer outcome or bypass the
+evidence-bound approval policy. The public lane always sends the empty
+`unavailable` context shape instead.
+
 The latest signed context read (2026-08-22 UTC) verified `18` open Jira issues,
 `7` Confluence pages, `38` recent Slack messages, and `0` GitHub issues / PRs
 for the isolated Driftline tenant. Salesforce remained explicitly
