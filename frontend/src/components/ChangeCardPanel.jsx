@@ -16,6 +16,7 @@ export default function ChangeCardPanel({ card }) {
   const materiality = card.materiality || {};
   const exposure = card.exposure || {};
   const sourceQuality = card.source_quality || {};
+  const evidenceStrength = sourceQuality.evidence_strength || {};
   const closure = card.closure || {};
   const internalContext = card.internal_context || {};
   const verifiedConnectorCount = Number(internalContext.verified_connector_count || 0);
@@ -47,6 +48,11 @@ export default function ChangeCardPanel({ card }) {
           <p>{materiality.decision_window || "Before the next owner review"}</p>
           <div className="trigger-list">{(materiality.triggers || []).map((trigger) => <span key={trigger}>{label(trigger)}</span>)}</div>
           <div className="source-quality"><span>Evidence confidence</span><b>{Math.round((sourceQuality.confidence || 0) * 100)}%</b><small>{label(sourceQuality.evidence_type || "unknown")}</small></div>
+          <div className="evidence-strength" aria-label="Deterministic evidence strength review">
+            <span>Evidence strength · heuristic</span><b>{evidenceStrength.score ?? "—"}/{evidenceStrength.max_score || 100}</b>
+            <small>{evidenceStrength.label || "Review evidence dimensions"}</small>
+            <small>{evidenceStrength.next_review || "Corroboration review has not run."}</small>
+          </div>
         </div>
         <div className="change-card-block exposure-block">
           <span className="change-card-kicker"><UsersRound size={13} />Internal exposure</span>

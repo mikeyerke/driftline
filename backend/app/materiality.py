@@ -89,6 +89,101 @@ def _field(item: Any, key: str, default: Any = "") -> Any:
     return getattr(item, key, default)
 
 
+def _evidence_strength(
+    *,
+    evidence: Any,
+    evidence_type: str,
+    retrieved_at: object,
+    exposure_mode: str,
+) -> dict[str, Any]:
+    """Return a deterministic review heuristic for source evidence quality.
+
+    This is intentionally not a truth score and never changes materiality or
+    approval policy. It makes the missing evidence legible: a direct snapshot
+    can still be single-source, synthetic, stale, or uncorroborated.
+    """
+    before = str(_field(evidence, "before", "")).strip()
+    after = str(_field(evidence, "after", "")).strip()
+    direct_change = bool(before and after and before != after)
+    if evidence_type == "synthetic_fixture":
+        source_score = 10
+        source_status = "synthetic_fixture"
+    elif evidence_type.startswith("operator_registered_public_url"):
+        source_score = 25
+        source_status = "operator_registered_public_url"
+    else:
+        source_score = 25
+        source_status = "allowlisted_public_snapshot"
+
+    freshness_score = 0
+    freshness_status = "unknown"
+    age_hours: float | None = None
+    try:
+        observed_at = datetime.fromisoformat(str(retrieved_at))
+        if observed_at.tzinfo is None:
+            observed_at = observed_at.replace(tzinfo=UTC)
+        age_hours = max(0.0, (datetime.now(UTC) - observed_at).total_seconds() / 3600)
+        if age_hours <= 24:
+            freshness_score = 20
+            freshness_status = "fresh"
+        elif age_hours <= 24 * 7:
+            freshness_score = 12
+            freshness_status = "aging"
+        elif age_hours <= 24 * 30:
+            freshness_score = 6
+            freshness_status = "stale"
+        else:
+            freshness_status = "expired"
+    except (TypeError, ValueError):
+        pass
+
+    direct_score = 35 if direct_change else 0
+    corroboration_status = "not_evaluated"
+    corroboration_note = (
+        "No independent source-level artifact was supplied; aggregate connector context does not corroborate the claim."
+        if exposure_mode == "connected_internal_data"
+        else "No approved internal source was supplied for contradiction review."
+    )
+    total = direct_score + source_score + freshness_score
+    if direct_change and source_status == "synthetic_fixture":
+        label = "Direct demo fixture · single source"
+    elif direct_change:
+        label = "Direct snapshot · single source"
+    else:
+        label = "Insufficient before/after evidence"
+    return {
+        "score": total,
+        "max_score": 100,
+        "score_kind": "deterministic_review_heuristic",
+        "label": label,
+        "dimensions": {
+            "direct_change": {
+                "score": direct_score,
+                "max_score": 35,
+                "status": "pass" if direct_change else "missing",
+            },
+            "source_scope": {
+                "score": source_score,
+                "max_score": 25,
+                "status": source_status,
+            },
+            "freshness": {
+                "score": freshness_score,
+                "max_score": 20,
+                "status": freshness_status,
+                "age_hours": round(age_hours, 2) if age_hours is not None else None,
+            },
+            "corroboration": {
+                "score": 0,
+                "max_score": 20,
+                "status": corroboration_status,
+                "note": corroboration_note,
+            },
+        },
+        "next_review": corroboration_note,
+    }
+
+
 _CONTEXT_COUNT_FIELDS = (
     "open_issue_count",
     "open_pull_request_count",
@@ -413,19 +508,26 @@ def build_change_card(
         verification = "observed_snapshot"
     if exposure_mode == "connected_internal_data":
         evidence_type = f"{evidence_type}_plus_aggregate_context"
+    evidence_strength = _evidence_strength(
+        evidence=evidence,
+        evidence_type=evidence_type,
+        retrieved_at=_field(evidence, "retrieved_at", ""),
+        exposure_mode=exposure_mode,
+    )
     source_quality = {
         "confidence": round(float(getattr(evidence, "confidence", 0.0)), 3),
         "evidence_type": evidence_type,
         "verification": verification,
+        "evidence_strength": evidence_strength,
         "contradiction_status": (
             "not_evaluated_aggregate_only"
             if exposure_mode == "connected_internal_data"
             else "not_checked"
         ),
         "disclosure": (
-            "Aggregate internal context was verified; source-level contradiction review was not performed."
+            "Aggregate internal context was verified; source-level contradiction review was not performed. Evidence strength is a deterministic review heuristic, not a truth or approval score."
             if exposure_mode == "connected_internal_data"
-            else "No contradictory internal source was evaluated in this run."
+            else "No contradictory internal source was evaluated in this run. Evidence strength is a deterministic review heuristic, not a truth or approval score."
         ),
     }
     return {

@@ -15,6 +15,9 @@ def test_change_card_is_evidence_bound_and_labels_demo_exposure() -> None:
     assert "not CRM data" in card["exposure"]["label"]
     assert card["source_quality"]["evidence_type"] == "synthetic_fixture"
     assert card["source_quality"]["contradiction_status"] == "not_checked"
+    assert card["source_quality"]["evidence_strength"]["score"] == 45
+    assert card["source_quality"]["evidence_strength"]["label"] == "Direct demo fixture · single source"
+    assert card["source_quality"]["evidence_strength"]["dimensions"]["corroboration"]["status"] == "not_evaluated"
     assert {item["role"] for item in card["role_packets"]} >= {"PMM", "Sales / RevOps"}
     assert card["closure"]["state"] == "approval_pending"
     assert card["change_card_id"].startswith("card-")
@@ -54,6 +57,7 @@ def test_allowlisted_public_snapshot_keeps_observed_label() -> None:
 
     assert state.change_card["source_quality"]["evidence_type"] == "allowlisted_public_snapshot"
     assert state.change_card["source_quality"]["verification"] == "observed_snapshot"
+    assert state.change_card["source_quality"]["evidence_strength"]["score"] == 60
 
 
 def test_change_card_surfaces_verified_aggregate_context_without_raw_records() -> None:
