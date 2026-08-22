@@ -62,7 +62,9 @@ export default function ValueProofPanel() {
             <dl>
               <div><dt>Source observations</dt><dd>{metric(observed.source_observations)}</dd></div>
               <div><dt>Healthy sources</dt><dd>{metric(observed.healthy_sources)}</dd></div>
-              <div><dt>Owner action completion</dt><dd>{observed.action_item_completion_rate === null || observed.action_item_completion_rate === undefined ? "—" : `${Math.round(observed.action_item_completion_rate * 100)}%`}</dd></div>
+              <div><dt>Owner action completion (current)</dt><dd>{observed.action_item_completion_rate === null || observed.action_item_completion_rate === undefined ? "—" : `${Math.round(observed.action_item_completion_rate * 100)}%`}</dd></div>
+              <div><dt>Owner actions completed (audit)</dt><dd>{metric(observed.action_items_completed_historically)}</dd></div>
+              <div><dt>Historical closure rate</dt><dd>{observed.action_item_completion_rate_historically === null || observed.action_item_completion_rate_historically === undefined ? "—" : `${Math.round(observed.action_item_completion_rate_historically * 100)}%`}</dd></div>
               <div><dt>Approval latency p90</dt><dd>{seconds(latency.p90)}</dd></div>
               <div><dt>Owner-action cycle p50 · n={ownerActionCycle.sample_count || 0}</dt><dd>{seconds(ownerActionCycle.p50)}</dd></div>
               <div><dt>Owner-action cycle p90</dt><dd>{seconds(ownerActionCycle.p90)}</dd></div>

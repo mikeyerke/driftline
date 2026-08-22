@@ -4414,6 +4414,15 @@ def get_value_proof(
     change_cards = [state.change_card for state in workflows if state.change_card]
     materiality_cards = [card.get("materiality") or {} for card in change_cards]
     closure_cards = [card.get("closure") or {} for card in change_cards]
+    historically_completed_action_ids = {
+        str(event.get("action_item_id"))
+        for state in workflows
+        for event in state.events
+        if event.get("actor") == "action_lifecycle"
+        and str(event.get("outcome", "")).endswith(":completed")
+        and event.get("action_item_id")
+    }
+    historically_completed_actions = len(historically_completed_action_ids)
     workflow_data_modes = _count_record_modes(workflows, "data_mode")
     job_run_modes = _count_record_modes(jobs, "run_mode")
     external_writes = sum(
@@ -4498,6 +4507,10 @@ def get_value_proof(
                 item.get("status") == ActionItemStatus.COMPLETED.value
                 for item in action_items
             ),
+            # Current status intentionally excludes actions that were later
+            # reversed. The append-only lifecycle is the honest source for
+            # proving that owner work closed at least once.
+            "action_items_completed_historically": historically_completed_actions,
             "healthy_sources": sum(
                 item.get("status") == "healthy" for item in source_health
             ),
@@ -4523,6 +4536,11 @@ def get_value_proof(
                     / len(action_items),
                     3,
                 )
+                if action_items
+                else None
+            ),
+            "action_item_completion_rate_historically": (
+                round(historically_completed_actions / len(action_items), 3)
                 if action_items
                 else None
             ),

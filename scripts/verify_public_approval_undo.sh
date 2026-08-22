@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prove the anonymous, packet-safe operational loop without credentials:
-# live workflow -> deterministic approval -> private packet -> durable undo.
+# live workflow -> deterministic approval -> owner closure -> private packet -> durable undo.
 set -euo pipefail
 
 readonly base_url="${DRIFTLINE_BASE_URL:-https://driftline-xvxczqg62a-uc.a.run.app}"
@@ -82,11 +82,38 @@ printf '%s\n' "${approved}" | jq -e '
   (.action_record.external_systems_changed // false) == false
 ' >/dev/null
 
+item_id="$(printf '%s' "${approved}" | jq -er '.action_items[0].item_id')"
+actor='Public approval verifier'
+claimed="$(curl --fail --silent --show-error --max-time 30 \
+  -X POST "${base_url}/api/workflows/${workflow_id}/actions/${item_id}/claim" \
+  -H 'content-type: application/json' \
+  -d "$(jq -nc --arg actor "${actor}" '{actor:$actor, approval_mode:"demo"}')")"
+printf '%s\n' "${claimed}" | jq -e --arg item_id "${item_id}" --arg actor "${actor}" '
+  any(.action_items[]; .item_id == $item_id and .status == "claimed" and .claimed_by == $actor) and
+  ([.events[].outcome] | index(($item_id + ":claimed"))) != null
+' >/dev/null
+
+completed="$(curl --fail --silent --show-error --max-time 30 \
+  -X POST "${base_url}/api/workflows/${workflow_id}/actions/${item_id}/complete" \
+  -H 'content-type: application/json' \
+  -d "$(jq -nc --arg actor "${actor}" '{actor:$actor, approval_mode:"demo"}')")"
+printf '%s\n' "${completed}" | jq -e --arg item_id "${item_id}" --arg actor "${actor}" '
+  any(.action_items[]; .item_id == $item_id and .status == "completed" and .completed_by == $actor and (.completed_at | type == "string")) and
+  ([.events[].outcome] | index(($item_id + ":completed"))) != null
+' >/dev/null
+
+value_proof="$(curl --fail --silent --show-error --max-time 20 "${base_url}/api/ops/value-proof")"
+printf '%s\n' "${value_proof}" | jq -e '
+  (.observed.action_items_completed_historically // 0) >= 1 and
+  (.observed.owner_action_cycle_seconds.sample_count // 0) >= 1 and
+  (.observed.action_item_completion_rate_historically // 0) > 0
+' >/dev/null
+
 undone="$(curl --fail --silent --show-error --max-time 30 \
   -X POST "${base_url}/api/workflows/${workflow_id}/undo" \
   -H 'content-type: application/json' \
   -d '{"actor":"Public approval verifier","approval_mode":"demo"}')"
-printf '%s\n' "${undone}" | jq -e '
+printf '%s\n' "${undone}" | jq -e --arg item_id "${item_id}" '
   .status == "needs_approval" and
   .action_record.storage_status == "persisted" and
   .action_record.operational_status == "reversed" and
@@ -95,15 +122,17 @@ printf '%s\n' "${undone}" | jq -e '
   (.action_record.evidence_hash | test("^[0-9a-f]{64}$")) and
   (.action_record.external_write // false) == false and
   (.action_record.external_systems_changed // false) == false and
-  ([.events[].outcome] | index("decision_reopened")) != null
+  ([.events[].outcome] | index("decision_reopened")) != null and
+  any(.action_items[]; .item_id == $item_id and .status == "reversed" and (.completed_at | type == "string"))
 ' >/dev/null
 
-printf '%s\n' "${undone}" | jq -r --arg job_id "${job_id}" \
+printf '%s\n' "${undone}" | jq -r --arg job_id "${job_id}" --arg item_id "${item_id}" \
   '"Public approval/undo verification: PASS",
    ("job=" + $job_id),
    ("workflow=" + .workflow_id),
    ("status=" + .status),
    ("packet=" + .action_record.storage_status),
    ("operational_output=" + .action_record.operational_status),
+   ("owner_action=" + $item_id + " completed_then_reversed"),
    ("external_write=" + ((.action_record.external_write // false) | tostring)),
    ("external_systems_changed=" + ((.action_record.external_systems_changed // false) | tostring))'

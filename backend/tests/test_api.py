@@ -424,6 +424,8 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert "cards_dismissed" in value_proof.json()["observed"]
     assert "overdue_owner_actions" in value_proof.json()["observed"]
     assert "owner_action_cycle_seconds" in value_proof.json()["observed"]
+    assert "action_items_completed_historically" in value_proof.json()["observed"]
+    assert "action_item_completion_rate_historically" in value_proof.json()["observed"]
     outcomes = client.get("/api/ops/outcomes")
     assert outcomes.status_code == 200
     assert outcomes.json()["status"] == "not_measured"
@@ -2772,6 +2774,54 @@ def test_value_proof_counts_reopened_workflows_after_undo() -> None:
         before["workflows_reversed_or_reopened"] + 1
     )
     assert after["action_items_completed"] == before["action_items_completed"]
+
+
+def test_value_proof_retains_historical_owner_closure_after_reversal(monkeypatch) -> None:
+    # Keep this lifecycle assertion independent from the suite-wide public
+    # mutation quota; the production quota itself is covered separately.
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda *_args: True)
+    before = client.get("/api/ops/value-proof").json()["observed"]
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Demo operator", "decision": "grandfather_existing_customers"},
+    )
+    item_id = approved.json()["action_items"][0]["item_id"]
+    claimed = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/claim",
+        json={"actor": "Alex Kim"},
+    )
+    assert claimed.status_code == 200
+    completed = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/complete",
+        json={"actor": "Alex Kim"},
+    )
+    assert completed.status_code == 200
+
+    after_completion = client.get("/api/ops/value-proof").json()["observed"]
+    assert after_completion["action_items_completed_historically"] >= (
+        before["action_items_completed_historically"] + 1
+    )
+    assert after_completion["owner_action_cycle_seconds"]["sample_count"] >= (
+        before["owner_action_cycle_seconds"]["sample_count"] + 1
+    )
+    undone = client.post(
+        f"/api/workflows/{workflow_id}/undo",
+        json={"actor": "Demo operator"},
+    )
+    assert undone.status_code == 200
+    reversed_item = next(
+        item for item in undone.json()["action_items"] if item["item_id"] == item_id
+    )
+    assert reversed_item["status"] == "reversed"
+    assert reversed_item["completed_at"]
+
+    after_reversal = client.get("/api/ops/value-proof").json()["observed"]
+    assert after_reversal["action_items_completed"] == before["action_items_completed"]
+    assert after_reversal["action_items_completed_historically"] >= (
+        before["action_items_completed_historically"] + 1
+    )
 
 
 def test_demo_dismissal_records_reason_without_creating_work() -> None:
