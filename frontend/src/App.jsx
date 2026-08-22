@@ -344,7 +344,10 @@ export default function App() {
               ? "Monitor complete · no material change; prior baseline retained"
               : "Monitor complete · baseline established; awaiting next observation",
           );
-          await refreshHistory(scanEpoch);
+          await Promise.all([
+            refreshHistory(scanEpoch),
+            refreshSourceHealth(scanEpoch),
+          ]);
           return;
         }
         if (["needs_approval", "complete"].includes(current.status) && current.workflow) {
@@ -353,7 +356,10 @@ export default function App() {
           const recommendedOption = current.workflow.agent_trace?.decision_copilot?.options?.find((option) => option.option_id === current.workflow.agent_trace?.decision_copilot?.recommendation_id);
           setArtifactDecisions(current.workflow.approval?.artifact_decisions || recommendedOption?.artifact_decisions || defaultDecisionsFor(current.workflow));
           setScanMessage("Scan complete · evidence verified · approval gate active");
-          await refreshHistory(scanEpoch);
+          await Promise.all([
+            refreshHistory(scanEpoch),
+            refreshSourceHealth(scanEpoch),
+          ]);
           return;
         }
         setScanMessage(current.status === "running"
