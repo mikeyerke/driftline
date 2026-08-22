@@ -542,7 +542,10 @@ it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
 
-The current serving release is source commit
+Cloud Build now has a post-deploy smoke gate: it requires 100% Cloud Run
+traffic and verifies that the public `/health` response carries the exact
+release SHA and build ID before the build can succeed. The current serving
+release is source commit
 `dc4ab7f31cb0a887b680d8f6d4cc28f0027c1727`, Cloud Build
 `3d4aa211-6aa2-43b3-8af7-61b0369122cb`, and Cloud Run revision
 `driftline-00184-njf` at 100% traffic. Its immutable image digest is recorded
