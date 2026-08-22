@@ -158,6 +158,20 @@ export function registerSource(source) {
   });
 }
 
+export function updateSourceLifecycle(sourceId, enabled, reason = "") {
+  return request(`/api/operator/sources/${encodeURIComponent(sourceId)}/lifecycle`, {
+    method: "POST",
+    authenticated: true,
+    body: JSON.stringify({
+      enabled: Boolean(enabled),
+      reason,
+      operator: operatorSession.email || "Google operator",
+      tenant_id: operatorSession.tenantId,
+      ...signedContext(),
+    }),
+  });
+}
+
 export function getOpsSummary() {
   const params = new URLSearchParams();
   if (operatorSession.identityToken && operatorSession.tenantId) {

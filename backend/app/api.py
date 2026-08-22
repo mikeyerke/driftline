@@ -171,6 +171,7 @@ from .source import (
     list_source_history,
     register_operator_source,
     scheduler_source_entries,
+    set_operator_source_state,
     source_definition,
     source_definitions,
     source_registry_health,
@@ -501,6 +502,17 @@ class SourceOnboardingRequest(BaseModel):
     freshness_sla_hours: int = Field(default=48, ge=1, le=168)
     parser: Literal["html", "text", "rss"] = "html"
     registered_by: str = Field(min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class SourceLifecycleRequest(BaseModel):
+    """Pause/resume one tenant-owned source without accepting credentials."""
+
+    enabled: bool
+    reason: str = Field(default="", max_length=240)
+    operator: str = Field(min_length=1, max_length=120)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
@@ -2470,7 +2482,11 @@ def get_sources(
             tenant_id,
         )
     bound_tenant = identity.get("tenant_id") if identity else None
-    return {"sources": list_allowlisted_sources(bound_tenant)}
+    return {
+        "sources": list_allowlisted_sources(
+            bound_tenant, include_disabled=identity is not None
+        )
+    }
 
 
 @app.post("/api/operator/sources")
@@ -2531,6 +2547,104 @@ def onboard_operator_source(request: SourceOnboardingRequest) -> dict[str, objec
     }
 
 
+@app.post("/api/operator/sources/{source_id:path}/lifecycle")
+def update_operator_source_lifecycle(
+    source_id: str, request: SourceLifecycleRequest
+) -> dict[str, object]:
+    """Pause or resume one exact tenant-owned source.
+
+    This route never changes the append-only evidence ledger and never accepts
+    a URL or connector credential. The scheduler sees the same durable state
+    and skips paused sources until an explicit signed resume.
+    """
+    identity = _verify_approval_mode(
+        f"source-lifecycle:{source_id}:{'resume' if request.enabled else 'pause'}",
+        request.operator,
+        "signed",
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    previous = source_definition(
+        source_id, identity["tenant_id"], include_disabled=True
+    )
+    if previous is None or previous.get("dynamic") != "true":
+        raise HTTPException(status_code=404, detail="Tenant source is not registered")
+    previous_enabled = previous.get("enabled", "true") != "false"
+    try:
+        updated = set_operator_source_state(
+            source_id=source_id,
+            tenant_id=identity["tenant_id"],
+            enabled=request.enabled,
+            actor=identity.get("email") or identity.get("identity", "signed_operator"),
+            reason=request.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    changed = updated.get("lifecycle_changed") == "true"
+    audit_event: dict[str, object] | None = None
+    if changed:
+        try:
+            audit_event = persist_tenant_audit_event(
+                {
+                    "tenant_id": identity["tenant_id"],
+                    "event_type": (
+                        "source_resumed" if request.enabled else "source_paused"
+                    ),
+                    "source_id": source_id,
+                    "status": "active" if request.enabled else "paused",
+                    "previous_enabled": previous_enabled,
+                    "enabled": request.enabled,
+                    "reason": request.reason.strip()[:240],
+                    "actor": identity.get("email") or identity.get("identity", "signed_operator"),
+                    "role": identity.get("role", "operator"),
+                }
+            )
+        except Exception as exc:
+            rollback_reason = str(
+                previous.get("pause_reason")
+                or "Audit persistence failed; source remains paused."
+            )
+            try:
+                set_operator_source_state(
+                    source_id=source_id,
+                    tenant_id=identity["tenant_id"],
+                    enabled=previous_enabled,
+                    actor="lifecycle-rollback",
+                    reason=rollback_reason,
+                )
+            except Exception:
+                logger.exception("Unable to roll back source lifecycle for %s", source_id)
+            raise HTTPException(
+                status_code=503,
+                detail="Source lifecycle audit is unavailable; no lifecycle change was retained",
+            ) from exc
+    safe_source = {
+        key: value
+        for key, value in updated.items()
+        if key
+        not in {"registered_by", "registered_at", "lifecycle_changed"}
+    }
+    return {
+        "status": (
+            "resumed"
+            if request.enabled and changed
+            else "paused"
+            if not request.enabled and changed
+            else "unchanged"
+        ),
+        "source": safe_source,
+        "audit_event": audit_event,
+        "scheduler_effect": (
+            "Monitoring resumes on the next due scheduler tick."
+            if request.enabled and changed
+            else "No new fetch or model job will be scheduled while paused."
+            if not request.enabled and changed
+            else "No lifecycle change was needed."
+        ),
+    }
+
+
 @app.get("/api/monitor/registry")
 def get_monitor_registry(
     operator: str | None = None,
@@ -2554,7 +2668,8 @@ def get_monitor_registry(
             tenant_id,
         )
     sources = source_registry_health(
-        tenant_id=identity.get("tenant_id") if identity else None
+        tenant_id=identity.get("tenant_id") if identity else None,
+        include_disabled=identity is not None,
     )
     return {
         "append_only": True,
@@ -2573,6 +2688,7 @@ def get_monitor_registry(
             "source_failed": sum(
                 item["status"] == "source_failed" for item in sources
             ),
+            "paused": sum(item["status"] == "paused" for item in sources),
         },
     }
 
@@ -4600,7 +4716,9 @@ def get_source_history(
             tenant_id,
         )
     bound_tenant = identity.get("tenant_id") if identity else None
-    definition = source_definition(source_id, bound_tenant)
+    definition = source_definition(
+        source_id, bound_tenant, include_disabled=identity is not None
+    )
     if definition is None:
         raise HTTPException(status_code=404, detail="Source is not allowlisted")
     if (

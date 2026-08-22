@@ -237,47 +237,65 @@ def _latest_source_failure(
     return dict(payload) if payload else None
 
 
-def source_definitions(tenant_id: str | None = None) -> dict[str, dict[str, str]]:
+def source_definitions(
+    tenant_id: str | None = None, *, include_disabled: bool = False
+) -> dict[str, dict[str, str]]:
     """Return static fixtures plus only the caller's custom sources.
 
     Custom sources are tenant-scoped in every persistence mode and are never
-    included in an unauthenticated public registry response.  The public
-    console receives only the five deterministic fixtures.
+    included in an unauthenticated public registry response. ``include_disabled``
+    is reserved for the signed operator control plane so a paused source can be
+    inspected and resumed without re-registering it. Scan and scheduler paths
+    keep the default active-only view.
     """
     definitions = {**SOURCE_DEFINITIONS}
+    if tenant_id is None:
+        return definitions
     if not _firestore_enabled():
-        if tenant_id is None:
-            return definitions
-        return {
-            source_id: definition
-            for source_id, definition in SOURCE_DEFINITIONS.items()
-        } | {
-            source_id: definition
-            for (bound_tenant, source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items()
-            if bound_tenant == tenant_id
-        }
+        for (bound_tenant, source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items():
+            if bound_tenant != tenant_id:
+                continue
+            if not include_disabled and definition.get("enabled", "true") == "false":
+                continue
+            definitions[source_id] = dict(definition)
+        return definitions
     try:
         for snapshot in _registry_client().collection(_SOURCE_REGISTRY_COLLECTION).stream():
             payload = snapshot.to_dict() or {}
-            if (
-                payload.get("enabled", True)
-                and payload.get("source_id")
-                and tenant_id
-                and payload.get("tenant_id") == tenant_id
-            ):
-                definitions[str(payload["source_id"])] = {
-                    str(key): str(value)
-                    for key, value in payload.items()
-                    if value is not None
-                }
+            if not payload.get("source_id") or payload.get("tenant_id") != tenant_id:
+                continue
+            if not include_disabled and not payload.get("enabled", True):
+                continue
+            definitions[str(payload["source_id"])] = {
+                str(key): str(value)
+                for key, value in payload.items()
+                if value is not None
+            }
     except Exception:  # noqa: BLE001 - registry outage must not hide fixtures.
         # A registry outage must not hide the deterministic judge fixtures.
         return definitions
     return definitions
 
 
-def source_definition(source_id: str, tenant_id: str | None = None) -> dict[str, str] | None:
-    return source_definitions(tenant_id).get(source_id)
+def source_definition(
+    source_id: str,
+    tenant_id: str | None = None,
+    *,
+    include_disabled: bool = False,
+) -> dict[str, str] | None:
+    return source_definitions(tenant_id, include_disabled=include_disabled).get(source_id)
+
+
+def registered_source_definition(
+    source_id: str, tenant_id: str
+) -> dict[str, str] | None:
+    """Return one tenant's custom source, including a paused definition."""
+    if source_id in SOURCE_DEFINITIONS:
+        return None
+    definition = source_definition(source_id, tenant_id, include_disabled=True)
+    if definition is None or definition.get("dynamic") != "true":
+        return None
+    return definition
 
 
 def scheduler_source_entries() -> list[tuple[str | None, str, dict[str, str]]]:
@@ -295,6 +313,7 @@ def scheduler_source_entries() -> list[tuple[str | None, str, dict[str, str]]]:
         entries.extend(
             (bound_tenant, source_id, definition)
             for (bound_tenant, source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items()
+            if definition.get("enabled", "true") != "false"
         )
         return entries
     try:
@@ -372,7 +391,8 @@ def register_operator_source(
         raise ValueError("source_cadence_not_allowlisted")
     if not 1 <= freshness_sla_hours <= 168:
         raise ValueError("source_freshness_sla_out_of_bounds")
-    existing = (tenant_id, source_id) in _CUSTOM_SOURCE_DEFINITIONS
+    previous = registered_source_definition(source_id, tenant_id)
+    existing = previous is not None
     if (
         not existing
         and _registered_source_count(tenant_id)
@@ -392,11 +412,25 @@ def register_operator_source(
         "source_parser": parser,
         "allowlist": "exact operator-registered HTTPS URL",
         "dynamic": "true",
-        "enabled": "true",
+        # Re-registering an existing paused source updates its metadata but
+        # never silently resumes monitoring. Resumption is an explicit,
+        # audited lifecycle action below.
+        "enabled": "false" if previous and previous.get("enabled") == "false" else "true",
         "registered_by": registered_by.strip()[:120],
         "tenant_id": tenant_id,
         "registered_at": datetime.now(UTC).isoformat(),
     }
+    if previous and previous.get("enabled") == "false":
+        for key in (
+            "paused_at",
+            "paused_by",
+            "pause_reason",
+            "last_lifecycle_action",
+            "updated_at",
+            "updated_by",
+        ):
+            if previous.get(key):
+                normalized[key] = previous[key]
     if not normalized["name"] or not normalized["category"] or not normalized["owner"]:
         raise ValueError("source_metadata_required")
     _CUSTOM_SOURCE_DEFINITIONS[(tenant_id, source_id)] = normalized
@@ -407,6 +441,72 @@ def register_operator_source(
             _registry_document_id(f"{tenant_id}:{source_id}")
         ).set(payload)
     return normalized
+
+
+def set_operator_source_state(
+    *,
+    source_id: str,
+    tenant_id: str,
+    enabled: bool,
+    actor: str,
+    reason: str = "",
+) -> dict[str, str]:
+    """Pause or resume one tenant-owned source without touching its ledger.
+
+    Lifecycle state is deliberately separate from append-only observations:
+    pausing prevents new fetches and model jobs, while existing evidence and
+    history remain available to the signed tenant operator. Built-in judge
+    fixtures are immutable and cannot be paused through this control plane.
+    """
+    if source_id in SOURCE_DEFINITIONS:
+        raise ValueError("builtin_source_lifecycle_immutable")
+    definition = registered_source_definition(source_id, tenant_id)
+    if definition is None:
+        raise ValueError("source_not_found")
+    normalized_reason = reason.strip()[:240]
+    if not enabled and not normalized_reason:
+        raise ValueError("pause_reason_required")
+    current_enabled = definition.get("enabled", "true") != "false"
+    if current_enabled == enabled:
+        return {
+            **definition,
+            "enabled": "true" if current_enabled else "false",
+            "lifecycle_status": "active" if current_enabled else "paused",
+            "lifecycle_changed": "false",
+        }
+
+    now = datetime.now(UTC).isoformat()
+    updated = dict(definition)
+    updated.update(
+        {
+            "enabled": "true" if enabled else "false",
+            "last_lifecycle_action": "resumed" if enabled else "paused",
+            "updated_at": now,
+            "updated_by": actor.strip()[:120] or "signed_operator",
+        }
+    )
+    if enabled:
+        updated.update(
+            {
+                "resumed_at": now,
+                "resumed_by": actor.strip()[:120] or "signed_operator",
+                "resume_reason": normalized_reason,
+            }
+        )
+    else:
+        updated.update(
+            {
+                "paused_at": now,
+                "paused_by": actor.strip()[:120] or "signed_operator",
+                "pause_reason": normalized_reason,
+            }
+        )
+    if _firestore_enabled():
+        _registry_client().collection(_SOURCE_REGISTRY_COLLECTION).document(
+            _registry_document_id(f"{tenant_id}:{source_id}")
+        ).set(updated)
+    _CUSTOM_SOURCE_DEFINITIONS[(tenant_id, source_id)] = updated
+    return {**updated, "lifecycle_status": "active" if enabled else "paused", "lifecycle_changed": "true"}
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -836,7 +936,9 @@ def inspect_allowlisted_source(
     return snapshot
 
 
-def list_allowlisted_sources(tenant_id: str | None = None) -> list[dict[str, str]]:
+def list_allowlisted_sources(
+    tenant_id: str | None = None, *, include_disabled: bool = False
+) -> list[dict[str, object]]:
     """Return safe source metadata for the monitor UI, never raw credentials."""
     return [
         {
@@ -851,8 +953,18 @@ def list_allowlisted_sources(tenant_id: str | None = None) -> list[dict[str, str
             "freshness_sla_hours": definition["freshness_sla_hours"],
             "source_kind": definition["source_kind"],
             "allowlist": definition.get("allowlist", "pinned raw GitHub fixture only"),
+            "enabled": definition.get("enabled", "true") != "false",
+            "lifecycle_status": (
+                "paused" if definition.get("enabled", "true") == "false" else "active"
+            ),
+            "pause_reason": definition.get("pause_reason", ""),
+            "paused_at": definition.get("paused_at", ""),
+            "paused_by": definition.get("paused_by", ""),
+            "resumed_at": definition.get("resumed_at", ""),
         }
-        for source_id, definition in source_definitions(tenant_id).items()
+        for source_id, definition in source_definitions(
+            tenant_id, include_disabled=include_disabled
+        ).items()
     ]
 
 
@@ -865,7 +977,9 @@ def list_source_history(
 ) -> list[dict[str, str]]:
     """Return append-only observations for one allowlisted source."""
 
-    definition = source_definition(source_id, tenant_id)
+    definition = source_definition(
+        source_id, tenant_id, include_disabled=tenant_id is not None
+    )
     if definition is None:
         return []
     if definition.get("dynamic") == "true" and tenant_id is None:
@@ -956,7 +1070,10 @@ def _cadence_hours(value: object, fallback: int) -> int:
 
 
 def source_registry_health(
-    *, now: datetime | None = None, tenant_id: str | None = None
+    *,
+    now: datetime | None = None,
+    tenant_id: str | None = None,
+    include_disabled: bool = False,
 ) -> list[dict[str, object]]:
     """Return bounded freshness/readiness state for every approved source.
 
@@ -966,7 +1083,7 @@ def source_registry_health(
     """
     current = now or datetime.now(UTC)
     health: list[dict[str, object]] = []
-    definitions = source_definitions(tenant_id)
+    definitions = source_definitions(tenant_id, include_disabled=include_disabled)
     # The registry is intentionally bounded (five pinned fixtures plus a small
     # tenant quota). Reading each source's append-only ledger concurrently keeps
     # an always-on health panel responsive without widening the monitor or
@@ -982,7 +1099,10 @@ def source_registry_health(
         sla_hours = int(definition["freshness_sla_hours"])
         cadence_hours = _cadence_hours(definition.get("cadence"), sla_hours)
         age_seconds = max(0, int((current - retrieved).total_seconds())) if retrieved else None
-        if latest is None:
+        enabled = definition.get("enabled", "true") != "false"
+        if not enabled:
+            status = "paused"
+        elif latest is None:
             status = "needs_baseline"
         elif latest.get("data_mode") == "synthetic_demo":
             status = "synthetic_only"
@@ -1001,14 +1121,14 @@ def source_registry_health(
             definition=definition,
         )
         failure_at = _parse_iso(failure.get("failed_at") if failure else None)
-        if failure and (
+        if enabled and failure and (
             retrieved is None
             or (failure_at is not None and retrieved <= failure_at)
         ):
             status = "source_failed"
         next_due = (
             retrieved + timedelta(hours=cadence_hours)
-        ).isoformat() if retrieved else None
+        ).isoformat() if retrieved and enabled else None
         health.append(
             {
                 "source_id": source_id,
@@ -1031,6 +1151,12 @@ def source_registry_health(
                 "next_due_at": next_due,
                 "source_url": definition["url"],
                 "allowlist": definition.get("allowlist", "pinned raw GitHub fixture only"),
+                "enabled": enabled,
+                "lifecycle_status": "active" if enabled else "paused",
+                "pause_reason": definition.get("pause_reason", ""),
+                "paused_at": definition.get("paused_at"),
+                "paused_by": definition.get("paused_by"),
+                "resumed_at": definition.get("resumed_at"),
             }
         )
     return health

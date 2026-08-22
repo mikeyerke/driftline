@@ -277,6 +277,142 @@ def test_operator_registered_source_is_exact_url_and_append_only(monkeypatch) ->
     assert second["after"] == "Pro is now $59"
 
 
+def test_operator_source_lifecycle_pauses_scheduler_without_deleting_history(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    try:
+        source.register_operator_source(
+            source_id="custom/lifecycle-pricing",
+            name="Lifecycle pricing",
+            category="Competitor pricing",
+            change_type="Pricing move",
+            url="https://example.com/pricing",
+            owner="Product Marketing",
+            cadence="24h",
+            freshness_sla_hours=48,
+            tenant_id="tenant-acme",
+        )
+
+        paused = source.set_operator_source_state(
+            source_id="custom/lifecycle-pricing",
+            tenant_id="tenant-acme",
+            enabled=False,
+            actor="owner@example.com",
+            reason="Competitor page is returning a challenge interstitial.",
+        )
+        assert paused["lifecycle_status"] == "paused"
+        assert paused["lifecycle_changed"] == "true"
+        assert source.source_definition("custom/lifecycle-pricing", "tenant-acme") is None
+        paused_definition = source.source_definition(
+            "custom/lifecycle-pricing", "tenant-acme", include_disabled=True
+        )
+        assert paused_definition["enabled"] == "false"
+        health = source.source_registry_health(
+            tenant_id="tenant-acme", include_disabled=True
+        )
+        lifecycle_health = next(
+            item for item in health if item["source_id"] == "custom/lifecycle-pricing"
+        )
+        assert lifecycle_health["status"] == "paused"
+        assert lifecycle_health["pause_reason"].startswith("Competitor page")
+        assert not any(
+            tenant == "tenant-acme" and source_id == "custom/lifecycle-pricing"
+            for tenant, source_id, _definition in source.scheduler_source_entries()
+        )
+
+        resumed = source.set_operator_source_state(
+            source_id="custom/lifecycle-pricing",
+            tenant_id="tenant-acme",
+            enabled=True,
+            actor="owner@example.com",
+            reason="Challenge resolved.",
+        )
+        assert resumed["lifecycle_status"] == "active"
+        assert source.source_definition("custom/lifecycle-pricing", "tenant-acme")
+        assert any(
+            tenant == "tenant-acme" and source_id == "custom/lifecycle-pricing"
+            for tenant, source_id, _definition in source.scheduler_source_entries()
+        )
+    finally:
+        source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+
+def test_operator_source_lifecycle_requires_reason_and_cannot_pause_fixtures(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    try:
+        source.register_operator_source(
+            source_id="custom/reason-required",
+            name="Reason required",
+            category="Competitor pricing",
+            change_type="Pricing move",
+            url="https://example.com/pricing",
+            owner="Product Marketing",
+            cadence="24h",
+            freshness_sla_hours=48,
+            tenant_id="tenant-acme",
+        )
+        with pytest.raises(ValueError, match="pause_reason_required"):
+            source.set_operator_source_state(
+                source_id="custom/reason-required",
+                tenant_id="tenant-acme",
+                enabled=False,
+                actor="owner@example.com",
+            )
+        with pytest.raises(ValueError, match="builtin_source_lifecycle_immutable"):
+            source.set_operator_source_state(
+                source_id="public/pricing",
+                tenant_id="tenant-acme",
+                enabled=False,
+                actor="owner@example.com",
+                reason="Do not pause the judge fixture.",
+            )
+    finally:
+        source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+
+def test_reregistering_paused_source_does_not_resume_it(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    try:
+        source.register_operator_source(
+            source_id="custom/re-register",
+            name="Re-register me",
+            category="Competitor pricing",
+            change_type="Pricing move",
+            url="https://example.com/one",
+            owner="Product Marketing",
+            cadence="24h",
+            freshness_sla_hours=48,
+            tenant_id="tenant-acme",
+        )
+        source.set_operator_source_state(
+            source_id="custom/re-register",
+            tenant_id="tenant-acme",
+            enabled=False,
+            actor="owner@example.com",
+            reason="Temporarily noisy.",
+        )
+        source.register_operator_source(
+            source_id="custom/re-register",
+            name="Re-register me updated",
+            category="Competitor pricing",
+            change_type="Pricing move",
+            url="https://example.com/two",
+            owner="Product Marketing",
+            cadence="24h",
+            freshness_sla_hours=48,
+            tenant_id="tenant-acme",
+        )
+        definition = source.source_definition(
+            "custom/re-register", "tenant-acme", include_disabled=True
+        )
+        assert definition["enabled"] == "false"
+        assert definition["url"] == "https://example.com/two"
+    finally:
+        source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+
 def test_anonymous_registry_never_lists_tenant_custom_source(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")

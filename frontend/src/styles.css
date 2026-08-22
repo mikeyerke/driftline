@@ -433,7 +433,20 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .registry-health-card.needs_baseline { border-color: #c7d9fa; background: var(--blue-soft); }.registry-health-card.needs_baseline > span { color: var(--blue); }
 .registry-health-card.checking { border-color: #c7d9fa; background: var(--blue-soft); }.registry-health-card.checking > span { color: var(--blue); }
 .registry-health-card.unavailable { border-color: #ffc0c4; background: #fff5f5; }.registry-health-card.unavailable > span { color: var(--red); }
- .monitor-source-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
+.registry-health-card.paused { border-color: #d4c8ef; background: #faf8ff; }.registry-health-card.paused > span { color: #6d52a3; }
+.registry-health-card-action { display: grid; gap: 5px; margin-top: 3px; }
+.registry-health-card-action button { min-height: 26px; padding: 0 8px; border: 1px solid #c7d9fa; border-radius: 3px; background: #fff; color: var(--blue); cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
+.registry-health-card-action button:hover, .registry-health-card-action button:focus-visible { border-color: #7da8ed; background: var(--blue-soft); }
+.registry-health-card-action button.pause { color: #6d52a3; border-color: #d4c8ef; }
+.registry-health-card-action button.pause:hover, .registry-health-card-action button.pause:focus-visible { background: #faf8ff; }
+.registry-health-card-action form { display: grid; gap: 5px; }
+.registry-health-card-action input { min-width: 0; min-height: 27px; padding: 0 7px; border: 1px solid #d4c8ef; border-radius: 3px; background: #fff; color: var(--ink); font: inherit; font-size: 10px; }
+.registry-health-card-action .lifecycle-actions { display: flex; gap: 5px; }
+.registry-health-card-action .lifecycle-actions button { flex: 1; }
+.registry-health-card-action .lifecycle-cancel { color: var(--muted); border-color: var(--line); }
+.source-lifecycle-message { margin: 8px 0 0; color: var(--green); font-size: 10px; }
+.source-lifecycle-error { margin: 8px 0 0; color: var(--red); font-size: 10px; }
+.monitor-source-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
  .monitor-source { min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: #fff; font-size: 11px; }
  .monitor-source.active { border-color: #9dbff6; background: var(--blue-soft); }
  .monitor-source small { color: var(--muted); overflow-wrap: anywhere; }

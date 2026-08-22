@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, ExternalLink, Globe2, Hash, History, ShieldCheck } from "lucide-react";
-import { getSourceHistory, registerSource } from "../api";
+import { getSourceHistory, registerSource, updateSourceLifecycle } from "../api";
 import MultimodalEvidencePanel from "./MultimodalEvidencePanel";
 import useNearViewport from "../hooks/useNearViewport";
 
-export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = false, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered, onVisible }) {
+export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = false, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered, onLifecycleChanged, onVisible }) {
   const [panelRef, nearViewport] = useNearViewport();
   const visibleNotifiedRef = useRef(false);
   const isPublic = dataMode === "public_source";
@@ -13,6 +13,11 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
   const [registering, setRegistering] = useState(false);
   const [registerMessage, setRegisterMessage] = useState("");
   const [registerError, setRegisterError] = useState("");
+  const [lifecycleSourceId, setLifecycleSourceId] = useState("");
+  const [lifecycleBusy, setLifecycleBusy] = useState("");
+  const [lifecycleReason, setLifecycleReason] = useState("");
+  const [lifecycleMessage, setLifecycleMessage] = useState("");
+  const [lifecycleError, setLifecycleError] = useState("");
   const [form, setForm] = useState({ source_id: "", name: "", url: "", category: "Competitor source", change_type: "Public promise change", owner: "Product Marketing", cadence: "24h", parser: "html" });
   const healthById = Object.fromEntries(sourceHealth.map((item) => [item.source_id, item]));
   const selectedDefinition = sources.find((source) => source.source_id === (selectedSource || evidence?.source_id));
@@ -63,6 +68,23 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
     }
   };
 
+  const submitLifecycle = async (source, enabled) => {
+    setLifecycleBusy(source.source_id);
+    setLifecycleMessage("");
+    setLifecycleError("");
+    try {
+      const payload = await updateSourceLifecycle(source.source_id, enabled, lifecycleReason);
+      onLifecycleChanged?.(payload);
+      setLifecycleMessage(payload.status === "paused" ? `${source.name} paused` : payload.status === "resumed" ? `${source.name} resumed` : `${source.name} already ${enabled ? "active" : "paused"}`);
+      setLifecycleSourceId("");
+      setLifecycleReason("");
+    } catch (error) {
+      setLifecycleError(error.message || "Source lifecycle update failed");
+    } finally {
+      setLifecycleBusy("");
+    }
+  };
+
   return (
     <section ref={panelRef} className="panel source-panel" id="sources-section">
       <header className="panel-header">
@@ -87,8 +109,8 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
               const unavailable = sourceHealthState === "unavailable";
               const deferred = !nearViewport;
               const status = deferred ? "deferred" : loading ? "checking" : unavailable ? "unavailable" : health?.status || "needs_baseline";
-              const statusLabel = deferred ? "Loads when in view" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status.replaceAll("_", " ");
-              const freshness = deferred ? "Freshness read is deferred to keep the console fast" : loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
+              const statusLabel = deferred ? "Loads when in view" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status === "paused" ? "Monitoring paused" : status.replaceAll("_", " ");
+              const freshness = deferred ? "Freshness read is deferred to keep the console fast" : loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : status === "paused" ? `Paused${health?.pause_reason ? ` · ${health.pause_reason}` : " · resume when ready"}` : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
               const observationResult = deferred || loading || unavailable
                 ? null
                 : health?.last_observation_status === "unchanged"
@@ -101,9 +123,27 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
                         ? "Last check · observed"
                         : null;
               const nextDue = health?.next_due_at ? `Next due ${new Date(health.next_due_at).toLocaleString()}` : `Cadence ${source.cadence || "scheduled"}`;
-              return <div className={`registry-health-card ${status}`} key={source.source_id}><span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span><strong>{source.name}</strong><small>{freshness}</small>{observationResult && <small className={`registry-health-result ${health?.last_observation_status}`}>{observationResult}</small>}<small>{nextDue}</small></div>;
+              const isCustomSource = source.source_kind === "operator_registered_public";
+              const isPaused = status === "paused" || source.enabled === false;
+              const editingPause = lifecycleSourceId === source.source_id && !isPaused;
+              return <div className={`registry-health-card ${status}`} key={source.source_id}>
+                <span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span>
+                <strong>{source.name}</strong>
+                <small>{freshness}</small>
+                {observationResult && <small className={`registry-health-result ${health?.last_observation_status}`}>{observationResult}</small>}
+                <small>{isPaused ? "Scheduler skips this source" : nextDue}</small>
+                {operatorSession?.identityToken && isCustomSource && <div className="registry-health-card-action" onClick={(event) => event.stopPropagation()}>
+                  {editingPause
+                    ? <form onSubmit={(event) => { event.preventDefault(); submitLifecycle(source, false); }}>
+                      <input aria-label={`Pause reason for ${source.name}`} value={lifecycleReason} onChange={(event) => setLifecycleReason(event.target.value)} placeholder="Why pause monitoring?" maxLength={240} autoFocus />
+                      <div className="lifecycle-actions"><button type="submit" className="pause" disabled={lifecycleBusy === source.source_id || !lifecycleReason.trim()}>{lifecycleBusy === source.source_id ? "Pausing…" : "Confirm pause"}</button><button type="button" className="lifecycle-cancel" onClick={() => { setLifecycleSourceId(""); setLifecycleReason(""); }}>Cancel</button></div>
+                    </form>
+                    : <button type="button" className={isPaused ? "" : "pause"} disabled={lifecycleBusy === source.source_id} onClick={() => { if (isPaused) submitLifecycle(source, true); else { setLifecycleSourceId(source.source_id); setLifecycleReason(""); setLifecycleError(""); } }}>{lifecycleBusy === source.source_id ? (isPaused ? "Resuming…" : "Updating…") : isPaused ? "Resume monitoring" : "Pause monitoring"}</button>}
+                </div>}
+              </div>;
             })}
           </div>
+          {(lifecycleMessage || lifecycleError) && <p className={lifecycleError ? "source-lifecycle-error" : "source-lifecycle-message"} role={lifecycleError ? "alert" : "status"}>{lifecycleError || lifecycleMessage}</p>}
         </div>
         <label className="source-selector">Scenario for next scan<select id="scenario-source" name="scenario-source" value={selectedSource || evidence?.source_id || "public/pricing"} onChange={(event) => onSourceChange?.(event.target.value)}><optgroup label="Own surfaces">{sources.filter((source) => source.category?.startsWith("Own")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}{source.source_kind === "competitor_public" ? " · synthetic fixture" : ""}</option>)}</optgroup><optgroup label="Competitor surfaces">{sources.filter((source) => source.category?.startsWith("Competitor")).map((source) => <option value={source.source_id} key={source.source_id}>{source.name}{source.source_kind === "competitor_public" ? " · synthetic fixture" : ""}</option>)}</optgroup></select></label>
         <div className="monitor-source-list">

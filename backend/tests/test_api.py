@@ -2077,6 +2077,112 @@ def test_signed_operator_can_onboard_an_exact_public_source(monkeypatch) -> None
     )
 
 
+def test_signed_operator_can_pause_and_resume_custom_source_with_audit(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    persistence._tenant_audit_memory.clear()
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY", "false")
+    monkeypatch.setenv("DRIFTLINE_ALLOW_DURABLE_HMAC_TENANTS", "false")
+    monkeypatch.delenv("DRIFTLINE_TENANT_SIGNING_SECRET_PREFIX", raising=False)
+    monkeypatch.delenv("DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS", raising=False)
+    secret = "source-lifecycle-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
+    source_id = "custom/lifecycle-pricing"
+    source.register_operator_source(
+        source_id=source_id,
+        name="Lifecycle pricing",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://example.com/pricing",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        tenant_id="driftline-demo",
+    )
+
+    def token(action: str) -> str:
+        return hmac.new(
+            secret.encode(), f"{action}:Signed operator".encode(), hashlib.sha256
+        ).hexdigest()
+
+    try:
+        pause = client.post(
+            f"/api/operator/sources/{source_id}/lifecycle",
+            json={
+                "enabled": False,
+                "reason": "Competitor page is under maintenance.",
+                "operator": "Signed operator",
+                "tenant_id": "driftline-demo",
+                "approval_token": token(f"source-lifecycle:{source_id}:pause"),
+            },
+        )
+        assert pause.status_code == 200
+        assert pause.json()["status"] == "paused"
+        assert pause.json()["audit_event"]["event_type"] == "source_paused"
+        assert pause.json()["source"]["enabled"] == "false"
+
+        sources = client.get(
+            "/api/sources",
+            params={
+                "operator": "Signed operator",
+                "tenant_id": "driftline-demo",
+                "approval_token": token("sources:list"),
+            },
+        )
+        assert sources.status_code == 200
+        paused_source = next(
+            item for item in sources.json()["sources"] if item["source_id"] == source_id
+        )
+        assert paused_source["enabled"] is False
+        assert paused_source["lifecycle_status"] == "paused"
+
+        registry = client.get(
+            "/api/monitor/registry",
+            params={
+                "operator": "Signed operator",
+                "tenant_id": "driftline-demo",
+                "approval_token": token("monitor-registry"),
+            },
+        )
+        assert registry.status_code == 200
+        assert registry.json()["summary"]["paused"] == 1
+        assert next(
+            item for item in registry.json()["sources"] if item["source_id"] == source_id
+        )["status"] == "paused"
+        assert not any(
+            tenant == "driftline-demo" and current_id == source_id
+            for tenant, current_id, _definition in source.scheduler_source_entries()
+        )
+
+        resume = client.post(
+            f"/api/operator/sources/{source_id}/lifecycle",
+            json={
+                "enabled": True,
+                "reason": "Maintenance window is complete.",
+                "operator": "Signed operator",
+                "tenant_id": "driftline-demo",
+                "approval_token": token(f"source-lifecycle:{source_id}:resume"),
+            },
+        )
+        assert resume.status_code == 200
+        assert resume.json()["status"] == "resumed"
+        assert resume.json()["audit_event"]["event_type"] == "source_resumed"
+        assert any(
+            tenant == "driftline-demo" and current_id == source_id
+            for tenant, current_id, _definition in source.scheduler_source_entries()
+        )
+        assert [event["event_type"] for event in persistence._tenant_audit_memory] == [
+            "source_paused",
+            "source_resumed",
+        ]
+    finally:
+        source._CUSTOM_SOURCE_DEFINITIONS.clear()
+        persistence._tenant_audit_memory.clear()
+
+
 def test_public_source_onboarding_establishes_bounded_baseline(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")

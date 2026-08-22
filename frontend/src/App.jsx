@@ -114,12 +114,15 @@ export default function App() {
   const actionRecord = workflowState?.action_record;
   const jiraWriteOccurred = ["created", "reused", "reactivated", "reversed"].includes(actionRecord?.jira_status);
   const selectedSourceDefinition = sources.find((source) => source.source_id === selectedSource);
+  const selectedSourcePaused = selectedSourceDefinition?.enabled === false;
   const runHint = actionRecord?.jira_status === "reversed"
     ? "Jira handoff reversed · other destinations remain prepared-only"
     : actionRecord?.jira_status === "reactivated"
       ? "Jira handoff reactivated · external state remains reversible"
       : jiraWriteOccurred
       ? "Jira handoff recorded · other destinations remain prepared-only"
+    : selectedSourcePaused
+      ? "Monitoring paused · resume this source before scanning"
     : operatorSession.identityToken && selectedSourceDefinition?.mode === "public_only"
       ? "Authenticated source monitor · approval-gated analysis"
       : operatorSession.identityToken
@@ -277,6 +280,9 @@ export default function App() {
     try {
       if (!apiEnabled) throw new Error("API disabled");
       const selectedDefinition = sources.find((source) => source.source_id === selectedSource);
+      if (selectedDefinition?.enabled === false) {
+        throw new Error("This source is paused; resume monitoring before scanning.");
+      }
       const runMode = operatorSession.identityToken && selectedDefinition?.mode === "public_only"
         ? "monitor"
         : null;
@@ -439,8 +445,8 @@ export default function App() {
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
             <span className="workspace-button">Production control plane<ChevronDown size={15} /></span>
             <span className="run-hint">{runHint}</span>
-            <button className="primary" onClick={runScan} disabled={scanning} type="button">
-              <Play size={17} />{scanning ? "Running…" : "Run scan"}
+            <button className="primary" onClick={runScan} disabled={scanning || selectedSourcePaused} type="button" title={selectedSourcePaused ? "Resume this paused source before scanning" : undefined}>
+              <Play size={17} />{scanning ? "Running…" : selectedSourcePaused ? "Source paused" : "Run scan"}
             </button>
           </div>
         </header>
@@ -497,7 +503,7 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} onLifecycleChanged={() => { getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel />
           <TraceEvalPanel workflowId={workflowId} />
           <ValueProofPanel />
