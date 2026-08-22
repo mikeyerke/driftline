@@ -246,7 +246,7 @@ characters, and labels the remaining text as quoted untrusted evidence. Raw
 evidence stays unchanged for hashes, audit, and the UI. This is a deterministic
 local guardrail, not a claim that Google Model Armor is configured. Cloud
 Scheduler runs the historical monitor every
-six hours and records `baseline_established`, `unchanged`, or `changed` in a
+hourly wake-up and records `baseline_established`, `unchanged`, or `changed` in a
 Firestore snapshot ledger. Each source's observation cadence is distinct from
 its freshness SLA: the scheduler only spends a model call when the cadence is
 due (or a baseline/failure needs recovery), then round-robins due tenant

@@ -12,7 +12,7 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T10:14Z` with the active gcloud project set to
+Checked `2026-08-22T10:17Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
@@ -718,6 +718,10 @@ Checked `2026-08-22T10:14Z` with the active gcloud project set to
 - The monitor registry now reports cadence separately from freshness: this
   check returned five healthy sources and two `cadence_due` sources
   (`public/pricing`, `competitor/pricing`) while none were stale or failed.
+- The isolated `driftline-monitor` Scheduler job is enabled on `0 * * * *` UTC.
+  A manual OIDC tick at `2026-08-22T10:16:28Z` returned HTTP 200 on
+  `driftline-00199-xn6`; the subsequent registry read returned five healthy,
+  zero due, zero stale, and zero failed sources.
 - Sequential live proofs on this exact revision created job
   `job-bf4c55cea0f1` / workflow `578e6409-e195-4188-84b6-59c75fd5598a` and
   proved `needs_approval`, `public_source`, `gemini-3.5-flash`, Google ADK,
