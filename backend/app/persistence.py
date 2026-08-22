@@ -21,11 +21,13 @@ from .models import (
     WorkflowStatus,
     utc_now,
 )
+from .trace_eval import redacted_evaluation
 
 COLLECTION = "driftline_workflows"
 JOBS_COLLECTION = "driftline_jobs"
 JOB_FAILURES_COLLECTION = "driftline_job_failures"
 OUTCOMES_COLLECTION = "driftline_outcome_measurements"
+EVALUATIONS_COLLECTION = "driftline_trace_evaluations"
 SALESFORCE_COLLECTION = "driftline_salesforce_connections"
 SALESFORCE_OAUTH_STATES_COLLECTION = "driftline_salesforce_oauth_states"
 CONNECTOR_BINDINGS_COLLECTION = "driftline_connector_bindings"
@@ -52,6 +54,7 @@ _tenant_audit_memory: list[dict[str, Any]] = []
 _tenant_usage_memory: dict[tuple[str, str], dict[str, Any]] = {}
 _tenant_rate_limit_memory: dict[tuple[str, str, int], int] = {}
 _job_failures_memory: dict[str, dict[str, Any]] = {}
+_evaluations_memory: dict[str, dict[str, Any]] = {}
 _credential_access_memory: list[dict[str, Any]] = []
 _credential_enrollments_memory: dict[tuple[str, str, str], dict[str, Any]] = {}
 _tenant_provision_lock = Lock()
@@ -406,6 +409,74 @@ def list_outcome_measurements(limit: int = 50) -> list[dict[str, Any]]:
         }
         for snapshot in query.stream()
     ]
+
+
+def persist_evaluation(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist one append-only, redacted trace-evaluation report.
+
+    The evaluator deliberately stores scores, case outcomes, and a structural
+    trace fingerprint only.  Raw prompts, source bodies, and credentials are
+    never accepted into this collection.  A duplicate evaluation id with
+    different content is treated as corruption rather than overwritten.
+    """
+    safe = redacted_evaluation(payload)
+    evaluation_id = str(safe.get("evaluation_id") or uuid4().hex).strip()
+    if not evaluation_id:
+        raise ValueError("evaluation_id_required")
+    safe["evaluation_id"] = evaluation_id
+    tenant_value = payload.get("tenant_id")
+    safe["tenant_id"] = str(tenant_value).strip() if tenant_value else None
+    safe["expires_at"] = _retention_expiry(safe["tenant_id"])
+    existing = _evaluations_memory.get(evaluation_id)
+    if existing is not None:
+        comparable = {key: value for key, value in existing.items() if key != "expires_at"}
+        incoming = {key: value for key, value in safe.items() if key != "expires_at"}
+        if comparable != incoming:
+            raise RuntimeError(f"Evaluation {evaluation_id} already exists with different content")
+        return dict(existing)
+    _evaluations_memory[evaluation_id] = dict(safe)
+    if _enabled():
+        document = _client().collection(EVALUATIONS_COLLECTION).document(evaluation_id)
+        try:
+            document.create(safe)
+        except AlreadyExists:
+            existing_snapshot = document.get()
+            existing_payload = existing_snapshot.to_dict() if existing_snapshot.exists else None
+            comparable = {key: value for key, value in (existing_payload or {}).items() if key != "expires_at"}
+            incoming = {key: value for key, value in safe.items() if key != "expires_at"}
+            if comparable != incoming:
+                raise RuntimeError(
+                    f"Evaluation {evaluation_id} already exists with different content"
+                )
+    return dict(safe)
+
+
+def list_evaluations(
+    tenant_id: str | None = None, limit: int = 20
+) -> list[dict[str, Any]]:
+    """Return bounded evaluation metadata, optionally for one exact tenant."""
+    bounded_limit = max(1, min(limit, 100))
+    if _enabled():
+        collection = _client().collection(EVALUATIONS_COLLECTION)
+        query = collection.where(
+            filter=firestore.FieldFilter("tenant_id", "==", tenant_id)
+        )
+        records = [snapshot.to_dict() or {} for snapshot in query.stream()]
+    else:
+        records = [
+            dict(record)
+            for record in _evaluations_memory.values()
+            if tenant_id is None and not record.get("tenant_id")
+            or tenant_id is not None and record.get("tenant_id") == tenant_id
+        ]
+    records.sort(key=lambda item: str(item.get("evaluated_at", "")), reverse=True)
+    return records[:bounded_limit]
+
+
+def load_latest_evaluation(tenant_id: str | None = None) -> dict[str, Any] | None:
+    """Load the newest safe evaluation for the public or exact tenant lane."""
+    records = list_evaluations(tenant_id, limit=1)
+    return records[0] if records else None
 
 
 def persist_salesforce_connection(payload: dict[str, Any]) -> None:

@@ -453,7 +453,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .pilot-form input, .pilot-form select { min-width: 0; border: 1px solid var(--line); border-radius: 3px; padding: 8px; color: var(--ink); background: #fff; font: inherit; font-weight: 400; }
 .pilot-submit { align-self: end; min-height: 34px; }
 .pilot-form .source-onboarding-success, .pilot-form .source-onboarding-error { grid-column: 1 / -1; margin: 0; padding: 0; }
-@media (max-width: 560px) { .pilot-summary, .pilot-form { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .pilot-summary, .pilot-form, .trace-eval-summary, .trace-eval-cases { grid-template-columns: 1fr; }.trace-eval-trend span { width: 100%; margin-left: 0; }.trace-eval-empty { align-items: flex-start; flex-direction: column; } }
 .value-proof-panel .panel-header h2 { display: inline-flex; align-items: center; gap: 7px; }
 .value-proof-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 14px 16px; }
 .value-proof-grid > div { display: grid; grid-template-columns: 18px 1fr; gap: 2px 7px; align-items: center; padding: 11px; border: 1px solid var(--line); background: #fff; }
@@ -494,7 +494,20 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
  .genome-grid li { display: flex; justify-content: space-between; gap: 8px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 10px; }
  .genome-grid li span { color: var(--muted); text-align: right; }
  .genome-grid code { color: var(--blue); }
- .genome-note { display: flex; align-items: center; gap: 5px; margin: 0; padding: 0 16px 14px; color: var(--muted); font-size: 10px; }
+.genome-note { display: flex; align-items: center; gap: 5px; margin: 0; padding: 0 16px 14px; color: var(--muted); font-size: 10px; }
+.trace-eval-panel { margin: 14px 16px 0; background: var(--surface); }
+.trace-eval-panel .panel-header h2 { display: inline-flex; align-items: center; gap: 7px; }
+.trace-eval-scope { margin: 0; padding: 0 16px 11px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.trace-eval-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 13px 16px 9px; }
+.trace-eval-summary > div { display: grid; gap: 3px; padding: 10px; border: 1px solid var(--line); background: #fff; }
+.trace-eval-summary > div.pass { border-color: #b9dfc9; background: #f7fcf8; }.trace-eval-summary > div.fail { border-color: #ffc0c4; background: #fff7f7; }
+.trace-eval-summary strong { font-size: 19px; line-height: 1; }.trace-eval-summary small { color: var(--muted); font-size: 10px; }
+.trace-eval-trend { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 16px 10px; padding: 8px 10px; border: 1px solid #b9dfc9; border-radius: 4px; background: #f1faf5; color: var(--green); font-size: 10px; }
+.trace-eval-trend.regressed { border-color: #ffc0c4; background: #fff5f5; color: var(--red); }.trace-eval-trend span { margin-left: auto; color: var(--muted); }
+.trace-eval-cases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; margin: 0; padding: 0 16px 11px; list-style: none; }
+.trace-eval-cases li { display: flex; align-items: flex-start; gap: 6px; min-width: 0; padding: 7px 8px; border: 1px solid var(--line); background: #fff; }.trace-eval-cases li.pass > svg { flex: 0 0 auto; color: var(--green); }.trace-eval-cases li.fail > svg { flex: 0 0 auto; color: var(--red); }
+.trace-eval-cases span { display: grid; gap: 2px; min-width: 0; }.trace-eval-cases strong { overflow-wrap: anywhere; color: var(--ink); font-size: 10px; text-transform: capitalize; }.trace-eval-cases small { color: var(--muted); font-size: 9px; line-height: 1.35; }
+.trace-eval-note { margin: 0; padding: 10px 16px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.45; }.trace-eval-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 16px 14px; }.trace-eval-empty .empty-state { padding: 0; }.trace-eval-message { margin: 0; padding: 0 16px 14px; color: var(--red); font-size: 10px; }
  .multimodal-panel .panel-header h2, .scenario-panel .panel-header h2 { display: inline-flex; align-items: center; gap: 7px; }
  .multimodal-empty { display: flex; align-items: center; gap: 7px; margin: 0; padding: 16px; color: var(--muted); font-size: 12px; }
  .spin { animation: driftline-spin 1s linear infinite; }

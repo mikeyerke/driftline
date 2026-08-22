@@ -24,6 +24,7 @@ import ValueProofPanel from "./components/ValueProofPanel";
 import PilotMeasurementPanel from "./components/PilotMeasurementPanel";
 import OperatorAccess from "./components/OperatorAccess";
 import SalesforceConnectorPanel from "./components/SalesforceConnectorPanel";
+import TraceEvalPanel from "./components/TraceEvalPanel";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -440,6 +441,7 @@ export default function App() {
 
           <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) setSelectedSource(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel />
+          <TraceEvalPanel workflowId={workflowId} />
           <ValueProofPanel />
           <PilotMeasurementPanel operatorSession={operatorSession} />
           <SalesforceConnectorPanel operatorSession={operatorSession} />

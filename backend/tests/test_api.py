@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app import api, source
+from app import api, persistence, source
 from app.api import app
 from app.connectors import (
     ConnectorError,
@@ -66,6 +66,43 @@ def test_api_responses_are_not_cacheable() -> None:
     response = client.get("/api/ops/value-proof")
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_trace_evaluation_fixture_is_persisted_without_raw_trace_fields(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    persistence._evaluations_memory.clear()
+
+    response = client.post("/api/evals/run", json={})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "pass"
+    evaluation = payload["evaluation"]
+    assert evaluation["gate_status"] == "pass"
+    assert evaluation["trace_redacted"] is True
+    assert evaluation["customer_outcome"] is False
+    assert '"before":' not in response.text
+    assert '"after":' not in response.text
+    assert '"prompt":' not in response.text
+    latest = client.get("/api/evals/latest")
+    assert latest.status_code == 200
+    assert latest.json()["evaluation"]["evaluation_id"] == evaluation["evaluation_id"]
+
+
+def test_trace_evaluation_latest_is_not_run_when_public_ledger_is_empty(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    persistence._evaluations_memory.clear()
+
+    response = client.get("/api/evals/latest")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "not_run",
+        "scope": "public_evaluation",
+        "evaluation": None,
+        "customer_outcome": False,
+        "trace_redacted": True,
+    }
 
 
 @pytest.mark.asyncio

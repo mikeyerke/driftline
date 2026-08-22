@@ -8,6 +8,7 @@
 - Judge scorecard: https://github.com/mikeyerke/driftline/blob/main/docs/JUDGE_SCORECARD.md
 - Cloud/resource evidence: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
 - Rules and eligibility evidence: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
+- Trace-to-eval quality gate: https://github.com/mikeyerke/driftline/blob/main/docs/TRACE_EVAL.md
 - Demonstration video: held for final owner review; no upload or submission has been made
 - Pending-approval frame: [`live-pending-approval-2026-08-20.jpg`](assets/live-pending-approval-2026-08-20.jpg)
 - Completed frame: [`live-completed-2026-08-20.jpg`](assets/live-completed-2026-08-20.jpg)
@@ -74,6 +75,13 @@ The public fixture moves `Competitor Pro` from `$49` to `$59` per seat per
 month. It is synthetic and visibly labelled as such. The console also exposes
 the append-only source ledger, recurring change memory, a bounded Gemini vision
 before/after pair, owner-action telemetry, and deployment health.
+
+The release includes a deterministic trace-to-eval quality gate. It checks five
+critical safety invariants and four usefulness invariants against the bounded
+workflow/ADK trace, fails closed on safety or score regressions, and persists a
+redacted live report with release identity and trend. This proves the control
+plane can get safer and more useful over time without pretending that synthetic
+evaluation records are customer ROI.
 
 ## Google technology
 

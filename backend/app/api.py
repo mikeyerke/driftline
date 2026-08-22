@@ -102,6 +102,7 @@ from .persistence import (
     load_connector_profile,
     load_credential_enrollment,
     load_job,
+    load_latest_evaluation,
     load_salesforce_connection,
     load_tenant,
     load_tenant_policy,
@@ -110,6 +111,7 @@ from .persistence import (
     persist_connector_binding,
     persist_connector_profile,
     persist_credential_enrollment,
+    persist_evaluation,
     persist_job,
     persist_job_failure,
     persist_outcome_measurement,
@@ -124,6 +126,10 @@ from .persistence import (
     record_tenant_usage,
     reserve_tenant_rate_limit,
     update_jobs_for_workflow,
+)
+from .trace_eval import (
+    build_quality_fixture,
+    run_quality_gate,
 )
 
 
@@ -432,6 +438,16 @@ class AgentRunRequest(BaseModel):
     # tenantless. A real operator can supply the same signed identity fields
     # used by the connector/action lanes so ADK execution carries a durable
     # tenant boundary all the way into source inspection and Firestore state.
+    operator: str | None = Field(default=None, min_length=1, max_length=120)
+    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
+    approval_token: str | None = Field(default=None, max_length=256)
+    identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class EvaluationRunRequest(BaseModel):
+    """Run the deterministic quality suite against a safe workflow trace."""
+
+    workflow_id: str | None = Field(default=None, min_length=8, max_length=120)
     operator: str | None = Field(default=None, min_length=1, max_length=120)
     tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
     approval_token: str | None = Field(default=None, max_length=256)
@@ -1785,6 +1801,129 @@ def health() -> dict[str, str | bool]:
         # probe sufficient to tie a serving revision back to source control.
         "release_sha": os.getenv("DRIFTLINE_RELEASE_SHA", "unknown"),
         "build_id": os.getenv("DRIFTLINE_BUILD_ID", "unknown"),
+    }
+
+
+def _safe_evaluation_response(record: dict[str, object] | None) -> dict[str, object] | None:
+    if record is None:
+        return None
+    return {
+        key: value
+        for key, value in record.items()
+        if key not in {"tenant_id", "expires_at"}
+    }
+
+
+def _evaluation_identity(
+    *,
+    resource: str,
+    operator: str | None,
+    tenant_id: str | None,
+    approval_token: str | None,
+    identity_token: str | None,
+) -> dict[str, str] | None:
+    has_auth = any(
+        value is not None
+        for value in (operator, tenant_id, approval_token, identity_token)
+    )
+    if not has_auth:
+        return None
+    if not operator or not tenant_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Signed approval is required for tenant evaluation records",
+        )
+    return _verify_approval_mode(
+        resource,
+        operator,
+        "signed",
+        approval_token,
+        identity_token,
+        tenant_id,
+    )
+
+
+@app.get("/api/evals/latest")
+def get_latest_evaluation(
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return the newest safe quality-gate result for this visibility lane."""
+    identity = _evaluation_identity(
+        resource="trace-eval:latest",
+        operator=operator,
+        tenant_id=tenant_id,
+        approval_token=approval_token,
+        identity_token=identity_token,
+    )
+    record = load_latest_evaluation(identity["tenant_id"] if identity else None)
+    return {
+        "status": "ok" if record else "not_run",
+        "scope": "tenant" if identity else "public_evaluation",
+        "evaluation": _safe_evaluation_response(record),
+        "customer_outcome": False,
+        "trace_redacted": True,
+    }
+
+
+@app.post("/api/evals/run")
+def run_evaluation(request: EvaluationRunRequest) -> dict[str, object]:
+    """Evaluate a known workflow or the bounded public golden fixture.
+
+    This route does not invoke Gemini or any connector.  It evaluates an
+    existing trace and writes only the redacted report, which makes it safe for
+    a judge or CI smoke run while preserving signed tenant visibility.
+    """
+    identity = _evaluation_identity(
+        resource=f"trace-eval:{request.workflow_id or 'fixture'}",
+        operator=request.operator,
+        tenant_id=request.tenant_id,
+        approval_token=request.approval_token,
+        identity_token=request.identity_token,
+    )
+    trace: dict[str, object]
+    tenant_id = identity["tenant_id"] if identity else None
+    if request.workflow_id:
+        try:
+            state = _resolve_workflow(request.workflow_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Workflow not found") from exc
+        _authorize_read_tenant(
+            state,
+            resource_id=state.workflow_id,
+            operator=request.operator,
+            tenant_id=request.tenant_id,
+            approval_token=request.approval_token,
+            identity_token=request.identity_token,
+        )
+        trace = state.to_dict()
+        tenant_id = state.tenant_id
+    else:
+        trace = build_quality_fixture()
+    previous = load_latest_evaluation(tenant_id)
+    agent_trace = trace.get("agent_trace") if isinstance(trace, dict) else None
+    agent_metadata = agent_trace if isinstance(agent_trace, dict) else {}
+    report = run_quality_gate(
+        trace,
+        release_sha=os.getenv("DRIFTLINE_RELEASE_SHA", "unknown"),
+        model=str(agent_metadata.get("model") or os.getenv("MODEL_NAME", "unknown")),
+        execution_mode=str(agent_metadata.get("execution_mode") or "unknown"),
+        previous_report=previous,
+        evaluation_id=f"eval-{uuid4().hex[:12]}",
+    )
+    report["tenant_id"] = tenant_id
+    try:
+        stored = persist_evaluation(report)
+    except Exception as exc:
+        logger.exception("Unable to persist trace evaluation")
+        raise HTTPException(status_code=503, detail="Trace evaluation persistence unavailable") from exc
+    return {
+        "status": stored["gate_status"],
+        "evaluation": _safe_evaluation_response(stored),
+        "customer_outcome": False,
+        "trace_redacted": True,
     }
 
 

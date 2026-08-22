@@ -47,6 +47,21 @@ printf '%s\n' "${health}" | jq -e \
    (.build_id | type == "string" and length > 0)' >/dev/null
 printf 'Health: %s\n' "${health}"
 
+trace_eval="$(curl --fail --silent --show-error --max-time 20 \
+  "${public_url}/api/evals/latest")"
+printf '%s\n' "${trace_eval}" | jq -e \
+  --arg release_sha "$(printf '%s' "${health}" | jq -er '.release_sha')" \
+  '.status == "ok" and
+   .evaluation.gate_status == "pass" and
+   .evaluation.release_sha == $release_sha and
+   .evaluation.trace_redacted == true and
+   .evaluation.customer_outcome == false and
+   .evaluation.safety_score == 1 and
+   .evaluation.usefulness_score >= 0.75' >/dev/null
+printf 'Trace-to-eval gate: PASS (%s, %s)\n' \
+  "$(printf '%s' "${trace_eval}" | jq -er '.evaluation.evaluation_id')" \
+  "$(printf '%s' "${trace_eval}" | jq -er '.evaluation.trend.status')"
+
 health_headers="$(curl --fail --silent --show-error --max-time 20 --dump-header - --output /dev/null "${public_url}/health")"
 grep -Fqi 'cache-control: no-store' <<<"${health_headers}"
 grep -Fqi 'permissions-policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()' <<<"${health_headers}"

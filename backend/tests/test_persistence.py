@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from app import persistence
+from app.trace_eval import build_quality_fixture, run_quality_gate
 
 
 def test_tenant_bootstrap_is_atomic_in_memory(monkeypatch) -> None:
@@ -31,6 +32,41 @@ def test_tenant_bootstrap_is_atomic_in_memory(monkeypatch) -> None:
 
     assert sorted(results) == [False, True]
     assert persistence.load_tenant(tenant_id)["status"] == "active"
+
+
+def test_trace_evaluation_ledger_is_append_only_and_tenant_scoped(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    persistence._evaluations_memory.clear()
+    public_report = run_quality_gate(
+        build_quality_fixture(),
+        release_sha="a" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+        evaluation_id="eval-public-ledger",
+    )
+    tenant_report = run_quality_gate(
+        build_quality_fixture(),
+        release_sha="b" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+        evaluation_id="eval-tenant-ledger",
+    )
+    tenant_report["tenant_id"] = "ledger-acme"
+
+    stored_public = persistence.persist_evaluation(public_report)
+    stored_tenant = persistence.persist_evaluation(tenant_report)
+
+    assert stored_public["evaluation_id"] == "eval-public-ledger"
+    assert stored_tenant["tenant_id"] == "ledger-acme"
+    assert len(persistence.list_evaluations()) == 1
+    assert len(persistence.list_evaluations("ledger-acme")) == 1
+    assert persistence.load_latest_evaluation("ledger-acme")["evaluation_id"] == (
+        "eval-tenant-ledger"
+    )
+    with pytest.raises(RuntimeError, match="already exists"):
+        changed = dict(public_report)
+        changed["overall_score"] = 0
+        persistence.persist_evaluation(changed)
 
 
 def test_tenant_bootstrap_audit_is_committed_with_metadata(monkeypatch) -> None:

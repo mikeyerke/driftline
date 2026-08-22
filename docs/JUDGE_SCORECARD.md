@@ -27,6 +27,14 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
+- The trace-to-eval gate (`scripts/verify_trace_eval.sh`) scores nine
+  independent safety/usefulness cases. Critical safety must be 100%,
+  usefulness at least 75%, overall at least 90%, and any regression against a
+  prior report fails closed. The deployed live-agent verifier applies the same
+  suite to a fresh Google ADK/Gemini trace and persists only a redacted report
+  in `driftline_trace_evaluations`; these are evaluation telemetry, not customer
+  outcomes.
+
 - Logged-out desktop and 390x844 mobile browser QA showed the interactive
   impact map before and after a scan: source -> offering -> impact area -> work
   surface -> handoff stages, directional node focus, readable sibling dimming,

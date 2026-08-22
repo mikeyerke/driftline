@@ -212,6 +212,28 @@ export function getValueProof() {
   return request("/api/ops/value-proof");
 }
 
+export function getLatestEvaluation() {
+  const params = new URLSearchParams();
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/evals/latest${params.toString() ? `?${params}` : ""}`, {
+    authenticated: Boolean(operatorSession.identityToken),
+  });
+}
+
+export function runEvaluation(workflowId = null) {
+  return request("/api/evals/run", {
+    method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
+    body: JSON.stringify({
+      ...(workflowId ? { workflow_id: workflowId } : {}),
+      ...(operatorSession.identityToken && operatorSession.tenantId ? signedContext() : {}),
+    }),
+  });
+}
+
 export function getPilotReport(cohortLabel = "") {
   const params = new URLSearchParams();
   if (cohortLabel.trim()) params.set("cohort_label", cohortLabel.trim());

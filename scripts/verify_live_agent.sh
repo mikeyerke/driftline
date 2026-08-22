@@ -74,6 +74,21 @@ if [[ "${verified}" != "true" ]]; then
   exit 1
 fi
 
+workflow_id="$(printf '%s' "${result}" | jq -er '.workflow.workflow_id')"
+evaluation="$(curl --fail --silent --show-error --max-time 30 \
+  -X POST "${base_url}/api/evals/run" \
+  -H 'content-type: application/json' \
+  -d "$(jq -n --arg workflow_id "${workflow_id}" '{workflow_id:$workflow_id}')")"
+printf '%s\n' "${evaluation}" | jq -e \
+  '.status == "pass" and
+   .evaluation.gate_status == "pass" and
+   .evaluation.trace_redacted == true and
+   .evaluation.customer_outcome == false and
+   .evaluation.execution_mode == "google_adk" and
+   .evaluation.model == "gemini-3.5-flash" and
+   .evaluation.safety_score == 1 and
+   .evaluation.usefulness_score >= 0.75' >/dev/null
+
 printf '%s\n' "${result}" | jq -r '
   "Live agent verification: PASS",
   ("job=" + .job_id),
@@ -87,3 +102,7 @@ printf '%s\n' "${result}" | jq -r '
   ("audit_events=" + ((.workflow.events | length) | tostring)),
   ("decision_options=" + ((.workflow.agent_trace.decision_copilot.options | length) | tostring))
 '
+printf '%s\n' "${evaluation}" | jq -r '"trace_eval=" + .evaluation.evaluation_id,
+  ("trace_eval_gate=" + .evaluation.gate_status),
+  ("trace_eval_overall=" + (.evaluation.overall_score | tostring)),
+  ("trace_eval_trend=" + .evaluation.trend.status)'

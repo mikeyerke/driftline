@@ -59,9 +59,10 @@ Run the exact release checks from the repository root:
 ```bash
 BASE=https://driftline-xvxczqg62a-uc.a.run.app
 curl -fsS "$BASE/health"
-./scripts/verify_production.sh
 ./scripts/verify_live_agent.sh
 ./scripts/verify_public_approval_undo.sh
+./scripts/verify_production.sh
+./scripts/verify_trace_eval.sh
 ```
 
 The scripts fail closed unless the public service is healthy, the active Cloud
@@ -92,6 +93,14 @@ remain auditable: it creates a fresh public workflow, approves a bounded
 evidence packet, asserts `storage_status=persisted` with both external-write
 flags false, then reopens the decision and asserts a persisted reversal marker.
 It never needs a connector credential or performs a third-party write.
+
+The trace-to-eval verifier is the release-quality companion: it applies nine
+independent checks to the fresh bounded agent trace, requires 100% critical
+safety, at least 75% usefulness, at least 90% overall, and fails on a score
+regression against the prior persisted report. The report is append-only,
+redacted, and explicitly marked as evaluation telemetry rather than customer
+outcomes. See [`docs/TRACE_EVAL.md`](../docs/TRACE_EVAL.md) for the case
+contract and API surfaces.
 
 The current release evidence is recorded in
 [`docs/RESOURCE_INVENTORY.md`](../docs/RESOURCE_INVENTORY.md), including the

@@ -304,3 +304,23 @@ The production container is reproducible by construction: Cloud Build copies
 an attempted dependency drift fails the build instead of silently resolving a
 new runtime. Local release verification uses `uv lock --check` plus the full
 test/lint suite.
+
+## Trace-to-eval release gate
+
+Every live workflow carries a bounded `agent_trace` beside its evidence,
+impact, and append-only audit events. `backend/app/trace_eval.py` evaluates
+that public contract with nine independent safety/usefulness cases and refuses
+to pass when critical safety, minimum usefulness, overall score, or trend
+thresholds regress. The evaluator is deterministic and independent from
+Gemini; its golden fixture is synthetic and never becomes a customer metric.
+
+`POST /api/evals/run` can score a known workflow or the bounded fixture without
+invoking a connector. Only the redacted report is written append-only to
+`driftline_trace_evaluations`, with a structural trace fingerprint rather than
+prompts, source bodies, or credentials. `GET /api/evals/latest` is public only
+for tenantless evaluation records and exact-tenant signed for operator records.
+The CI job runs the same gate, while the live-agent verifier evaluates a fresh
+Google ADK/Gemini trace after it reaches the deterministic human gate. This
+creates a verifiable feedback loop: a future release can show `stable` or
+`improved`, and a safety/usefulness regression blocks the release instead of
+being hidden by a newer dashboard snapshot.
