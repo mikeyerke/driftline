@@ -479,6 +479,8 @@ def packet_markdown(state: WorkflowState) -> str:
         f"- Contradiction review: {(state.change_card.get('source_quality') or {}).get('contradiction_status', 'not_checked')}",
         f"- Claim policy: {(state.change_card.get('claim_policy') or {}).get('status', 'not assessed')}",
         f"- Customer-facing publish: {(state.change_card.get('claim_policy') or {}).get('customer_facing_publish', 'not assessed')}",
+        f"- Promise ledger: {(state.change_card.get('promise_ledger') or {}).get('status', 'not assessed')} ({(state.change_card.get('promise_ledger') or {}).get('item_count', 0)} claims)",
+        f"- Customer-facing claims: {(state.change_card.get('promise_ledger') or {}).get('customer_facing_publish', 'not assessed')}",
         f"- Closure: {(state.change_card.get('closure') or {}).get('state', 'approval_pending')}",
         f"- Decision reason: {(state.approval or {}).get('reason', 'not recorded')}",
         "",
@@ -490,6 +492,26 @@ def packet_markdown(state: WorkflowState) -> str:
         "## Artifact actions",
         "",
     ]
+    promise_ledger = state.change_card.get("promise_ledger") or {}
+    if promise_ledger.get("items"):
+        lines.extend(
+            [
+                "## Promise ledger",
+                "",
+                f"- Status: `{promise_ledger.get('status', 'review_required')}`",
+                f"- Publication: `{promise_ledger.get('customer_facing_publish', 'blocked_pending_corroboration')}`",
+                f"- Disclosure: {promise_ledger.get('disclosure', 'Review proposed claims before publication.')}",
+            ]
+        )
+        for claim in promise_ledger["items"]:
+            lines.extend(
+                [
+                    f"- {claim.get('artifact', 'Work surface')} · {claim.get('claim_scope', 'internal_enablement')} · review `{claim.get('review_status', 'review_required')}`",
+                    f"  - Proposed claim: {claim.get('proposed_claim', 'Review the evidence before drafting a claim.')}",
+                    f"  - Claim ID: `{claim.get('claim_id', 'unknown')}` · evidence hash: `{claim.get('evidence_hash', 'none')}`",
+                ]
+            )
+        lines.append("")
     for packet in state.artifact_packets:
         lines.extend(
             [

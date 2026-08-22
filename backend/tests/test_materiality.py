@@ -21,6 +21,11 @@ def test_change_card_is_evidence_bound_and_labels_demo_exposure() -> None:
     assert card["claim_policy"]["status"] == "internal_review_only"
     assert card["claim_policy"]["customer_facing_publish"] == "blocked_pending_corroboration"
     assert "Customer-facing claims remain blocked" in " ".join(card["disclosures"])
+    assert card["promise_ledger"]["status"] == "review_required"
+    assert card["promise_ledger"]["item_count"] == 4
+    assert card["promise_ledger"]["customer_facing_publish"] == "blocked_pending_corroboration"
+    assert card["promise_ledger"]["items"][0]["review_status"] == "blocked_pending_corroboration"
+    assert card["promise_ledger"]["items"][0]["evidence_hash"] == state.evidence.evidence_hash
     assert {item["role"] for item in card["role_packets"]} >= {"PMM", "Sales / RevOps"}
     assert card["closure"]["state"] == "approval_pending"
     assert card["change_card_id"].startswith("card-")

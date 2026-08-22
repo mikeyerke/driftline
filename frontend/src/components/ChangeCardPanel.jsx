@@ -18,6 +18,7 @@ export default function ChangeCardPanel({ card }) {
   const sourceQuality = card.source_quality || {};
   const evidenceStrength = sourceQuality.evidence_strength || {};
   const claimPolicy = card.claim_policy || {};
+  const promiseLedger = card.promise_ledger || {};
   const closure = card.closure || {};
   const internalContext = card.internal_context || {};
   const verifiedConnectorCount = Number(internalContext.verified_connector_count || 0);
@@ -57,6 +58,11 @@ export default function ChangeCardPanel({ card }) {
           <div className="claim-boundary" aria-label="Claim safety boundary">
             <span>Claim boundary</span><b>{label(claimPolicy.status || "internal_review_only")}</b>
             <small>{claimPolicy.customer_facing_publish === "blocked_pending_corroboration" ? "Customer-facing publication stays blocked pending independent corroboration." : "Review the claim policy before publishing."}</small>
+          </div>
+          <div className="promise-ledger" aria-label="Promise ledger">
+            <div className="promise-ledger-header"><span>Promise ledger</span><b>{promiseLedger.item_count ?? 0} review items</b></div>
+            <small>{promiseLedger.customer_facing_publish === "blocked_pending_corroboration" ? "Proposed claims stay internal until corroborated and signed off." : "Review proposed claims before publication."}</small>
+            {(promiseLedger.items || []).slice(0, 4).map((claim) => <div className="promise-ledger-item" key={claim.claim_id || claim.artifact}><strong>{claim.artifact}</strong><span>{label(claim.claim_scope || "internal_enablement")} · {label(claim.review_status || "review_required")}</span></div>)}
           </div>
         </div>
         <div className="change-card-block exposure-block">

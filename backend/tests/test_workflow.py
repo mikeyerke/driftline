@@ -255,6 +255,8 @@ def test_approval_creates_evidence_bound_sandbox_packets() -> None:
     assert "Direct demo fixture · single source" in packet
     assert "Claim policy: internal_review_only" in packet
     assert "Customer-facing publish: blocked_pending_corroboration" in packet
+    assert "Promise ledger: review_required (4 claims)" in packet
+    assert "Customer-facing claims: blocked_pending_corroboration" in packet
     assert "## Role packets" in packet
     assert "## Owner deadlines" in packet
     assert "not CRM data" in packet

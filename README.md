@@ -122,6 +122,11 @@ stopping at “packet created.” In the synthetic demo, CRM opportunity and ren
 counts are intentionally shown as unavailable; once a permissioned Salesforce
 read-only connection is verified, those fields can be populated without
 changing the policy gate or exposing raw records to the public console.
+The card also emits a bounded **promise ledger**: one proposed claim per
+downstream surface, its owner and scope, the exact evidence hash, and the
+required independent-source and owner review. This makes the useful PMM question
+explicit—“which promise can I safely change next?”—while keeping
+customer-facing publication blocked until corroboration and sign-off exist.
 Each verified source transition also receives a stable Change Card identity
 derived from its allowlisted source and evidence hash. Re-running the same
 snapshot therefore reuses the same action/idempotency identity instead of

@@ -184,6 +184,82 @@ def _evidence_strength(
     }
 
 
+def _claim_scope(artifact: str, owner: str) -> str:
+    """Classify the proposed claim surface without inferring customer data."""
+    value = f"{artifact} {owner}".casefold()
+    customer_facing_markers = (
+        "comparison",
+        "battlecard",
+        "faq",
+        "talk track",
+        "renewal",
+        "support",
+    )
+    return (
+        "customer_facing_or_field"
+        if any(marker in value for marker in customer_facing_markers)
+        else "internal_enablement"
+    )
+
+
+def _promise_ledger(
+    impacts: Iterable[Any], evidence_hash: str, claim_policy: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Compile proposed downstream claims into a review-only operator ledger.
+
+    The ledger is deliberately derived from explicit impact profiles.  It does
+    not assert that a proposed sentence is true, and it never authorizes a
+    customer-facing publication or connector write.
+    """
+    items: list[dict[str, Any]] = []
+    for item in impacts:
+        artifact = str(_field(item, "name", "Work surface"))
+        owner = str(_field(item, "owner", "Owner"))
+        proposed_claim = str(
+            _field(item, "proposed", "Review the evidence before drafting a claim.")
+        ).strip()
+        claim_id = f"claim-{sha256(f'{artifact}:{evidence_hash}'.encode()).hexdigest()[:16]}"
+        items.append(
+            {
+                "claim_id": claim_id,
+                "artifact": artifact,
+                "owner": owner,
+                "role": _role_for_owner(owner),
+                "proposed_claim": proposed_claim,
+                "claim_scope": _claim_scope(artifact, owner),
+                "review_status": str(
+                    claim_policy.get(
+                        "customer_facing_publish", "blocked_pending_corroboration"
+                    )
+                ),
+                "review_reason": str(
+                    claim_policy.get(
+                        "reason", "Independent source corroboration is required."
+                    )
+                ),
+                "required_review": ["independent_source", "owner_signoff"],
+                "evidence_hash": evidence_hash,
+                "target_systems": sorted(
+                    {
+                        str(system).strip()
+                        for system in (_field(item, "target_systems", []) or [])
+                        if str(system).strip()
+                    }
+                ),
+            }
+        )
+    return {
+        "status": "review_required",
+        "item_count": len(items),
+        "source_evidence_hash": evidence_hash,
+        "customer_facing_publish": str(
+            claim_policy.get("customer_facing_publish", "blocked_pending_corroboration")
+        ),
+        "items": items,
+        "disclosure": "Proposed claims are review-only; no customer-facing publication is authorized without independent corroboration and owner sign-off.",
+    }
+
+
 _CONTEXT_COUNT_FIELDS = (
     "open_issue_count",
     "open_pull_request_count",
@@ -538,6 +614,9 @@ def build_change_card(
         "blocked_actions": ["customer_facing_publish", "autonomous_external_write"],
         "corroboration_status": evidence_strength["dimensions"]["corroboration"]["status"],
     }
+    promise_ledger = _promise_ledger(
+        impact_items, evidence.evidence_hash, claim_policy
+    )
     return {
         "version": "1.0",
         "change_card_id": change_card_id(evidence.source_id, evidence.evidence_hash),
@@ -564,6 +643,7 @@ def build_change_card(
         "exposure": exposure,
         "source_quality": source_quality,
         "claim_policy": claim_policy,
+        "promise_ledger": promise_ledger,
         "internal_context": context,
         "owners": owners,
         "role_packets": role_packets,
@@ -577,5 +657,6 @@ def build_change_card(
             ),
             "Approval and external actions remain deterministic and human-controlled.",
             "Customer-facing claims remain blocked until an independent source-level corroboration is reviewed.",
+            promise_ledger["disclosure"],
         ],
     }
