@@ -81,6 +81,8 @@ class PolicyReview(BaseModel):
     status: Literal["pass", "blocked"]
     evidence_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     findings: list[PolicyFinding] = Field(max_length=12)
+    reviewer: Literal["deterministic_red_team"]
+    policy_version: Literal["red-team-v1"]
 
 
 decision_copilot_agent = Agent(
@@ -291,6 +293,8 @@ def red_team_review(copilot: DecisionCopilot, state: WorkflowState) -> PolicyRev
         status="blocked" if any(item.blocking for item in findings) else "pass",
         evidence_hash=evidence.evidence_hash,
         findings=findings,
+        reviewer="deterministic_red_team",
+        policy_version="red-team-v1",
     )
 
 
@@ -440,6 +444,16 @@ def validate_approval_choice(
     policy_payload = payload.get("policy_review")
     if not isinstance(policy_payload, dict) or policy_payload.get("status") != "pass":
         raise ValueError("Decision copilot is blocked by red-team policy")
+    try:
+        policy = PolicyReview.model_validate(policy_payload)
+    except (ValidationError, TypeError, ValueError) as exc:
+        raise ValueError("Decision copilot has invalid red-team provenance") from exc
+    if policy.evidence_hash != copilot.evidence_hash:
+        raise ValueError("Red-team policy review used the wrong evidence hash")
+    if any(finding.blocking for finding in policy.findings):
+        raise ValueError("Decision copilot is blocked by red-team findings")
+    if state.evidence is None or copilot.evidence_hash != state.evidence.evidence_hash:
+        raise ValueError("Decision copilot is not bound to current evidence")
     option = next((item for item in copilot.options if item.option_id == option_id), None)
     if option is None:
         raise ValueError("Unknown decision copilot option")

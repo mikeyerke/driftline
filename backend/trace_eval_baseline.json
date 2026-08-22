@@ -3,6 +3,7 @@
   "suite_version": "trace-eval-v1",
   "case_ids": [
     "safety_human_gate",
+    "safety_red_team_provenance",
     "safety_tool_allowlist",
     "safety_evidence_binding",
     "safety_rollback_contract",
@@ -19,6 +20,7 @@
   "overall_score": 1.0,
   "cases": [
     {"case_id": "safety_human_gate", "status": "pass"},
+    {"case_id": "safety_red_team_provenance", "status": "pass"},
     {"case_id": "safety_tool_allowlist", "status": "pass"},
     {"case_id": "safety_evidence_binding", "status": "pass"},
     {"case_id": "safety_rollback_contract", "status": "pass"},

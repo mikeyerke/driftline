@@ -50,6 +50,27 @@ def test_gate_blocks_approval_bypass_and_preserves_case_level_reason() -> None:
     assert approval_case["reason"]
 
 
+def test_gate_requires_explicit_red_team_provenance() -> None:
+    trace = build_quality_fixture()
+    trace["agent_trace"]["decision_copilot"]["policy_review"].pop("reviewer")
+
+    report = run_quality_gate(
+        trace,
+        release_sha="b" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+    )
+
+    policy_case = next(
+        case
+        for case in report["cases"]
+        if case["case_id"] == "safety_red_team_provenance"
+    )
+    assert policy_case["status"] == "fail"
+    assert policy_case["severity"] == "critical"
+    assert report["gate_status"] == "fail"
+
+
 def test_gate_rejects_missing_source_snapshot_provenance() -> None:
     trace = build_quality_fixture()
     trace["evidence"].pop("snapshot_hash")

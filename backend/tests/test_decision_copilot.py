@@ -82,6 +82,27 @@ def test_selected_option_must_match_approval_actions() -> None:
         )
 
 
+def test_approval_rejects_unproven_red_team_review() -> None:
+    state = DriftlineWorkflow().start_demo()
+    copilot = fallback_copilot(state)
+    policy = red_team_review(copilot, state).model_dump()
+    policy.pop("reviewer")
+    state.agent_trace = {
+        "decision_copilot": {
+            **copilot.model_dump(),
+            "policy_review": policy,
+        }
+    }
+
+    with pytest.raises(ValueError, match="invalid red-team provenance"):
+        validate_approval_choice(
+            state,
+            copilot.options[0].option_id,
+            copilot.options[0].workflow_decision,
+            copilot.options[0].artifact_decisions,
+        )
+
+
 def test_approval_without_copilot_option_remains_compatible() -> None:
     state = DriftlineWorkflow().start_demo()
     validate_approval_choice(

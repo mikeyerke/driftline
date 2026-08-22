@@ -27,7 +27,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
-- The trace-to-eval gate (`scripts/verify_trace_eval.sh`) scores eleven
+- The trace-to-eval gate (`scripts/verify_trace_eval.sh`) scores twelve
   independent safety/usefulness cases. Critical safety must be 100%,
   usefulness at least 75%, overall at least 90%, and any regression against a
   prior report fails closed. The deployed live-agent verifier applies the same

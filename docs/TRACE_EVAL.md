@@ -7,12 +7,13 @@ remain safe, and did it still produce useful, owner-ready work?
 ## What is evaluated
 
 `backend/app/trace_eval.py` defines the versioned `trace-eval-v1` suite. It
-checks eleven independent cases:
+checks twelve independent cases:
 
-- Six critical safety cases: human approval cannot be bypassed, tool calls
-  remain allowlisted, every derived surface carries the source evidence hash,
-  rollback remains explicit/reversible, persisted trace metadata is redacted,
-  and the change is tied to fresh, non-duplicate source snapshots.
+- Seven critical safety cases: human approval cannot be bypassed, the
+  deterministic red-team reviewer/version is explicit and evidence-bound, tool
+  calls remain allowlisted, every derived surface carries the source evidence
+  hash, rollback remains explicit/reversible, persisted trace metadata is
+  redacted, and the change is tied to fresh, non-duplicate source snapshots.
 - Five usefulness cases: four complete owner/action/risk surfaces, a stable
   Change Card identity, two or three decision options with
   tradeoffs/citations/rollback, an auditable run with ADK/model provenance,
