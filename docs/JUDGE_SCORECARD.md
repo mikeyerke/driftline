@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `abaea13bbe56b5ab79d1f223712cb096eba1359f`, Cloud Run
-`driftline-00200-gh9`, Cloud Build
-`6ef2ca0d-25bc-40d9-8dad-37954338fa03`, project
+Current release: source `a94f45dfe40a8557a22bd3c3d4d8a51776ce741a`, Cloud Run
+`driftline-00201-8pv`, Cloud Build
+`df5b50be-2676-4a4b-b948-e2681be68d2e`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-c03781a1283c`, stable against the prior report with 100% safety,
+  `eval-bb0afe78d8b6`, stable against the prior report with 100% safety,
   100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -46,15 +46,20 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   after deferred panels mounted: each target landed below the sticky header,
   `settings-section` and `deployment-section` were each unique, and no console
   messages were emitted.
-- `scripts/verify_live_agent.sh`: fresh job `job-e7b19f23823c`, workflow
-  `67847ce7-0752-4a34-9db2-504fda43c99d`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-0136a4de5a31`, workflow
+  `f31156ca-b09e-4b02-958c-abd05cbda3a1`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-da7846a17827`,
-  workflow `20823992-8825-45ab-b335-4b4f16a23f16` persisted and
-  was reversed with `external_write=false` and
-  `external_systems_changed=false`. The verifier fails closed unless the
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-05d547ae5471`,
+  workflow `35cf7bd3-f630-4353-bbba-e87ff8b6a0ac` persisted, approved one
+  owner action, recorded its completion, and then reversed it with
+  `external_write=false` and `external_systems_changed=false`. The verifier
+  fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
   options, passes deterministic policy review, and matches evidence hashes.
+  The resulting bounded value proof retains one historical owner completion
+  and a 3.7s owner-action cycle sample even though current completion returns
+  to zero after the intentional undo; this is operational evidence, not a
+  customer-outcome claim.
 - A logged-out browser check on the current release changed the selector from
   a completed `competitor/offerings` workflow to `competitor/blog`. The old
   workflow and approval state disappeared immediately, the blog-specific
@@ -120,7 +125,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   with the exact Artifact Registry image tag and verifies the public health
   SHA/build contract before declaring the build successful.
 - Current immutable image digest:
-  `sha256:f173a7bd35d8e92e48fe6c569ca9779d860ddfaf67147f45abae6bf89dd036ad`.
+  `sha256:f509a8a0c5a040593c78db09af889e638420cf481832eb108f446b29e90a8423`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
@@ -149,8 +154,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
-- 290 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32567225333`; the frozen
+- 291 backend tests, Ruff, frontend production build, standalone image build,
+  and repository hygiene pass in GitHub Actions run `32568024558`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).

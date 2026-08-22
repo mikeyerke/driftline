@@ -131,11 +131,11 @@ its final live proof requires an operator Google identity in the browser.
 ## Verified release evidence
 
 The current serving release is source commit
-`abaea13bbe56b5ab79d1f223712cb096eba1359f`, Cloud Build
-`6ef2ca0d-25bc-40d9-8dad-37954338fa03`, and Cloud Run revision
-`driftline-00200-gh9` at 100% traffic in project `driftline-hackathon-2026`.
+`a94f45dfe40a8557a22bd3c3d4d8a51776ce741a`, Cloud Build
+`df5b50be-2676-4a4b-b948-e2681be68d2e`, and Cloud Run revision
+`driftline-00201-8pv` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:f173a7bd35d8e92e48fe6c569ca9779d860ddfaf67147f45abae6bf89dd036ad`.
+`sha256:f509a8a0c5a040593c78db09af889e638420cf481832eb108f446b29e90a8423`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -151,19 +151,19 @@ across page reloads; the callback metadata and tenant-scoped secret pointer are
 durable as well, but no Salesforce object totals or successful CRM read are
 claimed until fresh consent succeeds.
 
-- Local gate for the current source: 290 backend tests passed, the focused
+- Local gate for the current source: 291 backend tests passed, the focused
   Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32567225333` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32568024558` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-e7b19f23823c` / workflow
-  `67847ce7-0752-4a34-9db2-504fda43c99d` returned `needs_approval`,
+- Live agent check: fresh job `job-0136a4de5a31` / workflow
+  `f31156ca-b09e-4b02-958c-abd05cbda3a1` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -171,17 +171,21 @@ claimed until fresh consent succeeds.
   Decision Copilot, and the approval gate; the scripted live proof above is
   the durable source of the current job/workflow identifiers.
 - The paired current-revision approval/undo verifier created job
-  `job-da7846a17827` / workflow `20823992-8825-45ab-b335-4b4f16a23f16` and
-  completed scan -> approval -> undo. The packet persisted and its
-  operational output was reversed; Jira, Confluence, and Slack remained
-  `external_write=false` in the public packet-safe lane.
+  `job-05d547ae5471` / workflow `35cf7bd3-f630-4353-bbba-e87ff8b6a0ac` and
+  completed scan -> approval -> owner claim -> owner completion -> undo. The
+  packet persisted and its operational output was reversed; Jira, Confluence,
+  and Slack remained `external_write=false` in the public packet-safe lane.
+  The bounded value proof retains one historical owner completion and a 3.7s
+  owner-action cycle sample after the reversal; current completion returns to
+  zero because undo is intentionally reversible. These are deployment records,
+  not customer outcome claims.
 - A current-revision logged-out browser check also switched from a completed
   `competitor/offerings` run to `competitor/blog`; the old workflow and approval
   state cleared immediately and the blog-specific evidence preview appeared.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-c03781a1283c` passed the 14-case
+- Trace-to-eval check: live evaluation `eval-bb0afe78d8b6` passed the 14-case
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining stable against the prior report with no case
   regressions; the report
