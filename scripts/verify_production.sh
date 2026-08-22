@@ -105,6 +105,9 @@ printf '%s\n' "${ops_summary}" | jq -e \
   '.model == "gemini-3.5-flash" and
    .persistence == "firestore" and
    .async_jobs == true and
+   .telemetry_window.scope == "public_recent_evaluation_window" and
+   .telemetry_window.limit == 12 and
+   .telemetry_window.append_only_history == true and
    ((.source_health // []) | length) >= 5 and
    .approval_security.public_demo_packet_only == true and
    .approval_security.google_oidc_operator_enabled == true and
@@ -116,6 +119,23 @@ printf '%s\n' "${ops_summary}" | jq -e \
    .approval_security.tenant_auth.static_operator_allowlist == false and
    .crm.salesforce.external_write == false' >/dev/null
 printf 'Agent configuration: Gemini 3.5 Flash, Firestore, five bounded source monitors, OIDC tenant boundary\n'
+
+value_proof="$(curl --fail --silent --show-error --max-time 20 "${public_url}/api/ops/value-proof")"
+printf '%s\n' "${value_proof}" | jq -e \
+  '.telemetry_window.scope == "public_recent_evaluation_window" and
+   .telemetry_window.limit == 12 and
+   .telemetry_window.append_only_history == true and
+   (.observed.workflows <= 12) and
+   (.observed.jobs <= 12)' >/dev/null
+printf 'Public value proof: bounded recent evaluation window (12 records), append-only history retained\n'
+
+memory_summary="$(curl --fail --silent --show-error --max-time 20 "${public_url}/api/memory/summary?limit=50")"
+printf '%s\n' "${memory_summary}" | jq -e \
+  '.history_window.scope == "public_recent_evaluation_window" and
+   .history_window.limit == 12 and
+   .history_window.append_only_history == true and
+   (.work_summary.workflow_count <= 12)' >/dev/null
+printf 'Change memory: bounded recent evaluation window (12 records)\n'
 
 read -r scheduler_state scheduler_last_attempt < <(
   gcloud scheduler jobs describe "${scheduler_job}" \

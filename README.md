@@ -139,6 +139,11 @@ proof** panel reads the same bounded endpoint, making observed deployment
 utility and unmeasured customer outcomes visible without turning synthetic
 activity into a business claim.
 
+Anonymous value-proof and change-memory views use a recent bounded window
+(`DRIFTLINE_PUBLIC_METRIC_WINDOW`, deployed as 12 records) so repeated verifier
+runs cannot look like customer adoption. The underlying Firestore records stay
+append-only; signed tenant views remain tenant-scoped.
+
 Authenticated tenant operators also get a bounded **Pilot measurement** panel
 for recording aggregate before/after minutes and optional outcome evidence.
 These records remain explicitly operator-reported and unverified until

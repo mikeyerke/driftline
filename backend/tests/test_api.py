@@ -469,6 +469,40 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert outcomes.json()["status"] == "not_measured"
 
 
+def test_public_telemetry_uses_recent_bounded_window_without_hiding_history(monkeypatch) -> None:
+    monkeypatch.setattr(api, "PUBLIC_METRIC_WINDOW", 1)
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda *_args: True)
+
+    original_runs = dict(api.workflow_store._runs)
+    try:
+        first = client.post("/api/workflows/demo")
+        second = client.post("/api/workflows/demo")
+        assert first.status_code == 200
+        assert second.status_code == 200
+
+        value = client.get("/api/ops/value-proof").json()
+        assert value["telemetry_window"] == {
+            "scope": "public_recent_evaluation_window",
+            "limit": 1,
+            "append_only_history": True,
+        }
+        assert value["observed"]["workflows"] <= 1
+
+        memory = client.get("/api/memory/summary?limit=50").json()
+        assert memory["history_window"] == value["telemetry_window"]
+        assert memory["work_summary"]["workflow_count"] <= 1
+
+        ops = client.get("/api/ops/summary").json()
+        assert ops["telemetry_window"] == {
+            "scope": "public_recent_evaluation_window",
+            "limit": 1,
+            "append_only_history": True,
+        }
+    finally:
+        api.workflow_store._runs.clear()
+        api.workflow_store._runs.update(original_runs)
+
+
 def test_source_registry_and_freshness_can_be_bound_to_signed_tenant(monkeypatch) -> None:
     """Tenant operators can read only their signed source metadata surface."""
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")

@@ -590,6 +590,11 @@ MULTIMODAL_WINDOW_SECONDS = _positive_int(
 _multimodal_call_times: deque[float] = deque()
 _multimodal_call_lock = Lock()
 MAX_JOB_ATTEMPTS = _positive_int("DRIFTLINE_MAX_JOB_ATTEMPTS", 3)
+# Anonymous evaluation telemetry is intentionally a recent bounded window.
+# Durable records remain append-only; this prevents repeated verifier runs from
+# presenting synthetic traffic as if it were product adoption. Signed tenant
+# views keep their requested tenant-scoped bound instead.
+PUBLIC_METRIC_WINDOW = _positive_int("DRIFTLINE_PUBLIC_METRIC_WINDOW", 50)
 
 _salesforce_oauth_states: dict[str, dict[str, object]] = {}
 _salesforce_oauth_lock = Lock()
@@ -617,19 +622,47 @@ def _merge_durable_records(
     transition that has not finished its durable write. A bounded local
     fallback keeps local development and a transient Firestore outage useful.
     """
-    if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() != "firestore":
-        return memory_records
-    try:
-        durable_records = loader(limit)
-    except Exception:  # noqa: BLE001 - metrics must not take the console down.
-        logger.warning("Durable record merge unavailable; using local records")
-        return memory_records
+    bounded_limit = max(1, int(limit))
+    durable_records: list[Any] = []
+    if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
+        try:
+            durable_records = loader(bounded_limit)
+        except Exception:  # noqa: BLE001 - metrics must not take the console down.
+            logger.warning("Durable record merge unavailable; using local records")
     merged = {key(record): record for record in durable_records if key(record)}
     for record in memory_records:
         identifier = key(record)
         if identifier:
             merged[identifier] = record
-    return list(merged.values())
+
+    def sort_key(record: Any) -> str:
+        if isinstance(record, dict):
+            return str(record.get("updated_at") or record.get("created_at") or "")
+        return str(
+            getattr(record, "updated_at", None)
+            or getattr(record, "created_at", None)
+            or ""
+        )
+
+    return sorted(merged.values(), key=sort_key, reverse=True)[:bounded_limit]
+
+
+def _metric_history_limit(requested: int, identity: dict[str, str] | None) -> int:
+    """Bound anonymous metrics without narrowing a signed tenant view."""
+    bounded = max(1, int(requested))
+    return min(bounded, PUBLIC_METRIC_WINDOW) if identity is None else bounded
+
+
+def _metric_window(identity: dict[str, str] | None, limit: int) -> dict[str, object]:
+    return {
+        "scope": (
+            "public_recent_evaluation_window"
+            if identity is None
+            else "signed_tenant_window"
+        ),
+        "limit": limit,
+        "append_only_history": True,
+    }
 
 
 def _visible_tenant_record(record: Any, identity: dict[str, str] | None) -> bool:
@@ -2928,10 +2961,11 @@ def get_ops_summary(
         )
     with _jobs_lock:
         job_records = list(_jobs.values())
+    metric_limit = _metric_history_limit(20, identity)
     jobs = [
         job
         for job in _merge_durable_records(
-            job_records, list_jobs, limit=20, key=lambda item: item.job_id
+            job_records, list_jobs, limit=metric_limit, key=lambda item: item.job_id
         )
         if _visible_tenant_record(job, identity)
     ]
@@ -2941,7 +2975,7 @@ def get_ops_summary(
         for state in _merge_durable_records(
             workflow_records,
             list_workflows,
-            limit=20,
+            limit=metric_limit,
             key=lambda item: item.workflow_id,
         )
         if _visible_tenant_record(state, identity)
@@ -2957,6 +2991,7 @@ def get_ops_summary(
     connector_names = ("jira", "confluence", "slack", "github")
     return {
         "generated_at": utc_now(),
+        "telemetry_window": _metric_window(identity, metric_limit),
         "project_id": os.getenv("GOOGLE_CLOUD_PROJECT", "local"),
         "persistence": os.getenv("DRIFTLINE_PERSISTENCE", "memory"),
         "async_jobs": _tasks_enabled(),
@@ -4576,10 +4611,11 @@ def get_value_proof(
         )
     with _jobs_lock:
         job_records = list(_jobs.values())
+    metric_limit = _metric_history_limit(50, identity)
     jobs = [
         job
         for job in _merge_durable_records(
-            job_records, list_jobs, limit=50, key=lambda item: item.job_id
+            job_records, list_jobs, limit=metric_limit, key=lambda item: item.job_id
         )
         if _visible_tenant_record(job, identity)
     ]
@@ -4589,7 +4625,7 @@ def get_value_proof(
         for state in _merge_durable_records(
             workflow_records,
             list_workflows,
-            limit=50,
+            limit=metric_limit,
             key=lambda item: item.workflow_id,
         )
         if _visible_tenant_record(state, identity)
@@ -4671,6 +4707,7 @@ def get_value_proof(
     )
     return {
         "generated_at": utc_now(),
+        "telemetry_window": _metric_window(identity, metric_limit),
         "scope": (
             "observed_tenant_records"
             if identity
@@ -5003,6 +5040,7 @@ def get_memory_summary(
             identity_token,
             tenant_id,
         )
+    bounded_limit = _metric_history_limit(bounded_limit, identity)
     source_tenant = identity.get("tenant_id") if identity else None
     source_observations = list_source_histories(
         list(source_definitions(source_tenant)),
@@ -5021,7 +5059,9 @@ def get_memory_summary(
         )
         if _visible_tenant_record(state, identity)
     ]
-    return build_memory_summary(source_observations, workflows)
+    summary = build_memory_summary(source_observations, workflows)
+    summary["history_window"] = _metric_window(identity, bounded_limit)
+    return summary
 
 
 @app.get("/api/multimodal/assets/{asset_id}/{side}")

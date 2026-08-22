@@ -39,6 +39,7 @@ export default function ValueProofPanel({ operatorSession }) {
   const ownerActionCycle = observed.owner_action_cycle_seconds || {};
   const notMeasured = proof?.not_measured || [];
   const workflowModes = Object.entries(observed.workflow_data_modes || {});
+  const telemetryWindow = proof?.telemetry_window;
 
   return (
     <section ref={panelRef} className="panel value-proof-panel" aria-labelledby="value-proof-title">
@@ -46,7 +47,7 @@ export default function ValueProofPanel({ operatorSession }) {
         <div><h2 id="value-proof-title"><Gauge size={17} />Value proof</h2><span className="live-label synthetic">Evaluation-only records</span></div>
         <span className="muted">Operational utility, not invented ROI</span>
       </header>
-      <p className="value-proof-scope">These are reproducible records from the isolated Driftline deployment, not users, customers, or revenue claims.</p>
+      <p className="value-proof-scope">These are reproducible records from the isolated Driftline deployment, not users, customers, or revenue claims. {telemetryWindow?.scope === "public_recent_evaluation_window" ? `Anonymous views use the most recent ${telemetryWindow.limit}-record evaluation window; append-only history is retained separately.` : "Signed tenant views remain tenant-scoped."}</p>
       {!nearViewport && <p className="multimodal-empty">Observed deployment evidence loads when this panel enters view.</p>}
       {nearViewport && loading && <p className="multimodal-empty"><Activity size={15} className="spin" />Reading bounded deployment evidence…</p>}
       {!loading && proof && <>

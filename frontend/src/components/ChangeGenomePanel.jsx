@@ -23,7 +23,7 @@ export default function ChangeGenomePanel() {
     <section ref={panelRef} className="panel genome-panel" aria-labelledby="genome-title">
       <header className="panel-header">
         <div><h2 id="genome-title"><Dna size={17} />Change memory</h2><span className="live-label">Append-only</span></div>
-        <span className="muted">Recurring moves and open work</span>
+        <span className="muted">{memory?.history_window?.scope === "public_recent_evaluation_window" ? `Recent ${memory.history_window.limit}-record window` : "Recurring moves and open work"}</span>
       </header>
       {!nearViewport && <p className="multimodal-empty">Change memory loads when this panel enters view.</p>}
       {nearViewport && loading && <p className="multimodal-empty"><LoaderCircle size={15} className="spin" />Reading the source ledger…</p>}
