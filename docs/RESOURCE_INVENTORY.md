@@ -59,6 +59,11 @@ The source-health UI race fixed in commit `be08c71` is covered by
 can no longer overwrite newer freshness state. Commit `a077faa` also preserves
 an explicitly paused custom source when it is re-registered through the
 Firestore-backed registry, so metadata updates cannot silently resume polling.
+Commit `229650f` closes the related native-boolean lifecycle seam: Firestore
+`enabled=false` values are normalized consistently with the legacy string
+form, so paused sources stay out of scheduler/count/health paths until an
+explicit signed resume. The regression suite covers a native Firestore pause
+followed by an explicit resume.
 
 - Cloud Run service `driftline` in `us-central1` serves revision
   `driftline-00266-8qp` at 100% traffic. Its immutable serving image is
