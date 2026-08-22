@@ -12,10 +12,11 @@ function StatusIcon({ status }) {
   return <Clock3 size={15} />;
 }
 
-export default function RunHistory({ jobs, loading, publicMode = false, canRetry = false, onRetry, onVisible }) {
+export default function RunHistory({ jobs, loading, publicMode = false, canRetry = false, onRetry, onOpen, onVisible }) {
   const [panelRef, nearViewport] = useNearViewport();
   const visibleNotifiedRef = useRef(false);
   const [retryingJobId, setRetryingJobId] = useState(null);
+  const [openingJobId, setOpeningJobId] = useState(null);
 
   useEffect(() => {
     if (nearViewport && !visibleNotifiedRef.current) {
@@ -32,6 +33,16 @@ export default function RunHistory({ jobs, loading, publicMode = false, canRetry
       await onRetry?.(jobId);
     } finally {
       setRetryingJobId(null);
+    }
+  };
+
+  const handleOpen = async (job) => {
+    if (!onOpen || openingJobId) return;
+    setOpeningJobId(job.job_id);
+    try {
+      await onOpen(job);
+    } finally {
+      setOpeningJobId(null);
     }
   };
 
@@ -53,7 +64,10 @@ export default function RunHistory({ jobs, loading, publicMode = false, canRetry
                 <span className={`run-status ${status}`}><StatusIcon status={status} />{statusLabel(status)}</span>
                 <span className="run-kind"><strong>{job.run_mode === "monitor" ? "Historical monitor" : "Change scan"}</strong><small>{job.source_id || "public/pricing"}</small></span>
                 <span className="run-time">{job.created_at ? new Date(job.created_at).toLocaleString() : "—"}</span>
-                <span className="run-result">{job.public_summary || job.response || (job.workflow_id ? "Workflow created · awaiting decision" : "Awaiting result")}</span>
+                <span className="run-result">
+                  <span className="run-result-copy">{job.public_summary || job.response || (job.workflow_id ? "Workflow created · awaiting decision" : "Awaiting result")}</span>
+                  {job.workflow_id && <button className="secondary compact run-open" type="button" disabled={openingJobId !== null} onClick={() => handleOpen(job)}>{openingJobId === job.job_id ? "Opening…" : "Open run"}</button>}
+                </span>
                 {job.workflow_id && <span className="run-workflow"><RotateCcw size={13} /> workflow linked</span>}
                 {canRetry && status === "failed" && <button className="secondary compact run-retry" type="button" disabled={retryingJobId === job.job_id} onClick={() => handleRetry(job.job_id)}><RefreshCw size={13} />{retryingJobId === job.job_id ? "Retrying…" : "Retry"}</button>}
               </div>

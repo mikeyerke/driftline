@@ -447,6 +447,29 @@ export default function App() {
     }
   };
 
+  const openHistoryJob = async (historyJob) => {
+    const openEpoch = sessionEpochRef.current;
+    try {
+      setScanMessage("Loading durable workflow · restoring evidence and policy state");
+      const loaded = await getJob(historyJob.job_id);
+      if (sessionEpochRef.current !== openEpoch) return;
+      if (!loaded.workflow?.workflow_id) throw new Error("This run has no recoverable workflow yet");
+      const restored = loaded.workflow;
+      const recommendedOption = restored.agent_trace?.decision_copilot?.options?.find((option) => option.option_id === restored.agent_trace?.decision_copilot?.recommendation_id);
+      setJob(loaded);
+      setWorkflowState(restored);
+      setWorkflowId(restored.workflow_id);
+      setSelectedSource(restored.evidence?.source_id || historyJob.source_id || selectedSource);
+      setSelectedArtifact(restored.impacts?.[0]?.name || "Pricing battlecard");
+      setArtifactDecisions(restored.approval?.artifact_decisions || recommendedOption?.artifact_decisions || defaultDecisionsFor(restored));
+      setScanMessage("Durable run restored · evidence and approval state are ready to review");
+      selectNav("Overview");
+    } catch (error) {
+      if (sessionEpochRef.current !== openEpoch) return;
+      setScanMessage(`Unable to restore the durable run · ${error.message || "retry the request"}`);
+    }
+  };
+
   const updateArtifactDecision = (name, decision) => {
     setArtifactDecisions((current) => ({ ...current, [name]: decision }));
   };
@@ -534,7 +557,7 @@ export default function App() {
           <ValueProofPanel />
           <PilotMeasurementPanel operatorSession={operatorSession} />
           <SalesforceConnectorPanel operatorSession={operatorSession} />
-          <RunHistory jobs={recentJobs} loading={historyLoading} publicMode={!operatorSession.identityToken} canRetry={Boolean(operatorSession.identityToken)} onRetry={retryFailedJob} onVisible={() => refreshHistory()} />
+          <RunHistory jobs={recentJobs} loading={historyLoading} publicMode={!operatorSession.identityToken} canRetry={Boolean(operatorSession.identityToken)} onRetry={retryFailedJob} onOpen={openHistoryJob} onVisible={() => refreshHistory()} />
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
           <TrustPanel actionRecord={actionRecord} />

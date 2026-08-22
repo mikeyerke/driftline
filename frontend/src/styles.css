@@ -330,7 +330,10 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .run-kind small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 9px; }
 .run-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-transform: capitalize; }
 .run-status.complete { color: var(--green); }.run-status.needs_approval { color: var(--orange); }.run-status.failed { color: var(--red); }.run-status.running, .run-status.queued { color: var(--blue); }
-.run-kind, .run-time, .run-result { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-kind, .run-time { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-result { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); }
+.run-result-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-open { flex: 0 0 auto; }
 .run-workflow { display: inline-flex; align-items: center; gap: 4px; color: var(--blue); }
 .approval-scope { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; padding: 11px 12px; border: 1px solid #ffc9ae; border-radius: 4px; background: #fff7f2; font-size: 12px; }
 .override-reason { display: flex; flex-direction: column; gap: 5px; margin: 10px 0 12px; color: var(--ink); font-size: 11px; font-weight: 600; }
