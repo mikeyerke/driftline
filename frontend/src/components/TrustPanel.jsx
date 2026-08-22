@@ -6,6 +6,7 @@ import useNearViewport from "../hooks/useNearViewport";
 export default function TrustPanel({ actionRecord }) {
   const [panelRef, nearViewport] = useNearViewport();
   const [ops, setOps] = useState(null);
+  const [opsState, setOpsState] = useState("idle");
   const jiraWasWritten = ["created", "reused", "reactivated", "reversed"].includes(actionRecord?.jira_status);
   const jiraTrustLabel = actionRecord?.jira_status === "reversed"
     ? "Scoped Jira handoff reversed; other destinations unchanged"
@@ -19,7 +20,20 @@ export default function TrustPanel({ actionRecord }) {
   useEffect(() => {
     if (!nearViewport) return undefined;
     let active = true;
-    const refresh = () => getOpsSummary().then((payload) => active && setOps(payload)).catch(() => active && setOps(null));
+    const refresh = () => {
+      if (active) setOpsState("loading");
+      return getOpsSummary()
+        .then((payload) => {
+          if (!active) return;
+          setOps(payload);
+          setOpsState("ready");
+        })
+        .catch(() => {
+          if (!active) return;
+          setOps(null);
+          setOpsState("failed");
+        });
+    };
     refresh();
     const timer = window.setInterval(refresh, 60_000);
     return () => {
@@ -32,7 +46,16 @@ export default function TrustPanel({ actionRecord }) {
   const deadLettered = ops?.jobs?.dead_lettered;
   const queuedJobs = ops?.jobs?.by_status?.queued;
   const connectorLanes = Object.values(ops?.connectors || {}).filter(Boolean).length;
-  const runtimeLabel = ops ? `${ops.model || "Agent runtime"} · ${ops.persistence || "persistence unavailable"}` : "Deployment telemetry unavailable";
+  const runtimeLabel = ops
+    ? `${ops.model || "Agent runtime"} · ${ops.persistence || "persistence unavailable"}`
+    : opsState === "failed"
+      ? "Deployment telemetry unavailable"
+      : "Reading deployment telemetry…";
+  const telemetryNote = ops
+    ? "Connector availability reflects deployment capability, not per-tenant credentials or an external write. This is deployment telemetry only; it contains no customer content or outcome claims."
+    : opsState === "failed"
+      ? "Deployment telemetry is temporarily unavailable; the next bounded refresh will retry. Connector availability is not a per-tenant credential or external-write claim."
+      : "Reading bounded deployment telemetry; it contains no customer content or outcome claims.";
   return (
     <section ref={panelRef} className="panel trust-panel" id="deployment-section">
       <header className="panel-header"><div><h2>Trust and deployment posture</h2><span className="live-label">Production deployment</span></div><span className="muted">Public evaluation lane is isolated</span></header>
@@ -50,7 +73,7 @@ export default function TrustPanel({ actionRecord }) {
           <div><Database size={15} /><strong>{ops ? connectorLanes : "—"}</strong><small>connector lanes available</small></div>
           <div><ShieldCheck size={15} /><strong>{ops ? "Signed" : "—"}</strong><small>{ops ? "approval required for writes" : "guardrail status unavailable"}</small></div>
         </div>
-        <p className="ops-pulse-note">{runtimeLabel}. Connector availability reflects deployment capability, not per-tenant credentials or an external write. This is deployment telemetry only; it contains no customer content or outcome claims.</p>
+        <p className="ops-pulse-note">{telemetryNote}</p>
       </div>
       <p className="source-note">This public console is intentionally identity-free for judging. It is not an enterprise authentication claim, and it fails closed when the live backend is unavailable.</p>
     </section>
