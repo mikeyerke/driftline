@@ -44,6 +44,17 @@ async function request(path, options = {}) {
     headers.set("Authorization", `Bearer ${operatorSession.identityToken}`);
   }
   const response = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers });
+  if (response.status === 401 && authenticated && operatorSession.identityToken) {
+    // Google ID tokens are intentionally short-lived and are held only in
+    // memory. Once the backend rejects one, fail closed immediately instead
+    // of leaving the console in a stale authenticated tenant lane. The
+    // public evaluation lane remains available and the operator can sign in
+    // again without reloading the page.
+    clearOperatorSession();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("driftline:operator-session-expired"));
+    }
+  }
   if (!response.ok) {
     let detail = "";
     try { detail = (await response.json()).detail || ""; } catch { /* non-JSON response */ }

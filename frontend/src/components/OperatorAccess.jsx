@@ -53,6 +53,16 @@ export default function OperatorAccess() {
   useEffect(() => subscribeOperatorSession(setSession), []);
 
   useEffect(() => {
+    const handleSessionExpired = () => {
+      setAuthStarted(false);
+      setStatus("Google session expired · sign in again");
+      setError("");
+    };
+    window.addEventListener("driftline:operator-session-expired", handleSessionExpired);
+    return () => window.removeEventListener("driftline:operator-session-expired", handleSessionExpired);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     getAuthConfig()
       .then((payload) => active && setConfig(payload))
