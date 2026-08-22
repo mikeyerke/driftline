@@ -186,10 +186,12 @@ export default function App() {
   useEffect(() => {
     const previousTenant = lastTenantRef.current;
     const nextTenant = operatorSession.tenantId || null;
-    if (previousTenant && previousTenant !== nextTenant) {
-      // Never leave a prior tenant's workflow, decision, or job details on
-      // screen after a tenant switch or sign-out. The next tenant must start
-      // from its own filtered history and an explicit scan.
+    if (previousTenant !== nextTenant) {
+      // Never carry a workflow across an identity boundary. This includes
+      // anonymous -> signed-in (a public packet must not appear as tenant
+      // work), tenant -> tenant, and signed-in -> anonymous transitions. The
+      // next lane must start from its own filtered history and an explicit
+      // scan.
       setWorkflowState(null);
       setWorkflowId(null);
       setJob(null);
