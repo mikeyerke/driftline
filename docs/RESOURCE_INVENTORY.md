@@ -21,6 +21,8 @@ Checked `2026-08-22T00:16Z` with the active gcloud project set to
 - Source commit `6215311` was built by Cloud Build
   `ddbb1aea-fa8c-4618-bda4-bba1468f852c`; GitHub Actions run `32539081146`
   passed the repository gates.
+- The repository's frozen backend dependency export passed `pip-audit` with
+  `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence and async jobs; `/api/auth/config`

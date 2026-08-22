@@ -79,8 +79,13 @@ is:
 .venv/bin/pytest -q
 .venv/bin/ruff check backend
 npm run build --prefix frontend
+./scripts/verify_dependencies.sh  # requires uv and pip-audit
 git diff --check
 ```
+
+The frozen backend resolution is also checked with `pip-audit` after exporting
+`backend/uv.lock`; the current repository audit returned **No known
+vulnerabilities found**.
 
 The packet-safety verifier is separate from the Gemini proof so the two claims
 remain auditable: it creates a fresh public workflow, approves a bounded

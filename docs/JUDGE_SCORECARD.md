@@ -4,9 +4,10 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `48ca9f8`, Cloud Run `driftline-00142-657`, Cloud Build
-`0b9e4e54-b87b-4527-9376-0748a19a7710`, project
-`driftline-hackathon-2026`, 100% traffic.
+Current release: source `6215311`, Cloud Run `driftline-00156-k4k`, Cloud Build
+`ddbb1aea-fa8c-4618-bda4-bba1468f852c`, project
+`driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
+kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
 ## Innovation and operational utility — 40%
 
@@ -30,15 +31,15 @@ Current release: source `48ca9f8`, Cloud Run `driftline-00142-657`, Cloud Build
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-0386cee0979b`, workflow
-  `0cf5ae56-19af-449a-87cd-9cfcfbafa18b`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-7805da9f61c7`, workflow
+  `c8c5b957-7d06-450e-9af6-8f18fc0c47d8`, five audit events, four artifacts,
   two decision options, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh proof on the same job and
-  workflow; the packet persisted and was reversed with
-  `external_write=false` and `external_systems_changed=false`. The verifier
-  fails closed unless the approval journey carries structured Gemini impact /
-  Decision Copilot options, passes deterministic policy review, and matches
-  evidence hashes.
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-384b04338fb1`,
+  workflow `2518a1a8-b99a-44bf-bff5-87c5141f7b93`; the packet persisted and
+  was reversed with `external_write=false` and
+  `external_systems_changed=false`. The verifier fails closed unless the
+  approval journey carries structured Gemini impact / Decision Copilot
+  options, passes deterministic policy review, and matches evidence hashes.
 - A manual run of the isolated `driftline-monitor` Scheduler job produced an
   OIDC-authenticated HTTP 200 `/api/scheduler/tick` request on the serving
   revision; healthy sources were correctly deferred until their cadence due
@@ -85,10 +86,12 @@ Current release: source `48ca9f8`, Cloud Run `driftline-00142-657`, Cloud Build
   IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
   membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
-  `sha256:db707393bf53a4052501c807ea6dc34d96b895550db9328ad2b2fd6a0dbb3977`.
+  `sha256:2e2fd930a57591c99f99d2e084bd6e6dcd7dc923d778c97357596760b89372d1`.
 - Signed isolated connector probes are documented in
   [`RESOURCE_INVENTORY.md`](RESOURCE_INVENTORY.md); the anonymous lane remains
-  packet-only by design.
+  packet-only by design. Salesforce has a durable read-only OAuth callback
+  record, but the last direct health probe returned `invalid_grant`, so no CRM
+  object totals are claimed until the owner completes fresh consent.
 
 ## Demo and production readiness — 30%
 
@@ -104,8 +107,9 @@ Current release: source `48ca9f8`, Cloud Run `driftline-00142-657`, Cloud Build
 
 ### Live evidence
 
-- 257 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32521842231`.
+- 264 backend tests, Ruff, frontend production build, standalone image build,
+  and repository hygiene pass in GitHub Actions run `32539081146`; the frozen
+  dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).
 - At 390×844, body and document widths equal the viewport and the browser has no
@@ -119,8 +123,8 @@ Current release: source `48ca9f8`, Cloud Run `driftline-00142-657`, Cloud Build
   is claimed; the value panel is deployment telemetry, not ROI.
 - No arbitrary competitor crawl is claimed; the public lane uses five pinned
   fixtures and bounded operator-registered URLs.
-- No Salesforce execution is claimed; the read-only OAuth lane awaits final
-  tenant consent.
+- No Salesforce object read is claimed; the read-only OAuth lane requires fresh
+  tenant consent after the stored refresh token returned `invalid_grant`.
 - No anonymous third-party write is claimed; connector writes require a signed
   operator and remain isolated from judge traffic.
 - No Fortified Enterprise Fleet or Startup Excellence eligibility is claimed.

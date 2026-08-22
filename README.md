@@ -475,8 +475,12 @@ cd frontend && npm run build
 cd ../backend && uv run --extra dev pytest
 ~~~
 
-The verified local suite also runs Ruff lint and format checks. If uv is not
-installed, a standard Python virtual environment with the dependencies in
+The verified local suite also runs Ruff lint and format checks. For dependency
+security, run `./scripts/verify_dependencies.sh` with `uv` and `pip-audit`
+installed; it exports the frozen backend lockfile and audits the complete
+transitive resolution without changing application dependencies. The current
+audit returned **No known vulnerabilities found**. If uv is not installed, a
+standard Python virtual environment with the dependencies in
 backend/pyproject.toml produces the same test result.
 
 Every push to `main` and every pull request runs the backend lint/tests and
