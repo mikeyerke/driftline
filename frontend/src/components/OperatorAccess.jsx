@@ -151,7 +151,11 @@ export default function OperatorAccess() {
     setStatus("Tenant selected");
   };
 
-  if (!config?.enabled) {
+  if (config === null) {
+    return <span className="operator-access unavailable"><ShieldCheck size={14} />Loading operator sign-in…</span>;
+  }
+
+  if (!config.enabled) {
     return <span className="operator-access unavailable"><ShieldCheck size={14} />Operator sign-in unavailable</span>;
   }
 
