@@ -66,6 +66,10 @@ Firestore-backed registry, so metadata updates cannot silently resume polling.
 - Source commit `229650f9ffe79e6b0ffa806493320f740417e21f` was built by Cloud
   Build `931d9db1-6880-497b-a3ce-28383bf9f206`; GitHub Actions run
   `32605576780` passed the repository gates.
+- The final local gate for this release passed `uv run --extra dev pytest`
+  (323 tests), Ruff, the trace-to-eval baseline (14/14 cases), the frontend
+  production build, the frontend contract check, shell syntax/hygiene, and
+  the frozen dependency audit.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
