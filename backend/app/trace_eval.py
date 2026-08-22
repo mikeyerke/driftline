@@ -223,10 +223,13 @@ def _safety_internal_context_boundary(trace: Mapping[str, Any]) -> tuple[bool, s
                 safe_shape = False
                 break
     verified_count = int(context.get("verified_connector_count", 0) or 0)
+    if verified_count < 1:
+        if safe_shape and context.get("redaction") == "aggregate_metadata_only":
+            return True, "The run carries no verified connector context; the public lane remains isolated."
+        return False, "Unavailable connector context must still use the aggregate-only shape."
     passed = (
         safe_shape
         and context.get("redaction") == "aggregate_metadata_only"
-        and verified_count > 0
         and exposure.get("mode") == "connected_internal_data"
         and any(
             _mapping(event).get("action") == "internal_context_reader"
