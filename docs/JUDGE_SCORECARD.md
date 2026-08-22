@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `8f2d23c759f4c4e48f778ff479028de3ab23d1fc`, Cloud Run
-`driftline-00163-ztb`, Cloud Build
-`70246ecd-9e12-4aa2-9552-0f246d22bb3e`, project
+Current release: source `64f263b1659d194d9c5c5536867aa7cfd1f303b9`, Cloud Run
+`driftline-00164-ffh`, Cloud Build
+`0b9bee9b-7c8b-4767-b93e-9c02718e9186`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-6151e31a1898`, stable against `eval-a52b99ca4846` with zero score
+  `eval-01486b1214cc`, stable against `eval-6151e31a1898` with zero score
   deltas. These are evaluation telemetry, not customer outcomes.
 
 - Logged-out desktop and 390x844 mobile browser QA showed the interactive
@@ -41,11 +41,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-279871897328`, workflow
-  `355e2d4a-e774-4fe9-a8f6-d23a35755151`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-9711e9578f35`, workflow
+  `70ba035c-7ddb-4598-a4bb-28970e76cef2`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-e7b233938028` /
-  workflow `756834da-b29f-40c1-9dbe-5387787a40d9`; the packet persisted and
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-d103276fafba` /
+  workflow `b56810a3-11d5-4c52-ba21-3679c0717fdc`; the packet persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
@@ -128,8 +128,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
-- 273 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32547575437`; the frozen
+- 275 backend tests, Ruff, frontend production build, standalone image build,
+  and repository hygiene pass in GitHub Actions run `32548600808`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).

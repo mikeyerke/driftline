@@ -533,13 +533,13 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`8f2d23c759f4c4e48f778ff479028de3ab23d1fc`, Cloud Build
-`70246ecd-9e12-4aa2-9552-0f246d22bb3e`, and Cloud Run revision
-`driftline-00163-ztb` at 100% traffic. Its immutable image digest is recorded
+`64f263b1659d194d9c5c5536867aa7cfd1f303b9`, Cloud Build
+`0b9bee9b-7c8b-4767-b93e-9c02718e9186`, and Cloud Run revision
+`driftline-00164-ffh` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32547575437` passed the repository gates, including the
+GitHub Actions run `32548600808` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -558,8 +558,8 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates nine independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-6151e31a1898` is stable against the prior
-`eval-a52b99ca4846` with zero score deltas; it is evaluation telemetry, not a
+latest live report `eval-01486b1214cc` is stable against the prior
+`eval-6151e31a1898` with zero score deltas; it is evaluation telemetry, not a
 customer-outcome claim.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
@@ -578,8 +578,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-279871897328` / `355e2d4a-e774-4fe9-a8f6-d23a35755151` for the live agent
-and `job-e7b233938028` / `756834da-b29f-40c1-9dbe-5387787a40d9` for the paired
+`job-9711e9578f35` / `70ba035c-7ddb-4598-a4bb-28970e76cef2` for the live agent
+and `job-d103276fafba` / `b56810a3-11d5-4c52-ba21-3679c0717fdc` for the paired
 approval/undo run. `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
