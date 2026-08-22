@@ -16,9 +16,52 @@ The authoritative current release is checked at read time with
 `./scripts/verify_production.sh`: it refuses any gcloud project other than
 `driftline-hackathon-2026`, checks 100% traffic, compares `/health` to the
 serving source SHA/build ID, and verifies the immutable Artifact Registry
-digest. The latest recorded release-proof snapshot before this documentation
-correction was checked with the active project set to
-`driftline-hackathon-2026`:
+digest. The current exact proof is recorded immediately below. An earlier
+release-proof snapshot is retained after it as historical evidence; it is not
+the current serving-state authority:
+
+### Current exact proof — 2026-08-22
+
+The active project was rechecked as `driftline-hackathon-2026` immediately
+before the current release. Cloud Build `c90da80e-6f2a-4512-bf72-1752132024a9`
+deployed commit `be08c711e4ddb321650867cb33e2125e06c46cd0` to revision
+`driftline-00260-hv4` at 100% traffic. `/health` reports Firestore, async jobs,
+the same full release SHA, and the same build ID. GitHub Actions run
+`32601960196` passed. The deployed live-agent verifier recorded job
+`job-70e6890461b6` / workflow `6c571bf2-f514-494f-b2d4-a424df793467` with
+Gemini 3.5 Flash through Google ADK, two allowlisted tools, four artifacts,
+five audit events, two decision options, and trace evaluation
+`eval-546c9db297b2` at 100% safety/usefulness/overall with a stable trend.
+The paired approval/undo verifier recorded job `job-61a2e701d0ba` / workflow
+`f9114cd2-817e-4a0b-a897-b105ad5a1f3a`; packet persistence, owner completion,
+reversal, `external_write=false`, and `external_systems_changed=false` all
+passed.
+
+The exact release was exercised in a logged-out browser: source evidence modal,
+interactive map focus/evidence path, approval, and undo all worked; source
+health loaded five healthy records; no application console errors were emitted;
+412px and 1440px document widths matched their viewports. Lighthouse navigation
+audits passed 53/53 on both desktop and mobile (100 accessibility, best
+practices, SEO, and agentic browsing). A fresh performance trace measured LCP
+185ms and CLS 0.00.
+
+The current public value-proof window contains 12 source observations and 11
+workflows, with five historical owner-action completions and current completion
+back at 0% after intentional undo. Customer time saved, revenue/win-rate lift,
+retention impact, and willingness-to-pay remain explicitly unmeasured. Public
+monitoring remains bounded to five pinned fixtures plus exact operator-registered
+URLs capped at 25 per tenant; it is not universal crawling.
+
+Salesforce remains evidence-gated: the isolated Firestore record for
+`driftline-demo` has historical `connected_read_only` metadata but current
+`health_status=reauthorization_required`, `health_reason=refresh_token_rejected`,
+and `aggregate_read_verified=false`. No CRM object totals are claimed until the
+owner completes fresh Salesforce consent and the three allowlisted aggregate
+queries succeed.
+
+The source-health UI race fixed in commit `be08c71` is covered by
+`scripts/verify_frontend_contract.sh`; an older overlapping Firestore response
+can no longer overwrite newer freshness state.
 
 - Cloud Run service `driftline` in `us-central1` served revision
   `driftline-00239-mht` at 100% traffic. Its immutable serving image was

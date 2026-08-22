@@ -674,19 +674,19 @@ starts, so a public packet cannot appear as tenant work.
 The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
-Fresh repeatable proof identifiers on the current serving revision are
-`job-046e5d170c2f` / `14323bde-626a-4e87-8bfe-340711954425` for the live agent
-and `job-109f783cf02f` / `e09ce290-8296-41ee-b1b6-28a38d4596d2` for the paired
+The latest exact proof refresh on serving commit
+`be08c711e4ddb321650867cb33e2125e06c46cd0` used
+`job-70e6890461b6` / `6c571bf2-f514-494f-b2d4-a424df793467` for the live agent
+and `job-61a2e701d0ba` / `f9114cd2-817e-4a0b-a897-b105ad5a1f3a` for the paired
 approval/undo run. The approval/undo path persisted the packet, approved and
-completed one owner action, then reversed the operational output with no
-external connector write. The bounded value proof retains
-`action_items_completed_historically=2`, a `3.7s` owner-action cycle sample,
-and a `2%` historical closure rate while current completion is intentionally
+completed one owner action, then reversed the operational output with
+`external_write=false` and `external_systems_changed=false`. The current
+bounded value proof reports 12 source observations, 11 workflows, five
+historical owner-action completions, and current completion intentionally
 `0%` after undo. These are deployment records, not customer ROI claims. The
 prior job/workflow identifiers remain in the append-only inventory as
-historical evidence. After **Reopen decision**, the console now keeps the
-reversed owner-action queue visible with four `Reversed` rows and an explicit
-append-only history explanation.
+historical evidence. After **Reopen decision**, the console keeps the reversed
+owner-action queue visible with an explicit append-only history explanation.
 `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
@@ -699,6 +699,11 @@ a read-only connection. When the stored refresh token is rejected, the current
 release returns `reauthorization_required` rather than an application 503;
 Driftline still does not claim a live CRM read until a fresh consent produces
 object totals.
+
+The source-health card also has a request-generation guard: overlapping reads
+from a monitor completion, tab return, or lifecycle refresh cannot let an older
+Firestore response overwrite newer freshness state. The frontend contract
+check fails if that guard is removed.
 
 The cadence path was re-run against the same isolated deployment at
 `2026-08-22T02:32:43Z`: the real Scheduler identity received an

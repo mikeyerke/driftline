@@ -11,6 +11,17 @@ after a later commit. Use the live check after every release. The
 submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
+## Current exact proof — 2026-08-22
+
+Commit `be08c711e4ddb321650867cb33e2125e06c46cd0` is serving as Cloud Run
+revision `driftline-00260-hv4` (100% traffic) from Cloud Build
+`c90da80e-6f2a-4512-bf72-1752132024a9`. Fresh live proof reached
+`needs_approval` through Google ADK + Gemini 3.5 Flash, then approval and undo
+persisted and reversed a packet with no external write. The exact proof IDs,
+browser checks, and Salesforce/customer-outcome boundaries are recorded in
+[`RESOURCE_INVENTORY.md`](RESOURCE_INVENTORY.md); run the scripts below to
+refresh them rather than trusting a copied identifier.
+
 ## Innovation and operational utility — 40%
 
 ### The judge should see
