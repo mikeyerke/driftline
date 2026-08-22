@@ -137,6 +137,10 @@ export function getAuthConfig() {
   return request("/api/auth/config");
 }
 
+export function getHealth() {
+  return request("/health");
+}
+
 export function getAvailableTenants(identityToken) {
   return request("/api/tenants/available", {
     authenticated: Boolean(identityToken),
