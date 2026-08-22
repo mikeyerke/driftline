@@ -62,6 +62,9 @@ export default function ValueProofPanel({ operatorSession }) {
             <h3><CheckCircle2 size={14} />Measured in this deployment</h3>
             <dl>
               <div><dt>{telemetryWindow?.scope === "public_recent_evaluation_window" ? "Recent source observations" : "Source observations"}</dt><dd>{metric(observed.source_observations)}</dd></div>
+              <div><dt>No-op observations</dt><dd>{metric(observed.source_observations_unchanged)}</dd></div>
+              <div><dt>Material source changes</dt><dd>{metric(observed.source_observations_changed)}</dd></div>
+              <div><dt>No-op comparison rate</dt><dd>{observed.source_no_op_comparison_rate === null || observed.source_no_op_comparison_rate === undefined ? "—" : `${Math.round(observed.source_no_op_comparison_rate * 100)}%`}</dd></div>
               <div><dt>Healthy sources</dt><dd>{metric(observed.healthy_sources)}</dd></div>
               <div><dt>Owner action completion (current)</dt><dd>{observed.action_item_completion_rate === null || observed.action_item_completion_rate === undefined ? "—" : `${Math.round(observed.action_item_completion_rate * 100)}%`}</dd></div>
               <div><dt>Owner actions completed (audit)</dt><dd>{metric(observed.action_items_completed_historically)}</dd></div>

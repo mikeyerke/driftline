@@ -93,6 +93,7 @@ export default function PilotMeasurementPanel({ operatorSession }) {
   const workflowCount = observed.workflows || 0;
   const completedActions = observed.action_items_completed_historically || 0;
   const formatSeconds = (value) => value === null || value === undefined || Number.isNaN(Number(value)) ? "—" : `${Number(value).toFixed(1)}s`;
+  const formatPercent = (value) => value === null || value === undefined || Number.isNaN(Number(value)) ? "—" : `${Math.round(Number(value) * 100)}%`;
   const readiness = [
     { label: "Tenant lane connected", ready: Boolean(operatorSession.tenantId), detail: operatorSession.tenantId || "Sign in and select a tenant" },
     { label: "Real source registered", ready: customSourceCount > 0, detail: customSourceCount > 0 ? `${customSourceCount} exact HTTPS source${customSourceCount === 1 ? "" : "s"}` : "Add one owned or competitor change surface" },
@@ -125,6 +126,9 @@ export default function PilotMeasurementPanel({ operatorSession }) {
         <div className="pilot-observed-grid">
           <div><strong>{workflowCount}</strong><small>workflows</small></div>
           <div><strong>{observed.source_observations || 0}</strong><small>source observations</small></div>
+          <div><strong>{observed.source_observations_unchanged || 0}</strong><small>no-op observations</small></div>
+          <div><strong>{observed.source_observations_changed || 0}</strong><small>material changes</small></div>
+          <div><strong>{formatPercent(observed.source_no_op_comparison_rate)}</strong><small>no-op comparison rate</small></div>
           <div><strong>{completedActions}</strong><small>historical closures</small></div>
           <div><strong>{formatSeconds(ownerActionCycle.p50)}</strong><small>owner cycle p50</small></div>
           <div><strong>{formatSeconds(approvalLatency.p90)}</strong><small>approval p90</small></div>

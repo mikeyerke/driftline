@@ -504,7 +504,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .pilot-observed { margin: 0 16px 12px; padding: 11px 12px; border: 1px solid #c8ded1; border-radius: 4px; background: #f7fcf9; }
 .pilot-observed-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 11px; }
 .pilot-observed-heading small { color: var(--green); font-size: 10px; font-weight: 700; }
-.pilot-observed-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
+.pilot-observed-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
 .pilot-observed-grid > div { display: grid; gap: 3px; min-width: 0; padding: 8px; border: 1px solid #d7e9dd; background: #fff; }
 .pilot-observed-grid strong { font-size: 15px; line-height: 1; }
 .pilot-observed-grid small { color: var(--muted); font-size: 9px; line-height: 1.3; }

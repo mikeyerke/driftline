@@ -129,7 +129,8 @@ creating duplicate downstream work.
 
 The product deliberately measures operational proof rather than inventing ROI:
 workflow throughput, approval latency, source observations, owner-action
-completion, owner-action cycle time, reversals, and source health are observable at
+completion, owner-action cycle time, reversals, source health, and the ratio of
+no-op observations to material changes are observable at
 `/api/ops/value-proof`. Hours saved, revenue lift, retention impact, and
 willingness-to-pay remain `not_measured` until a real pilot supplies aggregate
 before/after evidence. See
@@ -139,7 +140,7 @@ proof** panel reads the same bounded endpoint, making observed deployment
 utility and unmeasured customer outcomes visible without turning synthetic
 activity into a business claim. Authenticated pilot operators also see a
 separate operational-telemetry strip (workflow count, source observations,
-closures, and latency) and can export the same fields in the signed pilot
+no-op observations, material changes, closures, and latency) and can export the same fields in the signed pilot
 packet; the strip is explicitly labeled **not customer proof**.
 
 Anonymous value-proof and change-memory views use a recent bounded window

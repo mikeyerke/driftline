@@ -85,6 +85,8 @@ def test_source_health_exposes_noop_result_from_adjacent_hashes(monkeypatch) -> 
         item for item in health_after_second if item["source_id"] == "public/pricing"
     )
     assert pricing_after_second["last_observation_status"] == "unchanged"
+    assert pricing_after_second["unchanged_observation_count"] == 1
+    assert pricing_after_second["changed_observation_count"] == 0
     history = source.list_source_history("public/pricing", store=store)
     assert history[0]["comparison_status"] == "unchanged"
 

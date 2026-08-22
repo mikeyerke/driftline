@@ -4716,10 +4716,39 @@ def get_value_proof(
     source_observation_total = sum(
         int(item.get("observation_count", 0)) for item in source_health
     )
+    source_unchanged_total = sum(
+        int(item.get("unchanged_observation_count", 0)) for item in source_health
+    )
+    source_changed_total = sum(
+        int(item.get("changed_observation_count", 0)) for item in source_health
+    )
     source_observations = (
         source_observation_total
         if identity is not None
         else min(metric_limit, source_observation_total)
+    )
+    # Anonymous views use the same bounded source-observation window as the
+    # rest of public telemetry. Preserve the comparison ratio while capping
+    # counts; signed tenant views retain the bounded per-source ledger counts
+    # returned by source_registry_health.
+    source_window_scale = (
+        1.0
+        if identity is not None or source_observation_total <= metric_limit
+        else metric_limit / source_observation_total
+    )
+    source_observations_unchanged = min(
+        metric_limit,
+        round(source_unchanged_total * source_window_scale),
+    )
+    source_observations_changed = min(
+        metric_limit,
+        round(source_changed_total * source_window_scale),
+    )
+    source_comparison_total = source_unchanged_total + source_changed_total
+    source_no_op_rate = (
+        round(source_unchanged_total / source_comparison_total, 3)
+        if source_comparison_total
+        else None
     )
     change_cards = [state.change_card for state in workflows if state.change_card]
     materiality_cards = [card.get("materiality") or {} for card in change_cards]
@@ -4829,6 +4858,9 @@ def get_value_proof(
             # as workflows/jobs. The append-only source ledger remains intact;
             # signed tenant views retain their requested aggregate bound.
             "source_observations": source_observations,
+            "source_observations_unchanged": source_observations_unchanged,
+            "source_observations_changed": source_observations_changed,
+            "source_no_op_comparison_rate": source_no_op_rate,
             "source_observation_window": _metric_window(identity, metric_limit),
             "approval_latency_seconds": {
                 "sample_count": len(approval_latencies),
@@ -5127,6 +5159,9 @@ def download_pilot_packet(
         "",
         f"- Workflows observed: {_pilot_packet_value(observed.get('workflows'), fallback='0')}",
         f"- Source observations: {_pilot_packet_value(observed.get('source_observations'), fallback='0')}",
+        f"- No-op source observations: {_pilot_packet_value(observed.get('source_observations_unchanged'), fallback='0')}",
+        f"- Material source changes: {_pilot_packet_value(observed.get('source_observations_changed'), fallback='0')}",
+        f"- No-op comparison rate: {_pilot_packet_value(observed.get('source_no_op_comparison_rate'))}",
         f"- Owner actions completed historically: {_pilot_packet_value(observed.get('action_items_completed_historically'), fallback='0')}",
         f"- Approval latency p50 / p90 seconds: {_pilot_packet_value(approval_latency.get('p50'))} / {_pilot_packet_value(approval_latency.get('p90'))}",
         f"- Owner-action cycle p50 / p90 seconds: {_pilot_packet_value(owner_action_cycle.get('p50'))} / {_pilot_packet_value(owner_action_cycle.get('p90'))}",

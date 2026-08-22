@@ -1115,6 +1115,17 @@ def source_registry_health(
             if latest and latest.get("comparison_status")
             else None
         )
+        # Keep the noise signal alongside freshness so operators can see
+        # whether the monitor is repeatedly confirming the same snapshot or
+        # finding material changes. This is derived only from the bounded
+        # append-only history already loaded above; it never fetches a source
+        # or treats a no-op as a change.
+        unchanged_observation_count = sum(
+            item.get("comparison_status") == "unchanged" for item in observations
+        )
+        changed_observation_count = sum(
+            item.get("comparison_status") == "changed" for item in observations
+        )
         failure = _latest_source_failure(
             source_id,
             tenant_id=tenant_id,
@@ -1149,6 +1160,8 @@ def source_registry_health(
                 "source_kind": definition["source_kind"],
                 "status": status,
                 "observation_count": len(observations),
+                "unchanged_observation_count": unchanged_observation_count,
+                "changed_observation_count": changed_observation_count,
                 "last_observed_at": latest.get("retrieved_at") if latest else None,
                 "last_data_mode": latest.get("data_mode") if latest else None,
                 "last_observation_status": last_observation_status,

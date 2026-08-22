@@ -464,6 +464,9 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert "owner_action_cycle_seconds" in value_proof.json()["observed"]
     assert "action_items_completed_historically" in value_proof.json()["observed"]
     assert "action_item_completion_rate_historically" in value_proof.json()["observed"]
+    assert "source_observations_unchanged" in value_proof.json()["observed"]
+    assert "source_observations_changed" in value_proof.json()["observed"]
+    assert "source_no_op_comparison_rate" in value_proof.json()["observed"]
     outcomes = client.get("/api/ops/outcomes")
     assert outcomes.status_code == 200
     assert outcomes.json()["status"] == "not_measured"
@@ -788,6 +791,9 @@ def test_pilot_packet_is_aggregate_only(monkeypatch) -> None:
             "observed": {
                 "workflows": 3,
                 "source_observations": 8,
+                "source_observations_unchanged": 5,
+                "source_observations_changed": 3,
+                "source_no_op_comparison_rate": 0.625,
                 "action_items_completed_historically": 2,
                 "approval_latency_seconds": {"p50": 0.5, "p90": 1.2},
                 "owner_action_cycle_seconds": {"p50": 3.7, "p90": 4.1},
@@ -814,6 +820,9 @@ def test_pilot_packet_is_aggregate_only(monkeypatch) -> None:
     assert "evidence_ref" not in body
     assert "pilot-tenant" not in body
     assert "Workflows observed: 3" in body
+    assert "No-op source observations: 5" in body
+    assert "Material source changes: 3" in body
+    assert "No-op comparison rate: 0.625" in body
     assert "Owner-action cycle p50 / p90 seconds: 3.7 / 4.1" in body
     assert "not customer proof" in body
 
