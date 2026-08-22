@@ -28,6 +28,21 @@ if { command -v rg >/dev/null 2>&1 && rg -q 'onClick=\{runScan\}' frontend/src/A
   exit 1
 fi
 
+# A successful monitor no-op intentionally has no workflow. The poller must
+# terminate on the durable source disposition instead of waiting until the
+# job timeout and reporting a false failure.
+if { command -v rg >/dev/null 2>&1 \
+      && { ! rg -q 'current\.status === "complete"' frontend/src/App.jsx \
+        || ! rg -q '!current\.workflow' frontend/src/App.jsx \
+        || ! rg -q '"unchanged", "baseline_established"' frontend/src/App.jsx; }; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && { ! grep -Eq 'current\.status === "complete"' frontend/src/App.jsx \
+        || ! grep -Eq '!current\.workflow' frontend/src/App.jsx \
+        || ! grep -Eq '"unchanged", "baseline_established"' frontend/src/App.jsx; }; }; then
+  printf 'Monitor no-op contract is incomplete: a successful no-workflow disposition could time out.\n' >&2
+  exit 1
+fi
+
 # Change Memory is a tenant-sensitive view. It must forward the in-memory
 # operator session so a signed operator never falls back to the anonymous
 # evaluation ledger after signing in or switching tenants.

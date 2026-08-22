@@ -328,6 +328,24 @@ export default function App() {
         if (sessionEpochRef.current !== scanEpoch) return;
         setJob(current);
         if (current.status === "failed") throw new Error(current.error || "Agent job failed");
+        // A monitor no-op is a successful, durable outcome without a
+        // workflow. Exit the poller immediately so an unchanged source is
+        // presented as useful signal suppression instead of timing out as a
+        // false failure. The backend only emits these dispositions after the
+        // append-only source comparison has completed.
+        if (
+          current.status === "complete"
+          && !current.workflow
+          && ["unchanged", "baseline_established"].includes(current.source_status)
+        ) {
+          setScanMessage(
+            current.source_status === "unchanged"
+              ? "Monitor complete · no material change; prior baseline retained"
+              : "Monitor complete · baseline established; awaiting next observation",
+          );
+          await refreshHistory(scanEpoch);
+          return;
+        }
         if (["needs_approval", "complete"].includes(current.status) && current.workflow) {
           setWorkflowState(current.workflow);
           setWorkflowId(current.workflow.workflow_id);
