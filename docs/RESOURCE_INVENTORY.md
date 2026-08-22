@@ -40,6 +40,12 @@ Checked `2026-08-22T00:44Z` with the active gcloud project set to
   owner and the real aggregate probe returned `reauthorization_required`.
   Driftline prepared a fresh Salesforce consent link; no CRM object totals were
   inferred from the failed probe.
+- At `2026-08-22T00:44Z`, the signed **Refresh context** read verified the
+  tenant-scoped connector boundaries with aggregate-only results: Jira `18`
+  open issues, Confluence `7` pages in scope, Slack `38` recent messages, and
+  GitHub `0` issues / `0` PRs. Salesforce correctly remained
+  `authorization_required`; these counts are connector proof, not customer
+  outcome or ROI evidence.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state

@@ -174,6 +174,11 @@ read are claimed until fresh consent succeeds.
   the console has no application messages. Below-fold ledger, monitor,
   multimodal, memory, value-proof, run-history, and telemetry reads load when
   their panels approach the viewport.
+- Signed connector context proof: the authenticated tenant read returned `18`
+  open Jira issues, `7` Confluence pages, `38` recent Slack messages, and `0`
+  GitHub issues / PRs. Salesforce remained explicitly
+  `authorization_required` after a rejected refresh token; no CRM totals or
+  customer outcomes are claimed.
 
 ## Four-minute demo plan
 

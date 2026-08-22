@@ -150,6 +150,12 @@ Jira,
 Confluence, Slack, and GitHub remain aggregate-only connector evidence, not
 customer-pilot outcomes.
 
+The latest signed context read (2026-08-22 UTC) verified `18` open Jira issues,
+`7` Confluence pages, `38` recent Slack messages, and `0` GitHub issues / PRs
+for the isolated Driftline tenant. Salesforce correctly returned
+`authorization_required` after its stored refresh token was rejected; no CRM
+totals are inferred from that state.
+
 External connector credentials are tenant-bound. An owner provisions the
 deterministic Secret Manager secret and activates its metadata-only binding via
 `POST /api/connectors/{connector}/binding`; signed workflow actions then read

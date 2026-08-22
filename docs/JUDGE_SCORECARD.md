@@ -92,6 +92,9 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   packet-only by design. Salesforce has a durable read-only OAuth callback
   record, but the last direct health probe returned `invalid_grant`, so no CRM
   object totals are claimed until the owner completes fresh consent.
+- The authenticated tenant **Refresh context** read verified aggregate-only
+  Jira, Confluence, Slack, and GitHub reads (`18` / `7` / `38` / `0` issues and
+  PRs respectively) while keeping Salesforce explicitly authorization-gated.
 
 ## Demo and production readiness — 30%
 
