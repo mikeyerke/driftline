@@ -396,6 +396,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .incident-title { min-width: 0; }
   .dashboard-grid { gap: 12px; }.evidence-body { grid-template-columns: 1fr; }.evidence-body > div:nth-child(2), .diff-arrow { display: none; }.snapshot { grid-column: 1; }.impact-map-title-group { width: 100%; justify-content: space-between; }.impact-map-header-tools .muted { display: none; }.impact-map-summary { grid-template-columns: 1fr; }.impact-map-path button { max-width: 150px; }.impact-row { grid-template-columns: 30px 35px minmax(0, 1fr); }.impact-row .tag { grid-column: 3; justify-self: start; }.impact-copy small { white-space: normal; overflow-wrap: anywhere; }.workflow-timeline { grid-template-columns: repeat(2, 1fr); }.workflow-step:nth-child(3), .workflow-step:nth-child(5) { }.workflow-step:nth-child(odd) .step-line { display: none; }.modal-source, .hash { flex-direction: column; }
 }
+ #overview-section, #approvals-section, #activity-section { scroll-margin-top: 84px; }
  .source-panel, .agent-trace, .trust-panel { margin-top: 18px; scroll-margin-top: 84px; }
  .source-panel .panel-header > div, .agent-trace .panel-header > div, .trust-panel .panel-header > div { display: flex; align-items: center; gap: 10px; }
  .live-label.running { color: #9a5b00; border-color: #f2ce8b; background: #fff8e8; }
