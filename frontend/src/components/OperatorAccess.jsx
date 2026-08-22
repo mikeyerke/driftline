@@ -147,7 +147,15 @@ export default function OperatorAccess() {
   const changeTenant = (event) => {
     const tenant = session.tenants.find((item) => item.tenant_id === event.target.value);
     if (!tenant) return;
-    setOperatorSession({ tenantId: tenant.tenant_id, role: tenant.role });
+    // A tenant switch changes only the selected tenant context. Preserve the
+    // short-lived Google token and the full membership list so the next
+    // request remains authenticated and the operator can switch back without
+    // silently falling into the anonymous packet-safe lane.
+    setOperatorSession({
+      ...session,
+      tenantId: tenant.tenant_id,
+      role: tenant.role,
+    });
     setStatus("Tenant selected");
   };
 
