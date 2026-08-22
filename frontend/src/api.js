@@ -356,8 +356,15 @@ export async function downloadPacket(workflowId) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function getMemorySummary(limit = 50) {
-  return request(`/api/memory/summary?limit=${limit}`);
+export function getMemorySummary(limit = 50, operatorSession = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/memory/summary?${params.toString()}`, {
+    authenticated: Boolean(operatorSession.identityToken),
+  });
 }
 
 export function approveWorkflow(workflowId, artifactDecisions, decision = "grandfather_existing_customers", copilotOptionId = null, copilotArtifactOverride = false, copilotOverrideReason = null) {

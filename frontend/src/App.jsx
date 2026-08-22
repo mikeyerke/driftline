@@ -558,7 +558,7 @@ export default function App() {
           </section>
 
           <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onRunSource={runSourceNow} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} onLifecycleChanged={() => { getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
-          <ChangeGenomePanel />
+          <ChangeGenomePanel operatorSession={operatorSession} />
           <TraceEvalPanel workflowId={workflowId} />
           <ValueProofPanel operatorSession={operatorSession} />
           <PilotMeasurementPanel operatorSession={operatorSession} />

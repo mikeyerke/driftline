@@ -21,4 +21,14 @@ if rg -q 'onClick=\{runScan\}' frontend/src/App.jsx; then
   exit 1
 fi
 
+# Change Memory is a tenant-sensitive view. It must forward the in-memory
+# operator session so a signed operator never falls back to the anonymous
+# evaluation ledger after signing in or switching tenants.
+if ! rg -q 'getMemorySummary\(50, operatorSession\)' frontend/src/components/ChangeGenomePanel.jsx \
+  || ! rg -q 'operatorSession=\{operatorSession\}' frontend/src/App.jsx \
+  || ! rg -q 'authenticated: Boolean\(operatorSession\.identityToken\)' frontend/src/api.js; then
+  printf 'Change Memory tenant boundary is incomplete: signed session is not forwarded.\n' >&2
+  exit 1
+fi
+
 printf 'Frontend literal ID contract: PASS\n'

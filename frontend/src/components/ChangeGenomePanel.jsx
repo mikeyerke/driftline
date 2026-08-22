@@ -3,7 +3,7 @@ import { Dna, History, LoaderCircle, RotateCcw, ShieldAlert } from "lucide-react
 import { getMemorySummary } from "../api";
 import useNearViewport from "../hooks/useNearViewport";
 
-export default function ChangeGenomePanel() {
+export default function ChangeGenomePanel({ operatorSession }) {
   const [panelRef, nearViewport] = useNearViewport();
   const [memory, setMemory] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -12,12 +12,12 @@ export default function ChangeGenomePanel() {
     if (!nearViewport) return undefined;
     let active = true;
     setLoading(true);
-    getMemorySummary()
+    getMemorySummary(50, operatorSession)
       .then((payload) => active && setMemory(payload))
       .catch(() => active && setMemory(null))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [nearViewport]);
+  }, [nearViewport, operatorSession?.identityToken, operatorSession?.tenantId, operatorSession?.email]);
 
   return (
     <section ref={panelRef} className="panel genome-panel" aria-labelledby="genome-title">
