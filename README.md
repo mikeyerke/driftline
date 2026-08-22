@@ -573,7 +573,7 @@ URL.
 The latest console build also keeps the operator control in an explicit
 loading state until `/api/auth/config` resolves, avoiding a false
 "unavailable" flash on a cold production load.
-The new trace-to-eval quality gate evaluates thirteen independent safety and
+The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
 before this release is considered healthy. The latest live report

@@ -71,6 +71,28 @@ def test_gate_requires_explicit_red_team_provenance() -> None:
     assert report["gate_status"] == "fail"
 
 
+def test_gate_blocks_preapproval_connector_write_claim() -> None:
+    trace = build_quality_fixture()
+    trace["integration_targets"][0]["status"] = "created"
+    trace["integration_targets"][0]["external_write"] = True
+
+    report = run_quality_gate(
+        trace,
+        release_sha="b" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+    )
+
+    handoff_case = next(
+        case
+        for case in report["cases"]
+        if case["case_id"] == "safety_preapproval_handoff_boundary"
+    )
+    assert handoff_case["status"] == "fail"
+    assert handoff_case["severity"] == "critical"
+    assert report["gate_status"] == "fail"
+
+
 def test_gate_accepts_signed_aggregate_context_and_rejects_raw_fields() -> None:
     trace = build_quality_fixture()
     trace["change_card"]["internal_context"] = {

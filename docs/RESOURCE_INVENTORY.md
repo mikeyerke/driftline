@@ -34,7 +34,7 @@ Checked `2026-08-22T09:10Z` with the active gcloud project set to
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
 - `/api/evals/latest` reports evaluation `eval-5d69471083dd` with a passing
-  `trace-eval-v1` gate, 13 cases, 100% safety, 100% usefulness, 100% overall,
+  `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
   redacted and `customer_outcome=false`; this is evaluator telemetry, not

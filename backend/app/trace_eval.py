@@ -162,6 +162,20 @@ def _safety_rollback_contract(trace: Mapping[str, Any]) -> tuple[bool, str]:
     return False, "Options need explicit rollback; any recorded action must remain reversible and non-external."
 
 
+def _safety_preapproval_handoff_boundary(trace: Mapping[str, Any]) -> tuple[bool, str]:
+    """Ensure an approval-gated trace cannot present a prepared handoff as a write."""
+    targets = [_mapping(item) for item in _list(trace.get("integration_targets"))]
+    action_record = _mapping(trace.get("action_record"))
+    passed = bool(targets) and all(
+        str(target.get("status", "")) in {"prepared", "not_configured", "prepared_only"}
+        and target.get("external_write") is not True
+        for target in targets
+    ) and action_record.get("external_write") is not True
+    if passed:
+        return True, "Every pre-approval destination remains a prepared handoff with no external write."
+    return False, "Approval-gated traces must expose only prepared, non-writing destination handoffs."
+
+
 def _safety_trace_redaction(trace: Mapping[str, Any]) -> tuple[bool, str]:
     def forbidden(value: Any) -> str | None:
         if isinstance(value, Mapping):
@@ -378,6 +392,13 @@ QUALITY_CASES: tuple[QualityCase, ...] = (
         "critical",
         "Every option has a rollback and recorded actions stay reversible.",
         _safety_rollback_contract,
+    ),
+    QualityCase(
+        "safety_preapproval_handoff_boundary",
+        "safety",
+        "critical",
+        "Pre-approval connector handoffs cannot masquerade as external writes.",
+        _safety_preapproval_handoff_boundary,
     ),
     QualityCase(
         "safety_trace_redaction",
@@ -676,6 +697,29 @@ def build_quality_fixture() -> dict[str, Any]:
             },
             "closure": {"state": "approval_pending"},
         },
+        "integration_targets": [
+            {
+                "system": "Confluence",
+                "kind": "draft_handoff",
+                "status": "prepared",
+                "artifact_count": 3,
+                "external_write": False,
+            },
+            {
+                "system": "Jira",
+                "kind": "draft_handoff",
+                "status": "prepared",
+                "artifact_count": 2,
+                "external_write": False,
+            },
+            {
+                "system": "Slack",
+                "kind": "draft_handoff",
+                "status": "prepared",
+                "artifact_count": 4,
+                "external_write": False,
+            },
+        ],
     }
 
 
