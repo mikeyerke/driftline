@@ -295,7 +295,7 @@ export default function App() {
     }
   }, [showEvidence]);
 
-  const runScan = async () => {
+  const runScan = async (sourceId = selectedSource) => {
     const scanEpoch = sessionEpochRef.current;
     setScanMessage("");
     setScanning(true);
@@ -304,14 +304,14 @@ export default function App() {
     setJob(null);
     try {
       if (!apiEnabled) throw new Error("API disabled");
-      const selectedDefinition = sources.find((source) => source.source_id === selectedSource);
+      const selectedDefinition = sources.find((source) => source.source_id === sourceId);
       if (selectedDefinition?.enabled === false) {
         throw new Error("This source is paused; resume monitoring before scanning.");
       }
       const runMode = operatorSession.identityToken && selectedDefinition?.mode === "public_only"
         ? "monitor"
         : null;
-      const queued = await startDemoJob(selectedSource, runMode);
+      const queued = await startDemoJob(sourceId, runMode);
       if (sessionEpochRef.current !== scanEpoch) return;
       setJob(queued);
       refreshHistory();
@@ -350,6 +350,12 @@ export default function App() {
     } finally {
       setScanning(false);
     }
+  };
+
+  const runSourceNow = async (sourceId) => {
+    setSelectedSource(sourceId);
+    selectNav("Overview");
+    return runScan(sourceId);
   };
 
   const approve = async (selectedOption) => {
@@ -551,7 +557,7 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} onLifecycleChanged={() => { getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onRunSource={runSourceNow} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} onLifecycleChanged={() => { getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel />
           <TraceEvalPanel workflowId={workflowId} />
           <ValueProofPanel />

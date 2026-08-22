@@ -4,7 +4,7 @@ import { getSourceHistory, registerSource, updateSourceLifecycle } from "../api"
 import MultimodalEvidencePanel from "./MultimodalEvidencePanel";
 import useNearViewport from "../hooks/useNearViewport";
 
-export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = false, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered, onLifecycleChanged, onVisible }) {
+export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = false, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered, onLifecycleChanged, onRunSource, onVisible }) {
   const [panelRef, nearViewport] = useNearViewport();
   const visibleNotifiedRef = useRef(false);
   const isPublic = dataMode === "public_source";
@@ -18,6 +18,7 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
   const [lifecycleReason, setLifecycleReason] = useState("");
   const [lifecycleMessage, setLifecycleMessage] = useState("");
   const [lifecycleError, setLifecycleError] = useState("");
+  const [sourceRunBusy, setSourceRunBusy] = useState("");
   const [form, setForm] = useState({ source_id: "", name: "", url: "", category: "Competitor source", change_type: "Public promise change", owner: "Product Marketing", cadence: "24h", parser: "html" });
   const healthById = Object.fromEntries(sourceHealth.map((item) => [item.source_id, item]));
   const selectedDefinition = sources.find((source) => source.source_id === (selectedSource || evidence?.source_id));
@@ -85,6 +86,18 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
     }
   };
 
+  const submitSourceRun = async (source) => {
+    if (!onRunSource || sourceRunBusy || source.enabled === false) return;
+    setSourceRunBusy(source.source_id);
+    setLifecycleMessage("");
+    setLifecycleError("");
+    try {
+      await onRunSource(source.source_id);
+    } finally {
+      setSourceRunBusy("");
+    }
+  };
+
   return (
     <section ref={panelRef} className="panel source-panel" id="sources-section">
       <header className="panel-header">
@@ -133,13 +146,14 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
                 <small>{freshness}</small>
                 {observationResult && <small className={`registry-health-result ${health?.last_observation_status}`}>{observationResult}</small>}
                 <small>{isPaused ? "Scheduler skips this source" : nextDue}</small>
-                {operatorSession?.identityToken && isCustomSource && <div className="registry-health-card-action" onClick={(event) => event.stopPropagation()}>
-                  {editingPause
+                {operatorSession?.identityToken && <div className="registry-health-card-action" onClick={(event) => event.stopPropagation()}>
+                  <button type="button" className="source-check-now" disabled={sourceRunBusy !== "" || isPaused} onClick={() => submitSourceRun(source)}>{sourceRunBusy === source.source_id ? "Checking…" : "Check now"}</button>
+                  {isCustomSource && (editingPause
                     ? <form onSubmit={(event) => { event.preventDefault(); submitLifecycle(source, false); }}>
                       <input aria-label={`Pause reason for ${source.name}`} value={lifecycleReason} onChange={(event) => setLifecycleReason(event.target.value)} placeholder="Why pause monitoring?" maxLength={240} autoFocus />
                       <div className="lifecycle-actions"><button type="submit" className="pause" disabled={lifecycleBusy === source.source_id || !lifecycleReason.trim()}>{lifecycleBusy === source.source_id ? "Pausing…" : "Confirm pause"}</button><button type="button" className="lifecycle-cancel" onClick={() => { setLifecycleSourceId(""); setLifecycleReason(""); }}>Cancel</button></div>
                     </form>
-                    : <button type="button" className={isPaused ? "" : "pause"} disabled={lifecycleBusy === source.source_id} onClick={() => { if (isPaused) submitLifecycle(source, true); else { setLifecycleSourceId(source.source_id); setLifecycleReason(""); setLifecycleError(""); } }}>{lifecycleBusy === source.source_id ? (isPaused ? "Resuming…" : "Updating…") : isPaused ? "Resume monitoring" : "Pause monitoring"}</button>}
+                    : <button type="button" className={isPaused ? "" : "pause"} disabled={lifecycleBusy === source.source_id} onClick={() => { if (isPaused) submitLifecycle(source, true); else { setLifecycleSourceId(source.source_id); setLifecycleReason(""); setLifecycleError(""); } }}>{lifecycleBusy === source.source_id ? (isPaused ? "Resuming…" : "Updating…") : isPaused ? "Resume monitoring" : "Pause monitoring"}</button>)}
                 </div>}
               </div>;
             })}
