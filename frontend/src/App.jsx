@@ -560,7 +560,7 @@ export default function App() {
           <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onRunSource={runSourceNow} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} onLifecycleChanged={() => { getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel />
           <TraceEvalPanel workflowId={workflowId} />
-          <ValueProofPanel />
+          <ValueProofPanel operatorSession={operatorSession} />
           <PilotMeasurementPanel operatorSession={operatorSession} />
           <SalesforceConnectorPanel operatorSession={operatorSession} />
           <RunHistory jobs={recentJobs} loading={historyLoading} publicMode={!operatorSession.identityToken} canRetry={Boolean(operatorSession.identityToken)} onRetry={retryFailedJob} onOpen={openHistoryJob} onVisible={() => refreshHistory()} />

@@ -17,7 +17,7 @@ const modeLabel = (value) => {
   return outcomeLabel(value);
 };
 
-export default function ValueProofPanel() {
+export default function ValueProofPanel({ operatorSession }) {
   const [panelRef, nearViewport] = useNearViewport();
   const [proof, setProof] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function ValueProofPanel() {
       .catch(() => active && setProof(null))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [nearViewport]);
+  }, [nearViewport, operatorSession?.identityToken, operatorSession?.tenantId]);
 
   const observed = proof?.observed || {};
   const latency = observed.approval_latency_seconds || {};
