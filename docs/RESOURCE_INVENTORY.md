@@ -12,22 +12,22 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T01:16Z` with the active gcloud project set to
+Checked `2026-08-22T01:38Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00158-kcs` at 100% traffic. Its immutable serving image is
-  `sha256:dc6d25cbfdfeff8d4effde15182d240d4d817be1668829e1fded6101a47fed9f`.
-- Source commit `cf33cff57d27a63cc471a37765889bf90464533b` was built by Cloud
-  Build `24cadc51-dc4b-4df0-9b3e-9f84a86fa2be`; GitHub Actions run
-  `32542656282` passed the repository gates.
+  `driftline-00159-hjv` at 100% traffic. Its immutable serving image is
+  `sha256:afff0933be16c8702626736944cafdb832cf7af6ea42b35a2626bf7bcfa4f510`.
+- Source commit `bfcfab359eeeeb9e9b19ee299b8364fe30514a21` was built by Cloud
+  Build `a6736f21-1b8b-46cf-b36f-0f3e3307d863`; GitHub Actions run
+  `32543699664` passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `cf33cff57d27a63cc471a37765889bf90464533b`, and build ID
-  `24cadc51-dc4b-4df0-9b3e-9f84a86fa2be`; `/api/auth/config`
+  `bfcfab359eeeeb9e9b19ee299b8364fe30514a21`, and build ID
+  `a6736f21-1b8b-46cf-b36f-0f3e3307d863`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
 - The live production verifier also checks `Cache-Control: no-store` and the
@@ -54,11 +54,11 @@ Checked `2026-08-22T01:16Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-912645b844cb` / workflow `0b760680-73e8-4699-867f-925d0d04f239` at
+  `job-122211879f54` / workflow `5e2855a6-fbc2-4c3e-8de4-c03ee7c4255c` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, and two decision
-  options. A separate approval/undo run returned job `job-c5b77e0065a0` /
-  workflow `84d45676-2852-47e9-b9ff-adfe7faad972`, persisted the packet,
+  options. A separate approval/undo run returned job `job-872f4c13d9e3` /
+  workflow `391790b7-40a7-449d-b9fd-dc8c1c67b1e5`, persisted the packet,
   reversed the operational output, and recorded
   `external_write=false` / `external_systems_changed=false`.
 - Entries below are append-only release evidence. Some refer to earlier
@@ -66,7 +66,7 @@ Checked `2026-08-22T01:16Z` with the active gcloud project set to
   direct `gcloud run services describe` output above is the current-state
   authority.
 - The post-deploy Scheduler trigger at `2026-08-22T01:16:26Z` returned HTTP
-  200 on `driftline-00158-kcs`; `/api/monitor/registry` immediately reported
+  200 on `driftline-00159-hjv`; `/api/monitor/registry` immediately reported
   five healthy sources, zero stale sources, and zero source failures. A fresh
   log search found no Firestore positional-filter deprecation warning after
   the `FieldFilter` query cleanup.
