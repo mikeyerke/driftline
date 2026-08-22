@@ -71,6 +71,10 @@ jobs:
       - name: Build production bundle
         run: npm run build
 
+      - name: Validate frontend document anchors
+        working-directory: .
+        run: ./scripts/verify_frontend_contract.sh
+
   standalone-backend-image:
     name: Standalone backend image
     runs-on: ubuntu-latest
