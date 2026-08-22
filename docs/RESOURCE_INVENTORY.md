@@ -67,7 +67,12 @@ Checked `2026-08-22T05:36Z` with the active gcloud project set to
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo run used that
   workflow, persisted the packet, reversed the operational output, and recorded
-  `external_write=false` / `external_systems_changed=false`.
+  `external_write=false` / `external_systems_changed=false`; its verifier run
+  was job `job-642d5723a72c` / workflow `76f4614b-8d83-4c71-976e-b0d54d24ffc6`.
+- A logged-out 500px browser check exercised every sidebar target after the
+  deferred panels mounted. Overview, Sources, Workflows, Approvals, Activity,
+  and Settings each landed in view; the DOM had one `settings-section`, one
+  `deployment-section`, no horizontal overflow, and no console messages.
 - `scripts/verify_production.sh` passed against this revision: Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   security headers, trace-eval release matching, and zero recent Cloud Run
