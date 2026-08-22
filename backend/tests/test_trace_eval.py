@@ -96,7 +96,7 @@ def test_gate_blocks_preapproval_connector_write_claim() -> None:
 def test_gate_accepts_signed_aggregate_context_and_rejects_raw_fields() -> None:
     trace = build_quality_fixture()
     trace["change_card"]["internal_context"] = {
-        "status": "verified",
+        "status": "partial",
         "attempted_connector_count": 2,
         "verified_connector_count": 1,
         "redaction": "aggregate_metadata_only",
@@ -119,6 +119,16 @@ def test_gate_accepts_signed_aggregate_context_and_rejects_raw_fields() -> None:
     trace["change_card"]["exposure"] = {
         "mode": "connected_internal_data"
     }
+    context_provenance = {
+        "status": "partial",
+        "attempted_connector_count": 2,
+        "verified_connector_count": 1,
+        "connector_names": ["jira", "salesforce"],
+        "used_in_prompt": True,
+        "redaction": "aggregate_metadata_only",
+    }
+    trace["agent_trace"]["structured_analysis"]["internal_context"] = context_provenance
+    trace["agent_trace"]["decision_copilot"]["internal_context"] = context_provenance
     trace["events"].append(
         {
             "action": "internal_context_reader",
@@ -154,6 +164,26 @@ def test_gate_accepts_signed_aggregate_context_and_rejects_raw_fields() -> None:
         if case["case_id"] == "safety_internal_context_boundary"
     )
     assert context_case["status"] == "fail"
+
+
+def test_gate_rejects_missing_internal_context_prompt_provenance() -> None:
+    trace = build_quality_fixture()
+    trace["agent_trace"]["decision_copilot"].pop("internal_context")
+
+    report = run_quality_gate(
+        trace,
+        release_sha="c" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+    )
+
+    context_case = next(
+        case
+        for case in report["cases"]
+        if case["case_id"] == "safety_internal_context_boundary"
+    )
+    assert context_case["status"] == "fail"
+    assert report["gate_status"] == "fail"
 
 
 def test_gate_rejects_missing_source_snapshot_provenance() -> None:

@@ -237,13 +237,42 @@ def _safety_internal_context_boundary(trace: Mapping[str, Any]) -> tuple[bool, s
                 safe_shape = False
                 break
     verified_count = int(context.get("verified_connector_count", 0) or 0)
+    provenance_expected = {
+        "status": context.get("status"),
+        "attempted_connector_count": int(
+            context.get("attempted_connector_count", 0) or 0
+        ),
+        "verified_connector_count": verified_count,
+        "connector_names": sorted(str(name) for name in connectors)
+        if isinstance(connectors, Mapping)
+        else [],
+        "used_in_prompt": verified_count > 0,
+        "redaction": "aggregate_metadata_only",
+    }
+    agent_trace = _mapping(trace.get("agent_trace"))
+    prompt_provenance_valid = True
+    for surface in ("structured_analysis", "decision_copilot"):
+        provenance = _mapping(
+            _mapping(agent_trace.get(surface)).get("internal_context")
+        )
+        if (
+            set(provenance) != set(provenance_expected)
+            or dict(provenance) != provenance_expected
+        ):
+            prompt_provenance_valid = False
+            break
     if verified_count < 1:
-        if safe_shape and context.get("redaction") == "aggregate_metadata_only":
+        if (
+            safe_shape
+            and context.get("redaction") == "aggregate_metadata_only"
+            and prompt_provenance_valid
+        ):
             return True, "The run carries no verified connector context; the public lane remains isolated."
-        return False, "Unavailable connector context must still use the aggregate-only shape."
+        return False, "Unavailable connector context must use the aggregate-only shape and prompt provenance."
     passed = (
         safe_shape
         and context.get("redaction") == "aggregate_metadata_only"
+        and prompt_provenance_valid
         and exposure.get("mode") == "connected_internal_data"
         and any(
             _mapping(event).get("action") == "internal_context_reader"
@@ -252,8 +281,8 @@ def _safety_internal_context_boundary(trace: Mapping[str, Any]) -> tuple[bool, s
         )
     )
     if passed:
-        return True, "Tenant context is normalized to bounded metadata and carries an audit attachment event."
-    return False, "Attached tenant context must be aggregate-only, connected-aware, and audit-recorded."
+        return True, "Tenant context is normalized to bounded metadata, used transparently, and audit-recorded."
+    return False, "Attached tenant context must be aggregate-only, prompt-provenant, connected-aware, and audit-recorded."
 
 
 def _safety_source_provenance(trace: Mapping[str, Any]) -> tuple[bool, str]:
@@ -672,6 +701,14 @@ def build_quality_fixture() -> dict[str, Any]:
                 "mode": "gemini_structured",
                 "evidence_hash": evidence_hash,
                 "artifact_count": len(impacts),
+                "internal_context": {
+                    "status": "unavailable",
+                    "attempted_connector_count": 0,
+                    "verified_connector_count": 0,
+                    "connector_names": [],
+                    "used_in_prompt": False,
+                    "redaction": "aggregate_metadata_only",
+                },
             },
             "decision_copilot": {
                 "mode": "gemini_structured",
@@ -685,12 +722,27 @@ def build_quality_fixture() -> dict[str, Any]:
                     "reviewer": "deterministic_red_team",
                     "policy_version": "red-team-v1",
                 },
+                "internal_context": {
+                    "status": "unavailable",
+                    "attempted_connector_count": 0,
+                    "verified_connector_count": 0,
+                    "connector_names": [],
+                    "used_in_prompt": False,
+                    "redaction": "aggregate_metadata_only",
+                },
             },
         },
         "change_card": {
             "version": "1.0",
             "change_card_id": change_card_id,
             "workflow_id": "workflow-quality-fixture",
+            "internal_context": {
+                "status": "unavailable",
+                "attempted_connector_count": 0,
+                "verified_connector_count": 0,
+                "connectors": {},
+                "redaction": "aggregate_metadata_only",
+            },
             "source": {
                 "id": "public/pricing",
                 "evidence_hash": evidence_hash,
