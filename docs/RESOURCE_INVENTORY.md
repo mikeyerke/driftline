@@ -23,8 +23,8 @@ the current serving-state authority:
 ### Current exact proof — 2026-08-22
 
 The active project was rechecked as `driftline-hackathon-2026` before the
-runtime-code proof. Commit `bab8ea3daf79dfad56ea38a6fb60b311fc736514` passed
-GitHub Actions run `32605060644`, the live-agent verifier, the approval/undo
+runtime-code proof. Commit `229650f9ffe79e6b0ffa806493320f740417e21f` passed
+the local repository gates, the live-agent verifier, the approval/undo
 verifier, and the production verifier. The live run used Gemini 3.5 Flash
 through Google ADK, two allowlisted tools, four artifacts, five audit events,
 two decision options, and a passing stable trace-eval gate. Approval persisted
@@ -33,7 +33,8 @@ the packet, completed and reversed an owner action, and reported
 fresh job/workflow/evaluation IDs; `/health` prints the exact serving SHA/build
 and is the authority after later docs-only releases.
 
-The exact release was exercised in a logged-out browser: source evidence modal,
+The unchanged console surface was exercised in a logged-out browser on the
+immediately preceding UI-equivalent release: source evidence modal,
 interactive map focus/evidence path, approval, and undo all worked; source
 health loaded five healthy records; no application console errors were emitted;
 412px and 1440px document widths matched their viewports. Lighthouse navigation
@@ -60,11 +61,11 @@ an explicitly paused custom source when it is re-registered through the
 Firestore-backed registry, so metadata updates cannot silently resume polling.
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00265-m96` at 100% traffic. Its immutable serving image is
-  `sha256:e4b17bfc1c8ace26341b9d6131494d07532fe069088fbb0aba693692eccbbdfb`.
-- Source commit `bab8ea3daf79dfad56ea38a6fb60b311fc736514` was built by Cloud
-  Build `7f58da30-e45f-4742-a5f5-0455c5e47c9a`; GitHub Actions run
-  `32605060644` passed the repository gates.
+  `driftline-00266-8qp` at 100% traffic. Its immutable serving image is
+  `sha256:bcaa6bfb645eaf4117d178a9545a632944a943adc75004e346e76c7dbfdd3d5e`.
+- Source commit `229650f9ffe79e6b0ffa806493320f740417e21f` was built by Cloud
+  Build `931d9db1-6880-497b-a3ce-28383bf9f206`; GitHub Actions run
+  `32605576780` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -72,12 +73,12 @@ Firestore-backed registry, so metadata updates cannot silently resume polling.
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
-- The snapshot `/health` response reports Firestore persistence, async jobs,
-  release SHA `bab8ea3daf79dfad56ea38a6fb60b311fc736514`, and build ID
-  `7f58da30-e45f-4742-a5f5-0455c5e47c9a`; `/api/auth/config`
+- The current `/health` response reports Firestore persistence, async jobs,
+  release SHA `229650f9ffe79e6b0ffa806493320f740417e21f`, and build ID
+  `931d9db1-6880-497b-a3ce-28383bf9f206`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- The snapshot `/api/evals/latest` reported evaluation `eval-2625f5a6d72d` with a passing
+- The current `/api/evals/latest` reported evaluation `eval-e76be6a1f5c6` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
@@ -113,12 +114,12 @@ Firestore-backed registry, so metadata updates cannot silently resume polling.
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-120433030fb0` / workflow `7d810d98-28a3-4700-95de-ed20905a16da` at
+  `job-67fb5360ef0e` / workflow `88d33648-e21a-4314-82d2-ee9b69a26861` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier created
-  job `job-8207290d6dd1` / workflow
-  `cdd4f1dc-0139-45bc-a518-816dc908b5e4`, persisted the packet, approved and
+  job `job-caaa4a7dc275` / workflow
+  `13b996e7-6f86-40a4-9fdb-84e52f588be6`, persisted the packet, approved and
   completed one owner action, then reversed the operational output and
   recorded `external_write=false` / `external_systems_changed=false`. The
   bounded value proof retained two historical completions and 3.7-second
@@ -145,8 +146,7 @@ Firestore-backed registry, so metadata updates cannot silently resume polling.
   widths had no horizontal overflow.
 - `scripts/verify_production.sh` passed against this revision: Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
-  security headers, trace-eval release matching, and zero recent Cloud Run
-  errors.
+  security headers, trace-eval release matching, and zero recent Cloud Run errors.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
