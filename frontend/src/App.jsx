@@ -257,8 +257,32 @@ export default function App() {
     if (!showEvidence) return undefined;
     modalTriggerRef.current = document.activeElement;
     window.requestAnimationFrame(() => modalRef.current?.focus());
+    const getFocusable = () => [...(modalRef.current?.querySelectorAll(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) || [])].filter((element) => element.getClientRects().length > 0);
     const onKeyDown = (event) => {
-      if (event.key === "Escape") setShowEvidence(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowEvidence(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = getFocusable();
+      if (!focusable.length) {
+        event.preventDefault();
+        modalRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      const focusOutsideModal = !modalRef.current?.contains(active);
+      const shiftAtBoundary = event.shiftKey && (active === first || active === modalRef.current || focusOutsideModal);
+      const forwardAtBoundary = !event.shiftKey && (active === last || focusOutsideModal);
+      if (shiftAtBoundary || forwardAtBoundary) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
