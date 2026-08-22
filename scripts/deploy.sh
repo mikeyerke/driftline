@@ -10,6 +10,14 @@ if [[ ! "$release_sha" =~ ^[0-9a-f]{40}$ ]]; then
   exit 1
 fi
 
+# Cloud Build uploads the working tree, not a Git object. Refuse to let
+# uncommitted or untracked bytes ship under a misleading release SHA.
+if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+  printf 'Refusing deployment: working tree is not clean; commit or remove local changes first.\n' >&2
+  git status --short >&2
+  exit 1
+fi
+
 active_project="$(gcloud config get-value project 2>/dev/null)"
 if [[ "$active_project" != "$project_id" ]]; then
   printf 'Refusing deployment: active gcloud project is %s, expected %s.\n' \
