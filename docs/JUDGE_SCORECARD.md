@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `bfcfab359eeeeb9e9b19ee299b8364fe30514a21`, Cloud Run
-`driftline-00159-hjv`, Cloud Build
-`a6736f21-1b8b-46cf-b36f-0f3e3307d863`, project
+Current release: source `c136b0b99e5a505a26b92a5e549fe55cf32f72a3`, Cloud Run
+`driftline-00160-bp4`, Cloud Build
+`198261e2-b8af-4e01-8439-56d0c11f27cb`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -32,11 +32,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-122211879f54`, workflow
-  `5e2855a6-fbc2-4c3e-8de4-c03ee7c4255c`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-1cbbe78e530f`, workflow
+  `ea9953e8-ddb8-46db-be7d-601f7609d77c`, five audit events, four artifacts,
   two decision options, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-872f4c13d9e3`,
-  workflow `391790b7-40a7-449d-b9fd-dc8c1c67b1e5`; the packet persisted and
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-951c0dea75a9`,
+  workflow `6f29da58-dcad-49f9-9385-d2ce54779783`; the packet persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
@@ -45,8 +45,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   OIDC-authenticated HTTP 200 `/api/scheduler/tick` request on the serving
   revision; healthy sources were correctly deferred until their cadence due
   time rather than spending another model call.
-- A post-deploy direct Scheduler run at `2026-08-22T01:38:15Z` returned an
-  OIDC-authenticated HTTP 200 on `driftline-00159-hjv`; the registry then
+- A post-deploy direct Scheduler run at `2026-08-22T01:51:40Z` returned an
+  OIDC-authenticated HTTP 200 on `driftline-00160-bp4`; the registry then
   reported all five bounded sources healthy with zero stale or failed entries.
   Sources not due at that moment were deferred by cadence as designed.
 - A fresh post-deploy log search found no `Detected filter using positional
@@ -90,7 +90,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
   membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
-  `sha256:afff0933be16c8702626736944cafdb832cf7af6ea42b35a2626bf7bcfa4f510`.
+  `sha256:15400581f8b18f95825c3df8cfa0547d14142fd84a8c1b1650f0b810622dfa55`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
@@ -120,7 +120,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 ### Live evidence
 
 - 265 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32543699664`; the frozen
+  and repository hygiene pass in GitHub Actions run `32544337366`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).

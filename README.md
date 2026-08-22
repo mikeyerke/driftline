@@ -526,20 +526,24 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`bfcfab359eeeeb9e9b19ee299b8364fe30514a21`, Cloud Build
-`a6736f21-1b8b-46cf-b36f-0f3e3307d863`, and Cloud Run revision
-`driftline-00159-hjv` at 100% traffic. Its immutable image digest is recorded
+`c136b0b99e5a505a26b92a5e549fe55cf32f72a3`, Cloud Build
+`198261e2-b8af-4e01-8439-56d0c11f27cb`, and Cloud Run revision
+`driftline-00160-bp4` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32543699664` passed the repository gates, including the
+GitHub Actions run `32544337366` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, automatically
 refreshes metadata-only Salesforce status when the operator returns from the
 consent tab, keeps the visible **Reauthorize read-only** recovery control, and
 retains the tenant-scoped Secret Manager access path. The owner must still complete a fresh consent before a
 live CRM read can be claimed; the Salesforce state is not silently relabeled
-as proof by the fresh agent or approval/undo runs below.
+as proof by the fresh agent or approval/undo runs below. If a short-lived
+Google operator ID token expires, a signed 401 now clears the in-memory tenant
+session and returns the UI to an explicit sign-in-again state while preserving
+the anonymous packet-safe lane; no token is persisted or copied into a body or
+URL.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
 packet/undo behavior, and the direct `/api/agent/run` path; the public lane
@@ -557,8 +561,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-122211879f54` / `5e2855a6-fbc2-4c3e-8de4-c03ee7c4255c` for the live agent
-and `job-872f4c13d9e3` / `391790b7-40a7-449d-b9fd-dc8c1c67b1e5` for the
+`job-1cbbe78e530f` / `ea9953e8-ddb8-46db-be7d-601f7609d77c` for the live agent
+and `job-951c0dea75a9` / `6f29da58-dcad-49f9-9385-d2ce54779783` for the
 approval/undo proof. `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
@@ -573,7 +577,7 @@ Driftline still does not claim a live CRM read until a fresh consent produces
 object totals.
 
 The cadence path was re-run against the same isolated deployment at
-`2026-08-22T01:38:15Z`: the real Scheduler identity received an
+`2026-08-22T01:51:40Z`: the real Scheduler identity received an
 OIDC-authenticated HTTP 200 on the new revision, and the registry reported
 all five bounded sources healthy with no stale or failed entries. A post-deploy
 log query found no Firestore positional-filter deprecation warning after the
