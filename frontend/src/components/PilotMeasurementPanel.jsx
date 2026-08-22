@@ -5,11 +5,11 @@ import useNearViewport from "../hooks/useNearViewport";
 
 const initialForm = {
   source_type: "pilot_log",
-  cohort_label: "first pilot cohort",
-  changes_observed: "1",
-  baseline_minutes: "60",
-  driftline_minutes: "20",
-  evidence_ref: "artifact://pilot-cohort",
+  cohort_label: "",
+  changes_observed: "",
+  baseline_minutes: "",
+  driftline_minutes: "",
+  evidence_ref: "",
   revenue_lift_usd: "",
   retention_lift_pct: "",
   willingness_to_pay_usd: "",
@@ -91,7 +91,7 @@ export default function PilotMeasurementPanel({ operatorSession }) {
         <div><ClipboardCheck size={15} /><strong>{report?.changes_observed || 0}</strong><small>changes measured</small></div>
         <div><ShieldCheck size={15} /><strong>{measured ? `${report.time_saved_pct}%` : "—"}</strong><small>before/after delta</small></div>
       </div>
-      <p className="pilot-note">Record aggregate before/after observations from a real pilot. Driftline stores no customer names, raw notes, or CRM records; every entry remains explicitly operator-reported until independently reviewed.</p>
+      <p className="pilot-note">Record aggregate before/after observations from a real pilot. No example measurements are prefilled: enter only values reconciled to the dated evidence reference. Driftline stores no customer names, raw notes, or CRM records; every entry remains explicitly operator-reported until independently reviewed.</p>
       <div className="pilot-readiness" aria-label="Pilot readiness checklist">
         <div className="pilot-readiness-heading"><strong>Utility loop readiness</strong><small>Product telemetry, not customer proof</small></div>
         <div className="pilot-readiness-list">
@@ -104,11 +104,11 @@ export default function PilotMeasurementPanel({ operatorSession }) {
       <button className="secondary compact pilot-toggle" type="button" onClick={() => { setOpen((current) => !current); setMessage(""); setError(""); }}><Plus size={14} />{open ? "Close measurement form" : "Record a measurement"}</button>
       {open && <form className="pilot-form" onSubmit={submit}>
         <label>Evidence type<select name="source_type" value={form.source_type} onChange={update}><option value="pilot_log">Pilot log</option><option value="customer_interview">Customer interview</option><option value="win_loss">Win / loss</option><option value="billing_record">Billing record</option></select></label>
-        <label>Cohort label<input required name="cohort_label" value={form.cohort_label} onChange={update} maxLength={80} /></label>
-        <label>Changes observed<input required type="number" min="1" name="changes_observed" value={form.changes_observed} onChange={update} /></label>
-        <label>Baseline minutes<input required type="number" min="0" step="0.1" name="baseline_minutes" value={form.baseline_minutes} onChange={update} /></label>
-        <label>Driftline minutes<input required type="number" min="0" step="0.1" name="driftline_minutes" value={form.driftline_minutes} onChange={update} /></label>
-        <label>Evidence reference<input required name="evidence_ref" value={form.evidence_ref} onChange={update} placeholder="artifact://pilot-cohort or https://…" maxLength={300} /></label>
+        <label>Cohort label<input required name="cohort_label" value={form.cohort_label} onChange={update} maxLength={80} placeholder="Named pilot cohort" /></label>
+        <label>Changes observed<input required type="number" min="1" name="changes_observed" value={form.changes_observed} onChange={update} placeholder="Measured count" /></label>
+        <label>Baseline minutes<input required type="number" min="0" step="0.1" name="baseline_minutes" value={form.baseline_minutes} onChange={update} placeholder="Observed baseline" /></label>
+        <label>Driftline minutes<input required type="number" min="0" step="0.1" name="driftline_minutes" value={form.driftline_minutes} onChange={update} placeholder="Observed Driftline time" /></label>
+        <label>Evidence reference<input required name="evidence_ref" value={form.evidence_ref} onChange={update} placeholder="artifact://… or https://…" maxLength={300} /></label>
         <label>Revenue lift USD<input type="number" min="-1000000000" step="0.01" name="revenue_lift_usd" value={form.revenue_lift_usd} onChange={update} placeholder="Optional" /></label>
         <label>Retention lift %<input type="number" min="-100" max="100" step="0.01" name="retention_lift_pct" value={form.retention_lift_pct} onChange={update} placeholder="Optional" /></label>
         <label>Willingness to pay USD<input type="number" min="0" step="0.01" name="willingness_to_pay_usd" value={form.willingness_to_pay_usd} onChange={update} placeholder="Optional" /></label>
