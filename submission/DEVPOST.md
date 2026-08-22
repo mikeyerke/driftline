@@ -128,7 +128,7 @@ stored refresh token is rejected. The callback metadata and tenant-scoped
 secret pointer are durable, but no Salesforce object totals or successful CRM
 read are claimed until fresh consent succeeds.
 
-- Local gate for the current source: 263 backend tests passed, the focused
+- Local gate for the current source: 264 backend tests passed, the focused
   Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the

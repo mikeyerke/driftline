@@ -58,7 +58,7 @@ Checked `2026-08-21T23:56Z` with the active gcloud project set to
   stored refresh token was rejected by Salesforce, not that a CRM read
   succeeded. No object totals are claimed. The reauthorization control is the
   exact re-entry gate for the next live verification.
-- Local verification after the release's test additions: 263 backend tests
+- Local verification after the release's test additions: 264 backend tests
   passed; the focused Salesforce connector suite passed 37 tests; Ruff and
   `git diff --check` passed. The test-only additions assert that Salesforce
   reads use the tenant credential broker and aggregate `COUNT()` queries.
