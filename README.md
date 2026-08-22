@@ -137,7 +137,10 @@ before/after evidence. See
 for the research-backed scope and deferred work. The public console's **Value
 proof** panel reads the same bounded endpoint, making observed deployment
 utility and unmeasured customer outcomes visible without turning synthetic
-activity into a business claim.
+activity into a business claim. Authenticated pilot operators also see a
+separate operational-telemetry strip (workflow count, source observations,
+closures, and latency) and can export the same fields in the signed pilot
+packet; the strip is explicitly labeled **not customer proof**.
 
 Anonymous value-proof and change-memory views use a recent bounded window
 (`DRIFTLINE_PUBLIC_METRIC_WINDOW`, deployed as 12 records) so repeated verifier
@@ -152,7 +155,8 @@ reviewed; Driftline never accepts customer names, raw notes, or CRM records in
 this lane. The same panel can download a signed, aggregate-only Markdown pilot
 packet for a reviewer; the export excludes evidence URLs, customer identifiers,
 source bodies, and CRM records so it is safe to reconcile against a dated pilot
-log outside Driftline.
+log outside Driftline. The packet keeps operational telemetry in its own
+section so it is useful for running the pilot without implying customer ROI.
 
 For an authenticated operator, `POST /api/connectors/context/summary` adds a
 bounded internal-workload view before approval: fixed-scope Jira, Confluence,

@@ -87,8 +87,12 @@ export default function PilotMeasurementPanel({ operatorSession }) {
 
   const measured = report?.record_count > 0;
   const customSourceCount = (utility.registry?.sources || []).filter((source) => source.source_kind === "operator_registered_public").length;
-  const workflowCount = utility.proof?.observed?.workflows || 0;
-  const completedActions = utility.proof?.observed?.action_items_completed_historically || 0;
+  const observed = utility.proof?.observed || {};
+  const approvalLatency = observed.approval_latency_seconds || {};
+  const ownerActionCycle = observed.owner_action_cycle_seconds || {};
+  const workflowCount = observed.workflows || 0;
+  const completedActions = observed.action_items_completed_historically || 0;
+  const formatSeconds = (value) => value === null || value === undefined || Number.isNaN(Number(value)) ? "—" : `${Number(value).toFixed(1)}s`;
   const readiness = [
     { label: "Tenant lane connected", ready: Boolean(operatorSession.tenantId), detail: operatorSession.tenantId || "Sign in and select a tenant" },
     { label: "Real source registered", ready: customSourceCount > 0, detail: customSourceCount > 0 ? `${customSourceCount} exact HTTPS source${customSourceCount === 1 ? "" : "s"}` : "Add one owned or competitor change surface" },
@@ -115,6 +119,17 @@ export default function PilotMeasurementPanel({ operatorSession }) {
           </div>)}
         </div>
         <p className="pilot-readiness-footnote">{completedActions > 0 ? `${completedActions} owner action${completedActions === 1 ? " has" : "s have"} closed in the append-only audit.` : "No owner action has been closed in this tenant audit yet."} Customer time saved, revenue, retention, and willingness-to-pay stay unmeasured until a real pilot produces source-backed records.</p>
+      </div>
+      <div className="pilot-observed" aria-label="Observed Driftline telemetry">
+        <div className="pilot-observed-heading"><strong>Observed Driftline operations</strong><small>Not customer proof</small></div>
+        <div className="pilot-observed-grid">
+          <div><strong>{workflowCount}</strong><small>workflows</small></div>
+          <div><strong>{observed.source_observations || 0}</strong><small>source observations</small></div>
+          <div><strong>{completedActions}</strong><small>historical closures</small></div>
+          <div><strong>{formatSeconds(ownerActionCycle.p50)}</strong><small>owner cycle p50</small></div>
+          <div><strong>{formatSeconds(approvalLatency.p90)}</strong><small>approval p90</small></div>
+        </div>
+        <p>Bounded telemetry from this tenant’s Driftline workflows only. It does not establish customer ROI, revenue lift, retention, or willingness to pay.</p>
       </div>
       <div className="pilot-actions">
         <button className="secondary compact pilot-toggle" type="button" onClick={() => { setOpen((current) => !current); setMessage(""); setError(""); }}><Plus size={14} />{open ? "Close measurement form" : "Record a measurement"}</button>

@@ -5089,6 +5089,18 @@ def download_pilot_packet(
         approval_token=approval_token,
         identity_token=identity_token,
     )
+    value_proof = get_value_proof(
+        operator=operator,
+        tenant_id=tenant_id,
+        approval_token=approval_token,
+        identity_token=identity_token,
+    )
+    observed = value_proof.get("observed") if isinstance(value_proof, dict) else {}
+    observed = observed if isinstance(observed, dict) else {}
+    approval_latency = observed.get("approval_latency_seconds")
+    approval_latency = approval_latency if isinstance(approval_latency, dict) else {}
+    owner_action_cycle = observed.get("owner_action_cycle_seconds")
+    owner_action_cycle = owner_action_cycle if isinstance(owner_action_cycle, dict) else {}
     lines = [
         "# Driftline pilot measurement packet",
         "",
@@ -5110,6 +5122,15 @@ def download_pilot_packet(
         f"- Revenue / win-rate lift: {_pilot_packet_value(report.get('revenue_lift_usd_total'))}",
         f"- Retention lift: {_pilot_packet_value(report.get('retention_lift_pct_median'))}",
         f"- Willingness to pay: {_pilot_packet_value(report.get('willingness_to_pay_usd_median'))}",
+        "",
+        "## Driftline operational telemetry (not customer proof)",
+        "",
+        f"- Workflows observed: {_pilot_packet_value(observed.get('workflows'), fallback='0')}",
+        f"- Source observations: {_pilot_packet_value(observed.get('source_observations'), fallback='0')}",
+        f"- Owner actions completed historically: {_pilot_packet_value(observed.get('action_items_completed_historically'), fallback='0')}",
+        f"- Approval latency p50 / p90 seconds: {_pilot_packet_value(approval_latency.get('p50'))} / {_pilot_packet_value(approval_latency.get('p90'))}",
+        f"- Owner-action cycle p50 / p90 seconds: {_pilot_packet_value(owner_action_cycle.get('p50'))} / {_pilot_packet_value(owner_action_cycle.get('p90'))}",
+        "These values describe isolated Driftline workflow telemetry only. They do not establish customer time saved, revenue lift, retention, or willingness to pay.",
         "",
         "## Disclosure",
         "",

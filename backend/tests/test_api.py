@@ -781,6 +781,19 @@ def test_pilot_packet_is_aggregate_only(monkeypatch) -> None:
             },
         ],
     )
+    monkeypatch.setattr(
+        api,
+        "get_value_proof",
+        lambda **kwargs: {
+            "observed": {
+                "workflows": 3,
+                "source_observations": 8,
+                "action_items_completed_historically": 2,
+                "approval_latency_seconds": {"p50": 0.5, "p90": 1.2},
+                "owner_action_cycle_seconds": {"p50": 3.7, "p90": 4.1},
+            }
+        },
+    )
 
     response = client.get(
         "/api/ops/pilot-packet",
@@ -800,6 +813,9 @@ def test_pilot_packet_is_aggregate_only(monkeypatch) -> None:
     assert "gs://private/not-returned" not in body
     assert "evidence_ref" not in body
     assert "pilot-tenant" not in body
+    assert "Workflows observed: 3" in body
+    assert "Owner-action cycle p50 / p90 seconds: 3.7 / 4.1" in body
+    assert "not customer proof" in body
 
 
 def test_connector_context_summary_is_signed_and_redacted(monkeypatch) -> None:
