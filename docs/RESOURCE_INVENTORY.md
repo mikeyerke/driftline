@@ -12,15 +12,15 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T08:28Z` with the active gcloud project set to
+Checked `2026-08-22T08:56Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00191-8hp` at 100% traffic. Its immutable serving image is
-  `sha256:6dcdc698f8e6891a214659c3e7010b468341f57851590adcc8634230445a4caa`.
-- Source commit `dd2018572dd08d6a06291fd95923d169a9a549c5` was built by Cloud
-  Build `98ce8eea-abe4-4832-b524-145b9fd15852`; GitHub Actions run
-  `32561484944` passed the repository gates.
+  `driftline-00193-6bs` at 100% traffic. Its immutable serving image is
+  `sha256:cc88f658f3de5f947ec5a5a2f82a4a3655b22b6b7023bec5e02ff68aab6ac001`.
+- Source commit `bcfd38a4bf6b2048d1e7df9aa46f14819ca309c9` was built by Cloud
+  Build `24e57717-ab63-4137-9d64-97503124d25c`; GitHub Actions run
+  `32563434919` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -29,14 +29,14 @@ Checked `2026-08-22T08:28Z` with the active gcloud project set to
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `dd2018572dd08d6a06291fd95923d169a9a549c5`, and build ID
-  `98ce8eea-abe4-4832-b524-145b9fd15852`; `/api/auth/config`
+  `bcfd38a4bf6b2048d1e7df9aa46f14819ca309c9`, and build ID
+  `24e57717-ab63-4137-9d64-97503124d25c`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-4b28fe21eecc` with a passing
-  `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, and a
-  `stable` trend against `eval-8f2a56118271` (all deltas `0.0` and no case
-  regressions). Trace data is
+- `/api/evals/latest` reports evaluation `eval-ef80169f4d77` with a passing
+  `trace-eval-v1` gate, 13 cases, 100% safety, 100% usefulness, 100% overall,
+  and an `improved` trend against `eval-32fad0ba607f` (no case regressions).
+  Trace data is
   redacted and `customer_outcome=false`; this is evaluator telemetry, not
   customer ROI evidence.
 - The same live workflow records `reviewer=deterministic_red_team` and

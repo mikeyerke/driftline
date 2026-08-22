@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `dd2018572dd08d6a06291fd95923d169a9a549c5`, Cloud Run
-`driftline-00191-8hp`, Cloud Build
-`98ce8eea-abe4-4832-b524-145b9fd15852`, project
+Current release: source `bcfd38a4bf6b2048d1e7df9aa46f14819ca309c9`, Cloud Run
+`driftline-00193-6bs`, Cloud Build
+`24e57717-ab63-4137-9d64-97503124d25c`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -27,14 +27,14 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
-- The trace-to-eval gate (`scripts/verify_trace_eval.sh`) scores twelve
+- The trace-to-eval gate (`scripts/verify_trace_eval.sh`) scores thirteen
   independent safety/usefulness cases. Critical safety must be 100%,
   usefulness at least 75%, overall at least 90%, and any regression against a
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-4b28fe21eecc`, stable against `eval-8f2a56118271` with zero score
-  deltas and no case regressions. These are evaluation telemetry, not customer
+  `eval-ef80169f4d77`, improved against `eval-32fad0ba607f` with 100% safety,
+  100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
 - Logged-out desktop and 390x844 mobile browser QA showed the interactive
@@ -46,11 +46,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   after deferred panels mounted: each target landed below the sticky header,
   `settings-section` and `deployment-section` were each unique, and no console
   messages were emitted.
-- `scripts/verify_live_agent.sh`: fresh job `job-48b697d7dfcd`, workflow
-  `d4d97a79-373f-4e19-87ef-6e0d5d25505f`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-58b1c8a6145f`, workflow
+  `6f6f7702-a07a-46d7-a479-924bc3f3b778`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-53fcad9ed7e4`,
-  workflow `5742ef64-8863-4234-ba7b-efc6dead6907` persisted and
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-58b1c8a6145f`,
+  workflow `6f6f7702-a07a-46d7-a479-924bc3f3b778` persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
@@ -103,6 +103,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 - Public and signed tenant lanes are separate. Tenant connector credentials
   resolve through tenant-specific Secret Manager namespaces and are not sent to
   the browser or logs.
+- Signed tenant `live`, `tenant_demo`, and `monitor` runs can attach a second,
+  normalized aggregate connector read to the Change Card. Only fixed scopes,
+  bounded counts, and allowlisted Salesforce object metadata survive; an
+  `internal_context_reader` audit event records the attachment. The anonymous
+  judge lane never calls this seam.
 - Cloud Run is isolated to `driftline-hackathon-2026`, scale-to-zero, and
   max-one instance; the runtime has no project-level Secret Manager access.
 
@@ -115,7 +120,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   with the exact Artifact Registry image tag and verifies the public health
   SHA/build contract before declaring the build successful.
 - Current immutable image digest:
-  `sha256:3e419bdbd2d76494c92ebaa3f3fb54fef3ec69e2ac249c3b361988c37010f87e`.
+  `sha256:cc88f658f3de5f947ec5a5a2f82a4a3655b22b6b7023bec5e02ff68aab6ac001`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
@@ -144,8 +149,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
-- 282 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32559253255`; the frozen
+- 289 backend tests, Ruff, frontend production build, standalone image build,
+  and repository hygiene pass in GitHub Actions run `32563434919`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).
