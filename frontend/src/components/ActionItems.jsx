@@ -4,7 +4,7 @@ import { claimAction, completeAction, failAction, retryAction } from "../api";
 
 const label = (value) => (value || "queued").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
-export default function ActionItems({ workflowId, items, onChange }) {
+export default function ActionItems({ workflowId, items, workflowStatus, onChange }) {
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
@@ -12,6 +12,7 @@ export default function ActionItems({ workflowId, items, onChange }) {
   const completedCount = actionItems.filter((item) => item.status === "completed").length;
   const closedCount = actionItems.filter((item) => ["completed", "reversed"].includes(item.status)).length;
   const outstandingCount = actionItems.length - closedCount;
+  const reopened = workflowStatus === "needs_approval" && actionItems.length > 0 && actionItems.every((item) => item.status === "reversed");
   const visibleItems = useMemo(() => actionItems.filter((item) => {
     if (filter === "open") return !["completed", "reversed"].includes(item.status);
     if (filter === "closed") return ["completed", "reversed"].includes(item.status);
@@ -42,9 +43,9 @@ export default function ActionItems({ workflowId, items, onChange }) {
     <section className="panel action-items" aria-labelledby="action-items-title">
       <header className="panel-header">
         <div><h2 id="action-items-title">Owner action queue</h2><span className="live-label public">Human-owned</span></div>
-        <span className="muted">{completedCount}/{items.length} completed · reversible lifecycle</span>
+        <span className="muted">{completedCount}/{items.length} completed · {closedCount}/{items.length} closed</span>
       </header>
-      <p className="action-items-intro">Approval created {items.length} durable work {items.length === 1 ? "item" : "items"}. {outstandingCount ? `${outstandingCount} still need owner closure.` : "Every owner action is closed."} Driftline tracks ownership without pretending to update a CRM or customer system. Each row keeps its evidence hash and idempotency key so a retry cannot create duplicate work.</p>
+      <p className="action-items-intro">{reopened ? "This decision was reopened. The reversed owner actions remain visible as append-only closure history; approve a new plan before creating new work." : `Approval created ${items.length} durable work ${items.length === 1 ? "item" : "items"}. ${outstandingCount ? `${outstandingCount} still need owner closure.` : "Every owner action is closed."}`} Driftline tracks ownership without pretending to update a CRM or customer system. Each row keeps its evidence hash and idempotency key so a retry cannot create duplicate work.</p>
       {error && <p className="trace-error action-items-error" role="alert">{error}</p>}
       <div className="action-item-filter" role="group" aria-label="Filter owner actions">
         <Filter size={13} aria-hidden="true" />
@@ -56,7 +57,7 @@ export default function ActionItems({ workflowId, items, onChange }) {
         {visibleItems.length === 0 && <p className="action-items-empty">No {filter} owner actions in this packet.</p>}
         {visibleItems.map((item) => (
           <div className="action-item-row" key={item.item_id}>
-            <span className="action-item-icon">{item.status === "completed" ? <Check size={15} /> : item.status === "claimed" ? <ClipboardCheck size={15} /> : item.status === "failed" ? <AlertTriangle size={15} /> : <CircleDashed size={15} />}</span>
+            <span className={`action-item-icon${item.status === "reversed" ? " reversed" : ""}`}>{item.status === "completed" ? <Check size={15} /> : item.status === "claimed" ? <ClipboardCheck size={15} /> : item.status === "failed" ? <AlertTriangle size={15} /> : item.status === "reversed" ? <RotateCcw size={15} /> : <CircleDashed size={15} />}</span>
             <span className="action-item-copy"><strong>{item.artifact}</strong><small><UserRound size={12} />{item.owner} · {item.priority || "medium"} priority</small><small title={item.evidence_hash ? `Evidence hash ${item.evidence_hash}` : undefined}>Evidence {item.evidence_hash ? `${item.evidence_hash.slice(0, 12)}…` : "not attached"} · {item.idempotency_key}</small></span>
             <span className={`action-item-status ${item.status}`}>{label(item.status)}</span>
             <small className={`action-item-due${item.due_at && new Date(item.due_at) < new Date() && !["completed", "reversed"].includes(item.status) ? " overdue" : ""}`}>{item.due_at ? `${item.due_at && new Date(item.due_at) < new Date() && !["completed", "reversed"].includes(item.status) ? "Overdue" : "Due"} ${new Date(item.due_at).toLocaleDateString()}` : "No due date"}</small>
