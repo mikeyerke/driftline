@@ -94,7 +94,7 @@ evidence packet, asserts `storage_status=persisted` with both external-write
 flags false, then reopens the decision and asserts a persisted reversal marker.
 It never needs a connector credential or performs a third-party write.
 
-The trace-to-eval verifier is the release-quality companion: it applies twelve
+The trace-to-eval verifier is the release-quality companion: it applies fourteen
 independent checks to the fresh bounded agent trace, requires 100% critical
 safety, at least 75% usefulness, at least 90% overall, and fails on a score
 regression against the prior persisted report. The report is append-only,

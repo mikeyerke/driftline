@@ -76,7 +76,7 @@ month. It is synthetic and visibly labelled as such. The console also exposes
 the append-only source ledger, recurring change memory, a bounded Gemini vision
 before/after pair, owner-action telemetry, and deployment health.
 
-The release includes a deterministic trace-to-eval quality gate. It checks six
+The release includes a deterministic trace-to-eval quality gate. It checks nine
 critical safety invariants and five usefulness invariants against the bounded
 workflow/ADK trace, fails closed on safety or score regressions, and persists a
 redacted live report with release identity and trend. This proves the control

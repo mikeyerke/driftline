@@ -1,12 +1,14 @@
 import { Activity, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getLatestEvaluation } from "../api";
+import { getLatestEvaluation, getMonitorRegistry } from "../api";
 
 const percent = (value) => value === null || value === undefined ? "—" : `${Math.round(Number(value) * 100)}%`;
 
 export default function ReleaseProof() {
   const [evaluation, setEvaluation] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [monitor, setMonitor] = useState(null);
+  const [monitorLoading, setMonitorLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -14,6 +16,10 @@ export default function ReleaseProof() {
       .then((payload) => active && setEvaluation(payload.evaluation || null))
       .catch(() => active && setEvaluation(null))
       .finally(() => active && setLoading(false));
+    getMonitorRegistry()
+      .then((payload) => active && setMonitor(payload.summary || null))
+      .catch(() => active && setMonitor(null))
+      .finally(() => active && setMonitorLoading(false));
     return () => { active = false; };
   }, []);
 
@@ -27,6 +33,12 @@ export default function ReleaseProof() {
         ? `Pass · ${percent(evaluation.overall_score)}`
         : "Blocked";
   const GateIcon = passed ? CheckCircle2 : blocked ? XCircle : ShieldCheck;
+  const monitorLabel = monitor
+    ? `${monitor.healthy || 0}/${monitor.total || 0} healthy`
+    : monitorLoading
+      ? "Checking"
+      : "Unavailable";
+  const monitorDegraded = Boolean(monitor && ((monitor.stale || 0) > 0 || (monitor.source_failed || 0) > 0));
 
   return (
     <div className="release-proof" aria-label="Latest deployment proof">
@@ -40,6 +52,10 @@ export default function ReleaseProof() {
       </div>
       <div className="release-proof-item">
         <span><small>Checks</small><strong>{evaluation ? `${evaluation.passed_case_count}/${evaluation.case_count}` : "—"}</strong></span>
+      </div>
+      <div className={`release-proof-item ${monitorDegraded ? "blocked" : monitor ? "pass" : ""}`}>
+        <Activity size={14} aria-hidden="true" />
+        <span><small>Monitor pulse</small><strong>{monitorLabel}</strong></span>
       </div>
       <span className="release-proof-note">Evaluation telemetry · not customer ROI</span>
     </div>
