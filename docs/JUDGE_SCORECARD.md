@@ -6,13 +6,9 @@ roadmap.
 
 The exact serving release is verified at read time by
 `./scripts/verify_production.sh` and the public `/health` contract; this
-scorecard does not pretend that a copied revision ID remains current after a
-later commit. The latest live proof on 2026-08-22 is source
-`58afaa9a5bc94d3be02fac985e7c68207abfb746`, Cloud Run `driftline-00240-7qg`,
-Cloud Build `145e3ce9-376a-4e45-b1d5-4dd7a082c5ad`, project
-`driftline-hackathon-2026`, 100% traffic, image digest
-`sha256:2a9b6ce237a1b5f9ee6bc3c9436b2a2b23a112f28c5fb8d3db6e501976951d1b`.
-Use the live check after any later commit. The submission-facing scorecard is
+scorecard intentionally does not hardcode a revision ID that can go stale
+after a later commit. Use the live check after every release. The
+submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
 ## Innovation and operational utility — 40%

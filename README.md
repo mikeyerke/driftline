@@ -587,15 +587,11 @@ Artifact Registry image built for that Cloud Build, and verifies that the
 public `/health` response carries the exact release SHA and build ID before
 the build can succeed. The exact serving release is intentionally verified at
 read time rather than copied into prose: run `./scripts/verify_production.sh`
-and compare its `/health` output with `git rev-parse HEAD`. The latest recorded
-live proof on 2026-08-22 is source commit
-`58afaa9a5bc94d3be02fac985e7c68207abfb746`, Cloud Build
-`145e3ce9-376a-4e45-b1d5-4dd7a082c5ad`, Cloud Run revision
-`driftline-00240-7qg`, and image digest
-`sha256:2a9b6ce237a1b5f9ee6bc3c9436b2a2b23a112f28c5fb8d3db6e501976951d1b`.
-That evidence is not a substitute for rerunning the live check after a later
-commit. GitHub Actions run `32590613661` passed the
-repository gates, including the frozen dependency audit. This release adds
+and compare its `/health` output with `git rev-parse HEAD`. This read-time
+proof is the source of truth after every code or documentation release;
+copied revision IDs are intentionally not treated as permanently current.
+GitHub Actions must pass the repository gates, including the frozen dependency
+audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
 and automatically refreshes metadata-only Salesforce status when the operator returns from the

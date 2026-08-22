@@ -139,16 +139,12 @@ its final live proof requires an operator Google identity in the browser.
 The exact serving release is independently verifiable from the public
 `/health` response and `./scripts/verify_production.sh`; release IDs are not
 treated as permanently current just because they were copied into a document.
-The latest recorded release-proof snapshot on 2026-08-22 is source commit
-`58afaa9a5bc94d3be02fac985e7c68207abfb746`, Cloud Build
-`145e3ce9-376a-4e45-b1d5-4dd7a082c5ad`, and Cloud Run revision
-`driftline-00240-7qg` at 100% traffic in project `driftline-hackathon-2026`.
-The immutable serving image digest is
-`sha256:2a9b6ce237a1b5f9ee6bc3c9436b2a2b23a112f28c5fb8d3db6e501976951d1b`.
-
 The public `/health` probe reports the full source SHA and Cloud Build ID, so a
 reviewer can independently trace the serving revision; rerun the check after
-any later documentation-only release.
+any later documentation-only release. The exact current revision, image
+digest, and build ID are intentionally read from `/health`,
+`./scripts/verify_production.sh`, and Cloud Build rather than copied into this
+document.
 The Cloud Build `release-smoke` step also compared the serving revision's
 image digest with the exact Artifact Registry image tag before marking the
 build successful.
