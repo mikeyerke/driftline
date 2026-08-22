@@ -125,11 +125,11 @@ product truth.
 ## Verified release evidence
 
 The current serving release is source commit
-`64f263b1659d194d9c5c5536867aa7cfd1f303b9`, Cloud Build
-`0b9bee9b-7c8b-4767-b93e-9c02718e9186`, and Cloud Run revision
-`driftline-00164-ffh` at 100% traffic in project `driftline-hackathon-2026`.
+`1855b1bb02512fde4dcdaee75025c59b7a6c95fe`, Cloud Build
+`4d1a21d3-80c3-4fa3-91f6-5edb66b5906a`, and Cloud Run revision
+`driftline-00165-pxw` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:934f47b30a32eed0ddce1e148ce8290bb2b2c25bb1e53695814948642bcac1ae`.
+`sha256:c73834d7fdb5c2ec80df79fd5da63eb557133d2b1d144e1f0bd8519521a997f3`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -142,19 +142,19 @@ across page reloads; the callback metadata and tenant-scoped secret pointer are
 durable as well, but no Salesforce object totals or successful CRM read are
 claimed until fresh consent succeeds.
 
-- Local gate for the current source: 275 backend tests passed, the focused
+- Local gate for the current source: 277 backend tests passed, the focused
   Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32548600808` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32549359912` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-9711e9578f35` / workflow
-  `70ba035c-7ddb-4598-a4bb-28970e76cef2` returned `needs_approval`,
+- Live agent check: fresh job `job-c11bb713ee6a` / workflow
+  `180357f1-10d0-4f1a-8a6e-82b00f6c14f6` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -166,13 +166,14 @@ claimed until fresh consent succeeds.
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-d103276fafba` / workflow
-  `b56810a3-11d5-4c52-ba21-3679c0717fdc` persisted the packet, reversed the
+- Approval/undo check: fresh job `job-0a6bbbd7467d` / workflow
+  `90d8cb78-c967-4299-a735-b39047c1ab70` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-01486b1214cc` passed the
+- Trace-to-eval check: live evaluation `eval-258e74fa9cee` passed the
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
-  remaining `stable` against prior evaluation `eval-6151e31a1898`; the report
+  remaining `stable` against prior evaluation `eval-01486b1214cc` with no case
+  regressions; the report
   is redacted telemetry and explicitly does not claim customer outcomes.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
   manually triggered during the prior release and Cloud Logging recorded an

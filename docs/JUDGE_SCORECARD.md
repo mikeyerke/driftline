@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `64f263b1659d194d9c5c5536867aa7cfd1f303b9`, Cloud Run
-`driftline-00164-ffh`, Cloud Build
-`0b9bee9b-7c8b-4767-b93e-9c02718e9186`, project
+Current release: source `1855b1bb02512fde4dcdaee75025c59b7a6c95fe`, Cloud Run
+`driftline-00165-pxw`, Cloud Build
+`4d1a21d3-80c3-4fa3-91f6-5edb66b5906a`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -27,25 +27,26 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
-- The trace-to-eval gate (`scripts/verify_trace_eval.sh`) scores nine
+- The trace-to-eval gate (`scripts/verify_trace_eval.sh`) scores eleven
   independent safety/usefulness cases. Critical safety must be 100%,
   usefulness at least 75%, overall at least 90%, and any regression against a
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-01486b1214cc`, stable against `eval-6151e31a1898` with zero score
-  deltas. These are evaluation telemetry, not customer outcomes.
+  `eval-258e74fa9cee`, stable against `eval-01486b1214cc` with zero score
+  deltas and no case regressions. These are evaluation telemetry, not customer
+  outcomes.
 
 - Logged-out desktop and 390x844 mobile browser QA showed the interactive
   impact map before and after a scan: source -> offering -> impact area -> work
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-9711e9578f35`, workflow
-  `70ba035c-7ddb-4598-a4bb-28970e76cef2`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-c11bb713ee6a`, workflow
+  `180357f1-10d0-4f1a-8a6e-82b00f6c14f6`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-d103276fafba` /
-  workflow `b56810a3-11d5-4c52-ba21-3679c0717fdc`; the packet persisted and
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-0a6bbbd7467d` /
+  workflow `90d8cb78-c967-4299-a735-b39047c1ab70`; the packet persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
@@ -128,8 +129,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
-- 275 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32548600808`; the frozen
+- 277 backend tests, Ruff, frontend production build, standalone image build,
+  and repository hygiene pass in GitHub Actions run `32549359912`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).

@@ -533,13 +533,13 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`64f263b1659d194d9c5c5536867aa7cfd1f303b9`, Cloud Build
-`0b9bee9b-7c8b-4767-b93e-9c02718e9186`, and Cloud Run revision
-`driftline-00164-ffh` at 100% traffic. Its immutable image digest is recorded
+`1855b1bb02512fde4dcdaee75025c59b7a6c95fe`, Cloud Build
+`4d1a21d3-80c3-4fa3-91f6-5edb66b5906a`, and Cloud Run revision
+`driftline-00165-pxw` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32548600808` passed the repository gates, including the
+GitHub Actions run `32549359912` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -555,11 +555,12 @@ URL.
 The latest console build also keeps the operator control in an explicit
 loading state until `/api/auth/config` resolves, avoiding a false
 "unavailable" flash on a cold production load.
-The new trace-to-eval quality gate evaluates nine independent safety and
+The new trace-to-eval quality gate evaluates eleven independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-01486b1214cc` is stable against the prior
-`eval-6151e31a1898` with zero score deltas; it is evaluation telemetry, not a
+latest live report `eval-258e74fa9cee` is stable against the prior
+`eval-01486b1214cc` with zero score deltas and no case regressions; it is
+evaluation telemetry, not a
 customer-outcome claim.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
@@ -578,8 +579,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-9711e9578f35` / `70ba035c-7ddb-4598-a4bb-28970e76cef2` for the live agent
-and `job-d103276fafba` / `b56810a3-11d5-4c52-ba21-3679c0717fdc` for the paired
+`job-c11bb713ee6a` / `180357f1-10d0-4f1a-8a6e-82b00f6c14f6` for the live agent
+and `job-0a6bbbd7467d` / `90d8cb78-c967-4299-a735-b39047c1ab70` for the paired
 approval/undo run. `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
