@@ -10,17 +10,22 @@ core.project: driftline-hackathon-2026
 project number: 724959673622
 ```
 
-## Current active release (authoritative check)
+## Serving-release verification contract
 
-Checked `2026-08-22T12:34Z` with the active gcloud project set to
+The authoritative current release is checked at read time with
+`./scripts/verify_production.sh`: it refuses any gcloud project other than
+`driftline-hackathon-2026`, checks 100% traffic, compares `/health` to the
+serving source SHA/build ID, and verifies the immutable Artifact Registry
+digest. The latest recorded release-proof snapshot before this documentation
+correction was checked with the active project set to
 `driftline-hackathon-2026`:
 
-- Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00210-tpn` at 100% traffic. Its immutable serving image is
-  `sha256:23b4a08d13d958dfa73b3fbc7f581a913b89b383acc996bd84df46a4bb8fc118`.
-- Source commit `9af2bf6c86e5f450682b27af60e8ca3bdc65c6a7` was built by Cloud
-  Build `0266b505-a762-49c9-9681-7b51448bab08`; GitHub Actions run
-  `32572937856` passed the repository gates.
+- Cloud Run service `driftline` in `us-central1` served revision
+  `driftline-00214-xhg` at 100% traffic. Its immutable serving image was
+  `sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
+- Source commit `244ab8bc9de6821f1302b6ef955260050f92f2f2` was built by Cloud
+  Build `6072b20d-d5e0-4ac0-9a7c-af5bc053d989`; GitHub Actions run
+  `32574855268` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -28,12 +33,12 @@ Checked `2026-08-22T12:34Z` with the active gcloud project set to
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
-- `/health` reports Firestore persistence, async jobs, release SHA
-  `9af2bf6c86e5f450682b27af60e8ca3bdc65c6a7`, and build ID
-  `0266b505-a762-49c9-9681-7b51448bab08`; `/api/auth/config`
+- The snapshot `/health` response reported Firestore persistence, async jobs,
+  release SHA `244ab8bc9de6821f1302b6ef955260050f92f2f2`, and build ID
+  `6072b20d-d5e0-4ac0-9a7c-af5bc053d989`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-89908c8e7a3a` with a passing
+- The snapshot `/api/evals/latest` reported evaluation `eval-bb32c6552c2b` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is

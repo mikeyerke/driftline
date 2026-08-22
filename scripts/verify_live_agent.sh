@@ -7,7 +7,23 @@ readonly base_url="${DRIFTLINE_BASE_URL:-https://driftline-xvxczqg62a-uc.a.run.a
 readonly max_attempts="${DRIFTLINE_LIVE_VERIFY_ATTEMPTS:-90}"
 readonly max_runs="${DRIFTLINE_LIVE_VERIFY_RUNS:-3}"
 
-health="$(curl --fail --silent --show-error --max-time 20 "${base_url}/health")"
+read_with_retry() {
+  local url="$1"
+  local attempts="${2:-4}"
+  local body=''
+  for attempt in $(seq 1 "${attempts}"); do
+    if body="$(curl --fail --silent --show-error --max-time 20 "${url}")"; then
+      printf '%s' "${body}"
+      return 0
+    fi
+    if [[ "${attempt}" != "${attempts}" ]]; then
+      sleep "$((attempt * 1))"
+    fi
+  done
+  return 1
+}
+
+health="$(read_with_retry "${base_url}/health")"
 printf '%s\n' "${health}" | jq -e \
   '.status == "ok" and .persistence == "firestore" and .async_jobs == true' >/dev/null
 
@@ -34,7 +50,7 @@ for run in $(seq 1 "${max_runs}"); do
 
   result=''
   for _ in $(seq 1 "${max_attempts}"); do
-    result="$(curl --fail --silent --show-error --max-time 20 "${base_url}/api/jobs/${job_id}")"
+    result="$(read_with_retry "${base_url}/api/jobs/${job_id}")"
     status="$(printf '%s' "${result}" | jq -r '.status // "unknown"')"
     case "${status}" in
       needs_approval|complete|failed) break ;;

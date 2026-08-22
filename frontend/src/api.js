@@ -37,13 +37,30 @@ function signedContext() {
   };
 }
 
+const RETRYABLE_READ_STATUSES = new Set([502, 503, 504]);
+const RETRYABLE_READ_ATTEMPTS = 3;
+
+function waitForRetry(attempt) {
+  // Keep cold-start recovery bounded and quiet. Only idempotent reads use
+  // this path; mutations must never be replayed without an explicit
+  // idempotency contract from the caller.
+  return new Promise((resolve) => window.setTimeout(resolve, 250 * (2 ** attempt)));
+}
+
 async function request(path, options = {}) {
   const { authenticated = false, ...fetchOptions } = options;
   const headers = new Headers({ "Content-Type": "application/json", ...(fetchOptions.headers || {}) });
   if (authenticated && operatorSession.identityToken) {
     headers.set("Authorization", `Bearer ${operatorSession.identityToken}`);
   }
-  const response = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers });
+  const method = (fetchOptions.method || "GET").toUpperCase();
+  const canRetry = method === "GET" || method === "HEAD" || method === "OPTIONS";
+  let response;
+  for (let attempt = 0; attempt < (canRetry ? RETRYABLE_READ_ATTEMPTS : 1); attempt += 1) {
+    response = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers });
+    if (!canRetry || !RETRYABLE_READ_STATUSES.has(response.status) || attempt === RETRYABLE_READ_ATTEMPTS - 1) break;
+    await waitForRetry(attempt);
+  }
   if (response.status === 401 && authenticated && operatorSession.identityToken) {
     // Google ID tokens are intentionally short-lived and are held only in
     // memory. Once the backend rejects one, fail closed immediately instead

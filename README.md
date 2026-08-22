@@ -562,15 +562,17 @@ Cloud Build now has a post-deploy smoke gate: it requires 100% Cloud Run
 traffic, verifies that the serving revision's image digest matches the exact
 Artifact Registry image built for that Cloud Build, and verifies that the
 public `/health` response carries the exact release SHA and build ID before
-the build can succeed. The current serving release is source commit
-`9af2bf6c86e5f450682b27af60e8ca3bdc65c6a7`, Cloud Build
-`0266b505-a762-49c9-9681-7b51448bab08`, and Cloud Run revision
-`driftline-00210-tpn` at 100% traffic. Its immutable image digest is recorded
-in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
-The public `/health` probe reports the same full release SHA and Cloud Build ID,
-so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32572937856` passed the repository gates, including the
-frozen dependency audit. This release adds
+the build can succeed. The exact serving release is intentionally verified at
+read time rather than copied into prose: run `./scripts/verify_production.sh`
+and compare its `/health` output with `git rev-parse HEAD`. The latest recorded
+release-proof snapshot before this documentation correction was source commit
+`244ab8bc9de6821f1302b6ef955260050f92f2f2`, Cloud Build
+`6072b20d-d5e0-4ac0-9a7c-af5bc053d989`, Cloud Run revision
+`driftline-00214-xhg`, and image digest
+`sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
+That snapshot is evidence, not a substitute for the live check after a later
+documentation-only commit. GitHub Actions run `32574855268` passed the
+repository gates, including the frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
 and automatically refreshes metadata-only Salesforce status when the operator returns from the
@@ -588,8 +590,8 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
-before this release is considered healthy. The latest live report
-`eval-89908c8e7a3a` remained stable against the prior report with 100% safety,
+before this release is considered healthy. The latest recorded live report
+snapshot `eval-bb32c6552c2b` remained stable against the prior report with 100% safety,
 100% usefulness, 100% overall, and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.

@@ -4,10 +4,16 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `9af2bf6c86e5f450682b27af60e8ca3bdc65c6a7`, Cloud Run
-`driftline-00210-tpn`, Cloud Build
-`0266b505-a762-49c9-9681-7b51448bab08`, project
-`driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
+The exact serving release is verified at read time by
+`./scripts/verify_production.sh` and the public `/health` contract; this
+scorecard does not pretend that a copied revision ID remains current after a
+documentation-only commit. The latest recorded release-proof snapshot before
+this documentation correction was source
+`244ab8bc9de6821f1302b6ef955260050f92f2f2`, Cloud Run `driftline-00214-xhg`,
+Cloud Build `6072b20d-d5e0-4ac0-9a7c-af5bc053d989`, project
+`driftline-hackathon-2026`, 100% traffic, image digest
+`sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
+Use the live check for the current SHA. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
 ## Innovation and operational utility — 40%
@@ -32,8 +38,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   usefulness at least 75%, overall at least 90%, and any regression against a
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
-  in `driftline_trace_evaluations`; the latest live report is
-  `eval-89908c8e7a3a`, stable against the prior report with 100% safety,
+  in `driftline_trace_evaluations`; the latest recorded live report snapshot is
+  `eval-bb32c6552c2b`, stable against the prior report with 100% safety,
   100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -139,8 +145,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 - Cloud Build's post-deploy smoke gate compares the serving revision digest
   with the exact Artifact Registry image tag and verifies the public health
   SHA/build contract before declaring the build successful.
-- Current immutable image digest:
-  `sha256:23b4a08d13d958dfa73b3fbc7f581a913b89b383acc996bd84df46a4bb8fc118`.
+- Latest recorded immutable image digest snapshot:
+  `sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in

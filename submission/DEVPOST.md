@@ -136,16 +136,20 @@ its final live proof requires an operator Google identity in the browser.
 
 ## Verified release evidence
 
-The current serving release is source commit
-`9af2bf6c86e5f450682b27af60e8ca3bdc65c6a7`, Cloud Build
-`0266b505-a762-49c9-9681-7b51448bab08`, and Cloud Run revision
-`driftline-00210-tpn` at 100% traffic in project `driftline-hackathon-2026`.
-The immutable image digest is
-`sha256:23b4a08d13d958dfa73b3fbc7f581a913b89b383acc996bd84df46a4bb8fc118`.
+The exact serving release is independently verifiable from the public
+`/health` response and `./scripts/verify_production.sh`; release IDs are not
+treated as permanently current just because they were copied into a document.
+The latest recorded release-proof snapshot before this documentation
+correction was source commit
+`244ab8bc9de6821f1302b6ef955260050f92f2f2`, Cloud Build
+`6072b20d-d5e0-4ac0-9a7c-af5bc053d989`, and Cloud Run revision
+`driftline-00214-xhg` at 100% traffic in project `driftline-hackathon-2026`.
+The snapshot image digest is
+`sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
 
-The public `/health` probe reports the same full source SHA and Cloud Build ID,
-so the serving revision is independently traceable to the reviewed repository
-commit.
+The public `/health` probe reports the full source SHA and Cloud Build ID, so a
+reviewer can independently trace the serving revision; rerun the check after
+any later documentation-only release.
 The Cloud Build `release-smoke` step also compared the serving revision's
 image digest with the exact Artifact Registry image tag before marking the
 build successful.
@@ -199,7 +203,8 @@ claimed until fresh consent succeeds.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-89908c8e7a3a` passed the 14-case
+- Trace-to-eval check: the latest recorded live evaluation snapshot
+  `eval-bb32c6552c2b` passed the 14-case
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining stable against the prior report with no case
   regressions; the report

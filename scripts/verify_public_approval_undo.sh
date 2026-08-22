@@ -7,7 +7,23 @@ readonly base_url="${DRIFTLINE_BASE_URL:-https://driftline-xvxczqg62a-uc.a.run.a
 readonly max_attempts="${DRIFTLINE_APPROVAL_VERIFY_ATTEMPTS:-90}"
 readonly source_id="competitor/pricing"
 
-curl --fail --silent --show-error --max-time 20 "${base_url}/health" | jq -e \
+read_with_retry() {
+  local url="$1"
+  local attempts="${2:-4}"
+  local body=''
+  for attempt in $(seq 1 "${attempts}"); do
+    if body="$(curl --fail --silent --show-error --max-time 20 "${url}")"; then
+      printf '%s' "${body}"
+      return 0
+    fi
+    if [[ "${attempt}" != "${attempts}" ]]; then
+      sleep "$((attempt * 1))"
+    fi
+  done
+  return 1
+}
+
+read_with_retry "${base_url}/health" | jq -e \
   '.status == "ok" and .persistence == "firestore" and .async_jobs == true' >/dev/null
 
 job="$(curl --fail --silent --show-error --max-time 20 \
@@ -18,7 +34,7 @@ job_id="$(printf '%s' "${job}" | jq -er '.job_id')"
 
 result=''
 for _ in $(seq 1 "${max_attempts}"); do
-  result="$(curl --fail --silent --show-error --max-time 20 "${base_url}/api/jobs/${job_id}")"
+  result="$(read_with_retry "${base_url}/api/jobs/${job_id}")"
   status="$(printf '%s' "${result}" | jq -r '.status // "unknown"')"
   case "${status}" in
     needs_approval|complete|failed) break ;;
@@ -102,7 +118,7 @@ printf '%s\n' "${completed}" | jq -e --arg item_id "${item_id}" --arg actor "${a
   ([.events[].outcome] | index(($item_id + ":completed"))) != null
 ' >/dev/null
 
-value_proof="$(curl --fail --silent --show-error --max-time 20 "${base_url}/api/ops/value-proof")"
+value_proof="$(read_with_retry "${base_url}/api/ops/value-proof")"
 printf '%s\n' "${value_proof}" | jq -e '
   (.observed.action_items_completed_historically // 0) >= 1 and
   (.observed.owner_action_cycle_seconds.sample_count // 0) >= 1 and
