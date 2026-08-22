@@ -4,9 +4,10 @@ from app import adk_runtime
 from app.analysis import AnalysisUnavailable
 
 
-def test_structured_analysis_fallback_is_explicitly_demo_only() -> None:
+@pytest.mark.parametrize("run_mode", ["demo", "tenant_demo"])
+def test_structured_analysis_fallback_is_explicitly_synthetic_only(run_mode: str) -> None:
     result = adk_runtime._analysis_failure_result(
-        run_mode="demo",
+        run_mode=run_mode,
         reason="Gemini returned no structured analysis",
         artifact_count=4,
     )
@@ -59,3 +60,39 @@ def test_workflow_id_is_recovered_when_model_stops_after_source_tool() -> None:
         )
     finally:
         adk_runtime.reset_workflow_id(token)
+
+
+def test_runtime_verifier_records_missing_state_read(monkeypatch) -> None:
+    calls = []
+
+    def fake_get_workflow_state(workflow_id: str) -> dict:
+        calls.append(workflow_id)
+        return {"workflow_id": workflow_id}
+
+    monkeypatch.setattr(adk_runtime, "get_workflow_state", fake_get_workflow_state)
+    tool_calls: list[str] = ["inspect_source_change"]
+    trace: list[dict[str, str]] = []
+    adk_runtime._ensure_state_verification("wf-1", tool_calls, trace)
+
+    assert calls == ["wf-1"]
+    assert tool_calls == ["inspect_source_change", "get_workflow_state"]
+    assert trace == [
+        {
+            "kind": "tool_call",
+            "name": "get_workflow_state",
+            "origin": "runtime_verifier",
+        }
+    ]
+
+
+def test_runtime_verifier_does_not_duplicate_model_state_read(monkeypatch) -> None:
+    monkeypatch.setattr(
+        adk_runtime,
+        "get_workflow_state",
+        lambda workflow_id: (_ for _ in ()).throw(AssertionError("duplicate read")),
+    )
+    tool_calls: list[str] = ["inspect_source_change", "get_workflow_state"]
+    trace: list[dict[str, str]] = []
+    adk_runtime._ensure_state_verification("wf-1", tool_calls, trace)
+    assert tool_calls == ["inspect_source_change", "get_workflow_state"]
+    assert trace == []

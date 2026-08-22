@@ -14,6 +14,7 @@ from .agent import (
     reset_tenant_id,
     reset_workflow_id,
     root_agent,
+    get_workflow_state,
     set_run_mode,
     set_source_id,
     set_tenant_id,
@@ -65,8 +66,15 @@ def _agent_trace_payload(
 def _analysis_failure_result(
     *, run_mode: str, reason: str, artifact_count: int | None = None
 ) -> dict[str, object]:
-    """Keep deterministic drafts demo-only; live runs fail closed."""
-    if run_mode != "demo":
+    """Keep deterministic drafts limited to explicitly synthetic lanes.
+
+    ``tenant_demo`` is the signed operator replay lane. It may use the same
+    visibly labelled fallback as the anonymous demo when a structured Gemini
+    turn is transiently unavailable; real monitor/live lanes still fail closed
+    so a production source can never be presented as model-analysed when it
+    was not.
+    """
+    if run_mode not in {"demo", "tenant_demo"}:
         raise AnalysisUnavailable(reason)
     result: dict[str, object] = {
         "mode": "deterministic_demo_fallback",
@@ -87,6 +95,32 @@ def _workflow_id_from_turn(workflow_id: str | None) -> str | None:
     monitor run.
     """
     return workflow_id or workflow_id_from_context()
+
+
+def _ensure_state_verification(
+    workflow_id: str | None,
+    tool_calls: list[str],
+    trace: list[dict[str, str]],
+) -> None:
+    """Guarantee one bounded state read when Gemini omits its final tool call.
+
+    The coordinator is instructed to call ``get_workflow_state`` after source
+    inspection. Provider turns can stop after the first tool response,
+    though, so the runtime performs the same allowlisted read as a deterministic
+    verifier. It is recorded with its origin instead of being silently added
+    to the trace.
+    """
+    if not workflow_id or "get_workflow_state" in tool_calls:
+        return
+    get_workflow_state(workflow_id)
+    tool_calls.append("get_workflow_state")
+    trace.append(
+        {
+            "kind": "tool_call",
+            "name": "get_workflow_state",
+            "origin": "runtime_verifier",
+        }
+    )
 
 
 async def run_agent_task(
@@ -119,6 +153,7 @@ async def run_agent_task(
     change_detected: bool | None = None
     data_mode: str | None = None
     trace: list[dict[str, str]] = []
+    trace_event_count = 0
     mode_token = set_run_mode(run_mode)
     tenant_token = set_tenant_id(tenant_id)
     workflow_token = set_workflow_id(None)
@@ -155,6 +190,8 @@ async def run_agent_task(
         # response. Recover the context-bound id when it stops after the
         # source inspection tool, so a real change cannot be orphaned.
         workflow_id = _workflow_id_from_turn(workflow_id)
+        _ensure_state_verification(workflow_id, tool_calls, trace)
+        trace_event_count = event_count
     finally:
         reset_run_mode(mode_token)
         reset_tenant_id(tenant_token)
@@ -184,8 +221,12 @@ async def run_agent_task(
             }
         else:
             if internal_context is not None:
+                event_count_before_context = len(state.events)
                 workflow_store.attach_internal_context(state, internal_context)
                 data_mode = state.data_mode
+                trace_event_count += max(
+                    0, len(state.events) - event_count_before_context
+                )
                 persist_workflow(state)
             try:
                 structured = await analyze_workflow(state)
@@ -201,7 +242,7 @@ async def run_agent_task(
                 state.agent_trace = _agent_trace_payload(
                     started_at=started_at,
                     tool_calls=trace,
-                    event_count=event_count,
+                    event_count=trace_event_count,
                     analysis_info=analysis_info,
                 )
                 persist_workflow(state)
@@ -214,7 +255,7 @@ async def run_agent_task(
                 state.agent_trace = _agent_trace_payload(
                     started_at=started_at,
                     tool_calls=trace,
-                    event_count=event_count,
+                    event_count=trace_event_count,
                     analysis_info=analysis_info,
                 )
                 persist_workflow(state)
@@ -224,7 +265,7 @@ async def run_agent_task(
                     copilot, policy, internal_context=state.internal_context
                 )
             except AnalysisUnavailable as exc:
-                if run_mode != "demo":
+                if run_mode not in {"demo", "tenant_demo"}:
                     raise
                 fallback = fallback_copilot(state)
                 decision_info = decision_trace(
@@ -237,7 +278,7 @@ async def run_agent_task(
             state.agent_trace = _agent_trace_payload(
                 started_at=started_at,
                 tool_calls=trace,
-                event_count=event_count,
+                event_count=trace_event_count,
                 analysis_info=analysis_info,
                 decision_info=decision_info,
             )
@@ -256,7 +297,7 @@ async def run_agent_task(
     return {
         "session_id": session.id,
         "response": final_text,
-        "event_count": event_count,
+        "event_count": trace_event_count,
         "tool_calls": tool_calls,
         "model": root_agent.model,
         "execution_mode": "google_adk",
@@ -273,7 +314,7 @@ async def run_agent_task(
         "agent_trace": _agent_trace_payload(
             started_at=started_at,
             tool_calls=trace,
-            event_count=event_count,
+            event_count=trace_event_count,
             analysis_info=analysis_info,
             decision_info=decision_info,
         ),

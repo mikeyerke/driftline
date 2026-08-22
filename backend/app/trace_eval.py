@@ -303,7 +303,15 @@ def _safety_source_provenance(trace: Mapping[str, Any]) -> tuple[bool, str]:
         and len(previous_snapshot_hash) == 64
         and snapshot_hash != previous_snapshot_hash
         and str(trace.get("data_mode", ""))
-        in {"public_source", "synthetic_demo", "synthetic_tenant_demo", "operator_registered_public"}
+        in {
+            "public_source",
+            "synthetic_demo",
+            "synthetic_tenant_demo",
+            "operator_registered_public",
+            # Aggregate connector context changes the workflow context mode,
+            # not the provenance of its public/synthetic source snapshots.
+            "connected_internal_data",
+        }
     )
     if passed:
         return True, "The change is tied to a timestamped, non-duplicate before/after snapshot."

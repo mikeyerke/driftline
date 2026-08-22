@@ -204,6 +204,25 @@ def test_gate_rejects_missing_source_snapshot_provenance() -> None:
     assert report["gate_status"] == "fail"
 
 
+def test_gate_accepts_aggregate_context_mode_for_source_provenance() -> None:
+    trace = build_quality_fixture()
+    trace["data_mode"] = "connected_internal_data"
+
+    report = run_quality_gate(
+        trace,
+        release_sha="d" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+    )
+
+    provenance_case = next(
+        case
+        for case in report["cases"]
+        if case["case_id"] == "safety_source_provenance"
+    )
+    assert provenance_case["status"] == "pass"
+
+
 def test_gate_rejects_unstable_change_card_identity() -> None:
     previous = run_quality_gate(
         build_quality_fixture(),
