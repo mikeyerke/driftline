@@ -2116,6 +2116,21 @@ def _safe_salesforce_health_objects(value: object) -> list[dict[str, object]]:
     )
 
 
+def _salesforce_aggregate_read_is_complete(
+    connection: dict[str, object], connected: bool, persisted_health: str
+) -> bool:
+    """Require the full bounded object allowlist before displaying proof."""
+    objects = _safe_salesforce_health_objects(connection.get("health_objects"))
+    return bool(
+        connected
+        and persisted_health == "connected_read_only"
+        and connection.get("health_checked_at")
+        and len(objects) == len(_SALESFORCE_OBJECT_ALLOWLIST)
+        and {str(item["object"]) for item in objects}
+        == set(_SALESFORCE_OBJECT_ALLOWLIST)
+    )
+
+
 def _record_salesforce_health_status(
     tenant_id: str,
     status: str,
@@ -2295,6 +2310,16 @@ def _salesforce_status_payload(tenant_id: str) -> dict[str, object]:
         if connected
         else readiness.get("status", "not_configured")
     )
+    aggregate_read_verified = _salesforce_aggregate_read_is_complete(
+        connection, connected, persisted_health
+    )
+    aggregate_read_status = (
+        "verified"
+        if aggregate_read_verified
+        else "unverified"
+        if connected and persisted_health == "connected_read_only"
+        else persisted_health or "not_run"
+    )
     return {
         "tenant_id": tenant_id,
         "connector": "salesforce",
@@ -2313,25 +2338,18 @@ def _salesforce_status_payload(tenant_id: str) -> dict[str, object]:
         "verified_at": binding.get("verified_at") if connected else None,
         "health_checked_at": connection.get("health_checked_at") if connected else None,
         "health_reason": connection.get("health_reason") if status == "reauthorization_required" else None,
-        "aggregate_read_verified": bool(
-            connected
-            and persisted_health == "connected_read_only"
-            and connection.get("health_checked_at")
-        ),
-        "aggregate_read_status": (
-            "verified"
-            if connected and persisted_health == "connected_read_only" and connection.get("health_checked_at")
-            else persisted_health or "not_run"
-        ),
+        "aggregate_read_verified": aggregate_read_verified,
+        "aggregate_read_status": aggregate_read_status,
         "aggregate_read_verified_at": (
             connection.get("health_checked_at")
-            if connected and persisted_health == "connected_read_only"
+            if aggregate_read_verified
             else None
         ),
         "aggregate_read_objects": _safe_salesforce_health_objects(
             connection.get("health_objects")
         ),
-        "aggregate_read_reason": connection.get("health_reason"),
+        "aggregate_read_reason": connection.get("health_reason")
+        or ("allowlist_incomplete" if aggregate_read_status == "unverified" else None),
         "credential_values_exposed": False,
     }
 
@@ -2437,7 +2455,11 @@ def salesforce_oauth_callback(
         if health.get("status") != "connected_read_only":
             raise ConnectorError("salesforce_aggregate_read_unverified")
         health_objects = _safe_salesforce_health_objects(health.get("objects"))
-        if len(health_objects) != len(_SALESFORCE_OBJECT_ALLOWLIST):
+        if (
+            len(health_objects) != len(_SALESFORCE_OBJECT_ALLOWLIST)
+            or {str(item["object"]) for item in health_objects}
+            != set(_SALESFORCE_OBJECT_ALLOWLIST)
+        ):
             raise ConnectorError("salesforce_aggregate_read_unverified")
 
         secret_name = _salesforce_secret_name(tenant_id)
