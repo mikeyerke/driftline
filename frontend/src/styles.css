@@ -437,6 +437,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
  .registry-health-result.unchanged { color: var(--green) !important; }
  .registry-health-result.changed { color: var(--orange) !important; }
  .registry-health-card.healthy { border-color: #b9dfc9; background: #f6fcf8; }.registry-health-card.healthy > span { color: var(--green); }
+ .registry-health-card.due { border-color: #eed28d; background: #fff9e9; }.registry-health-card.due > span { color: #8a6200; }
  .registry-health-card.stale, .registry-health-card.synthetic_only { border-color: #eed28d; background: #fff9e9; }.registry-health-card.stale > span, .registry-health-card.synthetic_only > span { color: #8a6200; }
 .registry-health-card.needs_baseline { border-color: #c7d9fa; background: var(--blue-soft); }.registry-health-card.needs_baseline > span { color: var(--blue); }
 .registry-health-card.checking { border-color: #c7d9fa; background: var(--blue-soft); }.registry-health-card.checking > span { color: var(--blue); }

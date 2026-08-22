@@ -394,6 +394,8 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert registry_payload["append_only"] is True
     assert registry_payload["summary"]["total"] == 5
     assert registry_payload["summary"]["source_failed"] == 0
+    assert "due" in registry_payload["summary"]
+    assert all("cadence_due" in item for item in registry_payload["sources"])
     assert all(
         "token" not in str(item).casefold() for item in registry_payload["sources"]
     )

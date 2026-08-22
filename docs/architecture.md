@@ -52,6 +52,8 @@ one source. A source's observation cadence is separate from its freshness SLA;
 the scheduler skips healthy sources until their cadence is due, retries
 baselines/failures, and round-robins due tenant buckets before applying the
 global cap. Deferred sources return their next due time/reason. Scheduler
+health also exposes `cadence_due`, so a healthy-but-due source is visible
+without being misreported as stale. Scheduler
 delivery is at-least-once, so the service checks the
 durable in-flight job ledger before enqueueing a source and reports a
 deduplicated no-op instead of launching duplicate model work. The deterministic

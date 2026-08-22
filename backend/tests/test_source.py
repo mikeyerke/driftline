@@ -224,6 +224,12 @@ def test_source_registry_next_due_uses_observation_cadence_not_staleness_sla(mon
     assert blog["cadence"] == "24h"
     assert blog["cadence_hours"] == 24
     assert blog["next_due_at"] == "2026-01-02T00:00:00+00:00"
+    assert blog["cadence_due"] is False
+
+    due_health = source.source_registry_health(now=datetime(2026, 1, 2, tzinfo=UTC))
+    due_blog = next(item for item in due_health if item["source_id"] == "competitor/blog")
+    assert due_blog["status"] == "healthy"
+    assert due_blog["cadence_due"] is True
     definition = source.SOURCE_DEFINITIONS["competitor/pricing"]
     source._record_source_failure(
         "competitor/pricing",

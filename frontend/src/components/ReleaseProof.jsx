@@ -34,7 +34,7 @@ export default function ReleaseProof() {
         : "Blocked";
   const GateIcon = passed ? CheckCircle2 : blocked ? XCircle : ShieldCheck;
   const monitorLabel = monitor
-    ? `${monitor.healthy || 0}/${monitor.total || 0} healthy`
+    ? `${monitor.healthy || 0}/${monitor.total || 0} healthy${monitor.due ? ` · ${monitor.due} due` : ""}`
     : monitorLoading
       ? "Checking"
       : "Unavailable";

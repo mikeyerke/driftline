@@ -1129,6 +1129,14 @@ def source_registry_health(
         next_due = (
             retrieved + timedelta(hours=cadence_hours)
         ).isoformat() if retrieved and enabled else None
+        next_due_dt = _parse_iso(next_due)
+        cadence_due = bool(
+            enabled
+            and (
+                status in {"needs_baseline", "stale", "source_failed", "synthetic_only"}
+                or (next_due_dt is not None and next_due_dt <= current)
+            )
+        )
         health.append(
             {
                 "source_id": source_id,
@@ -1149,6 +1157,7 @@ def source_registry_health(
                 "last_failure_reason": failure.get("reason") if failure else None,
                 "age_seconds": age_seconds,
                 "next_due_at": next_due,
+                "cadence_due": cadence_due,
                 "source_url": definition["url"],
                 "allowlist": definition.get("allowlist", "pinned raw GitHub fixture only"),
                 "enabled": enabled,

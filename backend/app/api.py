@@ -2726,6 +2726,7 @@ def get_monitor_registry(
                 item["status"] == "source_failed" for item in sources
             ),
             "paused": sum(item["status"] == "paused" for item in sources),
+            "due": sum(bool(item.get("cadence_due")) for item in sources),
         },
     }
 

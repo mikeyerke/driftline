@@ -109,7 +109,8 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
               const unavailable = sourceHealthState === "unavailable";
               const deferred = !nearViewport;
               const status = deferred ? "deferred" : loading ? "checking" : unavailable ? "unavailable" : health?.status || "needs_baseline";
-              const statusLabel = deferred ? "Loads when in view" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status === "paused" ? "Monitoring paused" : status.replaceAll("_", " ");
+              const cadenceDue = Boolean(health?.cadence_due);
+              const statusLabel = deferred ? "Loads when in view" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status === "paused" ? "Monitoring paused" : status === "healthy" && cadenceDue ? "Due for check" : status.replaceAll("_", " ");
               const freshness = deferred ? "Freshness read is deferred to keep the console fast" : loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : status === "paused" ? `Paused${health?.pause_reason ? ` · ${health.pause_reason}` : " · resume when ready"}` : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
               const observationResult = deferred || loading || unavailable
                 ? null
@@ -122,11 +123,11 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
                       : health?.last_observation_status === "observed"
                         ? "Last check · observed"
                         : null;
-              const nextDue = health?.next_due_at ? `Next due ${new Date(health.next_due_at).toLocaleString()}` : `Cadence ${source.cadence || "scheduled"}`;
+              const nextDue = cadenceDue ? "Due for scheduled check" : health?.next_due_at ? `Next due ${new Date(health.next_due_at).toLocaleString()}` : `Cadence ${source.cadence || "scheduled"}`;
               const isCustomSource = source.source_kind === "operator_registered_public";
               const isPaused = status === "paused" || source.enabled === false;
               const editingPause = lifecycleSourceId === source.source_id && !isPaused;
-              return <div className={`registry-health-card ${status}`} key={source.source_id}>
+              return <div className={`registry-health-card ${status}${status === "healthy" && cadenceDue ? " due" : ""}`} key={source.source_id}>
                 <span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span>
                 <strong>{source.name}</strong>
                 <small>{freshness}</small>
