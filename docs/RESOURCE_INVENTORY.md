@@ -33,7 +33,7 @@ Checked `2026-08-22T11:41Z` with the active gcloud project set to
   `dee6fb48-34ad-4df5-83b4-bf0c08882a65`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-0207d9727cab` with a passing
+- `/api/evals/latest` reports evaluation `eval-0d551e255d83` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
@@ -69,12 +69,12 @@ Checked `2026-08-22T11:41Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-cfcea779dab5` / workflow `b64e3328-4a04-4878-b5a7-41f6006dabc1` at
+  `job-a8769bb8d23f` / workflow `433bb117-3d64-45e1-9d5e-469141c00e6c` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier created
-  job `job-cd93254fb459` / workflow
-  `355a40bd-76f0-482f-9ca6-5a9ac52a8906`, persisted the packet, approved and
+  job `job-8974eef41f3b` / workflow
+  `b7c9d04c-6979-42ff-abd2-37ba2563f8dc`, persisted the packet, approved and
   completed one owner action, then reversed the operational output and
   recorded `external_write=false` / `external_systems_changed=false`. The
   bounded value proof retained two historical completions and 3.7-second

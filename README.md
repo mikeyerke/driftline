@@ -579,7 +579,7 @@ The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
 before this release is considered healthy. The latest live report
-`eval-0207d9727cab` remained stable against the prior report with 100% safety,
+`eval-0d551e255d83` remained stable against the prior report with 100% safety,
 100% usefulness, 100% overall, and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
@@ -622,8 +622,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-cfcea779dab5` / `b64e3328-4a04-4878-b5a7-41f6006dabc1` for the live agent
-and `job-cd93254fb459` / `355a40bd-76f0-482f-9ca6-5a9ac52a8906` for the paired
+`job-a8769bb8d23f` / `433bb117-3d64-45e1-9d5e-469141c00e6c` for the live agent
+and `job-8974eef41f3b` / `b7c9d04c-6979-42ff-abd2-37ba2563f8dc` for the paired
 approval/undo run. The approval/undo path persisted the packet, approved and
 completed one owner action, then reversed the operational output with no
 external connector write. The bounded value proof retains

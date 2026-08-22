@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-0207d9727cab`, stable against the prior report with 100% safety,
+  `eval-0d551e255d83`, stable against the prior report with 100% safety,
   100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -50,11 +50,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   Trace-to-eval, Value proof, and Change memory all hydrated instead of
   remaining behind an in-view placeholder. Desktop and 500px mobile widths had
   no horizontal overflow.
-- `scripts/verify_live_agent.sh`: fresh job `job-cfcea779dab5`, workflow
-  `b64e3328-4a04-4878-b5a7-41f6006dabc1`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-a8769bb8d23f`, workflow
+  `433bb117-3d64-45e1-9d5e-469141c00e6c`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-cd93254fb459`,
-  workflow `355a40bd-76f0-482f-9ca6-5a9ac52a8906` persisted, approved one
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-8974eef41f3b`,
+  workflow `b7c9d04c-6979-42ff-abd2-37ba2563f8dc` persisted, approved one
   owner action, recorded its completion, and then reversed it with
   `external_write=false` and `external_systems_changed=false`. The verifier
   fails closed unless the

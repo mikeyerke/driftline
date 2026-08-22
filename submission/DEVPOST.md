@@ -162,8 +162,8 @@ claimed until fresh consent succeeds.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-cfcea779dab5` / workflow
-  `b64e3328-4a04-4878-b5a7-41f6006dabc1` returned `needs_approval`,
+- Live agent check: fresh job `job-a8769bb8d23f` / workflow
+  `433bb117-3d64-45e1-9d5e-469141c00e6c` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -171,7 +171,7 @@ claimed until fresh consent succeeds.
   Decision Copilot, and the approval gate; the scripted live proof above is
   the durable source of the current job/workflow identifiers.
 - The paired current-revision approval/undo verifier created job
-  `job-cd93254fb459` / workflow `355a40bd-76f0-482f-9ca6-5a9ac52a8906` and
+  `job-8974eef41f3b` / workflow `b7c9d04c-6979-42ff-abd2-37ba2563f8dc` and
   completed scan -> approval -> owner claim -> owner completion -> undo. The
   packet persisted and its operational output was reversed; Jira, Confluence,
   and Slack remained `external_write=false` in the public packet-safe lane.
@@ -187,7 +187,7 @@ claimed until fresh consent succeeds.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-0207d9727cab` passed the 14-case
+- Trace-to-eval check: live evaluation `eval-0d551e255d83` passed the 14-case
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining stable against the prior report with no case
   regressions; the report
