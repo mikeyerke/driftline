@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `1685306bb238ecac88b2109801d508a2191977bb`, Cloud Run
-`driftline-00199-xn6`, Cloud Build
-`3a52b619-2376-4124-a906-7dcb9d631a71`, project
+Current release: source `abaea13bbe56b5ab79d1f223712cb096eba1359f`, Cloud Run
+`driftline-00200-gh9`, Cloud Build
+`6ef2ca0d-25bc-40d9-8dad-37954338fa03`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-8661d3c2b095`, stable against the prior report with 100% safety,
+  `eval-c03781a1283c`, stable against the prior report with 100% safety,
   100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -46,11 +46,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   after deferred panels mounted: each target landed below the sticky header,
   `settings-section` and `deployment-section` were each unique, and no console
   messages were emitted.
-- `scripts/verify_live_agent.sh`: fresh job `job-618654d9c4e7`, workflow
-  `0cbd39fa-c907-41bc-9143-1045046050d6`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-e7b19f23823c`, workflow
+  `67847ce7-0752-4a34-9db2-504fda43c99d`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-894a63cffdf3`,
-  workflow `184a0b37-cc90-4d27-806f-97462573a52c` persisted and
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-da7846a17827`,
+  workflow `20823992-8825-45ab-b335-4b4f16a23f16` persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
@@ -120,7 +120,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   with the exact Artifact Registry image tag and verifies the public health
   SHA/build contract before declaring the build successful.
 - Current immutable image digest:
-  `sha256:b9e47bdf856ab88806cb7adc5862945e08dd052bfe737816b2a64d4a680f7c20`.
+  `sha256:f173a7bd35d8e92e48fe6c569ca9779d860ddfaf67147f45abae6bf89dd036ad`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
@@ -150,7 +150,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 ### Live evidence
 
 - 290 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32565860581`; the frozen
+  and repository hygiene pass in GitHub Actions run `32567225333`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).
