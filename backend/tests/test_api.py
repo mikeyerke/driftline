@@ -1190,6 +1190,54 @@ def test_salesforce_context_surfaces_reauthorization_required(monkeypatch) -> No
     assert payload["reason"] == "refresh_token_rejected"
 
 
+def test_salesforce_health_returns_reauthorization_state(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *_args, **_kwargs: {
+            "tenant_id": "salesforce-acme",
+            "role": "owner",
+            "identity": "signed_operator",
+        },
+    )
+    monkeypatch.setattr(api, "_reserve_connector_call", lambda _tenant: True)
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {
+                "status": "connected_read_only",
+                "instance_url": "https://acme.my.salesforce.com",
+            },
+            {"status": "active"},
+            True,
+        ),
+    )
+    monkeypatch.setattr(api.SalesforceConfig, "from_env", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        api,
+        "resolve_tenant_credential",
+        lambda *_args, **_kwargs: SimpleNamespace(value="refresh-token"),
+    )
+    monkeypatch.setattr(
+        api,
+        "refresh_salesforce_token",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            SalesforceReauthorizationRequired("salesforce_reauthorization_required")
+        ),
+    )
+
+    payload = api.salesforce_health(
+        api.SalesforceHealthRequest(operator="Owner", tenant_id="salesforce-acme")
+    )
+
+    assert payload["status"] == "reauthorization_required"
+    assert payload["tenant_id"] == "salesforce-acme"
+    assert payload["external_read"] is False
+    assert payload["external_write"] is False
+    assert payload["authorization_required"] is True
+
+
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
     monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
