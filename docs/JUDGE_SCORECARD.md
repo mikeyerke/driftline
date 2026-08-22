@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `1868e2f63e14dd290a54cd24bd2c6711e756dfd5`, Cloud Run
-`driftline-00157-zcm`, Cloud Build
-`a95212e2-28e8-4195-9a0d-5e5f760a513e`, project
+Current release: source `cf33cff57d27a63cc471a37765889bf90464533b`, Cloud Run
+`driftline-00158-kcs`, Cloud Build
+`24cadc51-dc4b-4df0-9b3e-9f84a86fa2be`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -32,11 +32,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-6794ff30f254`, workflow
-  `7bac4743-4651-48e4-a5fb-deb9f5a6f7af`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-912645b844cb`, workflow
+  `0b760680-73e8-4699-867f-925d0d04f239`, five audit events, four artifacts,
   two decision options, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-2c844100a597`,
-  workflow `4f146c18-f8a1-4222-ba8b-e70c480e47bf`; the packet persisted and
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-c5b77e0065a0`,
+  workflow `84d45676-2852-47e9-b9ff-adfe7faad972`; the packet persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
@@ -45,11 +45,14 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   OIDC-authenticated HTTP 200 `/api/scheduler/tick` request on the serving
   revision; healthy sources were correctly deferred until their cadence due
   time rather than spending another model call.
-- A second direct Scheduler run at `2026-08-21T20:31:32Z` selected only the two
-  due sources, completed monitor jobs `job-ab0c901478e7` and
-  `job-5b317c2f1c7d`, advanced their Firestore observation timestamps, and
-  left the other three sources deferred. The run recorded zero dead-lettered
-  tasks and zero Cloud Run `ERROR` logs.
+- A post-deploy direct Scheduler run at `2026-08-22T01:16:26Z` returned an
+  OIDC-authenticated HTTP 200 on `driftline-00158-kcs`; the registry then
+  reported all five bounded sources healthy with zero stale or failed entries.
+  Sources not due at that moment were deferred by cadence as designed.
+- A fresh post-deploy log search found no `Detected filter using positional
+  arguments` warning after the Firestore `FieldFilter` cleanup; the only
+  recent warning was the known ADK response-part diagnostic, with zero
+  application errors.
 - The same deployed agent handled three additional bounded source families:
   competitor offerings (`job-82ac284398b6`, workflow
   `a1190503-0c2f-4182-83c9-22e4879fc6e1`), competitor narrative/blog
@@ -87,7 +90,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
   membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
-  `sha256:8bf4759c528f000a1637d1bad6bd85ee1139f4ae81da2e5dfab57411ee54415e`.
+  `sha256:dc6d25cbfdfeff8d4effde15182d240d4d817be1668829e1fded6101a47fed9f`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
@@ -117,7 +120,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 ### Live evidence
 
 - 265 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32541994859`; the frozen
+  and repository hygiene pass in GitHub Actions run `32542656282`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).
