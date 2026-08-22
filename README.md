@@ -546,13 +546,13 @@ Cloud Build now has a post-deploy smoke gate: it requires 100% Cloud Run
 traffic and verifies that the public `/health` response carries the exact
 release SHA and build ID before the build can succeed. The current serving
 release is source commit
-`dc4ab7f31cb0a887b680d8f6d4cc28f0027c1727`, Cloud Build
-`3d4aa211-6aa2-43b3-8af7-61b0369122cb`, and Cloud Run revision
-`driftline-00184-njf` at 100% traffic. Its immutable image digest is recorded
+`561d0b5d8abb41901552a6adecd16dbf3f353600`, Cloud Build
+`a85d9e71-54d0-43c4-9d46-1a62750b92ea`, and Cloud Run revision
+`driftline-00186-pbs` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32559253255` passed the repository gates, including the
+GitHub Actions run `32559937167` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -571,7 +571,7 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates eleven independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-81139fb03ac1` is stable against
+latest live report `eval-ef9d27f3cf5a` is stable against
 `eval-bf02e828edec` with zero score deltas and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
@@ -611,11 +611,11 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-1b84215d788a` / `dab83a06-39f8-4870-b902-f11e0c9984d6` for the live agent
-and `job-f4b59eaec4b2` / `b89639be-8ce2-40ec-a606-141f20dc62bc` for the paired
-approval/undo run. Both returned a passing trace evaluation;
-the approval/undo path persisted and reversed the packet with no external
-connector write.
+`job-dd9b4f913305` / `756f6f09-728e-4773-8415-db5cb318c96b` for the live agent
+and the paired approval/undo run on that same workflow. The approval/undo path
+persisted and reversed the packet with no external connector write. The prior
+job/workflow identifiers remain in the append-only inventory as historical
+evidence.
 `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were

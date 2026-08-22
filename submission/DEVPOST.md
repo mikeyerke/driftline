@@ -131,11 +131,11 @@ its final live proof requires an operator Google identity in the browser.
 ## Verified release evidence
 
 The current serving release is source commit
-`dc4ab7f31cb0a887b680d8f6d4cc28f0027c1727`, Cloud Build
-`3d4aa211-6aa2-43b3-8af7-61b0369122cb`, and Cloud Run revision
-`driftline-00184-njf` at 100% traffic in project `driftline-hackathon-2026`.
+`561d0b5d8abb41901552a6adecd16dbf3f353600`, Cloud Build
+`a85d9e71-54d0-43c4-9d46-1a62750b92ea`, and Cloud Run revision
+`driftline-00186-pbs` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:7d037b68cabb734900464a6f88810d27d55e6b0dda99db59041834f6b68e7cab`.
+`sha256:a13b16e0a64f5c0a153830a21944d3758cbff138275339fbd6aadda6e4668d16`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -153,14 +153,14 @@ claimed until fresh consent succeeds.
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32559253255` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32559937167` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-1b84215d788a` / workflow
-  `dab83a06-39f8-4870-b902-f11e0c9984d6` returned `needs_approval`,
+- Live agent check: fresh job `job-dd9b4f913305` / workflow
+  `756f6f09-728e-4773-8415-db5cb318c96b` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -177,7 +177,7 @@ claimed until fresh consent succeeds.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-81139fb03ac1` passed the
+- Trace-to-eval check: live evaluation `eval-ef9d27f3cf5a` passed the
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining `stable` against prior evaluation `eval-bf02e828edec` with no case
   regressions; the report
