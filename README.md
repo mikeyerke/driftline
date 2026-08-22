@@ -659,6 +659,9 @@ Signed operators can also start a bounded **Check now** directly from a source
 health card. The control routes registered public URLs through the monitor job
 mode, routes pinned fixtures through the tenant demo mode, and remains disabled
 for paused sources; anonymous visitors never receive this mutation control.
+When the run reaches `baseline_established`, `unchanged`, or `changed`, the
+console refreshes the source-health card immediately so freshness, last-check
+disposition, and next-due state cannot lag behind the durable monitor result.
 
 The authenticated operator lane now preserves the short-lived Google token and
 membership list when switching between permitted tenants. The selected tenant
