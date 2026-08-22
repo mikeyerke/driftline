@@ -13,7 +13,8 @@ function aggregateLabel(system, data = {}) {
   if (system === "GitHub" && data.open_issue_count !== undefined) return `${data.open_issue_count} issues · ${data.open_pull_request_count || 0} PRs`;
   if (system === "Salesforce" && Array.isArray(data.objects)) {
     const total = data.objects.reduce((sum, item) => sum + Number(item.total || 0), 0);
-    return `${data.objects.length} objects · ${total} records`;
+    const failed = Array.isArray(data.failed_objects) ? data.failed_objects.length : 0;
+    return failed ? `${data.objects.length}/${data.objects.length + failed} objects · read incomplete` : `${data.objects.length} objects · ${total} records`;
   }
   if (data.authorization_required) return "OAuth consent required";
   if (data.status === "not_configured") return "Not configured";

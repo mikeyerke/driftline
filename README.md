@@ -466,8 +466,11 @@ persisting arbitrary visitor text. Claim, complete, fail, retry, and reverse act
 same boundary for tenant-bound workflows. Salesforce now has a deployed
 read-only OAuth lane,
 tenant-scoped Secret Manager storage, and an allowlist for product, pricebook,
-and opportunity objects. It has no write path and remains disabled until a
-real Salesforce org authorizes the isolated tenant. See
+and opportunity objects. The callback and explicit health probe require all
+three aggregate `COUNT()` reads; a partial probe is shown as a diagnostic with
+the failing object, but remains `external_read=false` and is never used as
+internal context. It has no write path and remains disabled until a real
+Salesforce org authorizes the isolated tenant. See
 `docs/SALESFORCE_RUNBOOK.md` and `docs/CONNECTOR_SECURITY.md` for setup and
 lane boundaries.
 

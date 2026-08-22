@@ -951,3 +951,37 @@ def test_salesforce_health_uses_aggregate_count_queries_only() -> None:
         query = unquote_plus(request.full_url)
         assert "SELECT COUNT() FROM" in query
         assert "SELECT Id" not in query
+
+
+def test_salesforce_health_reports_partial_object_failures_without_provider_body() -> None:
+    requests = []
+
+    def opener(request, timeout):
+        requests.append(request)
+        if "PricebookEntry" in unquote_plus(request.full_url):
+            raise HTTPError(
+                request.full_url,
+                403,
+                "Forbidden",
+                {},
+                BytesIO(b'{"errorCode":"INSUFFICIENT_ACCESS_OR_READONLY"}'),
+            )
+        return _Response({"totalSize": 4, "records": []})
+
+    client = SalesforceReadOnlyClient(
+        SalesforceConfig(enabled=True, api_version="v61.0"),
+        access_token="tenant-access-token",
+        instance_url="https://acme.my.salesforce.com",
+        opener=opener,
+    )
+
+    result = client.health_summary()
+
+    assert result["status"] == "failed"
+    assert result["external_read"] is False
+    assert [item["object"] for item in result["objects"]] == ["Product2", "Opportunity"]
+    assert result["failed_objects"] == [
+        {"object": "PricebookEntry", "reason": "salesforce_query_failed"}
+    ]
+    assert "INSUFFICIENT_ACCESS" not in str(result)
+    assert len(requests) == 3

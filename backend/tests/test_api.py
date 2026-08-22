@@ -1360,6 +1360,59 @@ def test_salesforce_context_returns_aggregate_health_only_after_binding(monkeypa
     assert "short-lived-access-token" not in str(payload)
 
 
+def test_salesforce_partial_health_never_enters_internal_context(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {"status": "oauth_ready", "mode": "awaiting_authorization"},
+    )
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {"status": "connected_read_only", "instance_url": "https://acme.my.salesforce.com"},
+            {"status": "active"},
+            True,
+        ),
+    )
+    monkeypatch.setattr(api.SalesforceConfig, "from_env", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        api,
+        "resolve_tenant_credential",
+        lambda *_args, **_kwargs: SimpleNamespace(value="refresh-token"),
+    )
+    monkeypatch.setattr(
+        api,
+        "refresh_salesforce_token",
+        lambda *_args, **_kwargs: {"access_token": "short-lived-access-token"},
+    )
+
+    class FakeSalesforceClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def health_summary(self):
+            return {
+                "status": "failed",
+                "objects": [{"object": "Product2", "total": 3, "fields": []}],
+                "failed_objects": [{"object": "PricebookEntry", "reason": "salesforce_query_failed"}],
+                "reason": "one_or_more_allowlisted_objects_failed",
+                "external_read": False,
+                "external_write": False,
+            }
+
+    monkeypatch.setattr(api, "SalesforceReadOnlyClient", FakeSalesforceClient)
+
+    payload = api._salesforce_context_info("salesforce-acme")
+
+    assert payload["status"] == "failed"
+    assert payload["external_read"] is False
+    assert payload["failed_objects"][0]["object"] == "PricebookEntry"
+    assert "refresh-token" not in str(payload)
+    assert "short-lived-access-token" not in str(payload)
+
+
 def test_salesforce_context_reads_refresh_token_through_tenant_identity(monkeypatch) -> None:
     """Protect the production path from bypassing tenant Secret Manager IAM."""
     monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")

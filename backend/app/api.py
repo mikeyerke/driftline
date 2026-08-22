@@ -2151,6 +2151,25 @@ def _safe_salesforce_health_objects(value: object) -> list[dict[str, object]]:
     )
 
 
+def _safe_salesforce_health_failures(value: object) -> list[dict[str, str]]:
+    """Keep per-object probe diagnostics bounded and provider-response free."""
+    if not isinstance(value, list):
+        return []
+    safe: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        object_name = str(item.get("object", "")).strip()
+        if object_name not in _SALESFORCE_OBJECT_ALLOWLIST:
+            continue
+        reason = str(item.get("reason", "salesforce_query_failed")).strip()
+        safe.append({"object": object_name, "reason": reason[:120]})
+    return sorted(
+        safe,
+        key=lambda item: _SALESFORCE_OBJECT_ALLOWLIST.index(str(item["object"])),
+    )
+
+
 def _salesforce_aggregate_read_is_complete(
     connection: dict[str, object], connected: bool, persisted_health: str
 ) -> bool:
@@ -2172,6 +2191,7 @@ def _record_salesforce_health_status(
     *,
     reason: str | None = None,
     objects: object = None,
+    failures: object = None,
 ) -> None:
     """Persist bounded Salesforce health metadata without CRM or credentials.
 
@@ -2196,6 +2216,12 @@ def _record_salesforce_health_status(
             payload.pop("health_reason", None)
         if objects is not None:
             payload["health_objects"] = _safe_salesforce_health_objects(objects)
+        if failures is not None:
+            safe_failures = _safe_salesforce_health_failures(failures)
+            if safe_failures:
+                payload["health_failures"] = safe_failures
+            else:
+                payload.pop("health_failures", None)
         persist_salesforce_connection(payload)
     except Exception as exc:  # noqa: BLE001  # metadata must not mask provider health.
         logger.warning(
@@ -2239,16 +2265,22 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
             access_token=str(token["access_token"]),
             instance_url=str(connection["instance_url"]),
         )
+        health = client.health_summary()
         summary = {
-            **client.health_summary(),
+            **health,
             "scope": "read_only_crm",
-            "external_read": True,
+            # A partial probe is useful diagnostics, not verified context.
+            # Keep it out of the Change Card and model prompt until every
+            # allowlisted object succeeds.
+            "external_read": health.get("status") == "connected_read_only",
             "redaction": "aggregate_metadata_only",
         }
         _record_salesforce_health_status(
             tenant_id,
             str(summary.get("status", "connected_read_only")),
+            reason=summary.get("reason"),
             objects=summary.get("objects"),
+            failures=summary.get("failed_objects"),
         )
         return summary
     except (ConnectorError, CredentialBrokerError) as exc:
@@ -2382,6 +2414,9 @@ def _salesforce_status_payload(tenant_id: str) -> dict[str, object]:
         ),
         "aggregate_read_objects": _safe_salesforce_health_objects(
             connection.get("health_objects")
+        ),
+        "aggregate_read_failures": _safe_salesforce_health_failures(
+            connection.get("health_failures")
         ),
         "aggregate_read_reason": connection.get("health_reason")
         or ("allowlist_incomplete" if aggregate_read_status == "unverified" else None),
@@ -2608,7 +2643,9 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
         _record_salesforce_health_status(
             tenant_id,
             str(result.get("status", "connected_read_only")),
+            reason=result.get("reason"),
             objects=result.get("objects"),
+            failures=result.get("failed_objects"),
         )
         return {"tenant_id": tenant_id, **result}
     except (ConnectorError, CredentialBrokerError) as exc:

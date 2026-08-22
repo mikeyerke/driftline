@@ -682,3 +682,4 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .salesforce-read-proof { display: grid; gap: 3px; margin-top: 10px; padding: 9px 10px; border: 1px solid #f0dfb8; border-radius: 4px; background: #fffaf0; color: #8b6500; font-size: 10px; line-height: 1.35; }
 .salesforce-read-proof.verified { border-color: #b9e3ce; background: #f4fcf7; color: var(--green); }
 .salesforce-read-proof span { color: var(--muted); }
+.salesforce-read-partial { color: #8b6500; }

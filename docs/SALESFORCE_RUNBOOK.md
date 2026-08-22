@@ -58,7 +58,12 @@ provisions a tenant-scoped OAuth client and secret.
    `external_write=false`. The signed status and ops-summary routes also expose
    `aggregate_read_verified`, `aggregate_read_status`, and the bounded
    `aggregate_read_objects` proof; those fields are the evidence to use in a
-   deployment review.
+   deployment review. If only some objects can be read, the probe returns
+   `status=failed` plus a bounded `failed_objects` list (object name and stable
+   connector error code). Driftline keeps the successful counts as diagnostics,
+   but `external_read` stays false and no partial CRM context reaches a Change
+   Card or Gemini prompt. Fix the Salesforce permission or Connected App scope,
+   then rerun the full probe; do not treat a partial response as verification.
 
 ## Offboarding
 

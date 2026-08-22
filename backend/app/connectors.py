@@ -398,10 +398,42 @@ class SalesforceReadOnlyClient:
         }
 
     def health_summary(self) -> dict[str, Any]:
-        results = [self.query_summary(name) for name in self._QUERIES]
+        """Probe every allowlisted object and retain safe per-object failures.
+
+        The OAuth callback still requires a complete three-object read before
+        it can persist a refresh token or mark the connection active.  The
+        explicit operator health probe is more useful when it can explain a
+        partial permission/configuration failure without making the operator
+        guess which object blocked the aggregate proof.  Only stable internal
+        connector error codes cross this boundary; Salesforce response bodies
+        and credentials never do.
+        """
+        results: list[dict[str, Any]] = []
+        failures: list[dict[str, str]] = []
+        for object_name in self._QUERIES:
+            try:
+                results.append(self.query_summary(object_name))
+            except ConnectorError as exc:
+                failures.append(
+                    {
+                        "object": object_name,
+                        "reason": str(exc)[:120] or "salesforce_query_failed",
+                    }
+                )
+        if failures:
+            return {
+                "status": "failed",
+                "objects": results,
+                "failed_objects": failures,
+                "reason": "one_or_more_allowlisted_objects_failed",
+                "external_read": False,
+                "external_write": False,
+            }
         return {
             "status": "connected_read_only",
             "objects": results,
+            "failed_objects": [],
+            "external_read": True,
             "external_write": False,
         }
 
