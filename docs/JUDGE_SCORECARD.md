@@ -8,10 +8,10 @@ The exact serving release is verified at read time by
 `./scripts/verify_production.sh` and the public `/health` contract; this
 scorecard does not pretend that a copied revision ID remains current after a
 later commit. The latest live proof on 2026-08-22 is source
-`79517f2745ddaef3e3e190e515238c9d5c313c9e`, Cloud Run `driftline-00239-mht`,
-Cloud Build `f04a5791-e31c-4e31-859a-ff538ba97f96`, project
+`58afaa9a5bc94d3be02fac985e7c68207abfb746`, Cloud Run `driftline-00240-7qg`,
+Cloud Build `145e3ce9-376a-4e45-b1d5-4dd7a082c5ad`, project
 `driftline-hackathon-2026`, 100% traffic, image digest
-`sha256:2eb0b52fb62ad5a314abe40699e9e42038ab365c7c4b0cdeb4216d5cf73963be`.
+`sha256:2a9b6ce237a1b5f9ee6bc3c9436b2a2b23a112f28c5fb8d3db6e501976951d1b`.
 Use the live check after any later commit. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -38,7 +38,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest recorded live report snapshot is
-  `eval-7e503a13f893`, stable against the prior report with 100% safety,
+  `eval-3781a961036e`, stable against the prior report with 100% safety,
   100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -55,11 +55,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   Trace-to-eval, Value proof, and Change memory all hydrated instead of
   remaining behind an in-view placeholder. Desktop and 500px mobile widths had
   no horizontal overflow.
-- `scripts/verify_live_agent.sh`: fresh job `job-046e5d170c2f`, workflow
-  `14323bde-626a-4e87-8bfe-340711954425`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-17f83337c4b8`, workflow
+  `0ac5d4f9-71cb-47ff-8c64-821e1f9ad71f`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-109f783cf02f`,
-  workflow `e09ce290-8296-41ee-b1b6-28a38d4596d2` persisted, approved one
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-8f08d64a2939`,
+  workflow `a5ef3d5e-01d6-4a53-80ff-e81b0d2492b1` persisted, approved one
   owner action, recorded its completion, and then reversed it with
   `external_write=false` and `external_systems_changed=false`. The verifier
   fails closed unless the
@@ -71,6 +71,12 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   customer-outcome claim. The logged-out browser also keeps the reversed
   owner-action queue visible after **Reopen decision**, with four `Reversed`
   rows and a clear append-only history explanation.
+- The current public evaluation window reports 12 bounded workflows and 12
+  source observations, with 7 historical owner-action closures, approval
+  latency p50/p90 of 22.3s/132.9s, and owner-action cycle p50/p90 of
+  2.8s/18.8s. These are isolated Driftline operational records; current
+  completion is 0% after intentional undo, and none of these values is a
+  customer time-saved, revenue, retention, or willingness-to-pay claim.
 - A logged-out browser check on the current release changed the selector from
   a completed `competitor/offerings` workflow to `competitor/blog`. The old
   workflow and approval state disappeared immediately, the blog-specific
@@ -145,7 +151,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   with the exact Artifact Registry image tag and verifies the public health
   SHA/build contract before declaring the build successful.
 - Latest recorded immutable image digest snapshot:
-  `sha256:2eb0b52fb62ad5a314abe40699e9e42038ab365c7c4b0cdeb4216d5cf73963be`.
+  `sha256:2a9b6ce237a1b5f9ee6bc3c9436b2a2b23a112f28c5fb8d3db6e501976951d1b`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in

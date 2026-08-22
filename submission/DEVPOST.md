@@ -139,13 +139,12 @@ its final live proof requires an operator Google identity in the browser.
 The exact serving release is independently verifiable from the public
 `/health` response and `./scripts/verify_production.sh`; release IDs are not
 treated as permanently current just because they were copied into a document.
-The latest recorded release-proof snapshot before this documentation
-proof on 2026-08-22 is source commit
-`79517f2745ddaef3e3e190e515238c9d5c313c9e`, Cloud Build
-`f04a5791-e31c-4e31-859a-ff538ba97f96`, and Cloud Run revision
-`driftline-00239-mht` at 100% traffic in project `driftline-hackathon-2026`.
+The latest recorded release-proof snapshot on 2026-08-22 is source commit
+`58afaa9a5bc94d3be02fac985e7c68207abfb746`, Cloud Build
+`145e3ce9-376a-4e45-b1d5-4dd7a082c5ad`, and Cloud Run revision
+`driftline-00240-7qg` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable serving image digest is
-`sha256:2eb0b52fb62ad5a314abe40699e9e42038ab365c7c4b0cdeb4216d5cf73963be`.
+`sha256:2a9b6ce237a1b5f9ee6bc3c9436b2a2b23a112f28c5fb8d3db6e501976951d1b`.
 
 The public `/health` probe reports the full source SHA and Cloud Build ID, so a
 reviewer can independently trace the serving revision; rerun the check after
@@ -172,8 +171,8 @@ claimed until fresh consent succeeds.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-046e5d170c2f` / workflow
-  `14323bde-626a-4e87-8bfe-340711954425` returned `needs_approval`,
+- Live agent check: fresh job `job-17f83337c4b8` / workflow
+  `0ac5d4f9-71cb-47ff-8c64-821e1f9ad71f` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -181,7 +180,7 @@ claimed until fresh consent succeeds.
   Decision Copilot, and the approval gate; the scripted live proof above is
   the durable source of the current job/workflow identifiers.
 - The paired current-revision approval/undo verifier created job
-  `job-109f783cf02f` / workflow `e09ce290-8296-41ee-b1b6-28a38d4596d2` and
+  `job-8f08d64a2939` / workflow `a5ef3d5e-01d6-4a53-80ff-e81b0d2492b1` and
   completed scan -> approval -> owner claim -> owner completion -> undo. The
   packet persisted and its operational output was reversed; Jira, Confluence,
   and Slack remained `external_write=false` in the public packet-safe lane.
@@ -191,6 +190,12 @@ claimed until fresh consent succeeds.
   not customer outcome claims. The logged-out browser now keeps the reversed
   owner-action queue visible after undo, showing four `Reversed` rows and an
   explicit append-only history explanation.
+- The final public evaluation window contains 12 bounded workflows and 12
+  source observations, with 7 historical owner-action closures, approval
+  latency p50/p90 of 22.3s/132.9s, and owner-action cycle p50/p90 of
+  2.8s/18.8s. This is Driftline operational telemetry only; current completion
+  is 0% after the intentional undo and no customer ROI or revenue claim is
+  inferred.
 - A current-revision logged-out browser check also switched from a completed
   `competitor/offerings` run to `competitor/blog`; the old workflow and approval
   state cleared immediately and the blog-specific evidence preview appeared.
@@ -204,7 +209,7 @@ claimed until fresh consent succeeds.
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Trace-to-eval check: the latest recorded live evaluation snapshot
-  `eval-7e503a13f893` passed the 14-case
+  `eval-3781a961036e` passed the 14-case
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining stable against the prior report with no case
   regressions; the report
