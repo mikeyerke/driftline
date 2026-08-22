@@ -553,13 +553,13 @@ traffic, verifies that the serving revision's image digest matches the exact
 Artifact Registry image built for that Cloud Build, and verifies that the
 public `/health` response carries the exact release SHA and build ID before
 the build can succeed. The current serving release is source commit
-`0ace110da396e576f756230d540e2371234e9dca`, Cloud Build
-`2bfbf16c-5160-4063-9bbc-ab7e30ac9e4b`, and Cloud Run revision
-`driftline-00203-6rk` at 100% traffic. Its immutable image digest is recorded
+`109830999d3ad47177b77101c13600bd24410095`, Cloud Build
+`fe5dcaf4-4611-4369-9adf-eced54a3ea53`, and Cloud Run revision
+`driftline-00205-9ht` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32569196833` passed the repository gates, including the
+GitHub Actions run `32570037578` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -579,7 +579,7 @@ The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
 before this release is considered healthy. The latest live report
-`eval-1c9a18089500` remained stable against the prior report with 100% safety,
+`eval-e7bce63c637f` remained stable against the prior report with 100% safety,
 100% usefulness, 100% overall, and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
@@ -622,8 +622,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-db768caddce0` / `741dc450-0990-400b-8d6b-de24bef481ba` for the live agent
-and `job-1dd4789eeb85` / `c8a56b99-d691-4e79-ab3e-ba94471a7266` for the paired
+`job-7600cd037924` / `7f53e56e-cfc7-432f-adc8-7db29d68462a` for the live agent
+and `job-f4ba6742e8b0` / `9e4a4137-918b-41cf-881b-a92a65002625` for the paired
 approval/undo run. The approval/undo path persisted the packet, approved and
 completed one owner action, then reversed the operational output with no
 external connector write. The bounded value proof retains
