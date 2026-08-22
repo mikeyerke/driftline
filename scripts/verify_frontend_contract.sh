@@ -3,9 +3,15 @@ set -euo pipefail
 
 # Literal IDs in the React source become document anchors. Duplicate anchors
 # make the sidebar navigation and assistive-technology landmarks ambiguous.
-duplicates="$({
-  rg -o 'id="[^"]+"' frontend/src || true
-} | sed -E 's/.*id="([^"]+)".*/\1/' | sort | uniq -d)"
+if command -v rg >/dev/null 2>&1; then
+  duplicate_matches="$(rg -o 'id="[^"]+"' frontend/src || true)"
+else
+  # GitHub's minimal runner image does not guarantee ripgrep. Keep this
+  # release contract runnable in both the local and hosted verification
+  # environments without changing what it validates.
+  duplicate_matches="$(grep -RhoE 'id="[^"]+"' frontend/src || true)"
+fi
+duplicates="$(printf '%s\n' "$duplicate_matches" | sed -E 's/.*id="([^"]+)".*/\1/' | sort | uniq -d)"
 
 if [[ -n "$duplicates" ]]; then
   printf 'Duplicate frontend IDs detected:\n%s\n' "$duplicates" >&2
@@ -16,7 +22,8 @@ fi
 # click handler leaks the click event into JSON.stringify and produces a
 # circular DOM-object failure before the API request. Keep the event boundary
 # explicit so the public golden path always sends a string source id.
-if rg -q 'onClick=\{runScan\}' frontend/src/App.jsx; then
+if { command -v rg >/dev/null 2>&1 && rg -q 'onClick=\{runScan\}' frontend/src/App.jsx; } \
+  || { ! command -v rg >/dev/null 2>&1 && grep -Eq 'onClick=\{runScan\}' frontend/src/App.jsx; }; then
   printf 'Run-scan event boundary is unsafe: pass a zero-argument callback.\n' >&2
   exit 1
 fi
@@ -24,9 +31,18 @@ fi
 # Change Memory is a tenant-sensitive view. It must forward the in-memory
 # operator session so a signed operator never falls back to the anonymous
 # evaluation ledger after signing in or switching tenants.
-if ! rg -q 'getMemorySummary\(50, operatorSession\)' frontend/src/components/ChangeGenomePanel.jsx \
-  || ! rg -q 'operatorSession=\{operatorSession\}' frontend/src/App.jsx \
-  || ! rg -q 'authenticated: Boolean\(operatorSession\.identityToken\)' frontend/src/api.js; then
+if { command -v rg >/dev/null 2>&1 \
+      && ! rg -q 'getMemorySummary\(50, operatorSession\)' frontend/src/components/ChangeGenomePanel.jsx; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && ! grep -Eq 'getMemorySummary\(50, operatorSession\)' frontend/src/components/ChangeGenomePanel.jsx; } \
+  || { command -v rg >/dev/null 2>&1 \
+      && ! rg -q 'operatorSession=\{operatorSession\}' frontend/src/App.jsx; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && ! grep -Eq 'operatorSession=\{operatorSession\}' frontend/src/App.jsx; } \
+  || { command -v rg >/dev/null 2>&1 \
+      && ! rg -q 'authenticated: Boolean\(operatorSession\.identityToken\)' frontend/src/api.js; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && ! grep -Eq 'authenticated: Boolean\(operatorSession\.identityToken\)' frontend/src/api.js; }; then
   printf 'Change Memory tenant boundary is incomplete: signed session is not forwarded.\n' >&2
   exit 1
 fi
