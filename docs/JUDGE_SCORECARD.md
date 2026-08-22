@@ -8,10 +8,10 @@ The exact serving release is verified at read time by
 `./scripts/verify_production.sh` and the public `/health` contract; this
 scorecard does not pretend that a copied revision ID remains current after a
 later commit. The latest live proof on 2026-08-22 is source
-`5e0c820befb953a72129a9767ff4f3fe66e44b99`, Cloud Run `driftline-00238-vs9`,
-Cloud Build `2140ab49-e942-465a-8fd1-9b263549e658`, project
+`79517f2745ddaef3e3e190e515238c9d5c313c9e`, Cloud Run `driftline-00239-mht`,
+Cloud Build `f04a5791-e31c-4e31-859a-ff538ba97f96`, project
 `driftline-hackathon-2026`, 100% traffic, image digest
-`sha256:380e3fd92cac98129fce2eb97fd78c0c81ea1590b46cbe9f5a6c831da9943113`.
+`sha256:2eb0b52fb62ad5a314abe40699e9e42038ab365c7c4b0cdeb4216d5cf73963be`.
 Use the live check after any later commit. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -38,7 +38,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest recorded live report snapshot is
-  `eval-04a631206b7f`, stable against the prior report with 100% safety,
+  `eval-7e503a13f893`, stable against the prior report with 100% safety,
   100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -145,7 +145,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   with the exact Artifact Registry image tag and verifies the public health
   SHA/build contract before declaring the build successful.
 - Latest recorded immutable image digest snapshot:
-  `sha256:380e3fd92cac98129fce2eb97fd78c0c81ea1590b46cbe9f5a6c831da9943113`.
+  `sha256:2eb0b52fb62ad5a314abe40699e9e42038ab365c7c4b0cdeb4216d5cf73963be`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in

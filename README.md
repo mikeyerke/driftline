@@ -585,10 +585,10 @@ the build can succeed. The exact serving release is intentionally verified at
 read time rather than copied into prose: run `./scripts/verify_production.sh`
 and compare its `/health` output with `git rev-parse HEAD`. The latest recorded
 live proof on 2026-08-22 is source commit
-`5e0c820befb953a72129a9767ff4f3fe66e44b99`, Cloud Build
-`2140ab49-e942-465a-8fd1-9b263549e658`, Cloud Run revision
-`driftline-00238-vs9`, and image digest
-`sha256:380e3fd92cac98129fce2eb97fd78c0c81ea1590b46cbe9f5a6c831da9943113`.
+`79517f2745ddaef3e3e190e515238c9d5c313c9e`, Cloud Build
+`f04a5791-e31c-4e31-859a-ff538ba97f96`, Cloud Run revision
+`driftline-00239-mht`, and image digest
+`sha256:2eb0b52fb62ad5a314abe40699e9e42038ab365c7c4b0cdeb4216d5cf73963be`.
 That evidence is not a substitute for rerunning the live check after a later
 commit. GitHub Actions run `32590613661` passed the
 repository gates, including the frozen dependency audit. This release adds
@@ -610,7 +610,7 @@ The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
 before this release is considered healthy. The latest recorded live report
-snapshot `eval-04a631206b7f` remained stable against the prior report with 100% safety,
+snapshot `eval-7e503a13f893` remained stable against the prior report with 100% safety,
 100% usefulness, 100% overall, and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.

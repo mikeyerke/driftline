@@ -141,11 +141,11 @@ The exact serving release is independently verifiable from the public
 treated as permanently current just because they were copied into a document.
 The latest recorded release-proof snapshot before this documentation
 proof on 2026-08-22 is source commit
-`5e0c820befb953a72129a9767ff4f3fe66e44b99`, Cloud Build
-`2140ab49-e942-465a-8fd1-9b263549e658`, and Cloud Run revision
-`driftline-00238-vs9` at 100% traffic in project `driftline-hackathon-2026`.
+`79517f2745ddaef3e3e190e515238c9d5c313c9e`, Cloud Build
+`f04a5791-e31c-4e31-859a-ff538ba97f96`, and Cloud Run revision
+`driftline-00239-mht` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable serving image digest is
-`sha256:380e3fd92cac98129fce2eb97fd78c0c81ea1590b46cbe9f5a6c831da9943113`.
+`sha256:2eb0b52fb62ad5a314abe40699e9e42038ab365c7c4b0cdeb4216d5cf73963be`.
 
 The public `/health` probe reports the full source SHA and Cloud Build ID, so a
 reviewer can independently trace the serving revision; rerun the check after
@@ -204,7 +204,7 @@ claimed until fresh consent succeeds.
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Trace-to-eval check: the latest recorded live evaluation snapshot
-  `eval-04a631206b7f` passed the 14-case
+  `eval-7e503a13f893` passed the 14-case
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining stable against the prior report with no case
   regressions; the report
