@@ -40,6 +40,20 @@ steps:
           --project="${PROJECT_ID}" --region="${_REGION}" \
           --format='value(status.traffic[0].percent)')"
         test "$${traffic}" = "100"
+        revision="$$(gcloud run services describe driftline \
+          --project="${PROJECT_ID}" --region="${_REGION}" \
+          --format='value(status.latestReadyRevisionName)')"
+        revision_image="$$(gcloud run revisions describe "$${revision}" \
+          --project="${PROJECT_ID}" --region="${_REGION}" \
+          --format='value(spec.containers[0].image)')"
+        revision_digest="$$(printf '%s' "$${revision_image}" | sed 's/.*@//')"
+        expected_digest="$$(gcloud artifacts docker images describe \
+          "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/driftline:${BUILD_ID}" \
+          --project="${PROJECT_ID}" --format='value(image_summary.digest)')"
+        test -n "$${revision_digest}"
+        test "$${revision_digest}" = "$${expected_digest}"
+        printf 'Cloud Run image provenance: PASS (revision=%s, digest=%s)\n' \
+          "$${revision}" "$${revision_digest}"
         service_url="$$(gcloud run services describe driftline \
           --project="${PROJECT_ID}" --region="${_REGION}" \
           --format='value(status.url)')"
