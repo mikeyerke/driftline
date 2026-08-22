@@ -117,11 +117,11 @@ product truth.
 ## Verified release evidence
 
 The current serving release is source commit
-`c136b0b99e5a505a26b92a5e549fe55cf32f72a3`, Cloud Build
-`198261e2-b8af-4e01-8439-56d0c11f27cb`, and Cloud Run revision
-`driftline-00160-bp4` at 100% traffic in project `driftline-hackathon-2026`.
+`947f86cb6a7b2b7c7b8ce105e3f958031ea25c03`, Cloud Build
+`fc1dfb6a-403f-481d-9ab2-994d471436d7`, and Cloud Run revision
+`driftline-00161-wxc` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:15400581f8b18f95825c3df8cfa0547d14142fd84a8c1b1650f0b810622dfa55`.
+`sha256:f80d941ff4c407e62f4527df512d9be1b8c35a75166646d232725ded45ad16ad`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -129,23 +129,24 @@ commit.
 
 The current release includes the visible Salesforce reauthorization recovery
 control and an explicit `reauthorization_required` health response when a
-stored refresh token is rejected. The callback metadata and tenant-scoped
-secret pointer are durable, but no Salesforce object totals or successful CRM
-read are claimed until fresh consent succeeds.
+stored refresh token is rejected. That bounded health state is now durable
+across page reloads; the callback metadata and tenant-scoped secret pointer are
+durable as well, but no Salesforce object totals or successful CRM read are
+claimed until fresh consent succeeds.
 
 - Local gate for the current source: 265 backend tests passed, the focused
   Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32544337366` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32545237851` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-1cbbe78e530f` / workflow
-  `ea9953e8-ddb8-46db-be7d-601f7609d77c` returned `needs_approval`,
+- Live agent check: fresh job `job-f86cc03b64a7` / workflow
+  `3f051bac-b4d5-46d3-937c-b773f1f7b87b` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -157,14 +158,14 @@ read are claimed until fresh consent succeeds.
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-951c0dea75a9` / workflow
-  `6f29da58-dcad-49f9-9385-d2ce54779783` persisted the packet, reversed the
+- Approval/undo check: fresh job `job-438a97a63d1a` / workflow
+  `d2f2ba10-3333-44cd-a5cc-283063b204f7` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
   manually triggered after this release and Cloud Logging recorded an
   OIDC-authenticated HTTP 200 request to `/api/scheduler/tick` on
-  `driftline-00160-bp4`. The registry reported five healthy bounded sources;
+  `driftline-00161-wxc`. The registry reported five healthy bounded sources;
   cadence rules deferred healthy sources that were not due. A post-deploy log
   search found no Firestore positional-filter deprecation warning.
 - Breadth check on the same serving revision: competitor offerings
@@ -183,7 +184,7 @@ read are claimed until fresh consent succeeds.
 - Signed connector context proof: the authenticated tenant read returned `18`
   open Jira issues, `7` Confluence pages, `38` recent Slack messages, and `0`
   GitHub issues / PRs. Salesforce remained explicitly
-  `authorization_required` after a rejected refresh token; no CRM totals or
+  `reauthorization_required` after a rejected refresh token; no CRM totals or
   customer outcomes are claimed.
 - Signed tenant workflow proof: the authenticated console ran the pinned
   `competitor/pricing` fixture through Firestore + Cloud Tasks + Google ADK;

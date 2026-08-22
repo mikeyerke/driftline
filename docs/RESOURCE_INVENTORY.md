@@ -12,22 +12,22 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T01:51Z` with the active gcloud project set to
+Checked `2026-08-22T02:11Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00160-bp4` at 100% traffic. Its immutable serving image is
-  `sha256:15400581f8b18f95825c3df8cfa0547d14142fd84a8c1b1650f0b810622dfa55`.
-- Source commit `c136b0b99e5a505a26b92a5e549fe55cf32f72a3` was built by Cloud
-  Build `198261e2-b8af-4e01-8439-56d0c11f27cb`; GitHub Actions run
-  `32544337366` passed the repository gates.
+  `driftline-00161-wxc` at 100% traffic. Its immutable serving image is
+  `sha256:f80d941ff4c407e62f4527df512d9be1b8c35a75166646d232725ded45ad16ad`.
+- Source commit `947f86cb6a7b2b7c7b8ce105e3f958031ea25c03` was built by Cloud
+  Build `fc1dfb6a-403f-481d-9ab2-994d471436d7`; GitHub Actions run
+  `32545237851` passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `c136b0b99e5a505a26b92a5e549fe55cf32f72a3`, and build ID
-  `198261e2-b8af-4e01-8439-56d0c11f27cb`; `/api/auth/config`
+  `947f86cb6a7b2b7c7b8ce105e3f958031ea25c03`, and build ID
+  `fc1dfb6a-403f-481d-9ab2-994d471436d7`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
 - The live production verifier also checks `Cache-Control: no-store` and the
@@ -37,7 +37,9 @@ Checked `2026-08-22T01:51Z` with the active gcloud project set to
   exposing credentials or CRM records. The owner-completed callback persists
   a read-only connection and tenant Secret Manager pointer; a rejected refresh
   token now returns explicit `reauthorization_required` state, so object totals
-  remain unverified until a fresh owner consent succeeds.
+  remain unverified until a fresh owner consent succeeds. The bounded probe
+  state is durable across page reloads; no CRM records or credential values are
+  persisted in that health metadata.
 - On the authenticated browser lane, tenant `driftline-demo` was visible as an
   owner and the real aggregate probe returned `reauthorization_required`.
   Driftline prepared a fresh Salesforce consent link; no CRM object totals were
@@ -46,7 +48,7 @@ Checked `2026-08-22T01:51Z` with the active gcloud project set to
   tenant-scoped connector boundaries with aggregate-only results: Jira `18`
   open issues, Confluence `7` pages in scope, Slack `38` recent messages, and
   GitHub `0` issues / `0` PRs. Salesforce correctly remained
-  `authorization_required`; these counts are connector proof, not customer
+  `reauthorization_required`; these counts are connector proof, not customer
   outcome or ROI evidence.
 - The authenticated console then ran a signed tenant scan from the pinned
   `competitor/pricing` fixture. Firestore contains job `job-a33d07ac658c` /
@@ -54,19 +56,19 @@ Checked `2026-08-22T01:51Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-1cbbe78e530f` / workflow `ea9953e8-ddb8-46db-be7d-601f7609d77c` at
+  `job-f86cc03b64a7` / workflow `3f051bac-b4d5-46d3-937c-b773f1f7b87b` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, and two decision
-  options. A separate approval/undo run returned job `job-951c0dea75a9` /
-  workflow `6f29da58-dcad-49f9-9385-d2ce54779783`, persisted the packet,
+  options. A separate approval/undo run returned job `job-438a97a63d1a` /
+  workflow `d2f2ba10-3333-44cd-a5cc-283063b204f7`, persisted the packet,
   reversed the operational output, and recorded
   `external_write=false` / `external_systems_changed=false`.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
-- The post-deploy Scheduler trigger at `2026-08-22T01:51:40Z` returned HTTP
-  200 on `driftline-00160-bp4`; `/api/monitor/registry` immediately reported
+- The post-deploy Scheduler trigger at `2026-08-22T02:11:32Z` returned HTTP
+  200 on `driftline-00161-wxc`; `/api/monitor/registry` immediately reported
   five healthy sources, zero stale sources, and zero source failures. A fresh
   log search found no Firestore positional-filter deprecation warning after
   the `FieldFilter` query cleanup.

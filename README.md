@@ -526,16 +526,17 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`c136b0b99e5a505a26b92a5e549fe55cf32f72a3`, Cloud Build
-`198261e2-b8af-4e01-8439-56d0c11f27cb`, and Cloud Run revision
-`driftline-00160-bp4` at 100% traffic. Its immutable image digest is recorded
+`947f86cb6a7b2b7c7b8ce105e3f958031ea25c03`, Cloud Build
+`fc1dfb6a-403f-481d-9ab2-994d471436d7`, and Cloud Run revision
+`driftline-00161-wxc` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32544337366` passed the repository gates, including the
+GitHub Actions run `32545237851` passed the repository gates, including the
 frozen dependency audit. This release adds
-the explicit Salesforce `reauthorization_required` contract, automatically
-refreshes metadata-only Salesforce status when the operator returns from the
+the explicit Salesforce `reauthorization_required` contract, durably records
+bounded probe health so a rejected refresh token remains visible after reload,
+and automatically refreshes metadata-only Salesforce status when the operator returns from the
 consent tab, keeps the visible **Reauthorize read-only** recovery control, and
 retains the tenant-scoped Secret Manager access path. The owner must still complete a fresh consent before a
 live CRM read can be claimed; the Salesforce state is not silently relabeled
@@ -561,8 +562,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-1cbbe78e530f` / `ea9953e8-ddb8-46db-be7d-601f7609d77c` for the live agent
-and `job-951c0dea75a9` / `6f29da58-dcad-49f9-9385-d2ce54779783` for the
+`job-f86cc03b64a7` / `3f051bac-b4d5-46d3-937c-b773f1f7b87b` for the live agent
+and `job-438a97a63d1a` / `d2f2ba10-3333-44cd-a5cc-283063b204f7` for the
 approval/undo proof. `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
@@ -577,7 +578,7 @@ Driftline still does not claim a live CRM read until a fresh consent produces
 object totals.
 
 The cadence path was re-run against the same isolated deployment at
-`2026-08-22T01:51:40Z`: the real Scheduler identity received an
+`2026-08-22T02:11:32Z`: the real Scheduler identity received an
 OIDC-authenticated HTTP 200 on the new revision, and the registry reported
 all five bounded sources healthy with no stale or failed entries. A post-deploy
 log query found no Firestore positional-filter deprecation warning after the
