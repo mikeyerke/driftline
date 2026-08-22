@@ -12,15 +12,15 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T07:54Z` with the active gcloud project set to
+Checked `2026-08-22T08:08Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00187-dfr` at 100% traffic. Its immutable serving image is
-  `sha256:528387c0daa39683b2e1cd6e19c3d4dfb488fc02401f1a03f28e727451e03356`.
-- Source commit `0ee63cbf8783faa6f0069931deb6fdd95f4fd3a5` was built by Cloud
-  Build `c7f33699-86d7-494a-b566-055fc44b6d85`; GitHub Actions run
-  `32560564923` passed the repository gates.
+  `driftline-00188-99v` at 100% traffic. Its immutable serving image is
+  `sha256:3e419bdbd2d76494c92ebaa3f3fb54fef3ec69e2ac249c3b361988c37010f87e`.
+- Source commit `c42538e1ccab1aa7ce739e33ad5a43e7f72c4c46` was built by Cloud
+  Build `e71d7665-b938-4eca-a885-361cec27bfac`; GitHub Actions run
+  `32561166657` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -29,16 +29,20 @@ Checked `2026-08-22T07:54Z` with the active gcloud project set to
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `0ee63cbf8783faa6f0069931deb6fdd95f4fd3a5`, and build ID
-  `c7f33699-86d7-494a-b566-055fc44b6d85`; `/api/auth/config`
+  `c42538e1ccab1aa7ce739e33ad5a43e7f72c4c46`, and build ID
+  `e71d7665-b938-4eca-a885-361cec27bfac`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-edbbb850b7b7` with a passing
+- `/api/evals/latest` reports evaluation `eval-d3ab52401ddd` with a passing
   `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, and a
   `stable` trend against `eval-bf02e828edec` (all deltas `0.0` and no case
   regressions). Trace data is
   redacted and `customer_outcome=false`; this is evaluator telemetry, not
   customer ROI evidence.
+- The same live workflow records `reviewer=deterministic_red_team` and
+  `policy_version=red-team-v1`, with the policy review evidence hash matching
+  the workflow evidence hash. The approval validator rejects missing,
+  mismatched, or blocking policy provenance.
 - The live production verifier also checks `Cache-Control: no-store` and the
   fail-closed `Permissions-Policy` deny-list on both health and API responses.
 - The Settings surface exposes the tenant-scoped Salesforce OAuth handoff,
@@ -65,12 +69,12 @@ Checked `2026-08-22T07:54Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-b3dafbc3445e` / workflow `248afcb1-78ee-41bd-84f8-cf7b5ab79192` at
+  `job-6bb49821a56a` / workflow `55559478-5c0f-43b7-8f0a-a622602e28ee` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier created
-  job `job-8895f109eede` / workflow
-  `bbca19e6-caf1-4ffb-8ed8-a70b8fe6764f`, persisted the packet, reversed the
+  job `job-fc536318d85e` / workflow
+  `785b2910-ceb0-47fb-9d30-c6043832e4a3`, persisted the packet, reversed the
   operational output, and recorded `external_write=false` /
   `external_systems_changed=false`.
 - A logged-out 500px browser check exercised every sidebar target after the
