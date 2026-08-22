@@ -533,13 +533,13 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`1e219c82597f7402aa4e89d501f801bd93acb970`, Cloud Build
-`56e3a52b-0339-44eb-a5ca-a684e452da72`, and Cloud Run revision
-`driftline-00171-7z8` at 100% traffic. Its immutable image digest is recorded
+`48e04dfde9b9333aadbf2d9f7e8935df63cbfe96`, Cloud Build
+`c8ca823b-7d96-45e8-b57c-c66445e14eb4`, and Cloud Run revision
+`driftline-00172-q66` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32552977197` passed the repository gates, including the
+GitHub Actions run `32553421317` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -558,8 +558,8 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates eleven independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-0e2293921e78` is stable against
-`eval-149e9df793e1` with zero score deltas and no case regressions; it is
+latest live report `eval-691391a45f2d` is stable against
+`eval-0e2293921e78` with zero score deltas and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
@@ -586,13 +586,16 @@ with no console errors or horizontal overflow.
 The authenticated operator lane now preserves the short-lived Google token and
 membership list when switching between permitted tenants. The selected tenant
 changes without silently dropping into the anonymous packet-safe lane, and the
-operator can switch back without re-authenticating.
+operator can switch back without re-authenticating. Crossing any identity
+boundary (anonymous to signed-in, tenant to tenant, or signed-in to anonymous)
+also clears the prior workflow, job, and artifact decisions before the new lane
+starts, so a public packet cannot appear as tenant work.
 
 The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-8ff5302a15c0` / `05650840-2002-47e7-aa01-c4557b2fc6e6` for the live agent
+`job-6fd9a3f403e5` / `86d82924-6904-4837-9ca2-e46aee8d3545` for the live agent
 and the paired approval/undo run. Both returned a passing trace evaluation;
 the approval/undo path persisted and reversed the packet with no external
 connector write.

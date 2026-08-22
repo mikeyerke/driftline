@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `1e219c82597f7402aa4e89d501f801bd93acb970`, Cloud Run
-`driftline-00171-7z8`, Cloud Build
-`56e3a52b-0339-44eb-a5ca-a684e452da72`, project
+Current release: source `48e04dfde9b9333aadbf2d9f7e8935df63cbfe96`, Cloud Run
+`driftline-00172-q66`, Cloud Build
+`c8ca823b-7d96-45e8-b57c-c66445e14eb4`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-0e2293921e78`, stable against `eval-149e9df793e1` with zero score
+  `eval-691391a45f2d`, stable against `eval-0e2293921e78` with zero score
   deltas and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -42,8 +42,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-8ff5302a15c0`, workflow
-  `05650840-2002-47e7-aa01-c4557b2fc6e6`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-6fd9a3f403e5`, workflow
+  `86d82924-6904-4837-9ca2-e46aee8d3545`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
 - `scripts/verify_public_approval_undo.sh`: the paired fresh run on that
   workflow persisted and
@@ -108,7 +108,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
   membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
-  `sha256:c5c08b9b94022b7f8893e3d84db9a1145258e82eae41b3e47c3cf05a5ad1b857`.
+  `sha256:6637316dc2904fbcda4ae92bb79ad9efc91039586396104201419a6e7e40e53b`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
@@ -138,7 +138,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 ### Live evidence
 
 - 277 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32552977197`; the frozen
+  and repository hygiene pass in GitHub Actions run `32553421317`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).
