@@ -253,6 +253,8 @@ def test_approval_creates_evidence_bound_sandbox_packets() -> None:
     assert "## Materiality and exposure" in packet
     assert "Evidence strength heuristic: 45/100" in packet
     assert "Direct demo fixture · single source" in packet
+    assert "Claim policy: internal_review_only" in packet
+    assert "Customer-facing publish: blocked_pending_corroboration" in packet
     assert "## Role packets" in packet
     assert "## Owner deadlines" in packet
     assert "not CRM data" in packet

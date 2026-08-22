@@ -18,6 +18,9 @@ def test_change_card_is_evidence_bound_and_labels_demo_exposure() -> None:
     assert card["source_quality"]["evidence_strength"]["score"] == 45
     assert card["source_quality"]["evidence_strength"]["label"] == "Direct demo fixture · single source"
     assert card["source_quality"]["evidence_strength"]["dimensions"]["corroboration"]["status"] == "not_evaluated"
+    assert card["claim_policy"]["status"] == "internal_review_only"
+    assert card["claim_policy"]["customer_facing_publish"] == "blocked_pending_corroboration"
+    assert "Customer-facing claims remain blocked" in " ".join(card["disclosures"])
     assert {item["role"] for item in card["role_packets"]} >= {"PMM", "Sales / RevOps"}
     assert card["closure"]["state"] == "approval_pending"
     assert card["change_card_id"].startswith("card-")

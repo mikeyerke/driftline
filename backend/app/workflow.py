@@ -477,6 +477,8 @@ def packet_markdown(state: WorkflowState) -> str:
         f"- Evidence strength label: {(state.change_card.get('source_quality') or {}).get('evidence_strength', {}).get('label', 'not assessed')}",
         f"- Evidence next review: {(state.change_card.get('source_quality') or {}).get('evidence_strength', {}).get('next_review', 'not assessed')}",
         f"- Contradiction review: {(state.change_card.get('source_quality') or {}).get('contradiction_status', 'not_checked')}",
+        f"- Claim policy: {(state.change_card.get('claim_policy') or {}).get('status', 'not assessed')}",
+        f"- Customer-facing publish: {(state.change_card.get('claim_policy') or {}).get('customer_facing_publish', 'not assessed')}",
         f"- Closure: {(state.change_card.get('closure') or {}).get('state', 'approval_pending')}",
         f"- Decision reason: {(state.approval or {}).get('reason', 'not recorded')}",
         "",

@@ -530,6 +530,14 @@ def build_change_card(
             else "No contradictory internal source was evaluated in this run. Evidence strength is a deterministic review heuristic, not a truth or approval score."
         ),
     }
+    claim_policy = {
+        "status": "internal_review_only",
+        "customer_facing_publish": "blocked_pending_corroboration",
+        "reason": evidence_strength["next_review"],
+        "allowed_actions": ["packet", "owner_review"],
+        "blocked_actions": ["customer_facing_publish", "autonomous_external_write"],
+        "corroboration_status": evidence_strength["dimensions"]["corroboration"]["status"],
+    }
     return {
         "version": "1.0",
         "change_card_id": change_card_id(evidence.source_id, evidence.evidence_hash),
@@ -555,6 +563,7 @@ def build_change_card(
         },
         "exposure": exposure,
         "source_quality": source_quality,
+        "claim_policy": claim_policy,
         "internal_context": context,
         "owners": owners,
         "role_packets": role_packets,
@@ -567,5 +576,6 @@ def build_change_card(
                 else "No CRM or opportunity data was read in this run; exposure remains unavailable."
             ),
             "Approval and external actions remain deterministic and human-controlled.",
+            "Customer-facing claims remain blocked until an independent source-level corroboration is reviewed.",
         ],
     }

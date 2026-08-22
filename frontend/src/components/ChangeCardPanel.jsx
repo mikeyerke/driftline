@@ -17,6 +17,7 @@ export default function ChangeCardPanel({ card }) {
   const exposure = card.exposure || {};
   const sourceQuality = card.source_quality || {};
   const evidenceStrength = sourceQuality.evidence_strength || {};
+  const claimPolicy = card.claim_policy || {};
   const closure = card.closure || {};
   const internalContext = card.internal_context || {};
   const verifiedConnectorCount = Number(internalContext.verified_connector_count || 0);
@@ -52,6 +53,10 @@ export default function ChangeCardPanel({ card }) {
             <span>Evidence strength · heuristic</span><b>{evidenceStrength.score ?? "—"}/{evidenceStrength.max_score || 100}</b>
             <small>{evidenceStrength.label || "Review evidence dimensions"}</small>
             <small>{evidenceStrength.next_review || "Corroboration review has not run."}</small>
+          </div>
+          <div className="claim-boundary" aria-label="Claim safety boundary">
+            <span>Claim boundary</span><b>{label(claimPolicy.status || "internal_review_only")}</b>
+            <small>{claimPolicy.customer_facing_publish === "blocked_pending_corroboration" ? "Customer-facing publication stays blocked pending independent corroboration." : "Review the claim policy before publishing."}</small>
           </div>
         </div>
         <div className="change-card-block exposure-block">
