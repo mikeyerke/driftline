@@ -12,7 +12,7 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T02:23Z` with the active gcloud project set to
+Checked `2026-08-22T02:33Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
@@ -66,11 +66,14 @@ Checked `2026-08-22T02:23Z` with the active gcloud project set to
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
-- The post-deploy Scheduler trigger at `2026-08-22T02:22:53Z` returned HTTP
+- The post-deploy Scheduler trigger at `2026-08-22T02:32:43Z` returned HTTP
   200 on `driftline-00162-nvm`; `/api/monitor/registry` immediately reported
-  five healthy sources, zero stale sources, and zero source failures. A fresh
-  log search found no Firestore positional-filter deprecation warning after
-  the `FieldFilter` query cleanup.
+  five healthy sources, zero stale sources, and zero source failures. The
+  scheduler delivered monitor jobs `job-21522b0640b0` and
+  `job-dfe6217391b0` with HTTP 200 task dispatches; the first completed with
+  Gemini 3.5 Flash and no recorded error. A fresh log search found no
+  Firestore positional-filter deprecation warning after the `FieldFilter`
+  query cleanup.
 
 ## 2026-08-21 Salesforce reauthorization recovery release (historical serving revision)
 

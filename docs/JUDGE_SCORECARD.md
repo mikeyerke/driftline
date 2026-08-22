@@ -45,7 +45,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   OIDC-authenticated HTTP 200 `/api/scheduler/tick` request on the serving
   revision; healthy sources were correctly deferred until their cadence due
   time rather than spending another model call.
-- A post-deploy direct Scheduler run at `2026-08-22T02:22:53Z` returned an
+- A post-deploy direct Scheduler run at `2026-08-22T02:32:43Z` returned an
   OIDC-authenticated HTTP 200 on `driftline-00162-nvm`; the registry then
   reported all five bounded sources healthy with zero stale or failed entries.
   Sources not due at that moment were deferred by cadence as designed.

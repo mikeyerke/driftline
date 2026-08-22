@@ -580,7 +580,7 @@ Driftline still does not claim a live CRM read until a fresh consent produces
 object totals.
 
 The cadence path was re-run against the same isolated deployment at
-`2026-08-22T02:22:53Z`: the real Scheduler identity received an
+`2026-08-22T02:32:43Z`: the real Scheduler identity received an
 OIDC-authenticated HTTP 200 on the new revision, and the registry reported
 all five bounded sources healthy with no stale or failed entries. A post-deploy
 log query found no Firestore positional-filter deprecation warning after the
