@@ -415,7 +415,12 @@ def register_operator_source(
         # Re-registering an existing paused source updates its metadata but
         # never silently resumes monitoring. Resumption is an explicit,
         # audited lifecycle action below.
-        "enabled": "false" if previous and previous.get("enabled") == "false" else "true",
+        "enabled": (
+            "false"
+            if previous
+            and str(previous.get("enabled", "true")).casefold() == "false"
+            else "true"
+        ),
         "registered_by": registered_by.strip()[:120],
         "tenant_id": tenant_id,
         "registered_at": datetime.now(UTC).isoformat(),
@@ -436,7 +441,11 @@ def register_operator_source(
     _CUSTOM_SOURCE_DEFINITIONS[(tenant_id, source_id)] = normalized
     if _firestore_enabled():
         payload: dict[str, object] = dict(normalized)
-        payload["enabled"] = True
+        # Preserve an explicit pause across Firestore writes as well as the
+        # in-memory registry. Re-registering updates metadata, but lifecycle
+        # changes remain an audited operator action and must never silently
+        # resume monitoring after a restart.
+        payload["enabled"] = normalized["enabled"] != "false"
         _registry_client().collection(_SOURCE_REGISTRY_COLLECTION).document(
             _registry_document_id(f"{tenant_id}:{source_id}")
         ).set(payload)

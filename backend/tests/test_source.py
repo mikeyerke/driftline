@@ -421,6 +421,65 @@ def test_reregistering_paused_source_does_not_resume_it(monkeypatch) -> None:
         source._CUSTOM_SOURCE_DEFINITIONS.clear()
 
 
+def test_firestore_reregister_preserves_paused_lifecycle_state(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    writes: list[dict[str, object]] = []
+
+    class _Document:
+        def set(self, payload):
+            writes.append(dict(payload))
+
+    class _Collection:
+        def document(self, _document_id):
+            return _Document()
+
+    class _Client:
+        def collection(self, _collection_name):
+            return _Collection()
+
+    monkeypatch.setattr(source, "_firestore_enabled", lambda: True)
+    monkeypatch.setattr(source, "_registry_client", lambda: _Client())
+    previous = {
+        "source_id": "custom/firestore-paused",
+        "name": "Existing source",
+        "category": "Competitor pricing",
+        "change_type": "Pricing move",
+        "url": "https://example.com/old",
+        "owner": "Product Marketing",
+        "cadence": "24h",
+        "freshness_sla_hours": "48",
+        "source_kind": "operator_registered_public",
+        "source_parser": "html",
+        "allowlist": "exact operator-registered HTTPS URL",
+        "dynamic": "true",
+        "enabled": False,
+        "tenant_id": "tenant-acme",
+        "paused_at": "2026-01-01T00:00:00+00:00",
+        "paused_by": "owner@example.com",
+        "pause_reason": "Noisy challenge page.",
+    }
+    source._CUSTOM_SOURCE_DEFINITIONS[("tenant-acme", "custom/firestore-paused")] = previous
+    monkeypatch.setattr(source, "registered_source_definition", lambda *_args: previous)
+
+    try:
+        updated = source.register_operator_source(
+            source_id="custom/firestore-paused",
+            name="Updated source",
+            category="Competitor pricing",
+            change_type="Pricing move",
+            url="https://example.com/new",
+            owner="Product Marketing",
+            cadence="24h",
+            freshness_sla_hours=48,
+            tenant_id="tenant-acme",
+        )
+    finally:
+        source._CUSTOM_SOURCE_DEFINITIONS.clear()
+
+    assert updated["enabled"] == "false"
+    assert writes and writes[-1]["enabled"] is False
+
+
 def test_anonymous_registry_never_lists_tenant_custom_source(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
