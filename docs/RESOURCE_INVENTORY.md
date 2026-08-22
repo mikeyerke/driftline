@@ -70,7 +70,7 @@ Checked `2026-08-22T02:33Z` with the active gcloud project set to
   200 on `driftline-00162-nvm`; `/api/monitor/registry` immediately reported
   five healthy sources, zero stale sources, and zero source failures. The
   scheduler delivered monitor jobs `job-21522b0640b0` and
-  `job-dfe6217391b0` with HTTP 200 task dispatches; the first completed with
+  `job-dfe6217391b0` with HTTP 200 task dispatches; both completed with
   Gemini 3.5 Flash and no recorded error. A fresh log search found no
   Firestore positional-filter deprecation warning after the `FieldFilter`
   query cleanup.
