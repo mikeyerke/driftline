@@ -2183,6 +2183,68 @@ def test_signed_operator_can_pause_and_resume_custom_source_with_audit(monkeypat
         persistence._tenant_audit_memory.clear()
 
 
+def test_source_lifecycle_rolls_back_when_audit_persistence_fails(monkeypatch) -> None:
+    source._CUSTOM_SOURCE_DEFINITIONS.clear()
+    persistence._tenant_audit_memory.clear()
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    monkeypatch.setenv("DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY", "false")
+    monkeypatch.delenv("DRIFTLINE_TENANT_SIGNING_SECRET_PREFIX", raising=False)
+    monkeypatch.delenv("DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS", raising=False)
+    secret = "source-lifecycle-rollback-secret"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo")
+    source_id = "custom/lifecycle-rollback"
+    source.register_operator_source(
+        source_id=source_id,
+        name="Lifecycle rollback",
+        category="Competitor pricing",
+        change_type="Pricing move",
+        url="https://example.com/pricing",
+        owner="Product Marketing",
+        cadence="24h",
+        freshness_sla_hours=48,
+        tenant_id="driftline-demo",
+    )
+    token = hmac.new(
+        secret.encode(),
+        f"source-lifecycle:{source_id}:pause:Signed operator".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    def fail_audit(_payload: dict[str, object]) -> None:
+        raise RuntimeError("audit-store-unavailable")
+
+    monkeypatch.setattr(api, "persist_tenant_audit_event", fail_audit)
+    try:
+        response = client.post(
+            f"/api/operator/sources/{source_id}/lifecycle",
+            json={
+                "enabled": False,
+                "reason": "Temporary source outage.",
+                "operator": "Signed operator",
+                "tenant_id": "driftline-demo",
+                "approval_token": token,
+            },
+        )
+        assert response.status_code == 503
+        assert "no lifecycle change was retained" in response.json()["detail"]
+        restored = source.source_definition(
+            source_id, "driftline-demo", include_disabled=True
+        )
+        assert restored is not None
+        assert restored["enabled"] == "true"
+        assert any(
+            tenant == "driftline-demo" and current_id == source_id
+            for tenant, current_id, _definition in source.scheduler_source_entries()
+        )
+        assert persistence._tenant_audit_memory == []
+    finally:
+        source._CUSTOM_SOURCE_DEFINITIONS.clear()
+        persistence._tenant_audit_memory.clear()
+
+
 def test_public_source_onboarding_establishes_bounded_baseline(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
