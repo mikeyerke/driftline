@@ -542,13 +542,13 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`81961abc75952cf7f0e2383ab4f026b48e00d8bb`, Cloud Build
-`fa49b14c-80ef-4662-9f08-ae1b3a277738`, and Cloud Run revision
-`driftline-00181-xz6` at 100% traffic. Its immutable image digest is recorded
+`210fc9ebb71c7b42aad2735702a6297f1d957890`, Cloud Build
+`3e8e48b3-3db2-4136-984f-2a275f05a2dc`, and Cloud Run revision
+`driftline-00182-247` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32557578337` passed the repository gates, including the
+GitHub Actions run `32557959004` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -567,8 +567,8 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates eleven independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-47243215ac47` is stable against
-`eval-4fdb15b49e5c` with zero score deltas and no case regressions; it is
+latest live report `eval-606be4fd0fb9` is stable against
+`eval-47243215ac47` with zero score deltas and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
@@ -607,8 +607,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-44e246d0c040` / `3d29e26c-edad-462b-80dc-07e5b760b8fa` for the live agent
-and `job-b837aef1a024` / `da9536f7-0b8b-4c6f-9951-41945b532bff` for the paired
+`job-7e7d2c62a690` / `6feb9709-537e-4dd2-a963-171cbada2691` for the live agent
+and `job-1829f0e10f31` / `279ccb29-9edb-4242-a57a-44985b003d76` for the paired
 approval/undo run. Both returned a passing trace evaluation;
 the approval/undo path persisted and reversed the packet with no external
 connector write.
