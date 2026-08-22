@@ -131,11 +131,11 @@ its final live proof requires an operator Google identity in the browser.
 ## Verified release evidence
 
 The current serving release is source commit
-`4c1b794011c021a3a5e2059cf849afb2b2fbebe5`, Cloud Build
-`4f1effbb-4366-4222-a727-1d18b09718cf`, and Cloud Run revision
-`driftline-00208-bgx` at 100% traffic in project `driftline-hackathon-2026`.
+`8ab6d3064dede191984ab1dad85f6b0aa5f2de8b`, Cloud Build
+`ae502bee-9103-44f0-9bb0-fa62abed3a32`, and Cloud Run revision
+`driftline-00209-pjx` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:abfcc968e0610a7650f83093a275dfaebe890c2740979d815a3e4b404b0f4502`.
+`sha256:c852c21db558bcab1ac04d94feeba92bcb1cb554c5867754bc53adca7a71d229`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -156,14 +156,14 @@ claimed until fresh consent succeeds.
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32570037578` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32572301949` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-e7804eebd877` / workflow
-  `7a753d41-1296-4841-ba78-dbcdc2d5b87e` returned `needs_approval`,
+- Live agent check: fresh job `job-477a428b3f4c` / workflow
+  `ce69a24d-48e7-4d86-9d76-2009d0eea9de` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -171,7 +171,7 @@ claimed until fresh consent succeeds.
   Decision Copilot, and the approval gate; the scripted live proof above is
   the durable source of the current job/workflow identifiers.
 - The paired current-revision approval/undo verifier created job
-  `job-bdd945082c83` / workflow `5c13e15b-9605-47c8-a959-db46175bef27` and
+  `job-220e830bf9ee` / workflow `951a180c-bdb2-4e04-904f-25e3899f1eb0` and
   completed scan -> approval -> owner claim -> owner completion -> undo. The
   packet persisted and its operational output was reversed; Jira, Confluence,
   and Slack remained `external_write=false` in the public packet-safe lane.
@@ -184,10 +184,13 @@ claimed until fresh consent succeeds.
 - A current-revision logged-out browser check also switched from a completed
   `competitor/offerings` run to `competitor/blog`; the old workflow and approval
   state cleared immediately and the blog-specific evidence preview appeared.
+- Durable recovery check: after a fresh public reload, the browser opened a
+  workflow-linked `needs_approval` row from Run history and restored the
+  evidence, impact, and human-gate state with no new scan and no console errors.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-c658de049445` passed the 14-case
+- Trace-to-eval check: live evaluation `eval-7df3274f9ca2` passed the 14-case
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining stable against the prior report with no case
   regressions; the report

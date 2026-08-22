@@ -12,15 +12,15 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T12:06Z` with the active gcloud project set to
+Checked `2026-08-22T12:16Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00208-bgx` at 100% traffic. Its immutable serving image is
-  `sha256:abfcc968e0610a7650f83093a275dfaebe890c2740979d815a3e4b404b0f4502`.
-- Source commit `4c1b794011c021a3a5e2059cf849afb2b2fbebe5` was built by Cloud
-  Build `4f1effbb-4366-4222-a727-1d18b09718cf`; GitHub Actions run
-  `32570037578` passed the repository gates.
+  `driftline-00209-pjx` at 100% traffic. Its immutable serving image is
+  `sha256:c852c21db558bcab1ac04d94feeba92bcb1cb554c5867754bc53adca7a71d229`.
+- Source commit `8ab6d3064dede191984ab1dad85f6b0aa5f2de8b` was built by Cloud
+  Build `ae502bee-9103-44f0-9bb0-fa62abed3a32`; GitHub Actions run
+  `32572301949` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -29,11 +29,11 @@ Checked `2026-08-22T12:06Z` with the active gcloud project set to
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `4c1b794011c021a3a5e2059cf849afb2b2fbebe5`, and build ID
-  `4f1effbb-4366-4222-a727-1d18b09718cf`; `/api/auth/config`
+  `8ab6d3064dede191984ab1dad85f6b0aa5f2de8b`, and build ID
+  `ae502bee-9103-44f0-9bb0-fa62abed3a32`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-c658de049445` with a passing
+- `/api/evals/latest` reports evaluation `eval-7df3274f9ca2` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
@@ -69,12 +69,12 @@ Checked `2026-08-22T12:06Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-e7804eebd877` / workflow `7a753d41-1296-4841-ba78-dbcdc2d5b87e` at
+  `job-477a428b3f4c` / workflow `ce69a24d-48e7-4d86-9d76-2009d0eea9de` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier created
-  job `job-bdd945082c83` / workflow
-  `5c13e15b-9605-47c8-a959-db46175bef27`, persisted the packet, approved and
+  job `job-220e830bf9ee` / workflow
+  `951a180c-bdb2-4e04-904f-25e3899f1eb0`, persisted the packet, approved and
   completed one owner action, then reversed the operational output and
   recorded `external_write=false` / `external_systems_changed=false`. The
   bounded value proof retained two historical completions and 3.7-second
@@ -86,6 +86,11 @@ Checked `2026-08-22T12:06Z` with the active gcloud project set to
   deferred panels mounted. Overview, Sources, Workflows, Approvals, Activity,
   and Settings each landed in view; the DOM had one `settings-section`, one
   `deployment-section`, no horizontal overflow, and no console messages.
+- A fresh public reload then opened a workflow-linked Run history row through
+  **Open run**. The console restored the durable evidence and human-approval
+  state with no new scan; the status message was
+  `Durable run restored · evidence and approval state are ready to review` and
+  the browser reported no console errors.
 - A fresh logged-out browser check jumped directly to the bottom of the page
   after load; Trace-to-eval, Value proof, and Change memory all hydrated rather
   than remaining behind an in-view placeholder. Desktop and 500px mobile
