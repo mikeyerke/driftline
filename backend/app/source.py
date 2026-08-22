@@ -23,6 +23,8 @@ from urllib.request import (
     urlopen,
 )
 
+from google.cloud import firestore
+
 from .snapshots import (
     FirestoreSnapshotStore,
     InMemorySnapshotStore,
@@ -614,7 +616,7 @@ def _registered_source_count(tenant_id: str) -> int:
         query = (
             _registry_client()
             .collection(_SOURCE_REGISTRY_COLLECTION)
-            .where("tenant_id", "==", tenant_id)
+            .where(filter=firestore.FieldFilter("tenant_id", "==", tenant_id))
             .limit(_MAX_REGISTERED_SOURCES_PER_TENANT + 1)
         )
         return sum(

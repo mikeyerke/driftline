@@ -357,7 +357,9 @@ def list_job_failures(
     if _enabled():
         collection = _client().collection(JOB_FAILURES_COLLECTION)
         query = (
-            collection.where("tenant_id", "==", tenant_id)
+            collection.where(
+                filter=firestore.FieldFilter("tenant_id", "==", tenant_id)
+            )
             if tenant_id is not None
             else collection
         )
@@ -606,7 +608,7 @@ def list_connector_bindings(tenant_id: str) -> list[dict[str, Any]]:
         if _strict_credential_namespace_required():
             return []
         query = _client().collection(CONNECTOR_BINDINGS_COLLECTION).where(
-            "tenant_id", "==", tenant_id
+            filter=firestore.FieldFilter("tenant_id", "==", tenant_id)
         )
         return [
             _hydrate_credential_namespace(snapshot.to_dict()) or {}
@@ -746,7 +748,7 @@ def list_credential_access_events(
     bounded_limit = max(1, min(limit, 200))
     if _enabled():
         query = _client().collection(CREDENTIAL_ACCESS_COLLECTION).where(
-            "tenant_id", "==", tenant_id
+            filter=firestore.FieldFilter("tenant_id", "==", tenant_id)
         )
         events = [snapshot.to_dict() or {} for snapshot in query.stream()]
     else:
@@ -816,7 +818,7 @@ def list_connector_profiles(tenant_id: str) -> list[dict[str, Any]]:
     tenant_id = validate_tenant_id(tenant_id)
     if _enabled():
         query = _client().collection(TENANT_CONNECTOR_PROFILES_COLLECTION).where(
-            "tenant_id", "==", tenant_id
+            filter=firestore.FieldFilter("tenant_id", "==", tenant_id)
         )
         return [snapshot.to_dict() or {} for snapshot in query.stream()]
     return [
@@ -855,7 +857,7 @@ def list_tenant_audit_events(tenant_id: str, limit: int = 50) -> list[dict[str, 
     safe_limit = max(1, min(limit, 200))
     if _enabled():
         query = _client().collection(TENANT_AUDIT_COLLECTION).where(
-            "tenant_id", "==", tenant_id
+            filter=firestore.FieldFilter("tenant_id", "==", tenant_id)
         )
         events = [snapshot.to_dict() or {} for snapshot in query.stream()]
     else:
@@ -1258,7 +1260,7 @@ def list_tenant_memberships_for_email(email: str) -> list[dict[str, Any]]:
         return []
     if _enabled():
         query = _client().collection(TENANT_MEMBERSHIPS_COLLECTION).where(
-            "email", "==", normalized_email
+            filter=firestore.FieldFilter("email", "==", normalized_email)
         )
         return [snapshot.to_dict() or {} for snapshot in query.stream()]
     return [
@@ -1272,7 +1274,7 @@ def list_tenant_memberships(tenant_id: str) -> list[dict[str, Any]]:
     """Return bounded membership metadata for one authenticated tenant."""
     if _enabled():
         query = _client().collection(TENANT_MEMBERSHIPS_COLLECTION).where(
-            "tenant_id", "==", tenant_id
+            filter=firestore.FieldFilter("tenant_id", "==", tenant_id)
         )
         return [snapshot.to_dict() or {} for snapshot in query.stream()]
     return [
@@ -1324,8 +1326,8 @@ def update_jobs_for_workflow(workflow_id: str, status: str) -> None:
     if not _enabled():
         return
     now = datetime.now(UTC).isoformat()
-    query = (
-        _client().collection(JOBS_COLLECTION).where("workflow_id", "==", workflow_id)
+    query = _client().collection(JOBS_COLLECTION).where(
+        filter=firestore.FieldFilter("workflow_id", "==", workflow_id)
     )
     for snapshot in query.stream():
         snapshot.reference.update({"status": status, "updated_at": now})
