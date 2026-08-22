@@ -30,6 +30,13 @@ customer names, raw interview text, opportunity IDs, or private CRM records.
 The endpoint labels entries `operator_reported_unverified` until a human
 reviews the referenced artifact.
 
+The signed console includes a pilot-readiness checklist that is deliberately
+separate from customer evidence. It confirms the tenant lane, an exact
+operator-registered source, an observed tenant workflow, and an aggregate
+outcome record. A checked item proves only that Driftline observed that product
+event in this tenant; it does not prove customer ROI, revenue, retention, or
+willingness to pay.
+
 ## Decision gates
 
 - Continue if teams report a repeatable reduction in change-to-owner time and

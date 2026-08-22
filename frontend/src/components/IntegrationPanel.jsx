@@ -88,7 +88,11 @@ export default function IntegrationPanel({ targets = [], approved, dismissed, ac
             const key = system.toLowerCase();
             const summary = context.connectors?.[key] || {};
             const binding = health?.checks?.find((item) => item.connector === key);
-            const healthy = summary.status === "ok" && (!binding || binding.status === "healthy");
+            const aggregateReadVerified = system === "Salesforce"
+              && summary.status === "connected_read_only"
+              && summary.external_read === true;
+            const healthy = (summary.status === "ok" || aggregateReadVerified)
+              && (!binding || binding.status === "healthy");
             return <div className="connector-context-card" key={system}>
               <span className={healthy ? "connector-context-status ready" : "connector-context-status"}>{healthy ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{contextStatusLabel(summary, binding, healthy)}</span>
               <strong>{system}</strong>

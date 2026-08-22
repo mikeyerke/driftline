@@ -114,7 +114,7 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
       <div className="monitor-registry" aria-label="Historical monitor sources">
         <div className="monitor-registry-heading"><strong>Monitor any approved change surface</strong><span>Bounded source registry</span></div>
         <div className="registry-health" aria-label="Source freshness health">
-          <div className="registry-health-heading"><span>Always-on readiness</span><small>Freshness is derived from the append-only ledger</small></div>
+          <div className="registry-health-heading"><span>Always-on readiness</span><small>Freshness comes from the append-only ledger · exact HTTPS URLs only · max 25 tenant sources · no redirects</small></div>
           <div className="registry-health-grid">
             {sources.map((source) => {
               const health = healthById[source.source_id];

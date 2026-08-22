@@ -244,7 +244,14 @@ export function getSalesforceHealth() {
 }
 
 export function getValueProof() {
-  return request("/api/ops/value-proof");
+  const params = new URLSearchParams();
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/ops/value-proof${params.toString() ? `?${params}` : ""}`, {
+    authenticated: Boolean(operatorSession.identityToken),
+  });
 }
 
 export function getLatestEvaluation() {

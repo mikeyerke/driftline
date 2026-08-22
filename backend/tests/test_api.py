@@ -1111,6 +1111,9 @@ def test_salesforce_status_surfaces_persisted_reauthorization_state(monkeypatch)
             "health_status": "reauthorization_required",
             "health_checked_at": "2026-08-22T01:00:00Z",
             "health_reason": "refresh_token_rejected",
+            "health_objects": [
+                {"object": "Product2", "total": 4, "fields": ["Name"]},
+            ],
         },
     )
     monkeypatch.setattr(
@@ -1133,7 +1136,82 @@ def test_salesforce_status_surfaces_persisted_reauthorization_state(monkeypatch)
     assert payload["authorization_required"] is True
     assert payload["health_reason"] == "refresh_token_rejected"
     assert payload["health_checked_at"] == "2026-08-22T01:00:00Z"
+    assert payload["aggregate_read_verified"] is False
+    assert payload["aggregate_read_status"] == "reauthorization_required"
+    assert payload["aggregate_read_objects"] == [
+        {"object": "Product2", "total": 4, "fields": ["Name"]},
+    ]
     assert payload["credential_values_exposed"] is False
+
+
+def test_salesforce_callback_verifies_aggregate_read_before_persisting_connection(monkeypatch) -> None:
+    writes: list[tuple[str, str]] = []
+    connections: list[dict[str, object]] = []
+    bindings: list[dict[str, object]] = []
+    audits: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        api,
+        "_consume_salesforce_state",
+        lambda _state: {
+            "tenant_id": "callback-acme",
+            "email": "owner@example.com",
+            "expires_at": 9_999_999_999,
+            "code_verifier": "verifier",
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "exchange_salesforce_code",
+        lambda *_args, **_kwargs: {
+            "access_token": "short-lived-access-token",
+            "refresh_token": "refresh-token",
+            "instance_url": "https://callback.my.salesforce.com",
+        },
+    )
+    monkeypatch.setattr(api, "load_tenant", lambda _tenant_id: {"status": "active"})
+    monkeypatch.setattr(
+        api,
+        "_write_tenant_secret",
+        lambda _tenant_id, name, value: writes.append((name, value)) or "7",
+    )
+    monkeypatch.setattr(api, "persist_connector_binding", lambda payload: bindings.append(payload) or payload)
+    monkeypatch.setattr(api, "persist_salesforce_connection", lambda payload: connections.append(payload))
+    monkeypatch.setattr(api, "persist_tenant_audit_event", lambda payload: audits.append(payload))
+    monkeypatch.setattr(
+        api.SalesforceConfig,
+        "from_env",
+        lambda: SimpleNamespace(scope="api refresh_token", api_version="v61.0"),
+    )
+
+    class FakeSalesforceClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def health_summary(self):
+            return {
+                "status": "connected_read_only",
+                "objects": [
+                    {"object": "Product2", "total": 4, "fields": ["Name"]},
+                    {"object": "PricebookEntry", "total": 6, "fields": []},
+                    {"object": "Opportunity", "total": 2, "fields": ["StageName"]},
+                ],
+                "external_write": False,
+            }
+
+    monkeypatch.setattr(api, "SalesforceReadOnlyClient", FakeSalesforceClient)
+
+    response = client.get(
+        "/api/connectors/salesforce/oauth/callback",
+        params={"code": "one-time-code", "state": "opaque-state"},
+    )
+
+    assert response.status_code == 200
+    assert "aggregate read verified" in response.text.casefold()
+    assert writes == [("driftline-tenant-callback-acme-salesforce", "refresh-token")]
+    assert connections[0]["health_status"] == "connected_read_only"
+    assert connections[0]["health_objects"][0]["total"] == 4
+    assert bindings[0]["status"] == "active"
+    assert audits[0]["aggregate_read_verified"] is True
 
 
 def test_salesforce_context_is_explicitly_unconfigured_before_oauth(monkeypatch) -> None:

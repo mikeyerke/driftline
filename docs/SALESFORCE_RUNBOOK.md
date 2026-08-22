@@ -16,6 +16,9 @@ provisions a tenant-scoped OAuth client and secret.
   as every other connector: `driftline-tenant-<tenant-id>-salesforce`.
 - Read-only allowlist for `Product2`, `PricebookEntry`, and `Opportunity`.
 - Aggregate-only health probes: counts and field names, never CRM records.
+- OAuth callback verification gate: Driftline executes the aggregate probe with
+  the short-lived access token before it stores the refresh token or activates
+  the tenant binding. A callback cannot claim “connected” when the read fails.
 - Firestore connection metadata without bearer or refresh tokens.
 - Explicit disconnect metadata path; Salesforce app revocation remains an
   operator offboarding step.
@@ -52,7 +55,10 @@ provisions a tenant-scoped OAuth client and secret.
    that was created before PKCE was enabled.
 8. After the callback, call signed `/api/connectors/salesforce/health`. The
    response must contain only object counts, field names, and
-   `external_write=false`.
+   `external_write=false`. The signed status and ops-summary routes also expose
+   `aggregate_read_verified`, `aggregate_read_status`, and the bounded
+   `aggregate_read_objects` proof; those fields are the evidence to use in a
+   deployment review.
 
 ## Offboarding
 
@@ -63,4 +69,7 @@ provisions a tenant-scoped OAuth client and secret.
 
 The application does not claim Salesforce is connected until the callback,
 tenant binding, and aggregate read probe all succeed in the deployed
-environment. A configured OAuth client alone is not connection evidence.
+environment. A configured OAuth client, a stored refresh token, or an HTTP 200
+from the health route alone is not connection evidence. If Salesforce rejects
+the refresh token with `invalid_grant`, Driftline persists only the bounded
+`reauthorization_required` health state and keeps aggregate-read proof false.

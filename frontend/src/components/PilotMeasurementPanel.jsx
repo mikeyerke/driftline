@@ -1,6 +1,6 @@
 import { ClipboardCheck, Clock3, Gauge, Plus, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getPilotReport, recordOutcomeMeasurement } from "../api";
+import { getMonitorRegistry, getPilotReport, getValueProof, recordOutcomeMeasurement } from "../api";
 import useNearViewport from "../hooks/useNearViewport";
 
 const initialForm = {
@@ -25,12 +25,17 @@ export default function PilotMeasurementPanel({ operatorSession }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [utility, setUtility] = useState({ registry: null, proof: null });
 
   const refresh = () => {
     if (!operatorSession?.identityToken || !operatorSession?.tenantId) return;
-    getPilotReport()
-      .then(setReport)
-      .catch(() => setReport(null));
+    Promise.allSettled([getPilotReport(), getMonitorRegistry(), getValueProof()]).then(([pilot, registry, proof]) => {
+      setReport(pilot.status === "fulfilled" ? pilot.value : null);
+      setUtility({
+        registry: registry.status === "fulfilled" ? registry.value : null,
+        proof: proof.status === "fulfilled" ? proof.value : null,
+      });
+    });
   };
 
   useEffect(() => {
@@ -66,6 +71,15 @@ export default function PilotMeasurementPanel({ operatorSession }) {
   };
 
   const measured = report?.record_count > 0;
+  const customSourceCount = (utility.registry?.sources || []).filter((source) => source.source_kind === "operator_registered_public").length;
+  const workflowCount = utility.proof?.observed?.workflows || 0;
+  const completedActions = utility.proof?.observed?.action_items_completed_historically || 0;
+  const readiness = [
+    { label: "Tenant lane connected", ready: Boolean(operatorSession.tenantId), detail: operatorSession.tenantId || "Sign in and select a tenant" },
+    { label: "Real source registered", ready: customSourceCount > 0, detail: customSourceCount > 0 ? `${customSourceCount} exact HTTPS source${customSourceCount === 1 ? "" : "s"}` : "Add one owned or competitor change surface" },
+    { label: "Workflow work observed", ready: workflowCount > 0, detail: workflowCount > 0 ? `${workflowCount} tenant-scoped workflow${workflowCount === 1 ? "" : "s"}` : "Run a tenant workflow against the registered source" },
+    { label: "Aggregate outcome recorded", ready: measured, detail: measured ? `${report.record_count} operator-reported record${report.record_count === 1 ? "" : "s"}` : "Record before/after minutes after a real pilot run" },
+  ];
   return (
     <section ref={panelRef} className="panel pilot-panel" aria-labelledby="pilot-title">
       <header className="panel-header">
@@ -78,6 +92,15 @@ export default function PilotMeasurementPanel({ operatorSession }) {
         <div><ShieldCheck size={15} /><strong>{measured ? `${report.time_saved_pct}%` : "—"}</strong><small>before/after delta</small></div>
       </div>
       <p className="pilot-note">Record aggregate before/after observations from a real pilot. Driftline stores no customer names, raw notes, or CRM records; every entry remains explicitly operator-reported until independently reviewed.</p>
+      <div className="pilot-readiness" aria-label="Pilot readiness checklist">
+        <div className="pilot-readiness-heading"><strong>Utility loop readiness</strong><small>Product telemetry, not customer proof</small></div>
+        <div className="pilot-readiness-list">
+          {readiness.map((item) => <div className={`pilot-readiness-item${item.ready ? " ready" : ""}`} key={item.label}>
+            <span aria-hidden="true">{item.ready ? "✓" : "○"}</span><div><strong>{item.label}</strong><small>{item.detail}</small></div>
+          </div>)}
+        </div>
+        <p className="pilot-readiness-footnote">{completedActions > 0 ? `${completedActions} owner action${completedActions === 1 ? " has" : "s have"} closed in the append-only audit.` : "No owner action has been closed in this tenant audit yet."} Customer time saved, revenue, retention, and willingness-to-pay stay unmeasured until a real pilot produces source-backed records.</p>
+      </div>
       <button className="secondary compact pilot-toggle" type="button" onClick={() => { setOpen((current) => !current); setMessage(""); setError(""); }}><Plus size={14} />{open ? "Close measurement form" : "Record a measurement"}</button>
       {open && <form className="pilot-form" onSubmit={submit}>
         <label>Evidence type<select name="source_type" value={form.source_type} onChange={update}><option value="pilot_log">Pilot log</option><option value="customer_interview">Customer interview</option><option value="win_loss">Win / loss</option><option value="billing_record">Billing record</option></select></label>

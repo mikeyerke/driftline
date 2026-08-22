@@ -2084,11 +2084,44 @@ def _salesforce_connection_metadata(
     return connection, binding, connected
 
 
+_SALESFORCE_OBJECT_ALLOWLIST = ("Product2", "PricebookEntry", "Opportunity")
+
+
+def _safe_salesforce_health_objects(value: object) -> list[dict[str, object]]:
+    """Keep only bounded aggregate CRM proof; never persist record contents."""
+    if not isinstance(value, list):
+        return []
+    safe: list[dict[str, object]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        object_name = str(item.get("object", "")).strip()
+        if object_name not in _SALESFORCE_OBJECT_ALLOWLIST:
+            continue
+        try:
+            total = max(0, int(item.get("total", 0)))
+        except (TypeError, ValueError):
+            continue
+        fields = sorted(
+            {
+                str(field).strip()[:80]
+                for field in item.get("fields", [])
+                if str(field).strip()
+            }
+        )[:20]
+        safe.append({"object": object_name, "total": total, "fields": fields})
+    return sorted(
+        safe,
+        key=lambda item: _SALESFORCE_OBJECT_ALLOWLIST.index(str(item["object"])),
+    )
+
+
 def _record_salesforce_health_status(
     tenant_id: str,
     status: str,
     *,
     reason: str | None = None,
+    objects: object = None,
 ) -> None:
     """Persist bounded Salesforce health metadata without CRM or credentials.
 
@@ -2111,6 +2144,8 @@ def _record_salesforce_health_status(
             payload["health_reason"] = reason
         else:
             payload.pop("health_reason", None)
+        if objects is not None:
+            payload["health_objects"] = _safe_salesforce_health_objects(objects)
         persist_salesforce_connection(payload)
     except Exception as exc:  # noqa: BLE001  # metadata must not mask provider health.
         logger.warning(
@@ -2163,6 +2198,7 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
         _record_salesforce_health_status(
             tenant_id,
             str(summary.get("status", "connected_read_only")),
+            objects=summary.get("objects"),
         )
         return summary
     except (ConnectorError, CredentialBrokerError) as exc:
@@ -2242,8 +2278,13 @@ def salesforce_status(
         tenant_id,
     )
     safe_tenant = identity["tenant_id"]
+    return _salesforce_status_payload(safe_tenant)
+
+
+def _salesforce_status_payload(tenant_id: str) -> dict[str, object]:
+    """Build signed Salesforce status, including the last aggregate-read proof."""
     readiness = salesforce_readiness()
-    connection, binding, connected = _salesforce_connection_metadata(safe_tenant)
+    connection, binding, connected = _salesforce_connection_metadata(tenant_id)
     instance_url = str(connection.get("instance_url", "")).rstrip("/")
     hostname = urlparse(instance_url).hostname if instance_url else None
     persisted_health = str(connection.get("health_status", "")).casefold()
@@ -2255,7 +2296,7 @@ def salesforce_status(
         else readiness.get("status", "not_configured")
     )
     return {
-        "tenant_id": safe_tenant,
+        "tenant_id": tenant_id,
         "connector": "salesforce",
         "status": status,
         "mode": "read_only_context" if connected else readiness.get("mode", "prepared_only"),
@@ -2272,6 +2313,25 @@ def salesforce_status(
         "verified_at": binding.get("verified_at") if connected else None,
         "health_checked_at": connection.get("health_checked_at") if connected else None,
         "health_reason": connection.get("health_reason") if status == "reauthorization_required" else None,
+        "aggregate_read_verified": bool(
+            connected
+            and persisted_health == "connected_read_only"
+            and connection.get("health_checked_at")
+        ),
+        "aggregate_read_status": (
+            "verified"
+            if connected and persisted_health == "connected_read_only" and connection.get("health_checked_at")
+            else persisted_health or "not_run"
+        ),
+        "aggregate_read_verified_at": (
+            connection.get("health_checked_at")
+            if connected and persisted_health == "connected_read_only"
+            else None
+        ),
+        "aggregate_read_objects": _safe_salesforce_health_objects(
+            connection.get("health_objects")
+        ),
+        "aggregate_read_reason": connection.get("health_reason"),
         "credential_values_exposed": False,
     }
 
@@ -2355,13 +2415,31 @@ def salesforce_oauth_callback(
             code,
             code_verifier=str(callback_state.get("code_verifier", "")),
         )
+        access_token = str(result.get("access_token", ""))
         refresh_token = str(result.get("refresh_token", ""))
-        if not refresh_token:
+        instance_url = str(result.get("instance_url", "")).rstrip("/")
+        if not access_token or not refresh_token or not instance_url:
             raise ConnectorError("salesforce_refresh_token_missing")
         tenant_id = validate_tenant_id(str(callback_state["tenant_id"]))
         tenant = load_tenant(tenant_id)
         if str((tenant or {}).get("status", "")).casefold() != "active":
             raise ConnectorError("salesforce_tenant_inactive")
+
+        # Do one bounded aggregate read with the short-lived access token
+        # before persisting the refresh token or activating the binding. This
+        # makes the OAuth callback itself a real verification gate instead of
+        # reporting "connected" for a credential that has never read CRM.
+        health = SalesforceReadOnlyClient(
+            config,
+            access_token=access_token,
+            instance_url=instance_url,
+        ).health_summary()
+        if health.get("status") != "connected_read_only":
+            raise ConnectorError("salesforce_aggregate_read_unverified")
+        health_objects = _safe_salesforce_health_objects(health.get("objects"))
+        if len(health_objects) != len(_SALESFORCE_OBJECT_ALLOWLIST):
+            raise ConnectorError("salesforce_aggregate_read_unverified")
+
         secret_name = _salesforce_secret_name(tenant_id)
         secret_version = _write_tenant_secret(tenant_id, secret_name, refresh_token) or "latest"
         binding = persist_connector_binding(
@@ -2391,14 +2469,15 @@ def salesforce_oauth_callback(
         persist_salesforce_connection(
             {
                 "tenant_id": tenant_id,
-                "instance_url": str(result.get("instance_url", "")).rstrip("/"),
+                "instance_url": instance_url,
                 "secret_name": secret_name,
                 "scopes": config.scope.split(),
                 "status": "connected_read_only",
                 "connected_at": utc_now(),
                 "operator_email": callback_state.get("email", ""),
-                "health_status": "pending",
-                "health_checked_at": None,
+                "health_status": "connected_read_only",
+                "health_checked_at": utc_now(),
+                "health_objects": health_objects,
             }
         )
         persist_tenant_audit_event(
@@ -2408,11 +2487,13 @@ def salesforce_oauth_callback(
                 "connector": "salesforce",
                 "status": "active",
                 "secret_name": binding["secret_name"],
+                "aggregate_read_verified": True,
+                "aggregate_read_objects": health_objects,
                 "actor": callback_state.get("email", "") or "salesforce_oauth",
             }
         )
         return PlainTextResponse(
-            "Salesforce connected to Driftline in read-only mode. You can close this tab."
+            "Salesforce connected to Driftline in read-only mode; aggregate read verified. You can close this tab."
         )
     except (ConnectorError, ValueError) as exc:
         logger.warning("Salesforce OAuth callback failed: %s", str(exc))
@@ -2470,6 +2551,7 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
         _record_salesforce_health_status(
             tenant_id,
             str(result.get("status", "connected_read_only")),
+            objects=result.get("objects"),
         )
         return {"tenant_id": tenant_id, **result}
     except (ConnectorError, CredentialBrokerError) as exc:
@@ -2973,7 +3055,18 @@ def get_ops_summary(
             == "true"
             for name in connector_names
         },
-        "crm": {"salesforce": salesforce_readiness()},
+        # Public health stays provider-configuration-only. Once an operator is
+        # signed into a tenant, surface that tenant's persisted aggregate-read
+        # proof instead of the deployment-wide OAuth readiness flag. This is
+        # what makes a successful CRM read (or a rejected refresh token) visible
+        # in the same operational summary the console already polls.
+        "crm": {
+            "salesforce": (
+                _salesforce_status_payload(identity["tenant_id"])
+                if identity is not None
+                else salesforce_readiness()
+            )
+        },
         "source_health": source_health,
     }
 
