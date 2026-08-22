@@ -25,10 +25,20 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert response.json()["release_sha"] == "unknown"
+    assert response.json()["build_id"] == "unknown"
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["permissions-policy"] == (
         "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     )
+
+
+def test_health_exposes_non_secret_release_identity(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_RELEASE_SHA", "a" * 40)
+    monkeypatch.setenv("DRIFTLINE_BUILD_ID", "build-123")
+    payload = client.get("/health").json()
+    assert payload["release_sha"] == "a" * 40
+    assert payload["build_id"] == "build-123"
 
 
 def test_auth_config_exposes_only_public_google_client_configuration(monkeypatch) -> None:

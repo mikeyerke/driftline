@@ -42,6 +42,9 @@ printf 'Artifact Registry: cleanup policy active (dry-run disabled)\n'
 health="$(curl --fail --silent --show-error --max-time 20 "${public_url}/health")"
 printf '%s\n' "${health}" | jq -e \
   '.status == "ok" and .persistence == "firestore" and .async_jobs == true' >/dev/null
+printf '%s\n' "${health}" | jq -e \
+  '(.release_sha | type == "string" and test("^[0-9a-f]{40}$")) and
+   (.build_id | type == "string" and length > 0)' >/dev/null
 printf 'Health: %s\n' "${health}"
 
 health_headers="$(curl --fail --silent --show-error --max-time 20 --dump-header - --output /dev/null "${public_url}/health")"

@@ -1780,6 +1780,11 @@ def health() -> dict[str, str | bool]:
         "service": "driftline-agent",
         "persistence": os.getenv("DRIFTLINE_PERSISTENCE", "memory"),
         "async_jobs": _tasks_enabled(),
+        # Cloud Build injects the reviewed Git SHA and build id at deploy time.
+        # They are non-secret release metadata and make the public readiness
+        # probe sufficient to tie a serving revision back to source control.
+        "release_sha": os.getenv("DRIFTLINE_RELEASE_SHA", "unknown"),
+        "build_id": os.getenv("DRIFTLINE_BUILD_ID", "unknown"),
     }
 
 
