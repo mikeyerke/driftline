@@ -34,7 +34,7 @@ export default function TrustPanel({ actionRecord }) {
   const connectorLanes = Object.values(ops?.connectors || {}).filter(Boolean).length;
   const runtimeLabel = ops ? `${ops.model || "Agent runtime"} · ${ops.persistence || "persistence unavailable"}` : "Deployment telemetry unavailable";
   return (
-    <section ref={panelRef} className="panel trust-panel" id="settings-section">
+    <section ref={panelRef} className="panel trust-panel" id="deployment-section">
       <header className="panel-header"><div><h2>Trust and deployment posture</h2><span className="live-label">Production deployment</span></div><span className="muted">Public evaluation lane is isolated</span></header>
       <div className="trust-grid">
         <div><Server size={18} /><strong>Google Cloud</strong><small>Cloud Run · Firestore · Cloud Tasks</small></div>

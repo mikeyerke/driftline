@@ -111,7 +111,7 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
   const objects = status?.allowed_objects || fallbackObjects;
 
   return (
-    <section id="connectors-section" className="panel salesforce-panel" aria-labelledby="salesforce-title">
+    <section id="settings-section" className="panel salesforce-panel" aria-labelledby="salesforce-title">
       <header className="panel-header">
         <div><h2 id="salesforce-title">Salesforce CRM context</h2><span className="live-label">Read-only</span></div>
         <span className="muted">No CRM writes</span>
