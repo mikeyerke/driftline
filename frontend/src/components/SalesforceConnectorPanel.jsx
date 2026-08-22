@@ -114,7 +114,7 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
   return (
     <section id="settings-section" className="panel salesforce-panel" aria-labelledby="salesforce-title">
       <header className="panel-header">
-        <div><h2 id="salesforce-title">Salesforce CRM context</h2><span className="live-label">Read-only</span></div>
+        <div><h2 id="salesforce-title">Salesforce CRM context</h2><span className={`live-label ${signedIn ? "public" : "synthetic"}`}>{signedIn ? "Read-only" : "Prepared · consent required"}</span></div>
         <span className="muted">No CRM writes</span>
       </header>
       <div className="salesforce-body">
@@ -122,7 +122,7 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
           <div className="salesforce-icon"><ShieldCheck size={17} /></div>
           <div><strong>Ground impact decisions with bounded CRM context</strong><small>Driftline reads aggregate metadata only. It never copies Salesforce records into the workflow or creates CRM changes.</small></div>
         </div>
-        {!signedIn && <p className="salesforce-note"><AlertCircle size={14} />Sign in with Google above to manage a tenant-scoped Salesforce connection. The anonymous judging lane remains packet-safe.</p>}
+        {!signedIn && <p className="salesforce-note"><AlertCircle size={14} /><strong>No CRM context is available in this public lane.</strong> Sign in with Google above to manage a tenant-scoped, read-only Salesforce connection; the aggregate probe must pass all three allowlisted objects before any CRM context can influence a workflow.</p>}
         {signedIn && <>
           <div className="salesforce-status-row">
             <span className={connected ? "salesforce-status ready" : "salesforce-status"}>{connected ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}{statusCopy(status?.status)}</span>
