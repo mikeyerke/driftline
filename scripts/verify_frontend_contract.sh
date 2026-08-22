@@ -73,4 +73,17 @@ if { command -v rg >/dev/null 2>&1 \
   exit 1
 fi
 
+# Source-health reads can overlap after a monitor run, tab return, or source
+# lifecycle change. Only the newest request may update freshness state; an
+# older Firestore response must not roll the card back to stale data.
+if { command -v rg >/dev/null 2>&1 \
+      && { ! rg -q 'sourceHealthRequestRef' frontend/src/App.jsx \
+        || ! rg -q 'sourceHealthRequestRef\.current !== requestId' frontend/src/App.jsx; }; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && { ! grep -Eq 'sourceHealthRequestRef' frontend/src/App.jsx \
+        || ! grep -Eq 'sourceHealthRequestRef\.current !== requestId' frontend/src/App.jsx; }; }; then
+  printf 'Source-health freshness guard is missing: an older overlapping read could overwrite newer state.\n' >&2
+  exit 1
+fi
+
 printf 'Frontend literal ID contract: PASS\n'

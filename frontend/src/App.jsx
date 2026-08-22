@@ -80,6 +80,7 @@ export default function App() {
   const sessionKeyRef = useRef(`${operatorSession.tenantId || "public"}:${operatorSession.identityToken ? "signed" : "anonymous"}`);
   const sessionEpochRef = useRef(0);
   const historyRequestRef = useRef(0);
+  const sourceHealthRequestRef = useRef(0);
 
   const approved = workflowState?.status === "complete";
   const dismissed = workflowState?.status === "dismissed";
@@ -150,14 +151,16 @@ export default function App() {
   };
 
   const refreshSourceHealth = async (expectedEpoch = sessionEpochRef.current) => {
+    const requestId = sourceHealthRequestRef.current + 1;
+    sourceHealthRequestRef.current = requestId;
     if (sessionEpochRef.current === expectedEpoch) setSourceHealthState("loading");
     try {
       const payload = await getMonitorRegistry();
-      if (sessionEpochRef.current !== expectedEpoch) return;
+      if (sessionEpochRef.current !== expectedEpoch || sourceHealthRequestRef.current !== requestId) return;
       setSourceHealth(payload.sources || []);
       setSourceHealthState("ready");
     } catch {
-      if (sessionEpochRef.current !== expectedEpoch) return;
+      if (sessionEpochRef.current !== expectedEpoch || sourceHealthRequestRef.current !== requestId) return;
       setSourceHealth([]);
       setSourceHealthState("unavailable");
     }
