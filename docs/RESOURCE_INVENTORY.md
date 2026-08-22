@@ -46,6 +46,11 @@ Checked `2026-08-22T00:44Z` with the active gcloud project set to
   GitHub `0` issues / `0` PRs. Salesforce correctly remained
   `authorization_required`; these counts are connector proof, not customer
   outcome or ROI evidence.
+- The authenticated console then ran a signed tenant scan from the pinned
+  `competitor/pricing` fixture. Firestore contains job `job-a33d07ac658c` /
+  workflow `75da1f00-e657-4ba3-bba6-80c298b747be` in `needs_approval`, with
+  `run_mode=tenant_demo`, `execution_mode=google_adk`, and
+  `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state

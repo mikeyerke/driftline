@@ -155,6 +155,11 @@ The latest signed context read (2026-08-22 UTC) verified `18` open Jira issues,
 for the isolated Driftline tenant. Salesforce correctly returned
 `authorization_required` after its stored refresh token was rejected; no CRM
 totals are inferred from that state.
+The same authenticated console also completed a signed tenant scan from the
+pinned `competitor/pricing` fixture; Firestore recorded job
+`job-a33d07ac658c` / workflow `75da1f00-e657-4ba3-bba6-80c298b747be` at the
+human approval gate with Google ADK + Gemini 3.5 Flash. No approval or external
+write was attempted.
 
 External connector credentials are tenant-bound. An owner provisions the
 deterministic Secret Manager secret and activates its metadata-only binding via

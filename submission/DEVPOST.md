@@ -179,6 +179,11 @@ read are claimed until fresh consent succeeds.
   GitHub issues / PRs. Salesforce remained explicitly
   `authorization_required` after a rejected refresh token; no CRM totals or
   customer outcomes are claimed.
+- Signed tenant workflow proof: the authenticated console ran the pinned
+  `competitor/pricing` fixture through Firestore + Cloud Tasks + Google ADK;
+  job `job-a33d07ac658c` / workflow
+  `75da1f00-e657-4ba3-bba6-80c298b747be` reached `needs_approval` with Gemini
+  3.5 Flash. Approval was not clicked and no external write was attempted.
 
 ## Four-minute demo plan
 

@@ -95,6 +95,9 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 - The authenticated tenant **Refresh context** read verified aggregate-only
   Jira, Confluence, Slack, and GitHub reads (`18` / `7` / `38` / `0` issues and
   PRs respectively) while keeping Salesforce explicitly authorization-gated.
+- A signed tenant scan then persisted job `job-a33d07ac658c` / workflow
+  `75da1f00-e657-4ba3-bba6-80c298b747be` at `needs_approval` through Google ADK
+  + Gemini 3.5 Flash; no connector write was attempted.
 
 ## Demo and production readiness — 30%
 
