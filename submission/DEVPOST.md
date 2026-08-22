@@ -173,7 +173,7 @@ claimed until fresh consent succeeds.
   `external_systems_changed=false`.
 - Trace-to-eval check: live evaluation `eval-149e9df793e1` passed the
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
-  remaining `stable` against prior evaluation `eval-b308a86dfc3c` with no case
+  remaining `stable` against prior evaluation `eval-5864bcf3e85b` with no case
   regressions; the report
   is redacted telemetry and explicitly does not claim customer outcomes.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was

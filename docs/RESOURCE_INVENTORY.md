@@ -32,7 +32,7 @@ Checked `2026-08-22T04:42Z` with the active gcloud project set to
   `anonymous_lane=packet_only`, and no credential values exposed.
 - `/api/evals/latest` reports evaluation `eval-149e9df793e1` with a passing
   `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, and a
-  `stable` trend against `eval-b308a86dfc3c` (all deltas `0.0` and no case
+  `stable` trend against `eval-5864bcf3e85b` (all deltas `0.0` and no case
   regressions). Trace data is
   redacted and `customer_outcome=false`; this is evaluator telemetry, not
   customer ROI evidence.
