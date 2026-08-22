@@ -21,11 +21,11 @@ correction was checked with the active project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` served revision
-  `driftline-00214-xhg` at 100% traffic. Its immutable serving image was
-  `sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
-- Source commit `244ab8bc9de6821f1302b6ef955260050f92f2f2` was built by Cloud
-  Build `6072b20d-d5e0-4ac0-9a7c-af5bc053d989`; GitHub Actions run
-  `32574855268` passed the repository gates.
+  `driftline-00238-vs9` at 100% traffic. Its immutable serving image was
+  `sha256:380e3fd92cac98129fce2eb97fd78c0c81ea1590b46cbe9f5a6c831da9943113`.
+- Source commit `5e0c820befb953a72129a9767ff4f3fe66e44b99` was built by Cloud
+  Build `2140ab49-e942-465a-8fd1-9b263549e658`; GitHub Actions run
+  `32590613661` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -34,11 +34,11 @@ correction was checked with the active project set to
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - The snapshot `/health` response reported Firestore persistence, async jobs,
-  release SHA `244ab8bc9de6821f1302b6ef955260050f92f2f2`, and build ID
-  `6072b20d-d5e0-4ac0-9a7c-af5bc053d989`; `/api/auth/config`
+  release SHA `5e0c820befb953a72129a9767ff4f3fe66e44b99`, and build ID
+  `2140ab49-e942-465a-8fd1-9b263549e658`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- The snapshot `/api/evals/latest` reported evaluation `eval-bb32c6552c2b` with a passing
+- The snapshot `/api/evals/latest` reported evaluation `eval-04a631206b7f` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is

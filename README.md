@@ -584,13 +584,13 @@ public `/health` response carries the exact release SHA and build ID before
 the build can succeed. The exact serving release is intentionally verified at
 read time rather than copied into prose: run `./scripts/verify_production.sh`
 and compare its `/health` output with `git rev-parse HEAD`. The latest recorded
-release-proof snapshot before this documentation correction was source commit
-`244ab8bc9de6821f1302b6ef955260050f92f2f2`, Cloud Build
-`6072b20d-d5e0-4ac0-9a7c-af5bc053d989`, Cloud Run revision
-`driftline-00214-xhg`, and image digest
-`sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
-That snapshot is evidence, not a substitute for the live check after a later
-documentation-only commit. GitHub Actions run `32574855268` passed the
+live proof on 2026-08-22 is source commit
+`5e0c820befb953a72129a9767ff4f3fe66e44b99`, Cloud Build
+`2140ab49-e942-465a-8fd1-9b263549e658`, Cloud Run revision
+`driftline-00238-vs9`, and image digest
+`sha256:380e3fd92cac98129fce2eb97fd78c0c81ea1590b46cbe9f5a6c831da9943113`.
+That evidence is not a substitute for rerunning the live check after a later
+commit. GitHub Actions run `32590613661` passed the
 repository gates, including the frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -610,7 +610,7 @@ The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
 before this release is considered healthy. The latest recorded live report
-snapshot `eval-bb32c6552c2b` remained stable against the prior report with 100% safety,
+snapshot `eval-04a631206b7f` remained stable against the prior report with 100% safety,
 100% usefulness, 100% overall, and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.

@@ -7,13 +7,12 @@ roadmap.
 The exact serving release is verified at read time by
 `./scripts/verify_production.sh` and the public `/health` contract; this
 scorecard does not pretend that a copied revision ID remains current after a
-documentation-only commit. The latest recorded release-proof snapshot before
-this documentation correction was source
-`244ab8bc9de6821f1302b6ef955260050f92f2f2`, Cloud Run `driftline-00214-xhg`,
-Cloud Build `6072b20d-d5e0-4ac0-9a7c-af5bc053d989`, project
+later commit. The latest live proof on 2026-08-22 is source
+`5e0c820befb953a72129a9767ff4f3fe66e44b99`, Cloud Run `driftline-00238-vs9`,
+Cloud Build `2140ab49-e942-465a-8fd1-9b263549e658`, project
 `driftline-hackathon-2026`, 100% traffic, image digest
-`sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
-Use the live check for the current SHA. The submission-facing scorecard is
+`sha256:380e3fd92cac98129fce2eb97fd78c0c81ea1590b46cbe9f5a6c831da9943113`.
+Use the live check after any later commit. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
 ## Innovation and operational utility — 40%
@@ -39,7 +38,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest recorded live report snapshot is
-  `eval-bb32c6552c2b`, stable against the prior report with 100% safety,
+  `eval-04a631206b7f`, stable against the prior report with 100% safety,
   100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -146,7 +145,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   with the exact Artifact Registry image tag and verifies the public health
   SHA/build contract before declaring the build successful.
 - Latest recorded immutable image digest snapshot:
-  `sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
+  `sha256:380e3fd92cac98129fce2eb97fd78c0c81ea1590b46cbe9f5a6c831da9943113`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in

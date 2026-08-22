@@ -140,12 +140,12 @@ The exact serving release is independently verifiable from the public
 `/health` response and `./scripts/verify_production.sh`; release IDs are not
 treated as permanently current just because they were copied into a document.
 The latest recorded release-proof snapshot before this documentation
-correction was source commit
-`244ab8bc9de6821f1302b6ef955260050f92f2f2`, Cloud Build
-`6072b20d-d5e0-4ac0-9a7c-af5bc053d989`, and Cloud Run revision
-`driftline-00214-xhg` at 100% traffic in project `driftline-hackathon-2026`.
-The snapshot image digest is
-`sha256:75e6c23cca7713f30ac996837276e1d16b83be6fa03a9dbd66cac64d5c42d590`.
+proof on 2026-08-22 is source commit
+`5e0c820befb953a72129a9767ff4f3fe66e44b99`, Cloud Build
+`2140ab49-e942-465a-8fd1-9b263549e658`, and Cloud Run revision
+`driftline-00238-vs9` at 100% traffic in project `driftline-hackathon-2026`.
+The immutable serving image digest is
+`sha256:380e3fd92cac98129fce2eb97fd78c0c81ea1590b46cbe9f5a6c831da9943113`.
 
 The public `/health` probe reports the full source SHA and Cloud Build ID, so a
 reviewer can independently trace the serving revision; rerun the check after
@@ -204,7 +204,7 @@ claimed until fresh consent succeeds.
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Trace-to-eval check: the latest recorded live evaluation snapshot
-  `eval-bb32c6552c2b` passed the 14-case
+  `eval-04a631206b7f` passed the 14-case
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining stable against the prior report with no case
   regressions; the report
