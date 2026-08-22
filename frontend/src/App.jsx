@@ -11,7 +11,7 @@ import ActivityLog from "./components/ActivityLog";
 import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
-import { artifacts, demoEvidence } from "./data";
+import { artifacts, demoEvidence, demoEvidenceBySource } from "./data";
 import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, retryJob, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
 import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
@@ -81,7 +81,16 @@ export default function App() {
   const approved = workflowState?.status === "complete";
   const dismissed = workflowState?.status === "dismissed";
   const liveWorkflow = Boolean(workflowState?.workflow_id && workflowId);
-  const evidence = workflowState?.evidence || demoEvidence;
+  const previewEvidence = demoEvidenceBySource[selectedSource] || {
+    source_id: selectedSource,
+    source_name: selectedSource,
+    before: "No snapshot captured yet.",
+    after: "Run a scan to capture evidence from this registered source.",
+    confidence: 0,
+    snapshot_label: "Awaiting first capture",
+    data_mode: "awaiting_capture",
+  };
+  const evidence = workflowState?.evidence || previewEvidence;
   const impacts = workflowState?.impacts?.map((impact, index) => ({
     ...impact,
     status: displayStatus(impact.status),
@@ -195,6 +204,21 @@ export default function App() {
     setSelectedNav(label);
     const targetId = `${label.toLowerCase()}-section`;
     window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  const handleSourceChange = (nextSource) => {
+    if (!nextSource || nextSource === selectedSource) return;
+    // A source selector change starts a new inspection context. Invalidate a
+    // poll that may still be completing for the old source so it cannot
+    // repopulate the new selection with stale evidence or impact nodes.
+    sessionEpochRef.current += 1;
+    setSelectedSource(nextSource);
+    setWorkflowState(null);
+    setWorkflowId(null);
+    setJob(null);
+    setArtifactDecisions(initialDecisions);
+    setSelectedArtifact("Pricing battlecard");
+    setScanMessage("Source changed · run a new scan to verify this change");
   };
 
   useEffect(() => {
@@ -445,7 +469,7 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={setSelectedSource} operatorSession={operatorSession} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) setSelectedSource(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
+          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel />
           <TraceEvalPanel workflowId={workflowId} />
           <ValueProofPanel />

@@ -37,15 +37,72 @@ export const artifacts = [
   },
 ];
 
-export const demoEvidence = {
-  source_id: "competitor/pricing",
-  source_name: "Competitor pricing snapshot",
-  before: "Competitor Pro starts at $49 per seat per month.",
-  after: "Competitor Pro starts at $59 per seat per month.",
-  evidence_hash: "3b2df1ed8f635d1cc7ab425f675df0baa9bac941aaeddbfbca81ecada501d957",
-  confidence: 0.99,
-  snapshot_label: "Synthetic competitor fixture · competitor/pricing",
-  snapshot_hash: "108725c5f3faf839e5df6e74e3fdec606e62520c337ce858ffed5ae0f7a6e767",
-  source_url: "https://raw.githubusercontent.com/mikeyerke/driftline/19fc1e2/fixtures/competitor-pricing-after.txt",
-  data_mode: "synthetic_demo",
+// Keep the pre-scan preview honest for every bounded scenario. The live
+// workflow replaces these records with the exact source response, timestamp,
+// and evidence hashes returned by the API; selecting a different scenario must
+// not leave the pricing fixture visible while the operator is deciding what
+// to scan next.
+export const demoEvidenceBySource = {
+  "public/pricing": {
+    source_id: "public/pricing",
+    source_name: "Public pricing snapshot",
+    before: "Enterprise includes unlimited audit-log retention.",
+    after: "Enterprise includes 365-day audit-log retention.",
+    evidence_hash: "0b3a67f305258cd3ffee8e504739f1185d3c0f6e29f88964f755fef8d9355b57",
+    confidence: 0.99,
+    snapshot_label: "Synthetic fixture · public/pricing",
+    snapshot_hash: "99abfa77b109f0c26027a146b8312dd5f867a42f1f901e2bcdba05ddee13a6ed",
+    source_url: "https://raw.githubusercontent.com/mikeyerke/driftline/a48f7eb/fixtures/public-pricing-after.txt",
+    data_mode: "synthetic_demo",
+  },
+  "public/terms": {
+    source_id: "public/terms",
+    source_name: "Public terms snapshot",
+    before: "Enterprise contracts renew annually with unlimited audit history.",
+    after: "Enterprise contracts renew annually with 365-day audit history.",
+    evidence_hash: "da710a951ac85ad5e199b45987e42eafcd02194123dbb0f8e8628adcb62cd192",
+    confidence: 0.99,
+    snapshot_label: "Synthetic fixture · public/terms",
+    snapshot_hash: "6417fcf36bbeae7d2a16cc13892019891b2e182ca4bc3589b7cf583f064ef122",
+    source_url: "https://raw.githubusercontent.com/mikeyerke/driftline/a48f7eb/fixtures/public-terms-after.txt",
+    data_mode: "synthetic_demo",
+  },
+  "competitor/pricing": {
+    source_id: "competitor/pricing",
+    source_name: "Competitor pricing snapshot",
+    before: "Competitor Pro starts at $49 per seat per month.",
+    after: "Competitor Pro starts at $59 per seat per month.",
+    evidence_hash: "3b2df1ed8f635d1cc7ab425f675df0baa9bac941aaeddbfbca81ecada501d957",
+    confidence: 0.99,
+    snapshot_label: "Synthetic competitor fixture · competitor/pricing",
+    snapshot_hash: "108725c5f3faf839e5df6e74e3fdec606e62520c337ce858ffed5ae0f7a6e767",
+    source_url: "https://raw.githubusercontent.com/mikeyerke/driftline/19fc1e2/fixtures/competitor-pricing-after.txt",
+    data_mode: "synthetic_demo",
+  },
+  "competitor/offerings": {
+    source_id: "competitor/offerings",
+    source_name: "Competitor offering snapshot",
+    before: "SAML SSO is available on the Competitor Business plan.",
+    after: "SAML SSO is available on the Competitor Pro plan.",
+    evidence_hash: "d9dda316e60c640543a3e95ead1f72f690c64426f6d4dff11e97b4f08e4f4e8e",
+    confidence: 0.99,
+    snapshot_label: "Synthetic competitor fixture · competitor/offerings",
+    snapshot_hash: "5eaf6d9c365aae21842e958446bb6f6bf07a7ec13cc8f119068c859c0fdfe3b6",
+    source_url: "https://raw.githubusercontent.com/mikeyerke/driftline/19fc1e2/fixtures/competitor-offering-after.txt",
+    data_mode: "synthetic_demo",
+  },
+  "competitor/blog": {
+    source_id: "competitor/blog",
+    source_name: "Competitor product blog snapshot",
+    before: "Native data residency is on the competitor roadmap.",
+    after: "Native data residency is now available.",
+    evidence_hash: "7608293a8a26db32ef093d80f0ede7f8da417c59467e4a9b123f6f6962fa357b",
+    confidence: 0.99,
+    snapshot_label: "Synthetic competitor fixture · competitor/blog",
+    snapshot_hash: "44549526676becd21c95963cd74ff6efcd34c8d9b6dc5c4cf6f0f31c1335226f",
+    source_url: "https://raw.githubusercontent.com/mikeyerke/driftline/19fc1e2/fixtures/competitor-blog-after.txt",
+    data_mode: "synthetic_demo",
+  },
 };
+
+export const demoEvidence = demoEvidenceBySource["competitor/pricing"];
