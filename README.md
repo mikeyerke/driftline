@@ -518,7 +518,7 @@ The current serving release is source commit `6215311`, Cloud Build
 `ddbb1aea-fa8c-4618-bda4-bba1468f852c`, and Cloud Run revision
 `driftline-00156-k4k` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
-GitHub Actions run `32540856937` passed the repository gates, including the
+GitHub Actions run `32541021043` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, keeps the visible
 **Reauthorize read-only** recovery control, and retains the tenant-scoped Secret

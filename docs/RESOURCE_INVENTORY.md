@@ -12,14 +12,14 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T00:38Z` with the active gcloud project set to
+Checked `2026-08-22T00:44Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
   `driftline-00156-k4k` at 100% traffic. Its immutable serving image is
   `sha256:2e2fd930a57591c99f99d2e084bd6e6dcd7dc923d778c97357596760b89372d1`.
 - Source commit `6215311` was built by Cloud Build
-  `ddbb1aea-fa8c-4618-bda4-bba1468f852c`; GitHub Actions run `32540856937`
+  `ddbb1aea-fa8c-4618-bda4-bba1468f852c`; GitHub Actions run `32541021043`
   passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
@@ -36,6 +36,10 @@ Checked `2026-08-22T00:38Z` with the active gcloud project set to
   a read-only connection and tenant Secret Manager pointer; a rejected refresh
   token now returns explicit `reauthorization_required` state, so object totals
   remain unverified until a fresh owner consent succeeds.
+- On the authenticated browser lane, tenant `driftline-demo` was visible as an
+  owner and the real aggregate probe returned `reauthorization_required`.
+  Driftline prepared a fresh Salesforce consent link; no CRM object totals were
+  inferred from the failed probe.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
