@@ -76,6 +76,7 @@ export default function App() {
   const lastTenantRef = useRef(operatorSession.tenantId || null);
   const sessionKeyRef = useRef(`${operatorSession.tenantId || "public"}:${operatorSession.identityToken ? "signed" : "anonymous"}`);
   const sessionEpochRef = useRef(0);
+  const historyRequestRef = useRef(0);
 
   const approved = workflowState?.status === "complete";
   const dismissed = workflowState?.status === "dismissed";
@@ -116,15 +117,20 @@ export default function App() {
       : "Public allowlisted monitor · live packet-safe access · no external writes";
 
   const refreshHistory = async (expectedEpoch = sessionEpochRef.current) => {
+    const requestId = historyRequestRef.current + 1;
+    historyRequestRef.current = requestId;
     try {
       const payload = await listJobs();
-      if (sessionEpochRef.current !== expectedEpoch) return;
+      // A scan, approval, and lazy in-view load can overlap. Only the newest
+      // response may replace the list; otherwise an older Firestore read can
+      // briefly put a just-finished run back into "Running" in the console.
+      if (sessionEpochRef.current !== expectedEpoch || historyRequestRef.current !== requestId) return;
       setRecentJobs(payload.jobs || []);
     } catch {
-      if (sessionEpochRef.current !== expectedEpoch) return;
+      if (sessionEpochRef.current !== expectedEpoch || historyRequestRef.current !== requestId) return;
       setRecentJobs([]);
     } finally {
-      if (sessionEpochRef.current === expectedEpoch) setHistoryLoading(false);
+      if (sessionEpochRef.current === expectedEpoch && historyRequestRef.current === requestId) setHistoryLoading(false);
     }
   };
 
@@ -244,7 +250,7 @@ export default function App() {
           const recommendedOption = current.workflow.agent_trace?.decision_copilot?.options?.find((option) => option.option_id === current.workflow.agent_trace?.decision_copilot?.recommendation_id);
           setArtifactDecisions(current.workflow.approval?.artifact_decisions || recommendedOption?.artifact_decisions || defaultDecisionsFor(current.workflow));
           setScanMessage("Scan complete · evidence verified · approval gate active");
-          refreshHistory();
+          await refreshHistory(scanEpoch);
           return;
         }
         setScanMessage(current.status === "running"

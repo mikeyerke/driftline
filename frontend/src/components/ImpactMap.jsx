@@ -25,7 +25,10 @@ function GraphNode({ node, focused, dimmed, onSelect }) {
       className={stateClass}
       aria-pressed={focused}
       aria-current={focused ? "true" : undefined}
-      aria-label={`${meta.label}: ${node.label}${node.meta ? `, ${node.meta}` : ""}`}
+      // Keep the visible node label at the start of the accessible name. This
+      // lets assistive technology users identify the same node a sighted
+      // operator sees, while still exposing its evidence role and metadata.
+      aria-label={`${node.label}${node.meta ? `, ${node.meta}` : ""}${node.risk ? `, ${node.risk} risk` : ""}`}
       title={`${node.label}${node.meta ? ` · ${node.meta}` : ""}`}
       onClick={() => onSelect(node)}
     >

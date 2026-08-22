@@ -8,6 +8,7 @@ export default function ChangeCardPanel({ card }) {
   const exposure = card.exposure || {};
   const sourceQuality = card.source_quality || {};
   const closure = card.closure || {};
+  const approvalPending = closure.state === "approval_pending";
   const exposureTitle = exposure.mode === "connected_internal_data"
     ? "Permissioned business context"
     : exposure.mode === "synthetic_demo"
@@ -45,8 +46,9 @@ export default function ChangeCardPanel({ card }) {
           <span className="change-card-kicker"><Clock3 size={13} />Closure</span>
           <strong>{label(closure.state)}</strong>
           <p>{closure.next_step || "Review the next step."}</p>
-          <div className="closure-progress"><span style={{ width: `${Math.round((closure.completion_rate || 0) * 100)}%` }} /></div>
-          <small>{closure.completed || 0}/{closure.item_count || 0} owner actions complete{closure.overdue ? ` · ${closure.overdue} overdue` : ""}</small>
+          {approvalPending
+            ? <small>Actions are queued after the human decision</small>
+            : <><div className="closure-progress"><span style={{ width: `${Math.round((closure.completion_rate || 0) * 100)}%` }} /></div><small>{closure.completed || 0}/{closure.item_count || 0} owner actions complete{closure.overdue ? ` · ${closure.overdue} overdue` : ""}</small></>}
         </div>
       </div>
       <div className="role-packet-strip">
