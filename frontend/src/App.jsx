@@ -499,7 +499,7 @@ export default function App() {
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
             <span className="workspace-button">Production control plane<ChevronDown size={15} /></span>
             <span className="run-hint">{runHint}</span>
-            <button className="primary" onClick={runScan} disabled={scanning || selectedSourcePaused} type="button" title={selectedSourcePaused ? "Resume this paused source before scanning" : undefined}>
+            <button className="primary" onClick={() => runScan()} disabled={scanning || selectedSourcePaused} type="button" title={selectedSourcePaused ? "Resume this paused source before scanning" : undefined}>
               <Play size={17} />{scanning ? "Running…" : selectedSourcePaused ? "Source paused" : "Run scan"}
             </button>
           </div>

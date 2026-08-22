@@ -12,4 +12,13 @@ if [[ -n "$duplicates" ]]; then
   exit 1
 fi
 
+# ``runScan`` accepts an optional source id. Passing it directly as a React
+# click handler leaks the click event into JSON.stringify and produces a
+# circular DOM-object failure before the API request. Keep the event boundary
+# explicit so the public golden path always sends a string source id.
+if rg -q 'onClick=\{runScan\}' frontend/src/App.jsx; then
+  printf 'Run-scan event boundary is unsafe: pass a zero-argument callback.\n' >&2
+  exit 1
+fi
+
 printf 'Frontend literal ID contract: PASS\n'
