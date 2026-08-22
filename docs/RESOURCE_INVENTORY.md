@@ -12,15 +12,15 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T10:56Z` with the active gcloud project set to
+Checked `2026-08-22T11:08Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00202-rv9` at 100% traffic. Its immutable serving image is
-  `sha256:963ef5c03e34a4d0c0e1eb4768264384c81a170f171c9b4dcb324b7a0d347a65`.
-- Source commit `ddbfe4d851c6ad27b673a23c75d54087fd48e7d8` was built by Cloud
-  Build `d8638de9-4dc9-4d16-b673-506a50ad4898`; GitHub Actions run
-  `32568663775` passed the repository gates.
+  `driftline-00203-6rk` at 100% traffic. Its immutable serving image is
+  `sha256:55838d6e1ffd6d40bc69b65df0320e9034846cda7c19a33f51f4ef891178bcdb`.
+- Source commit `0ace110da396e576f756230d540e2371234e9dca` was built by Cloud
+  Build `2bfbf16c-5160-4063-9bbc-ab7e30ac9e4b`; GitHub Actions run
+  `32569196833` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -29,11 +29,11 @@ Checked `2026-08-22T10:56Z` with the active gcloud project set to
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `ddbfe4d851c6ad27b673a23c75d54087fd48e7d8`, and build ID
-  `d8638de9-4dc9-4d16-b673-506a50ad4898`; `/api/auth/config`
+  `0ace110da396e576f756230d540e2371234e9dca`, and build ID
+  `2bfbf16c-5160-4063-9bbc-ab7e30ac9e4b`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-3ef78b21cd3a` with a passing
+- `/api/evals/latest` reports evaluation `eval-1c9a18089500` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
@@ -69,12 +69,12 @@ Checked `2026-08-22T10:56Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-13af7dc28a50` / workflow `5cb1e9e9-8482-43c8-b48b-c547821b43e6` at
+  `job-db768caddce0` / workflow `741dc450-0990-400b-8d6b-de24bef481ba` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier created
-  job `job-bcec6325de26` / workflow
-  `01c7f008-4213-4f16-8fee-207b4308523f`, persisted the packet, approved and
+  job `job-1dd4789eeb85` / workflow
+  `c8a56b99-d691-4e79-ab3e-ba94471a7266`, persisted the packet, approved and
   completed one owner action, then reversed the operational output and
   recorded `external_write=false` / `external_systems_changed=false`. The
   bounded value proof retained two historical completions and 3.7-second
@@ -86,6 +86,10 @@ Checked `2026-08-22T10:56Z` with the active gcloud project set to
   deferred panels mounted. Overview, Sources, Workflows, Approvals, Activity,
   and Settings each landed in view; the DOM had one `settings-section`, one
   `deployment-section`, no horizontal overflow, and no console messages.
+- A fresh logged-out browser check jumped directly to the bottom of the page
+  after load; Trace-to-eval, Value proof, and Change memory all hydrated rather
+  than remaining behind an in-view placeholder. Desktop and 500px mobile
+  widths had no horizontal overflow.
 - `scripts/verify_production.sh` passed against this revision: Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   security headers, trace-eval release matching, and zero recent Cloud Run
