@@ -533,13 +533,13 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`48e04dfde9b9333aadbf2d9f7e8935df63cbfe96`, Cloud Build
-`c8ca823b-7d96-45e8-b57c-c66445e14eb4`, and Cloud Run revision
-`driftline-00172-q66` at 100% traffic. Its immutable image digest is recorded
+`a091ac8807d6350ac4b0b2f8b7703bc5592aa417`, Cloud Build
+`9baf1639-e3bf-4749-8f4d-b85baa99157f`, and Cloud Run revision
+`driftline-00175-bb5` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32553421317` passed the repository gates, including the
+GitHub Actions run `32554559766` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -558,7 +558,7 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates eleven independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-691391a45f2d` is stable against
+latest live report `eval-1d8a7f04303a` is stable against
 `eval-0e2293921e78` with zero score deltas and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
@@ -581,7 +581,10 @@ resets artifact decisions, and renders the selected source's own bounded
 before/after preview until a new scan runs. A logged-out browser check verified
 offering → blog switching after a completed workflow, with no stale live card or
 approval state. Desktop and mobile Lighthouse both scored 100 across 53 audits,
-with no console errors or horizontal overflow.
+with no console errors or horizontal overflow. The sidebar now reconciles deep
+section navigation after deferred panels mount; a logged-out 500px browser
+check landed the Settings target in view with one unique Settings anchor and
+one unique deployment anchor.
 
 The authenticated operator lane now preserves the short-lived Google token and
 membership list when switching between permitted tenants. The selected tenant
@@ -595,7 +598,7 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-6fd9a3f403e5` / `86d82924-6904-4837-9ca2-e46aee8d3545` for the live agent
+`job-568d8fea4e35` / `dffab3a5-a488-45cf-babd-bbf56a3685cc` for the live agent
 and the paired approval/undo run. Both returned a passing trace evaluation;
 the approval/undo path persisted and reversed the packet with no external
 connector write.
