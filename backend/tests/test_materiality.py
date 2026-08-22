@@ -29,7 +29,31 @@ def test_public_source_does_not_claim_permissioned_crm_exposure() -> None:
     assert exposure["opportunity_count"] is None
     assert exposure["renewal_count"] is None
     assert "No CRM context" in exposure["label"]
+    assert state.change_card["source_quality"]["evidence_type"] == "synthetic_fixture"
+    assert state.change_card["source_quality"]["verification"] == "replayable_fixture"
     assert any("No CRM" in note for note in state.change_card["disclosures"])
+
+
+def test_public_demo_replay_labels_the_pinned_fixture() -> None:
+    state = DriftlineWorkflow().start_demo(
+        source_id="competitor/pricing",
+        data_mode="public_source",
+        snapshot_label="Pinned synthetic fixture · demo replay baseline",
+    )
+
+    assert state.change_card["source_quality"]["evidence_type"] == "synthetic_fixture"
+    assert state.change_card["source_quality"]["verification"] == "replayable_fixture"
+
+
+def test_allowlisted_public_snapshot_keeps_observed_label() -> None:
+    state = DriftlineWorkflow().start_demo(
+        source_id="public/pricing",
+        data_mode="public_source",
+        snapshot_label="Public GitHub snapshot · allowlisted public/pricing",
+    )
+
+    assert state.change_card["source_quality"]["evidence_type"] == "allowlisted_public_snapshot"
+    assert state.change_card["source_quality"]["verification"] == "observed_snapshot"
 
 
 def test_change_card_surfaces_verified_aggregate_context_without_raw_records() -> None:

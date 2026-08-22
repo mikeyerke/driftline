@@ -396,18 +396,27 @@ def build_change_card(
         if exposure_mode != "connected_internal_data"
         else None,
     }
+    snapshot_label = str(_field(evidence, "snapshot_label", ""))
+    snapshot_label_lower = snapshot_label.casefold()
+    synthetic_snapshot = data_mode in {"synthetic_demo", "synthetic_tenant_demo"} or any(
+        marker in snapshot_label_lower
+        for marker in ("synthetic", "demo replay")
+    )
+    if synthetic_snapshot:
+        evidence_type = "synthetic_fixture"
+        verification = "replayable_fixture"
+    elif data_mode == "operator_registered_public":
+        evidence_type = "operator_registered_public_url"
+        verification = "observed_snapshot"
+    else:
+        evidence_type = "allowlisted_public_snapshot"
+        verification = "observed_snapshot"
+    if exposure_mode == "connected_internal_data":
+        evidence_type = f"{evidence_type}_plus_aggregate_context"
     source_quality = {
         "confidence": round(float(getattr(evidence, "confidence", 0.0)), 3),
-        "evidence_type": (
-            "synthetic_fixture"
-            if data_mode == "synthetic_demo"
-            else "permissioned_public_snapshot_plus_aggregate_context"
-            if exposure_mode == "connected_internal_data"
-            else "permissioned_public_snapshot"
-        ),
-        "verification": "replayable_fixture"
-        if data_mode == "synthetic_demo"
-        else "observed_snapshot",
+        "evidence_type": evidence_type,
+        "verification": verification,
         "contradiction_status": (
             "not_evaluated_aggregate_only"
             if exposure_mode == "connected_internal_data"
