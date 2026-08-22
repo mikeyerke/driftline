@@ -18,9 +18,10 @@ and reproducible release checks.
 The release also carries a fail-closed [trace-to-eval quality gate](docs/TRACE_EVAL.md):
 the same bounded agent trace is scored for human gating, tool/evidence safety,
 rollback, artifact coverage, decision usefulness, and audit provenance. CI blocks
-critical safety regressions, and the deployed verifier persists a redacted live
-report with a trend against the previous run. These are evaluation metrics, not
-customer ROI or willingness-to-pay claims.
+critical safety regressions, and the deployed verifier persists redacted live
+reports. The console shows the latest score, one-step regression delta, and a
+bounded oldest-to-newest trajectory from `GET /api/evals/history`; these are
+evaluation metrics, not customer ROI or willingness-to-pay claims.
 
 The default demonstration models a competitor price change from $49 to $59 per
 seat per month, then traces the impact into a comparison map, pricing

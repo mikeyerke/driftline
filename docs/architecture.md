@@ -317,7 +317,7 @@ test/lint suite.
 
 Every live workflow carries a bounded `agent_trace` beside its evidence,
 impact, and append-only audit events. `backend/app/trace_eval.py` evaluates
-that public contract with nine independent safety/usefulness cases and refuses
+that public contract with fourteen independent safety/usefulness cases and refuses
 to pass when critical safety, minimum usefulness, overall score, or trend
 thresholds regress. The evaluator is deterministic and independent from
 Gemini; its golden fixture is synthetic and never becomes a customer metric.
@@ -326,7 +326,9 @@ Gemini; its golden fixture is synthetic and never becomes a customer metric.
 invoking a connector. Only the redacted report is written append-only to
 `driftline_trace_evaluations`, with a structural trace fingerprint rather than
 prompts, source bodies, or credentials. `GET /api/evals/latest` is public only
-for tenantless evaluation records and exact-tenant signed for operator records.
+for tenantless evaluation records and exact-tenant signed for operator records;
+`GET /api/evals/history` exposes only bounded score metadata in that same exact
+visibility lane.
 The CI job runs the same gate, while the live-agent verifier evaluates a fresh
 Google ADK/Gemini trace after it reaches the deterministic human gate. This
 creates a verifiable feedback loop: a future release can show `stable` or

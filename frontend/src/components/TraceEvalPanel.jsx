@@ -1,6 +1,6 @@
-import { Activity, CheckCircle2, ShieldCheck, TrendingDown, TrendingUp, XCircle } from "lucide-react";
+import { Activity, CheckCircle2, History, ShieldCheck, TrendingDown, TrendingUp, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getLatestEvaluation, runEvaluation } from "../api";
+import { getEvaluationHistory, getLatestEvaluation, runEvaluation } from "../api";
 import useNearViewport from "../hooks/useNearViewport";
 
 const percent = (value) => value === null || value === undefined ? "—" : `${Math.round(Number(value) * 100)}%`;
@@ -11,9 +11,23 @@ const trendLabel = (trend) => {
   return "Stable vs prior run";
 };
 
+const historyDate = (value) => {
+  if (!value) return "Recorded";
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf())
+    ? "Recorded"
+    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+};
+
+const shortRelease = (value) => {
+  if (!value || value === "unknown") return "unbound";
+  return `${value.slice(0, 7)}…`;
+};
+
 export default function TraceEvalPanel({ workflowId = null }) {
   const [panelRef, nearViewport] = useNearViewport();
   const [evaluation, setEvaluation] = useState(null);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -27,6 +41,15 @@ export default function TraceEvalPanel({ workflowId = null }) {
       setEvaluation(payload.evaluation || null);
     } catch (error) {
       setMessage(error.message || "Quality gate is unavailable");
+    }
+    try {
+      const trajectory = await getEvaluationHistory();
+      setHistory(trajectory.evaluations || []);
+    } catch {
+      // The latest report remains useful when a history read is temporarily
+      // unavailable; keep the failure visible without replacing the report.
+      setHistory([]);
+      setMessage((current) => current || "Quality trajectory is temporarily unavailable");
     } finally {
       setLoading(false);
     }
@@ -41,6 +64,7 @@ export default function TraceEvalPanel({ workflowId = null }) {
   const cases = evaluation?.cases || [];
   const passed = evaluation?.gate_status === "pass";
   const trend = evaluation?.trend;
+  const trajectory = [...history].reverse();
 
   return (
     <section ref={panelRef} className="panel trace-eval-panel" aria-labelledby="trace-eval-title">
@@ -63,6 +87,22 @@ export default function TraceEvalPanel({ workflowId = null }) {
           <strong>{trendLabel(trend)}</strong>
           <span>{evaluation.release_sha === "unknown" ? "Local / unpinned release" : `Release ${evaluation.release_sha.slice(0, 12)}…`}</span>
         </div>
+        {trajectory.length > 0 && <div className="trace-eval-history" aria-label="Trace evaluation quality trajectory">
+          <div className="trace-eval-history-heading"><span><History size={14} />Quality trajectory</span><small>Oldest → newest · {trajectory.length} recorded run{trajectory.length === 1 ? "" : "s"}</small></div>
+          <ol className="trace-eval-history-list">
+            {trajectory.map((point) => {
+              const score = Math.max(0, Math.min(1, Number(point.overall_score) || 0));
+              const pointPassed = point.gate_status === "pass";
+              return <li className={`trace-eval-history-item ${pointPassed ? "pass" : "fail"}`} key={point.evaluation_id} title={`${pointPassed ? "Passed" : "Blocked"} · ${percent(point.overall_score)} overall · ${shortRelease(point.release_sha)}`}>
+                <span className="trace-eval-history-bar"><i style={{ height: `${Math.max(8, Math.round(score * 100))}%` }} /></span>
+                <strong>{percent(point.overall_score)}</strong>
+                <small>{historyDate(point.evaluated_at)}</small>
+                <code>{shortRelease(point.release_sha)}</code>
+              </li>;
+            })}
+          </ol>
+          <p className="trace-eval-history-note">Each point is a redacted deterministic evaluation report. A failed or regressed point blocks the release; the trajectory is evaluation telemetry, not customer ROI.</p>
+        </div>}
         <ul className="trace-eval-cases">
           {cases.map((item) => <li key={item.case_id} className={item.status === "pass" ? "pass" : "fail"}>
             {item.status === "pass" ? <CheckCircle2 size={14} /> : <XCircle size={14} />}

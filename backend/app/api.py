@@ -91,6 +91,7 @@ from .persistence import (
     list_connector_bindings,
     list_connector_profiles,
     list_credential_access_events,
+    list_evaluations,
     list_job_failures,
     list_jobs,
     list_outcome_measurements,
@@ -1863,6 +1864,38 @@ def _safe_evaluation_response(record: dict[str, object] | None) -> dict[str, obj
     }
 
 
+def _safe_evaluation_summary(record: dict[str, object]) -> dict[str, object]:
+    """Return the bounded, metadata-only shape used by the history lane.
+
+    The latest report includes fourteen case explanations for operator review.
+    A trajectory should remain small and comparable instead of repeating those
+    case payloads on every point.  Never include tenant identifiers or expiry
+    metadata in this public/signed response.
+    """
+    allowed = {
+        "evaluation_id",
+        "suite_version",
+        "evaluated_at",
+        "gate_status",
+        "release_sha",
+        "model",
+        "execution_mode",
+        "trace_data_mode",
+        "case_count",
+        "passed_case_count",
+        "critical_failures",
+        "safety_score",
+        "usefulness_score",
+        "overall_score",
+        "trend",
+    }
+    return {
+        key: value
+        for key, value in record.items()
+        if key in allowed
+    }
+
+
 def _evaluation_identity(
     *,
     resource: str,
@@ -1912,6 +1945,42 @@ def get_latest_evaluation(
         "status": "ok" if record else "not_run",
         "scope": "tenant" if identity else "public_evaluation",
         "evaluation": _safe_evaluation_response(record),
+        "customer_outcome": False,
+        "trace_redacted": True,
+    }
+
+
+@app.get("/api/evals/history")
+def get_evaluation_history(
+    limit: int = 12,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return a bounded score trajectory for the current visibility lane.
+
+    History is metadata-only and exact-lane scoped.  The anonymous public lane
+    can see only tenantless evaluation records; signed operators can see only
+    their selected tenant's reports.  Case explanations stay on the latest
+    endpoint so a trajectory cannot become an accidental trace archive.
+    """
+    identity = _evaluation_identity(
+        resource="trace-eval:history",
+        operator=operator,
+        tenant_id=tenant_id,
+        approval_token=approval_token,
+        identity_token=identity_token,
+    )
+    bounded_limit = max(1, min(int(limit), 20))
+    records = list_evaluations(
+        identity["tenant_id"] if identity else None,
+        limit=bounded_limit,
+    )
+    return {
+        "status": "ok" if records else "not_run",
+        "scope": "tenant" if identity else "public_evaluation",
+        "evaluations": [_safe_evaluation_summary(record) for record in records],
         "customer_outcome": False,
         "trace_redacted": True,
     }

@@ -62,10 +62,13 @@ fingerprint, thresholds, and trend deltas. Prompts, source bodies, quotes,
 connector tokens, and raw CRM records are not persisted in this ledger.
 
 `GET /api/evals/latest` returns the newest report for the anonymous public lane
-or the exact signed tenant lane. The console's **Trace-to-eval quality gate**
-panel shows the scores, case status, release identity, and trend. It labels the
-result as evaluation telemetry and explicitly separates it from customer
-outcomes.
+or the exact signed tenant lane. `GET /api/evals/history?limit=12` returns a
+bounded metadata-only trajectory for the same visibility lane; it omits case
+explanations, tenant identifiers, and expiry metadata so the chart cannot turn
+into a trace archive. The console's **Trace-to-eval quality gate** panel shows
+the scores, case status, release identity, one-step delta, and oldest-to-newest
+trajectory. It labels the result as evaluation telemetry and explicitly
+separates it from customer outcomes.
 
 The deployed live-agent verifier evaluates the fresh Google ADK/Gemini trace
 after it reaches `needs_approval`, then checks the persisted report. This gives

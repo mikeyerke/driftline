@@ -258,6 +258,17 @@ export function getLatestEvaluation() {
   });
 }
 
+export function getEvaluationHistory(limit = 12) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/evals/history?${params.toString()}`, {
+    authenticated: Boolean(operatorSession.identityToken),
+  });
+}
+
 export function runEvaluation(workflowId = null) {
   return request("/api/evals/run", {
     method: "POST",

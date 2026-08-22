@@ -105,6 +105,44 @@ def test_trace_evaluation_latest_is_not_run_when_public_ledger_is_empty(monkeypa
     }
 
 
+def test_trace_evaluation_history_is_bounded_and_summary_only(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    persistence._evaluations_memory.clear()
+
+    first = client.post("/api/evals/run", json={})
+    second = client.post("/api/evals/run", json={})
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    response = client.get("/api/evals/history?limit=1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["scope"] == "public_evaluation"
+    assert len(payload["evaluations"]) == 1
+    point = payload["evaluations"][0]
+    assert point["evaluation_id"] == second.json()["evaluation"]["evaluation_id"]
+    assert point["gate_status"] == "pass"
+    assert point["overall_score"] == 1.0
+    assert "cases" not in point
+    assert "tenant_id" not in point
+    assert "expires_at" not in point
+    assert payload["trace_redacted"] is True
+
+
+def test_trace_evaluation_history_requires_complete_signed_context(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    persistence._evaluations_memory.clear()
+
+    response = client.get("/api/evals/history?tenant_id=history-acme")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == (
+        "Signed approval is required for tenant evaluation records"
+    )
+
+
 @pytest.mark.asyncio
 async def test_api_cache_policy_overrides_endpoint_cache_header() -> None:
     request = Request(
