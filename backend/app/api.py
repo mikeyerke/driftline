@@ -166,6 +166,7 @@ def _write_tenant_secret(tenant_id: str, secret_name: str, value: str) -> str | 
 
 from .simulator import simulate_scenarios
 from .source import (
+    _source_enabled,
     inspect_allowlisted_source,
     list_allowlisted_sources,
     list_source_histories,
@@ -2940,7 +2941,7 @@ def update_operator_source_lifecycle(
     )
     if previous is None or previous.get("dynamic") != "true":
         raise HTTPException(status_code=404, detail="Tenant source is not registered")
-    previous_enabled = previous.get("enabled", "true") != "false"
+    previous_enabled = _source_enabled(previous.get("enabled", True))
     try:
         updated = set_operator_source_state(
             source_id=source_id,

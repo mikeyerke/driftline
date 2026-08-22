@@ -53,6 +53,21 @@ _CHALLENGE_MARKERS = (
     "akamai bot manager",
 )
 
+
+def _source_enabled(value: object = True) -> bool:
+    """Normalize Firestore booleans and legacy string lifecycle values.
+
+    Firestore returns a native boolean, while the in-memory registry and older
+    documents may contain ``"true"``/``"false"`` strings. Treating both forms
+    identically is critical because lifecycle state controls whether the
+    scheduler may fetch a source or enqueue model work.
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return True
+    return str(value).strip().casefold() not in {"false", "0", "no", "off"}
+
 # The monitor starts with a tiny, reviewable pinned fixture registry. Operator
 # sources are added separately through the signed exact-URL path below; this
 # never becomes an arbitrary URL crawler.
@@ -255,7 +270,7 @@ def source_definitions(
         for (bound_tenant, source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items():
             if bound_tenant != tenant_id:
                 continue
-            if not include_disabled and definition.get("enabled", "true") == "false":
+            if not include_disabled and not _source_enabled(definition.get("enabled", True)):
                 continue
             definitions[source_id] = dict(definition)
         return definitions
@@ -264,7 +279,7 @@ def source_definitions(
             payload = snapshot.to_dict() or {}
             if not payload.get("source_id") or payload.get("tenant_id") != tenant_id:
                 continue
-            if not include_disabled and not payload.get("enabled", True):
+            if not include_disabled and not _source_enabled(payload.get("enabled", True)):
                 continue
             definitions[str(payload["source_id"])] = {
                 str(key): str(value)
@@ -313,7 +328,7 @@ def scheduler_source_entries() -> list[tuple[str | None, str, dict[str, str]]]:
         entries.extend(
             (bound_tenant, source_id, definition)
             for (bound_tenant, source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items()
-            if definition.get("enabled", "true") != "false"
+            if _source_enabled(definition.get("enabled", True))
         )
         return entries
     try:
@@ -321,7 +336,7 @@ def scheduler_source_entries() -> list[tuple[str | None, str, dict[str, str]]]:
             payload = snapshot.to_dict() or {}
             tenant_id = str(payload.get("tenant_id", "")).strip()
             source_id = str(payload.get("source_id", "")).strip()
-            if not payload.get("enabled", True) or not tenant_id or not source_id:
+            if not _source_enabled(payload.get("enabled", True)) or not tenant_id or not source_id:
                 continue
             entries.append(
                 (
@@ -417,15 +432,14 @@ def register_operator_source(
         # audited lifecycle action below.
         "enabled": (
             "false"
-            if previous
-            and str(previous.get("enabled", "true")).casefold() == "false"
+            if previous and not _source_enabled(previous.get("enabled", True))
             else "true"
         ),
         "registered_by": registered_by.strip()[:120],
         "tenant_id": tenant_id,
         "registered_at": datetime.now(UTC).isoformat(),
     }
-    if previous and previous.get("enabled") == "false":
+    if previous and not _source_enabled(previous.get("enabled", True)):
         for key in (
             "paused_at",
             "paused_by",
@@ -445,7 +459,7 @@ def register_operator_source(
         # in-memory registry. Re-registering updates metadata, but lifecycle
         # changes remain an audited operator action and must never silently
         # resume monitoring after a restart.
-        payload["enabled"] = normalized["enabled"] != "false"
+        payload["enabled"] = _source_enabled(normalized.get("enabled", True))
         _registry_client().collection(_SOURCE_REGISTRY_COLLECTION).document(
             _registry_document_id(f"{tenant_id}:{source_id}")
         ).set(payload)
@@ -475,7 +489,7 @@ def set_operator_source_state(
     normalized_reason = reason.strip()[:240]
     if not enabled and not normalized_reason:
         raise ValueError("pause_reason_required")
-    current_enabled = definition.get("enabled", "true") != "false"
+    current_enabled = _source_enabled(definition.get("enabled", True))
     if current_enabled == enabled:
         return {
             **definition,
@@ -716,7 +730,7 @@ def _registered_source_count(tenant_id: str) -> int:
         return sum(
             1
             for (bound_tenant, _source_id), definition in _CUSTOM_SOURCE_DEFINITIONS.items()
-            if bound_tenant == tenant_id and definition.get("enabled", "true") != "false"
+            if bound_tenant == tenant_id and _source_enabled(definition.get("enabled", True))
         )
     try:
         # The single-field tenant filter avoids a composite index. The +1
@@ -731,7 +745,7 @@ def _registered_source_count(tenant_id: str) -> int:
         return sum(
             1
             for snapshot in query.stream()
-            if (snapshot.to_dict() or {}).get("enabled", True)
+            if _source_enabled((snapshot.to_dict() or {}).get("enabled", True))
         )
     except Exception as exc:
         raise ValueError("source_registry_unavailable") from exc
@@ -962,9 +976,9 @@ def list_allowlisted_sources(
             "freshness_sla_hours": definition["freshness_sla_hours"],
             "source_kind": definition["source_kind"],
             "allowlist": definition.get("allowlist", "pinned raw GitHub fixture only"),
-            "enabled": definition.get("enabled", "true") != "false",
+            "enabled": _source_enabled(definition.get("enabled", True)),
             "lifecycle_status": (
-                "paused" if definition.get("enabled", "true") == "false" else "active"
+                "paused" if not _source_enabled(definition.get("enabled", True)) else "active"
             ),
             "pause_reason": definition.get("pause_reason", ""),
             "paused_at": definition.get("paused_at", ""),
@@ -1108,7 +1122,7 @@ def source_registry_health(
         sla_hours = int(definition["freshness_sla_hours"])
         cadence_hours = _cadence_hours(definition.get("cadence"), sla_hours)
         age_seconds = max(0, int((current - retrieved).total_seconds())) if retrieved else None
-        enabled = definition.get("enabled", "true") != "false"
+        enabled = _source_enabled(definition.get("enabled", True))
         if not enabled:
             status = "paused"
         elif latest is None:

@@ -480,6 +480,61 @@ def test_firestore_reregister_preserves_paused_lifecycle_state(monkeypatch) -> N
     assert writes and writes[-1]["enabled"] is False
 
 
+def test_firestore_boolean_pause_state_allows_explicit_resume(monkeypatch) -> None:
+    """A native Firestore False must remain paused until an explicit resume."""
+    writes: list[dict[str, object]] = []
+
+    class _Snapshot:
+        def to_dict(self):
+            return {
+                "source_id": "custom/firestore-lifecycle",
+                "name": "Firestore lifecycle",
+                "category": "Competitor pricing",
+                "change_type": "Pricing move",
+                "url": "https://example.com/pricing",
+                "owner": "Product Marketing",
+                "cadence": "24h",
+                "freshness_sla_hours": 48,
+                "source_kind": "operator_registered_public",
+                "source_parser": "html",
+                "allowlist": "exact operator-registered HTTPS URL",
+                "dynamic": "true",
+                "enabled": False,
+                "tenant_id": "tenant-acme",
+                "pause_reason": "Challenge page under review.",
+            }
+
+    class _Document:
+        def set(self, payload):
+            writes.append(dict(payload))
+
+    class _Collection:
+        def stream(self):
+            return [_Snapshot()]
+
+        def document(self, _document_id):
+            return _Document()
+
+    class _Client:
+        def collection(self, _collection_name):
+            return _Collection()
+
+    monkeypatch.setattr(source, "_firestore_enabled", lambda: True)
+    monkeypatch.setattr(source, "_registry_client", lambda: _Client())
+
+    resumed = source.set_operator_source_state(
+        source_id="custom/firestore-lifecycle",
+        tenant_id="tenant-acme",
+        enabled=True,
+        actor="owner@example.com",
+        reason="Challenge resolved.",
+    )
+
+    assert resumed["lifecycle_status"] == "active"
+    assert resumed["lifecycle_changed"] == "true"
+    assert writes and writes[-1]["enabled"] == "true"
+
+
 def test_anonymous_registry_never_lists_tenant_custom_source(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
