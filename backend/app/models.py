@@ -82,6 +82,10 @@ class WorkflowState:
     impact_graph: dict[str, Any] = field(default_factory=dict)
     change_card: dict[str, Any] = field(default_factory=dict)
     integration_targets: list[dict[str, Any]] = field(default_factory=list)
+    # Bounded aggregate connector metadata captured only for a signed tenant
+    # run.  Raw records, message text, document bodies, and credentials never
+    # enter workflow state.
+    internal_context: dict[str, Any] = field(default_factory=dict)
     agent_trace: dict[str, Any] | None = None
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)

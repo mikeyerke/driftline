@@ -74,7 +74,7 @@ from .credential_broker import (
     resolve_tenant_credential,
 )
 from .decision_copilot import validate_approval_choice
-from .materiality import build_change_card
+from .materiality import build_change_card, normalize_internal_context
 from .memory import build_memory_summary
 from .models import ActionItemStatus, JobState, WorkflowState, utc_now
 from .multimodal import (
@@ -1365,6 +1365,30 @@ def _connector_context_info(tenant_id: str) -> dict[str, object]:
     return result
 
 
+def _read_internal_context_for_run(tenant_id: str | None) -> dict[str, object] | None:
+    """Read and normalize aggregate tenant context for one signed run.
+
+    The context summary endpoint is intentionally request-scoped, but a signed
+    workflow run needs the same bounded metadata attached to its Change Card so
+    operators can act on verified workload exposure.  Keep this seam fail
+    closed: no tenant, no connector quota, connector failure, or no verified
+    read means no context is passed to ADK or persisted.
+    """
+    if not tenant_id or not _reserve_connector_call(tenant_id):
+        return None
+    try:
+        context = normalize_internal_context(_connector_context_info(tenant_id))
+    except Exception as exc:  # noqa: BLE001 - connector reads fail closed.
+        logger.warning(
+            "Aggregate connector context unavailable for signed run: %s",
+            type(exc).__name__,
+        )
+        return None
+    if int(context.get("verified_connector_count", 0)) < 1:
+        return None
+    return context
+
+
 def _transition_workflow(
     workflow_id: str,
     expected_status: str,
@@ -1427,10 +1451,23 @@ async def _run_job(job_id: str) -> None:
             if f'source_id "{job.source_id}"' in job.query
             else f'{job.query} Use the exact allowlisted source_id "{job.source_id}".'
         )
+        internal_context = (
+            _read_internal_context_for_run(job.tenant_id)
+            if job.tenant_id and job.run_mode in {"tenant_demo", "monitor"}
+            else None
+        )
         if job.run_mode == "demo" and job.tenant_id is None:
             result = await run_agent_task(bound_query, job.user_id)
         elif job.tenant_id is None:
             result = await run_agent_task(bound_query, job.user_id, job.run_mode)
+        elif internal_context is not None:
+            result = await run_agent_task(
+                bound_query,
+                job.user_id,
+                job.run_mode,
+                tenant_id=job.tenant_id,
+                internal_context=internal_context,
+            )
         else:
             result = await run_agent_task(
                 bound_query,
@@ -5357,6 +5394,15 @@ async def run_agent(request: AgentRunRequest) -> dict:
         user_id = request.user_id
     try:
         if bound_tenant:
+            internal_context = _read_internal_context_for_run(bound_tenant)
+            if internal_context is not None:
+                return await run_agent_task(
+                    query,
+                    user_id,
+                    run_mode="live",
+                    tenant_id=bound_tenant,
+                    internal_context=internal_context,
+                )
             return await run_agent_task(
                 query,
                 user_id,

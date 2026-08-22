@@ -69,6 +69,31 @@ def test_trace_evaluation_ledger_is_append_only_and_tenant_scoped(monkeypatch) -
         persistence.persist_evaluation(changed)
 
 
+def test_workflow_state_roundtrip_preserves_aggregate_internal_context() -> None:
+    restored = persistence._state_from_dict(
+        {
+            "workflow_id": "workflow-context-roundtrip",
+            "title": "Competitor pricing",
+            "tenant_id": "context-acme",
+            "internal_context": {
+                "status": "verified",
+                "verified_connector_count": 1,
+                "connectors": {
+                    "jira": {
+                        "status": "ok",
+                        "external_read": True,
+                        "scope": "project:DRIFT",
+                        "open_issue_count": 12,
+                    }
+                },
+            },
+        }
+    )
+
+    assert restored.internal_context["status"] == "verified"
+    assert restored.internal_context["connectors"]["jira"]["open_issue_count"] == 12
+
+
 def test_tenant_bootstrap_audit_is_committed_with_metadata(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     tenant_id = "atomic-audit-acme"

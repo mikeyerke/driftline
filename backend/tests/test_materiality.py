@@ -30,6 +30,41 @@ def test_public_source_does_not_claim_permissioned_crm_exposure() -> None:
     assert any("No CRM" in note for note in state.change_card["disclosures"])
 
 
+def test_change_card_surfaces_verified_aggregate_context_without_raw_records() -> None:
+    workflow = DriftlineWorkflow()
+    state = workflow.start_demo(source_id="competitor/pricing", data_mode="connected_internal_data")
+    state.internal_context = {
+        "status": "partial",
+        "verified_connector_count": 2,
+        "connectors": {
+            "jira": {
+                "status": "ok",
+                "external_read": True,
+                "scope": "project:KAN",
+                "open_issue_count": 18,
+            },
+            "salesforce": {
+                "status": "reauthorization_required",
+                "external_read": False,
+                "scope": "read_only_crm",
+                "objects": [
+                    {"object": "Opportunity", "total": 0, "fields": []},
+                ],
+            },
+        },
+    }
+    workflow._refresh_change_card(state)
+
+    card = state.change_card
+    assert card["exposure"]["mode"] == "connected_internal_data"
+    assert card["exposure"]["available"] is True
+    assert card["exposure"]["context_status"] == "partial"
+    assert card["exposure"]["opportunity_count"] == 0
+    assert card["internal_context"]["verified_connector_count"] == 1
+    assert card["source_quality"]["contradiction_status"] == "not_evaluated_aggregate_only"
+    assert "raw" not in str(card["internal_context"]).casefold()
+
+
 def test_change_card_closure_tracks_completed_owner_work() -> None:
     workflow = DriftlineWorkflow()
     state = workflow.start_demo()

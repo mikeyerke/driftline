@@ -8,7 +8,7 @@ CRM-backed evidence.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Any
@@ -87,6 +87,92 @@ def _field(item: Any, key: str, default: Any = "") -> Any:
     return getattr(item, key, default)
 
 
+_CONTEXT_COUNT_FIELDS = (
+    "open_issue_count",
+    "open_pull_request_count",
+    "recent_message_count",
+    "page_count",
+    "sampled_issue_count",
+    "driftline_active_count",
+)
+
+
+def normalize_internal_context(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Keep connector context aggregate-only before it enters workflow state.
+
+    Connector adapters already return bounded metadata, but this second seam
+    prevents a future adapter from accidentally copying arbitrary response
+    fields into a durable Change Card.  Only status, scope, bounded counts,
+    and Salesforce object names/totals/field names survive normalization.
+    """
+    raw = value if isinstance(value, Mapping) else {}
+    if isinstance(raw.get("connectors"), Mapping):
+        raw = raw["connectors"]
+    connectors: dict[str, dict[str, Any]] = {}
+    attempted = 0
+    verified = 0
+    for connector, payload in sorted(raw.items()):
+        if not isinstance(payload, Mapping):
+            continue
+        safe_name = str(connector).strip().casefold()
+        if not safe_name or len(safe_name) > 32:
+            continue
+        attempted += 1
+        external_read = bool(payload.get("external_read"))
+        verified += int(external_read)
+        safe: dict[str, Any] = {
+            "status": str(payload.get("status", "unknown"))[:48],
+            "external_read": external_read,
+            "scope": str(payload.get("scope", "aggregate_context"))[:120],
+            "redaction": "aggregate_metadata_only",
+        }
+        for field in _CONTEXT_COUNT_FIELDS:
+            if field not in payload:
+                continue
+            try:
+                safe[field] = max(0, min(int(payload[field]), 1_000_000))
+            except (TypeError, ValueError):
+                continue
+        objects = payload.get("objects")
+        if isinstance(objects, list) and safe_name == "salesforce":
+            safe_objects: list[dict[str, Any]] = []
+            for item in objects[:8]:
+                if not isinstance(item, Mapping):
+                    continue
+                object_name = str(item.get("object", "")).strip()[:80]
+                if not object_name:
+                    continue
+                try:
+                    total = max(0, min(int(item.get("total", 0)), 1_000_000))
+                except (TypeError, ValueError):
+                    total = 0
+                fields = sorted(
+                    {
+                        str(field).strip()[:80]
+                        for field in item.get("fields", [])
+                        if str(field).strip()
+                    }
+                )[:30]
+                safe_objects.append(
+                    {"object": object_name, "total": total, "fields": fields}
+                )
+            safe["objects"] = safe_objects
+        connectors[safe_name] = safe
+    if not attempted or not verified:
+        status = "unavailable"
+    elif verified == attempted:
+        status = "verified"
+    else:
+        status = "partial"
+    return {
+        "status": status,
+        "attempted_connector_count": attempted,
+        "verified_connector_count": verified,
+        "connectors": connectors,
+        "redaction": "aggregate_metadata_only",
+    }
+
+
 def change_card_id(source_id: str, evidence_hash: str) -> str:
     """Return the stable identity for one source snapshot transition.
 
@@ -157,6 +243,7 @@ def build_change_card(
     impacts: Iterable[Any],
     impact_graph: dict[str, Any],
     data_mode: str,
+    internal_context: Mapping[str, Any] | None = None,
     approval: dict[str, Any] | None = None,
     action_items: Iterable[dict[str, Any]] = (),
 ) -> dict[str, Any]:
@@ -195,14 +282,31 @@ def build_change_card(
                 "evidence_bound": True,
             }
         )
+    context = normalize_internal_context(internal_context)
+    verified_context = context["verified_connector_count"] > 0
     # A public source snapshot is not an internal CRM read. Keep the exposure
     # contract fail-closed until a future connector-aware workflow explicitly
     # supplies verified internal context; never infer permissioned exposure
     # from the fact that a public source was fetched successfully.
-    exposure_mode = {
-        "synthetic_demo": "synthetic_demo",
-        "live": "connected_internal_data",
-    }.get(data_mode, "internal_context_unavailable")
+    exposure_mode = (
+        "connected_internal_data"
+        if data_mode == "connected_internal_data" and verified_context
+        else {
+            "synthetic_demo": "synthetic_demo",
+            "live": "connected_internal_data" if verified_context else "internal_context_unavailable",
+        }.get(data_mode, "internal_context_unavailable")
+    )
+    salesforce = context["connectors"].get("salesforce", {})
+    opportunity_count = None
+    if isinstance(salesforce, Mapping):
+        opportunity_count = next(
+            (
+                int(item["total"])
+                for item in salesforce.get("objects", [])
+                if isinstance(item, Mapping) and item.get("object") == "Opportunity"
+            ),
+            None,
+        )
     exposure = {
         "mode": exposure_mode,
         "label": (
@@ -212,10 +316,14 @@ def build_change_card(
             if exposure_mode == "connected_internal_data"
             else "No CRM context was read in this run"
         ),
-        "opportunity_count": None,
+        "opportunity_count": opportunity_count
+        if exposure_mode == "connected_internal_data"
+        else None,
         "renewal_count": None,
         "affected_asset_count": len(impact_items),
         "available": exposure_mode == "connected_internal_data",
+        "context_status": context["status"],
+        "verified_connector_count": context["verified_connector_count"],
         "next_connector": "Salesforce read-only consent"
         if exposure_mode != "connected_internal_data"
         else None,
@@ -225,13 +333,23 @@ def build_change_card(
         "evidence_type": (
             "synthetic_fixture"
             if data_mode == "synthetic_demo"
+            else "permissioned_public_snapshot_plus_aggregate_context"
+            if exposure_mode == "connected_internal_data"
             else "permissioned_public_snapshot"
         ),
         "verification": "replayable_fixture"
         if data_mode == "synthetic_demo"
         else "observed_snapshot",
-        "contradiction_status": "not_checked",
-        "disclosure": "No contradictory internal source was evaluated in this run.",
+        "contradiction_status": (
+            "not_evaluated_aggregate_only"
+            if exposure_mode == "connected_internal_data"
+            else "not_checked"
+        ),
+        "disclosure": (
+            "Aggregate internal context was verified; source-level contradiction review was not performed."
+            if exposure_mode == "connected_internal_data"
+            else "No contradictory internal source was evaluated in this run."
+        ),
     }
     return {
         "version": "1.0",
@@ -258,6 +376,7 @@ def build_change_card(
         },
         "exposure": exposure,
         "source_quality": source_quality,
+        "internal_context": context,
         "owners": owners,
         "role_packets": role_packets,
         "closure": _closure(action_items, approval),

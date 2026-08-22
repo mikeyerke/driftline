@@ -128,6 +128,7 @@ def _state_from_dict(payload: dict[str, Any]) -> WorkflowState:
         integration_targets=[
             dict(item) for item in payload.get("integration_targets", [])
         ],
+        internal_context=dict(payload.get("internal_context") or {}),
         agent_trace=payload.get("agent_trace"),
         created_at=payload.get("created_at") or utc_now(),
         updated_at=payload.get("updated_at") or utc_now(),

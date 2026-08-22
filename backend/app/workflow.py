@@ -5,7 +5,11 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from .impact import build_impact_graph, integration_targets, profile_for
-from .materiality import build_change_card, change_card_id
+from .materiality import (
+    build_change_card,
+    change_card_id,
+    normalize_internal_context,
+)
 from .models import (
     ActionItemStatus,
     ArtifactImpact,
@@ -80,9 +84,28 @@ class DriftlineWorkflow:
             impacts=state.impacts,
             impact_graph=state.impact_graph,
             data_mode=state.data_mode,
+            internal_context=state.internal_context,
             approval=state.approval,
             action_items=state.action_items,
         )
+
+    def refresh_change_card(self, state: WorkflowState) -> WorkflowState:
+        """Rebuild the bounded decision card after verified context changes."""
+        self._refresh_change_card(state)
+        return state
+
+    def attach_internal_context(
+        self, state: WorkflowState, context: dict[str, object]
+    ) -> WorkflowState:
+        """Attach only normalized aggregate context to a tenant workflow."""
+        normalized = normalize_internal_context(context)
+        if int(normalized.get("verified_connector_count", 0)) < 1:
+            return state
+        state.internal_context = normalized
+        state.data_mode = "connected_internal_data"
+        self._refresh_change_card(state)
+        self._event(state, "internal_context_reader", "aggregate_context_attached")
+        return state
 
     def restore(self, state: WorkflowState) -> WorkflowState:
         """Register a state loaded from durable persistence."""

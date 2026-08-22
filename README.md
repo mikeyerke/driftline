@@ -148,10 +148,14 @@ For an authenticated operator, `POST /api/connectors/context/summary` adds a
 bounded internal-workload view before approval: fixed-scope Jira, Confluence,
 Slack, GitHub, and (after tenant OAuth) Salesforce connectors return aggregate
 counts only. It is signed-only, request-scoped, and never exposes source text,
-CRM records, or private credentials to the public console. The authenticated
-console exposes this as a deliberate **Refresh context** control beside the
-handoff destinations, so an operator can verify connector health and aggregate
-workload before choosing an action. Unconfigured integrations remain explicitly
+CRM records, or private credentials to the public console. A signed `live`,
+`tenant_demo`, or `monitor` run can attach the same normalized aggregate result
+to its Change Card, where the UI shows the verified connector count and the
+workflow records an `internal_context_reader` audit event. Anonymous demo runs
+never attach connector context. The authenticated console exposes the summary
+as a deliberate **Refresh context** control beside the handoff destinations, so
+an operator can verify connector health and aggregate workload before choosing
+an action. Unconfigured integrations remain explicitly
 `prepared_only`; Salesforce is shown as `not_configured` with
 `authorization_required=true` until the tenant completes consent. After the
 callback, Salesforce uses the same deterministic tenant binding

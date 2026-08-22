@@ -16,6 +16,35 @@ def test_demo_pauses_for_high_risk_human_decision() -> None:
     assert len(state.evidence.evidence_hash) == 64
 
 
+def test_signed_context_is_attached_as_aggregate_only_change_card_metadata() -> None:
+    workflow = DriftlineWorkflow()
+    state = workflow.start_demo(tenant_id="context-acme", data_mode="live")
+
+    workflow.attach_internal_context(
+        state,
+        {
+            "connectors": {
+                "jira": {
+                    "status": "ok",
+                    "external_read": True,
+                    "scope": "project:DRIFT",
+                    "open_issue_count": 12,
+                    "issue_body": "must never persist",
+                }
+            }
+        },
+    )
+
+    assert state.data_mode == "connected_internal_data"
+    assert state.change_card["exposure"]["mode"] == "connected_internal_data"
+    assert state.change_card["exposure"]["context_status"] == "verified"
+    assert state.change_card["internal_context"]["connectors"]["jira"][
+        "open_issue_count"
+    ] == 12
+    assert "issue_body" not in str(state.to_dict())
+    assert state.events[-1]["action"] == "internal_context_reader"
+
+
 def test_named_approval_resumes_and_publishes_bounded_artifacts() -> None:
     workflow = DriftlineWorkflow()
     state = workflow.start_demo()

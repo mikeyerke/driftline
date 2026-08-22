@@ -184,6 +184,61 @@ def _safety_trace_redaction(trace: Mapping[str, Any]) -> tuple[bool, str]:
     return False, f"Trace contains a forbidden raw field: {found}."
 
 
+def _safety_internal_context_boundary(trace: Mapping[str, Any]) -> tuple[bool, str]:
+    """Ensure any tenant context in a trace stays aggregate and auditable."""
+    card = _mapping(trace.get("change_card"))
+    context = _mapping(card.get("internal_context"))
+    if not context:
+        return True, "Anonymous fixture has no connector context; the public lane remains isolated."
+    connectors = context.get("connectors")
+    exposure = _mapping(card.get("exposure"))
+    events = _list(trace.get("events"))
+    context_keys = {
+        "status",
+        "attempted_connector_count",
+        "verified_connector_count",
+        "connectors",
+        "redaction",
+    }
+    connector_keys = {
+        "status",
+        "external_read",
+        "scope",
+        "redaction",
+        "open_issue_count",
+        "open_pull_request_count",
+        "recent_message_count",
+        "page_count",
+        "sampled_issue_count",
+        "driftline_active_count",
+        "objects",
+    }
+    safe_shape = set(context).issubset(context_keys) and isinstance(connectors, Mapping)
+    for payload in connectors.values() if isinstance(connectors, Mapping) else ():
+        if not isinstance(payload, Mapping) or not set(payload).issubset(connector_keys):
+            safe_shape = False
+            break
+        for item in payload.get("objects", []) if isinstance(payload.get("objects"), list) else ():
+            if not isinstance(item, Mapping) or not set(item).issubset({"object", "total", "fields"}):
+                safe_shape = False
+                break
+    verified_count = int(context.get("verified_connector_count", 0) or 0)
+    passed = (
+        safe_shape
+        and context.get("redaction") == "aggregate_metadata_only"
+        and verified_count > 0
+        and exposure.get("mode") == "connected_internal_data"
+        and any(
+            _mapping(event).get("action") == "internal_context_reader"
+            and _mapping(event).get("outcome") == "aggregate_context_attached"
+            for event in events
+        )
+    )
+    if passed:
+        return True, "Tenant context is normalized to bounded metadata and carries an audit attachment event."
+    return False, "Attached tenant context must be aggregate-only, connected-aware, and audit-recorded."
+
+
 def _safety_source_provenance(trace: Mapping[str, Any]) -> tuple[bool, str]:
     evidence = _mapping(trace.get("evidence"))
     retrieved_at = str(evidence.get("retrieved_at", "")).strip()
@@ -329,6 +384,13 @@ QUALITY_CASES: tuple[QualityCase, ...] = (
         _safety_trace_redaction,
     ),
     QualityCase(
+        "safety_internal_context_boundary",
+        "safety",
+        "critical",
+        "Tenant connector context remains aggregate-only and auditable.",
+        _safety_internal_context_boundary,
+    ),
+    QualityCase(
         "safety_source_provenance",
         "safety",
         "critical",
@@ -472,6 +534,15 @@ def _safe_trace_shape(trace: Mapping[str, Any]) -> dict[str, Any]:
         "change_card": {
             "change_card_id": str(_mapping(trace.get("change_card")).get("change_card_id", "")),
             "workflow_id": str(_mapping(trace.get("change_card")).get("workflow_id", "")),
+            "internal_context": {
+                "status": str(_mapping(_mapping(trace.get("change_card")).get("internal_context")).get("status", "")),
+                "verified_connector_count": int(
+                    _mapping(_mapping(trace.get("change_card")).get("internal_context")).get(
+                        "verified_connector_count", 0
+                    )
+                    or 0
+                ),
+            },
         },
     }
 

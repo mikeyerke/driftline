@@ -71,6 +71,69 @@ def test_gate_requires_explicit_red_team_provenance() -> None:
     assert report["gate_status"] == "fail"
 
 
+def test_gate_accepts_signed_aggregate_context_and_rejects_raw_fields() -> None:
+    trace = build_quality_fixture()
+    trace["change_card"]["internal_context"] = {
+        "status": "verified",
+        "attempted_connector_count": 2,
+        "verified_connector_count": 1,
+        "redaction": "aggregate_metadata_only",
+        "connectors": {
+            "jira": {
+                "status": "ok",
+                "external_read": True,
+                "scope": "project:DRIFT",
+                "open_issue_count": 12,
+                "redaction": "aggregate_metadata_only",
+            },
+            "salesforce": {
+                "status": "reauthorization_required",
+                "external_read": False,
+                "scope": "read_only_crm",
+                "redaction": "aggregate_metadata_only",
+            },
+        },
+    }
+    trace["change_card"]["exposure"] = {
+        "mode": "connected_internal_data"
+    }
+    trace["events"].append(
+        {
+            "action": "internal_context_reader",
+            "outcome": "aggregate_context_attached",
+        }
+    )
+
+    report = run_quality_gate(
+        trace,
+        release_sha="a" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+    )
+    context_case = next(
+        case
+        for case in report["cases"]
+        if case["case_id"] == "safety_internal_context_boundary"
+    )
+    assert context_case["status"] == "pass"
+
+    trace["change_card"]["internal_context"]["connectors"]["jira"]["issue_body"] = (
+        "raw text"
+    )
+    report = run_quality_gate(
+        trace,
+        release_sha="b" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+    )
+    context_case = next(
+        case
+        for case in report["cases"]
+        if case["case_id"] == "safety_internal_context_boundary"
+    )
+    assert context_case["status"] == "fail"
+
+
 def test_gate_rejects_missing_source_snapshot_provenance() -> None:
     trace = build_quality_fixture()
     trace["evidence"].pop("snapshot_hash")

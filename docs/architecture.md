@@ -164,7 +164,12 @@ consent it reports authorization required; after consent it reads only
 Product2, PricebookEntry, and Opportunity aggregate counts/field names. No
 user-supplied query, object ID, page body, message text, CRM record, or
 repository target is accepted. The result is request-scoped, not persisted,
-and never becomes public demo context.
+and never becomes public demo context. A signed `live`, `tenant_demo`, or
+`monitor` workflow may explicitly attach that same reader's normalized result
+to its Change Card. Only connector status, fixed scope, bounded counts, and
+allowlisted Salesforce object totals/field names survive; the workflow's
+normal Firestore TTL applies, and an append-only `internal_context_reader`
+event records the attachment. Anonymous demo runs never call this seam.
 Reopening a decision restores the approval gate and is not an external undo.
 Connector manifests are deliberately marked `external_write: false` in the
 public demo. A configured connector is callable only after a separately signed
@@ -274,7 +279,8 @@ This makes onboarding self-service-ready without ever accepting a raw token in
 the browser, API body, Firestore control plane, or audit ledger.
 
 The Change Card is the product's decision unit. It is assembled from verified
-source evidence, the deterministic impact graph, and action lifecycle state.
+source evidence, the deterministic impact graph, bounded aggregate connector
+context when a signed tenant run supplies it, and action lifecycle state.
 Its `change_card_id` is deterministic for an allowlisted source plus evidence
 hash. That identity is carried into action records, owner-item idempotency keys,
 private artifact paths, and connector markers so scheduler retries and repeated

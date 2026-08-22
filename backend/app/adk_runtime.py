@@ -94,6 +94,7 @@ async def run_agent_task(
     user_id: str = "demo-operator",
     run_mode: str = "demo",
     tenant_id: str | None = None,
+    internal_context: dict[str, object] | None = None,
 ) -> dict:
     """Run one real Gemini/ADK turn and return its final grounded response."""
     started_at = datetime.now(UTC).isoformat()
@@ -182,9 +183,18 @@ async def run_agent_task(
                 "reason": "Workflow state unavailable for decision copilot",
             }
         else:
+            if internal_context is not None:
+                workflow_store.attach_internal_context(state, internal_context)
+                data_mode = state.data_mode
+                persist_workflow(state)
             try:
                 structured = await analyze_workflow(state)
                 analysis_info = analysis_trace(structured)
+                # Gemini may replace deterministic draft text or risk labels
+                # after the source tool creates the workflow. Rebuild the
+                # decision card so the UI and durable state cannot drift from
+                # the validated artifact set (including attached context).
+                workflow_store.refresh_change_card(state)
                 # Persist the coordinator and analysis trace before the
                 # decision pass so a later bounded failure still leaves an
                 # auditable record of what ran.

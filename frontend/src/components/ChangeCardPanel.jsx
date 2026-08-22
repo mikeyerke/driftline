@@ -1,6 +1,15 @@
 import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock3, ShieldCheck, UsersRound } from "lucide-react";
 
 const label = (value) => (value || "pending").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const contextMetric = (name, payload) => {
+  const metric = [
+    ["open_issue_count", "open issues"],
+    ["open_pull_request_count", "open PRs"],
+    ["recent_message_count", "recent messages"],
+    ["page_count", "pages"],
+  ].find(([key]) => Number.isFinite(Number(payload?.[key])));
+  return metric ? `${label(name)} ${payload[metric[0]]} ${metric[1]}` : null;
+};
 
 export default function ChangeCardPanel({ card }) {
   if (!card) return null;
@@ -8,6 +17,13 @@ export default function ChangeCardPanel({ card }) {
   const exposure = card.exposure || {};
   const sourceQuality = card.source_quality || {};
   const closure = card.closure || {};
+  const internalContext = card.internal_context || {};
+  const verifiedConnectorCount = Number(internalContext.verified_connector_count || 0);
+  const contextHighlights = Object.entries(internalContext.connectors || {})
+    .filter(([, payload]) => payload?.external_read)
+    .map(([name, payload]) => contextMetric(name, payload))
+    .filter(Boolean)
+    .slice(0, 3);
   const approvalPending = closure.state === "approval_pending";
   const exposureTitle = exposure.mode === "connected_internal_data"
     ? "Permissioned business context"
@@ -41,6 +57,12 @@ export default function ChangeCardPanel({ card }) {
             <span><b>{exposure.renewal_count ?? "—"}</b> renewals</span>
             <span><b>{exposure.affected_asset_count ?? 0}</b> assets</span>
           </div>
+          {verifiedConnectorCount > 0 && <small className="exposure-context-note" aria-label="Verified aggregate connector context">
+            {verifiedConnectorCount} connector{verifiedConnectorCount === 1 ? "" : "s"} verified · aggregate context only
+          </small>}
+          {contextHighlights.length > 0 && <small className="exposure-context-detail">
+            {contextHighlights.join(" · ")}
+          </small>}
         </div>
         <div className="change-card-block closure-block">
           <span className="change-card-kicker"><Clock3 size={13} />Closure</span>

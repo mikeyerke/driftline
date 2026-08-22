@@ -3210,6 +3210,83 @@ async def test_live_agent_route_propagates_signed_tenant(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_signed_agent_route_attaches_bounded_internal_context(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_connector_context(_tenant_id: str) -> dict[str, object]:
+        return {
+            "status": "partial",
+            "verified_connector_count": 1,
+            "connectors": {
+                "jira": {
+                    "status": "ok",
+                    "external_read": True,
+                    "scope": "project:DRIFT",
+                    "open_issue_count": 18,
+                    "raw_issue": "must never be copied",
+                }
+            },
+        }
+
+    async def fake_run_agent_task(
+        query: str,
+        user_id: str,
+        run_mode: str = "demo",
+        *,
+        tenant_id: str | None = None,
+        internal_context: dict[str, object] | None = None,
+    ) -> dict:
+        captured.update(
+            query=query,
+            user_id=user_id,
+            run_mode=run_mode,
+            tenant_id=tenant_id,
+            internal_context=internal_context,
+        )
+        return {"status": "ok", "tenant_id": tenant_id}
+
+    monkeypatch.setattr(api, "_connector_context_info", fake_connector_context)
+    monkeypatch.setattr(api, "_reserve_connector_call", lambda _tenant_id: True)
+    monkeypatch.setattr(api, "run_agent_task", fake_run_agent_task)
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_MODE", "demo")
+    monkeypatch.setenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "true")
+    secret = "agent-tenant-secret"
+    tenant_id = "agent-tenant"
+    operator = "Tenant operator"
+    monkeypatch.setenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", secret)
+    monkeypatch.setenv("DRIFTLINE_HMAC_TENANTS", tenant_id)
+    token = hmac.new(
+        secret.encode(),
+        f"agent-run:public/pricing:{operator}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+        api._tenant_agent_call_times.clear()
+
+    response = client.post(
+        "/api/agent/run",
+        json={
+            "query": "Inspect the tenant source",
+            "user_id": "tenant-operator",
+            "source_id": "public/pricing",
+            "operator": operator,
+            "tenant_id": tenant_id,
+            "approval_token": token,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["tenant_id"] == tenant_id
+    assert captured["run_mode"] == "live"
+    context = captured["internal_context"]
+    assert isinstance(context, dict)
+    assert context["verified_connector_count"] == 1
+    assert context["connectors"]["jira"]["open_issue_count"] == 18
+    assert "raw_issue" not in str(context)
+
+
+@pytest.mark.asyncio
 async def test_live_agent_route_accepts_registered_source_for_signed_tenant(monkeypatch) -> None:
     source._CUSTOM_SOURCE_DEFINITIONS.clear()
     tenant_id = "agent-tenant"
