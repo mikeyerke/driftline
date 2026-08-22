@@ -526,13 +526,13 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`947f86cb6a7b2b7c7b8ce105e3f958031ea25c03`, Cloud Build
-`fc1dfb6a-403f-481d-9ab2-994d471436d7`, and Cloud Run revision
-`driftline-00161-wxc` at 100% traffic. Its immutable image digest is recorded
+`64be8932bf88bb68afc87220b2357bff644ae387`, Cloud Build
+`42f1cea1-a15b-4d47-adc8-be9ab34e3333`, and Cloud Run revision
+`driftline-00162-nvm` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32545237851` passed the repository gates, including the
+GitHub Actions run `32545797712` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -545,6 +545,9 @@ Google operator ID token expires, a signed 401 now clears the in-memory tenant
 session and returns the UI to an explicit sign-in-again state while preserving
 the anonymous packet-safe lane; no token is persisted or copied into a body or
 URL.
+The latest console build also keeps the operator control in an explicit
+loading state until `/api/auth/config` resolves, avoiding a false
+"unavailable" flash on a cold production load.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
 packet/undo behavior, and the direct `/api/agent/run` path; the public lane
@@ -562,9 +565,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-f86cc03b64a7` / `3f051bac-b4d5-46d3-937c-b773f1f7b87b` for the live agent
-and `job-438a97a63d1a` / `d2f2ba10-3333-44cd-a5cc-283063b204f7` for the
-approval/undo proof. `scripts/verify_production.sh` also passed with zero
+`job-9778ec4798cb` / `0ae93a41-8402-4360-8678-407f52c85c24` for the live agent
+and the paired approval/undo run. `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
 removed from this isolated project. The signed browser client sends its
@@ -578,7 +580,7 @@ Driftline still does not claim a live CRM read until a fresh consent produces
 object totals.
 
 The cadence path was re-run against the same isolated deployment at
-`2026-08-22T02:11:32Z`: the real Scheduler identity received an
+`2026-08-22T02:22:53Z`: the real Scheduler identity received an
 OIDC-authenticated HTTP 200 on the new revision, and the registry reported
 all five bounded sources healthy with no stale or failed entries. A post-deploy
 log query found no Firestore positional-filter deprecation warning after the

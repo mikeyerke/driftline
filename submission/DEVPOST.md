@@ -117,11 +117,11 @@ product truth.
 ## Verified release evidence
 
 The current serving release is source commit
-`947f86cb6a7b2b7c7b8ce105e3f958031ea25c03`, Cloud Build
-`fc1dfb6a-403f-481d-9ab2-994d471436d7`, and Cloud Run revision
-`driftline-00161-wxc` at 100% traffic in project `driftline-hackathon-2026`.
+`64be8932bf88bb68afc87220b2357bff644ae387`, Cloud Build
+`42f1cea1-a15b-4d47-adc8-be9ab34e3333`, and Cloud Run revision
+`driftline-00162-nvm` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:f80d941ff4c407e62f4527df512d9be1b8c35a75166646d232725ded45ad16ad`.
+`sha256:bf338bffa78b77755707b91c4fc7348e3bb839b13b04c666151b6762592c0583`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -139,14 +139,14 @@ claimed until fresh consent succeeds.
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32545237851` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32545797712` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-f86cc03b64a7` / workflow
-  `3f051bac-b4d5-46d3-937c-b773f1f7b87b` returned `needs_approval`,
+- Live agent check: fresh job `job-9778ec4798cb` / workflow
+  `0ae93a41-8402-4360-8678-407f52c85c24` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -158,14 +158,13 @@ claimed until fresh consent succeeds.
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-438a97a63d1a` / workflow
-  `d2f2ba10-3333-44cd-a5cc-283063b204f7` persisted the packet, reversed the
+- Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
   manually triggered after this release and Cloud Logging recorded an
   OIDC-authenticated HTTP 200 request to `/api/scheduler/tick` on
-  `driftline-00161-wxc`. The registry reported five healthy bounded sources;
+  `driftline-00162-nvm`. The registry reported five healthy bounded sources;
   cadence rules deferred healthy sources that were not due. A post-deploy log
   search found no Firestore positional-filter deprecation warning.
 - Breadth check on the same serving revision: competitor offerings
