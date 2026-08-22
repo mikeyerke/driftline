@@ -131,11 +131,11 @@ its final live proof requires an operator Google identity in the browser.
 ## Verified release evidence
 
 The current serving release is source commit
-`a94f45dfe40a8557a22bd3c3d4d8a51776ce741a`, Cloud Build
-`df5b50be-2676-4a4b-b948-e2681be68d2e`, and Cloud Run revision
-`driftline-00201-8pv` at 100% traffic in project `driftline-hackathon-2026`.
+`ddbfe4d851c6ad27b673a23c75d54087fd48e7d8`, Cloud Build
+`d8638de9-4dc9-4d16-b673-506a50ad4898`, and Cloud Run revision
+`driftline-00202-rv9` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:f509a8a0c5a040593c78db09af889e638420cf481832eb108f446b29e90a8423`.
+`sha256:963ef5c03e34a4d0c0e1eb4768264384c81a170f171c9b4dcb324b7a0d347a65`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -156,14 +156,14 @@ claimed until fresh consent succeeds.
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32568024558` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32568663775` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-0136a4de5a31` / workflow
-  `f31156ca-b09e-4b02-958c-abd05cbda3a1` returned `needs_approval`,
+- Live agent check: fresh job `job-13af7dc28a50` / workflow
+  `5cb1e9e9-8482-43c8-b48b-c547821b43e6` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -171,21 +171,23 @@ claimed until fresh consent succeeds.
   Decision Copilot, and the approval gate; the scripted live proof above is
   the durable source of the current job/workflow identifiers.
 - The paired current-revision approval/undo verifier created job
-  `job-05d547ae5471` / workflow `35cf7bd3-f630-4353-bbba-e87ff8b6a0ac` and
+  `job-bcec6325de26` / workflow `01c7f008-4213-4f16-8fee-207b4308523f` and
   completed scan -> approval -> owner claim -> owner completion -> undo. The
   packet persisted and its operational output was reversed; Jira, Confluence,
   and Slack remained `external_write=false` in the public packet-safe lane.
-  The bounded value proof retains one historical owner completion and a 3.7s
-  owner-action cycle sample after the reversal; current completion returns to
+  The bounded value proof retains two historical owner completions and 3.7s
+  owner-action cycle samples after the reversal; current completion returns to
   zero because undo is intentionally reversible. These are deployment records,
-  not customer outcome claims.
+  not customer outcome claims. The logged-out browser now keeps the reversed
+  owner-action queue visible after undo, showing four `Reversed` rows and an
+  explicit append-only history explanation.
 - A current-revision logged-out browser check also switched from a completed
   `competitor/offerings` run to `competitor/blog`; the old workflow and approval
   state cleared immediately and the blog-specific evidence preview appeared.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-bb0afe78d8b6` passed the 14-case
+- Trace-to-eval check: live evaluation `eval-3ef78b21cd3a` passed the 14-case
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining stable against the prior report with no case
   regressions; the report
