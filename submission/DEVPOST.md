@@ -170,10 +170,10 @@ claimed until fresh consent succeeds.
   `756834da-b29f-40c1-9dbe-5387787a40d9` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-a52b99ca4846` passed the
-  `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall;
-  the report is redacted telemetry and explicitly does not claim customer
-  outcomes.
+- Trace-to-eval check: live evaluation `eval-6151e31a1898` passed the
+  `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
+  remaining `stable` against prior evaluation `eval-a52b99ca4846`; the report
+  is redacted telemetry and explicitly does not claim customer outcomes.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
   manually triggered during the prior release and Cloud Logging recorded an
   OIDC-authenticated HTTP 200 request to `/api/scheduler/tick` on the then-serving

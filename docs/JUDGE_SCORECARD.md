@@ -32,8 +32,9 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   usefulness at least 75%, overall at least 90%, and any regression against a
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
-  in `driftline_trace_evaluations`; these are evaluation telemetry, not customer
-  outcomes.
+  in `driftline_trace_evaluations`; the latest live report is
+  `eval-6151e31a1898`, stable against `eval-a52b99ca4846` with zero score
+  deltas. These are evaluation telemetry, not customer outcomes.
 
 - Logged-out desktop and 390x844 mobile browser QA showed the interactive
   impact map before and after a scan: source -> offering -> impact area -> work

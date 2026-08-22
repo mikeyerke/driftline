@@ -557,7 +557,10 @@ loading state until `/api/auth/config` resolves, avoiding a false
 "unavailable" flash on a cold production load.
 The new trace-to-eval quality gate evaluates nine independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
-live Google ADK/Gemini trace before this release is considered healthy.
+live Google ADK/Gemini trace before this release is considered healthy. The
+latest live report `eval-6151e31a1898` is stable against the prior
+`eval-a52b99ca4846` with zero score deltas; it is evaluation telemetry, not a
+customer-outcome claim.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
 packet/undo behavior, and the direct `/api/agent/run` path; the public lane

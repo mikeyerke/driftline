@@ -30,9 +30,10 @@ Checked `2026-08-22T03:04Z` with the active gcloud project set to
   `70246ecd-9e12-4aa2-9552-0f246d22bb3e`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-a52b99ca4846` with a passing
-  `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, redacted
-  trace data, and `customer_outcome=false`. This is evaluator telemetry, not
+- `/api/evals/latest` reports evaluation `eval-6151e31a1898` with a passing
+  `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, and a
+  `stable` trend against `eval-a52b99ca4846` (all deltas `0.0`). Trace data is
+  redacted and `customer_outcome=false`; this is evaluator telemetry, not
   customer ROI evidence.
 - The live production verifier also checks `Cache-Control: no-store` and the
   fail-closed `Permissions-Policy` deny-list on both health and API responses.
