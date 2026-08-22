@@ -49,6 +49,27 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operatorSession?.identityToken, operatorSession?.tenantId]);
 
+  useEffect(() => {
+    if (!operatorSession?.identityToken || !operatorSession?.tenantId) return undefined;
+
+    // OAuth opens in a separate tab. Refresh the metadata-only status when the
+    // operator returns so a successful callback (or an explicit reauthorization
+    // failure) is visible without requiring a second manual click. This does
+    // not probe Salesforce or poll while the operator remains in Driftline.
+    const refreshOnReturn = () => {
+      if (!document.hidden) void refreshStatus({ clearHealth: false });
+    };
+    window.addEventListener("focus", refreshOnReturn);
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => {
+      window.removeEventListener("focus", refreshOnReturn);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+    // The session identity is the only lifecycle input; refreshStatus is
+    // intentionally excluded to avoid re-registering listeners every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [operatorSession?.identityToken, operatorSession?.tenantId]);
+
   const beginAuthorization = async () => {
     setAuthorizing(true);
     setError("");
