@@ -12,25 +12,25 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T04:29Z` with the active gcloud project set to
+Checked `2026-08-22T04:42Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00169-7cx` at 100% traffic. Its immutable serving image is
-  `sha256:de61d9ca48c1c71936dee18eac7a4540005446411bc4d9d5f4aa551bfde9610c`.
-- Source commit `24570c164a796dbd33569ae32a88cf43c71e09c7` was built by Cloud
-  Build `ba2b8dfb-ce38-4962-8778-85ceb4898ba1`; GitHub Actions run
-  `32551494932` passed the repository gates.
+  `driftline-00170-v5l` at 100% traffic. Its immutable serving image is
+  `sha256:310101f29c01f2a7311136d2cac6b4aa070c3b084170360e004f61c74a60bf94`.
+- Source commit `9d0ecb312befb6d267a710276986215b7ec09f2d` was built by Cloud
+  Build `d33c7412-59ff-4125-b696-162b23e89f4f`; GitHub Actions run
+  `32552210838` passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `24570c164a796dbd33569ae32a88cf43c71e09c7`, and build ID
-  `ba2b8dfb-ce38-4962-8778-85ceb4898ba1`; `/api/auth/config`
+  `9d0ecb312befb6d267a710276986215b7ec09f2d`, and build ID
+  `d33c7412-59ff-4125-b696-162b23e89f4f`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-5dc754aa9bc3` with a passing
+- `/api/evals/latest` reports evaluation `eval-149e9df793e1` with a passing
   `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, and a
   `stable` trend against `eval-b308a86dfc3c` (all deltas `0.0` and no case
   regressions). Trace data is
@@ -62,12 +62,11 @@ Checked `2026-08-22T04:29Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-602203bad6fd` / workflow `681fc14a-be98-4c5f-b9d3-aff412c486dc` at
+  `job-950651799266` / workflow `448c06c0-a25c-4b5b-957c-865c72656530` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
-  and a passing trace evaluation. The paired approval/undo run returned job
-  `job-84841ce4c6ec` / workflow `f8175a3a-2f4f-42e2-8ca6-fe55f654783c`,
-  persisted the packet, reversed the operational output, and recorded
+  and a passing trace evaluation. The paired approval/undo run used that
+  workflow, persisted the packet, reversed the operational output, and recorded
   `external_write=false` / `external_systems_changed=false`.
 - `scripts/verify_production.sh` passed against this revision: Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,

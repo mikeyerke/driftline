@@ -125,11 +125,11 @@ product truth.
 ## Verified release evidence
 
 The current serving release is source commit
-`24570c164a796dbd33569ae32a88cf43c71e09c7`, Cloud Build
-`ba2b8dfb-ce38-4962-8778-85ceb4898ba1`, and Cloud Run revision
-`driftline-00169-7cx` at 100% traffic in project `driftline-hackathon-2026`.
+`9d0ecb312befb6d267a710276986215b7ec09f2d`, Cloud Build
+`d33c7412-59ff-4125-b696-162b23e89f4f`, and Cloud Run revision
+`driftline-00170-v5l` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:de61d9ca48c1c71936dee18eac7a4540005446411bc4d9d5f4aa551bfde9610c`.
+`sha256:310101f29c01f2a7311136d2cac6b4aa070c3b084170360e004f61c74a60bf94`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -147,30 +147,31 @@ claimed until fresh consent succeeds.
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32551494932` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32552210838` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-602203bad6fd` / workflow
-  `681fc14a-be98-4c5f-b9d3-aff412c486dc` returned `needs_approval`,
+- Live agent check: fresh job `job-950651799266` / workflow
+  `448c06c0-a25c-4b5b-957c-865c72656530` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
   `Impact analysis · gemini structured`, the Gemini summary/rationale, the
   Decision Copilot, and the approval gate; the scripted live proof above is
   the durable source of the current job/workflow identifiers.
-- Current-revision browser journey (job `job-f1bfaa9665c9`, workflow
-  `38da400c-5581-47cc-9210-5126061006bc`) completed scan -> approval -> undo.
-  The undo response persisted action record
-  `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
-  all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-84841ce4c6ec` / workflow
-  `f8175a3a-2f4f-42e2-8ca6-fe55f654783c` persisted the packet, reversed the
+- The paired current-revision approval/undo verifier completed scan ->
+  approval -> undo on the fresh workflow above. The packet persisted and its
+  operational output was reversed; Jira, Confluence, and Slack remained
+  `external_write=false` in the public packet-safe lane.
+- A current-revision logged-out browser check also switched from a completed
+  `competitor/offerings` run to `competitor/blog`; the old workflow and approval
+  state cleared immediately and the blog-specific evidence preview appeared.
+- Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-5dc754aa9bc3` passed the
+- Trace-to-eval check: live evaluation `eval-149e9df793e1` passed the
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
   remaining `stable` against prior evaluation `eval-b308a86dfc3c` with no case
   regressions; the report

@@ -533,13 +533,13 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`24570c164a796dbd33569ae32a88cf43c71e09c7`, Cloud Build
-`ba2b8dfb-ce38-4962-8778-85ceb4898ba1`, and Cloud Run revision
-`driftline-00169-7cx` at 100% traffic. Its immutable image digest is recorded
+`9d0ecb312befb6d267a710276986215b7ec09f2d`, Cloud Build
+`d33c7412-59ff-4125-b696-162b23e89f4f`, and Cloud Run revision
+`driftline-00170-v5l` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32551494932` passed the repository gates, including the
+GitHub Actions run `32552210838` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -558,8 +558,8 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates eleven independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-5dc754aa9bc3` is stable against the prior
-`eval-47d4fafb5cd5` with zero score deltas and no case regressions; it is
+latest live report `eval-149e9df793e1` is stable against the prior live
+report with zero score deltas and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
@@ -575,13 +575,22 @@ the full control-plane width; a 390x844 check has no horizontal overflow. See
 [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md) for exact proof
 identifiers and the remaining unmeasured customer outcomes.
 
+This release also fixes source-context isolation in the public console: changing
+the scenario selector invalidates in-flight polling, clears the prior workflow,
+resets artifact decisions, and renders the selected source's own bounded
+before/after preview until a new scan runs. A logged-out browser check verified
+offering → blog switching after a completed workflow, with no stale live card or
+approval state. Desktop and mobile Lighthouse both scored 100 across 53 audits,
+with no console errors or horizontal overflow.
+
 The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-602203bad6fd` / `681fc14a-be98-4c5f-b9d3-aff412c486dc` for the live agent
-and `job-84841ce4c6ec` / `f8175a3a-2f4f-42e2-8ca6-fe55f654783c` for the paired
-approval/undo run.
+`job-950651799266` / `448c06c0-a25c-4b5b-957c-865c72656530` for the live agent
+and the paired approval/undo run. Both returned a passing trace evaluation;
+the approval/undo path persisted and reversed the packet with no external
+connector write.
 `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
