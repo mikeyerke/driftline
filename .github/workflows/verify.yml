@@ -40,7 +40,7 @@ jobs:
         run: uv run pytest -q
 
       - name: Trace-to-eval quality gate
-        run: uv run python -m app.trace_eval
+        run: uv run python -m app.trace_eval --baseline trace_eval_baseline.json
 
       - name: Frozen dependency audit
         run: |

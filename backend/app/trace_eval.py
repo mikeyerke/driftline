@@ -16,6 +16,7 @@ import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 QUALITY_SUITE_VERSION = "trace-eval-v1"
@@ -285,6 +286,55 @@ QUALITY_CASES: tuple[QualityCase, ...] = (
 )
 
 
+def load_quality_baseline(path: str | Path) -> dict[str, Any]:
+    """Load and validate the reviewable baseline used by release CI.
+
+    The baseline contains only suite metadata, scores, and case statuses.  A
+    changed or incomplete case contract is rejected instead of silently
+    comparing incompatible evaluator versions.
+    """
+    baseline_path = Path(path)
+    try:
+        payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Unable to read trace-eval baseline: {baseline_path}") from exc
+    if not isinstance(payload, dict):
+        raise TypeError("Trace-eval baseline must be a JSON object")
+    if payload.get("suite_version") != QUALITY_SUITE_VERSION:
+        raise ValueError("Trace-eval baseline suite version does not match current suite")
+
+    expected_case_ids = [case.case_id for case in QUALITY_CASES]
+    if payload.get("case_ids") != expected_case_ids:
+        raise ValueError("Trace-eval baseline case contract does not match current suite")
+
+    cases = payload.get("cases")
+    if not isinstance(cases, list):
+        raise TypeError("Trace-eval baseline cases must be a list")
+    case_statuses = {
+        str(case.get("case_id")): str(case.get("status"))
+        for case in cases
+        if isinstance(case, dict)
+    }
+    if set(case_statuses) != set(expected_case_ids) or any(
+        status not in {"pass", "fail"} for status in case_statuses.values()
+    ):
+        raise ValueError("Trace-eval baseline case statuses do not match current suite")
+
+    normalized = dict(payload)
+    normalized["evaluation_id"] = str(
+        normalized.get("evaluation_id") or f"baseline-{QUALITY_SUITE_VERSION}"
+    )
+    for score_key in ("safety_score", "usefulness_score", "overall_score"):
+        try:
+            score = float(normalized[score_key])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"Trace-eval baseline is missing {score_key}") from exc
+        if not 0.0 <= score <= 1.0:
+            raise ValueError(f"Trace-eval baseline {score_key} must be between 0 and 1")
+        normalized[score_key] = score
+    return normalized
+
+
 def _canonical_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
@@ -465,7 +515,13 @@ def _score(cases: list[dict[str, Any]], pillar: str) -> float:
     return round(sum(case["status"] == "pass" for case in selected) / len(selected), 4)
 
 
-def _trend(previous_report: Mapping[str, Any] | None, safety: float, usefulness: float, overall: float) -> dict[str, Any]:
+def _trend(
+    previous_report: Mapping[str, Any] | None,
+    safety: float,
+    usefulness: float,
+    overall: float,
+    cases: list[Mapping[str, Any]],
+) -> dict[str, Any]:
     if not previous_report:
         return {
             "status": "first_run",
@@ -473,6 +529,7 @@ def _trend(previous_report: Mapping[str, Any] | None, safety: float, usefulness:
             "overall_delta": None,
             "safety_delta": None,
             "usefulness_delta": None,
+            "case_regressions": [],
         }
     previous_overall = float(previous_report.get("overall_score", 0.0) or 0.0)
     previous_safety = float(previous_report.get("safety_score", 0.0) or 0.0)
@@ -480,14 +537,35 @@ def _trend(previous_report: Mapping[str, Any] | None, safety: float, usefulness:
     overall_delta = round(overall - previous_overall, 4)
     safety_delta = round(safety - previous_safety, 4)
     usefulness_delta = round(usefulness - previous_usefulness, 4)
+    previous_cases = {
+        str(case.get("case_id")): str(case.get("status"))
+        for case in _list(previous_report.get("cases"))
+        if isinstance(case, Mapping)
+    }
+    current_cases = {
+        str(case.get("case_id")): str(case.get("status"))
+        for case in cases
+    }
+    case_regressions = sorted(
+        case_id
+        for case_id, previous_status in previous_cases.items()
+        if previous_status == "pass" and current_cases.get(case_id) == "fail"
+    )
     deltas = (overall_delta, safety_delta, usefulness_delta)
-    status = "regressed" if any(delta < 0 for delta in deltas) else "improved" if any(delta > 0 for delta in deltas) else "stable"
+    status = (
+        "regressed"
+        if any(delta < 0 for delta in deltas) or case_regressions
+        else "improved"
+        if any(delta > 0 for delta in deltas)
+        else "stable"
+    )
     return {
         "status": status,
         "previous_evaluation_id": previous_report.get("evaluation_id"),
         "overall_delta": overall_delta,
         "safety_delta": safety_delta,
         "usefulness_delta": usefulness_delta,
+        "case_regressions": case_regressions,
     }
 
 
@@ -512,7 +590,7 @@ def run_quality_gate(
         for case in cases
         if case["severity"] == "critical" and case["status"] != "pass"
     ]
-    trend = _trend(previous_report, safety_score, usefulness_score, overall_score)
+    trend = _trend(previous_report, safety_score, usefulness_score, overall_score, cases)
     gate_status = (
         "pass"
         if not critical_failures
@@ -578,11 +656,21 @@ def redacted_evaluation(report: Mapping[str, Any]) -> dict[str, Any]:
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised by release helper.
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run the Driftline trace-eval gate")
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        help="Reviewable JSON baseline used to catch score and case regressions",
+    )
+    args = parser.parse_args()
     report = run_quality_gate(
         build_quality_fixture(),
         release_sha="local",
         model="gemini-3.5-flash",
         execution_mode="google_adk",
+        previous_report=load_quality_baseline(args.baseline) if args.baseline else None,
     )
     print(json.dumps(report, sort_keys=True))
     raise SystemExit(0 if report["gate_status"] == "pass" else 1)

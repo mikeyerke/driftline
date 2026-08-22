@@ -37,8 +37,12 @@ Run the local gate with:
 ./scripts/verify_trace_eval.sh
 ```
 
-GitHub Actions runs the same module after the frozen backend dependencies are
-installed. A failing case exits non-zero and blocks the repository check.
+The checked-in `backend/trace_eval_baseline.json` is a small, reviewable
+contract of the last accepted case set and scores. The gate rejects a changed
+suite contract, any score regression, or a case that was previously passing and
+now fails. GitHub Actions runs the same baseline comparison after the frozen
+backend dependencies are installed. A failing case exits non-zero and blocks
+the repository check.
 
 ## Durable evidence
 

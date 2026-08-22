@@ -5,11 +5,12 @@ set -euo pipefail
 readonly root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${root_dir}/backend"
 
+readonly baseline_path="${root_dir}/backend/trace_eval_baseline.json"
 if [[ -x "${root_dir}/backend/.venv/bin/python" ]]; then
-  exec "${root_dir}/backend/.venv/bin/python" -m app.trace_eval
+  exec "${root_dir}/backend/.venv/bin/python" -m app.trace_eval --baseline "${baseline_path}"
 fi
 if command -v uv >/dev/null 2>&1; then
-  exec uv run --locked python -m app.trace_eval
+  exec uv run --locked python -m app.trace_eval --baseline "${baseline_path}"
 fi
 printf 'A backend Python environment or uv is required for the trace-eval gate.\n' >&2
 exit 2
