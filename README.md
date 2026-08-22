@@ -553,9 +553,9 @@ traffic, verifies that the serving revision's image digest matches the exact
 Artifact Registry image built for that Cloud Build, and verifies that the
 public `/health` response carries the exact release SHA and build ID before
 the build can succeed. The current serving release is source commit
-`8f6ee49b1c6fcac862e118eb52d7acd9e53a578d`, Cloud Build
-`dee6fb48-34ad-4df5-83b4-bf0c08882a65`, and Cloud Run revision
-`driftline-00206-xx2` at 100% traffic. Its immutable image digest is recorded
+`1f269ea6d3ca79530ad75b3b8d2a29de06c6b2ad`, Cloud Build
+`3532927f-1da9-406d-b9e7-ecb4beea5d64`, and Cloud Run revision
+`driftline-00207-x4d` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
@@ -579,7 +579,7 @@ The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
 before this release is considered healthy. The latest live report
-`eval-0d551e255d83` remained stable against the prior report with 100% safety,
+`eval-1a29ff5bfb98` remained stable against the prior report with 100% safety,
 100% usefulness, 100% overall, and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
@@ -622,8 +622,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-a8769bb8d23f` / `433bb117-3d64-45e1-9d5e-469141c00e6c` for the live agent
-and `job-8974eef41f3b` / `b7c9d04c-6979-42ff-abd2-37ba2563f8dc` for the paired
+`job-405a5236cafd` / `52ccf800-238f-42ff-8acd-1ab8627848e1` for the live agent
+and `job-466044c2ca06` / `ac8cbdcd-6ab8-4a6b-80ad-2dbf60a2f9d3` for the paired
 approval/undo run. The approval/undo path persisted the packet, approved and
 completed one owner action, then reversed the operational output with no
 external connector write. The bounded value proof retains

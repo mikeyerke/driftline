@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `8f6ee49b1c6fcac862e118eb52d7acd9e53a578d`, Cloud Run
-`driftline-00206-xx2`, Cloud Build
-`dee6fb48-34ad-4df5-83b4-bf0c08882a65`, project
+Current release: source `1f269ea6d3ca79530ad75b3b8d2a29de06c6b2ad`, Cloud Run
+`driftline-00207-x4d`, Cloud Build
+`3532927f-1da9-406d-b9e7-ecb4beea5d64`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-0d551e255d83`, stable against the prior report with 100% safety,
+  `eval-1a29ff5bfb98`, stable against the prior report with 100% safety,
   100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -50,11 +50,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   Trace-to-eval, Value proof, and Change memory all hydrated instead of
   remaining behind an in-view placeholder. Desktop and 500px mobile widths had
   no horizontal overflow.
-- `scripts/verify_live_agent.sh`: fresh job `job-a8769bb8d23f`, workflow
-  `433bb117-3d64-45e1-9d5e-469141c00e6c`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-405a5236cafd`, workflow
+  `52ccf800-238f-42ff-8acd-1ab8627848e1`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-8974eef41f3b`,
-  workflow `b7c9d04c-6979-42ff-abd2-37ba2563f8dc` persisted, approved one
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-466044c2ca06`,
+  workflow `ac8cbdcd-6ab8-4a6b-80ad-2dbf60a2f9d3` persisted, approved one
   owner action, recorded its completion, and then reversed it with
   `external_write=false` and `external_systems_changed=false`. The verifier
   fails closed unless the
@@ -131,7 +131,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   with the exact Artifact Registry image tag and verifies the public health
   SHA/build contract before declaring the build successful.
 - Current immutable image digest:
-  `sha256:35406f39239eb1693d80ad36daeac124749a38e1b9f7022a96cd49a0efaa0607`.
+  `sha256:8d96631ba7b378993a71ab91f8e6d23cb71d7b9375d1161ad1507cf83eb73de5`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
