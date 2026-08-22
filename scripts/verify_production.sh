@@ -145,10 +145,10 @@ gcloud monitoring dashboards describe "${dashboard_id}" \
 printf 'Dashboard: Driftline production control plane\n'
 
 error_count="$(gcloud logging read \
-  'resource.type="cloud_run_revision" AND resource.labels.service_name="driftline" AND severity>=ERROR' \
+  "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"driftline\" AND resource.labels.revision_name=\"${revision}\" AND severity>=ERROR" \
   --project="${expected_project}" --freshness=15m --limit=100 \
   --format='value(timestamp)' | sed '/^$/d' | wc -l | tr -d ' ')"
 [[ "${error_count}" == "0" ]]
-printf 'Recent Cloud Run errors: %s\n' "${error_count}"
+printf 'Current revision Cloud Run errors (15m): %s\n' "${error_count}"
 
 printf 'Production verification: PASS\n'
