@@ -238,6 +238,13 @@ async def security_headers(request: Request, call_next):
         response.headers.setdefault(
             "Cache-Control", "public, max-age=31536000, immutable"
         )
+    elif response.headers.get("content-type", "").startswith("text/html"):
+        # The HTML shell points at the current fingerprinted bundle and carries
+        # the release proof shown in the console.  Revalidate it on every
+        # navigation so an already-deployed tab cannot quietly boot an older
+        # shell after a Cloud Run revision changes.  Fingerprinted assets stay
+        # immutable above, so this does not give up the normal asset-cache win.
+        response.headers["Cache-Control"] = "no-store"
     response.headers.setdefault(
         "Content-Security-Policy",
         "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; "

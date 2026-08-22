@@ -243,6 +243,34 @@ async def test_missing_static_asset_is_not_cached_as_immutable() -> None:
     assert "cache-control" not in response.headers
 
 
+@pytest.mark.asyncio
+async def test_html_shell_is_not_cached_across_releases() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/",
+            "scheme": "https",
+            "server": ("testserver", 443),
+            "client": ("testclient", 123),
+            "root_path": "",
+            "query_string": b"",
+            "headers": [],
+        }
+    )
+
+    async def call_next(_request: Request) -> Response:
+        return Response(
+            content="<!doctype html>",
+            media_type="text/html",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    response = await api.security_headers(request, call_next)
+
+    assert response.headers["cache-control"] == "no-store"
+
+
 def test_public_job_payload_redacts_caller_text_and_internal_claims() -> None:
     public_job = JobState(
         job_id="job-public-redaction",
