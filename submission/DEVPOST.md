@@ -125,11 +125,11 @@ product truth.
 ## Verified release evidence
 
 The current serving release is source commit
-`9d0ecb312befb6d267a710276986215b7ec09f2d`, Cloud Build
-`d33c7412-59ff-4125-b696-162b23e89f4f`, and Cloud Run revision
-`driftline-00170-v5l` at 100% traffic in project `driftline-hackathon-2026`.
+`1e219c82597f7402aa4e89d501f801bd93acb970`, Cloud Build
+`56e3a52b-0339-44eb-a5ca-a684e452da72`, and Cloud Run revision
+`driftline-00171-7z8` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:310101f29c01f2a7311136d2cac6b4aa070c3b084170360e004f61c74a60bf94`.
+`sha256:c5c08b9b94022b7f8893e3d84db9a1145258e82eae41b3e47c3cf05a5ad1b857`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -147,14 +147,14 @@ claimed until fresh consent succeeds.
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32552210838` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32552977197` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-950651799266` / workflow
-  `448c06c0-a25c-4b5b-957c-865c72656530` returned `needs_approval`,
+- Live agent check: fresh job `job-8ff5302a15c0` / workflow
+  `05650840-2002-47e7-aa01-c4557b2fc6e6` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -171,9 +171,9 @@ claimed until fresh consent succeeds.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-149e9df793e1` passed the
+- Trace-to-eval check: live evaluation `eval-0e2293921e78` passed the
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
-  remaining `stable` against prior evaluation `eval-5864bcf3e85b` with no case
+  remaining `stable` against prior evaluation `eval-149e9df793e1` with no case
   regressions; the report
   is redacted telemetry and explicitly does not claim customer outcomes.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
