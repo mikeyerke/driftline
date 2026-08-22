@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `776aa017db0d94d27778404a74d55990056b415f`, Cloud Run
-`driftline-00178-dfz`, Cloud Build
-`49e67c69-0294-4b2f-bb88-1b07851e35e4`, project
+Current release: source `63fa261c2ee75c77429d6c5785a0aeb8f9959207`, Cloud Run
+`driftline-00179-vhq`, Cloud Build
+`dfec4a83-bf2f-451b-a988-72ebf910ed24`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-ecacc67253c4`, stable against `eval-c9665a2a6bfd` with zero score
+  `eval-f4263a8e1140`, stable against `eval-ecacc67253c4` with zero score
   deltas and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -46,8 +46,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   after deferred panels mounted: each target landed below the sticky header,
   `settings-section` and `deployment-section` were each unique, and no console
   messages were emitted.
-- `scripts/verify_live_agent.sh`: fresh job `job-616c83839a93`, workflow
-  `f378cd66-9585-403a-8fac-9c97b0cb9cfa`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-923ce65116de`, workflow
+  `1db67778-31d9-460e-950b-e8ddff188270`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
 - `scripts/verify_public_approval_undo.sh`: the paired fresh run on that
   workflow persisted and
@@ -112,7 +112,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
   membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
-  `sha256:aeb6c57af0af1d3fddd74d88324c230b1a72d520e72aa01fa6a3619404da97af`.
+  `sha256:e9bb4e1e577ef8c5557a1202ced5bf895cbe6f6bc549950bad15b1c9a71687e2`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
