@@ -12,27 +12,27 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T07:06Z` with the active gcloud project set to
+Checked `2026-08-22T07:23Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00183-7gt` at 100% traffic. Its immutable serving image is
-  `sha256:7434ad8846ffd9d6b1a922105f3d5b9c7f7b7159a76971b2dd298b7d6bb30917`.
-- Source commit `d0159657aa650bd6015267e785b86248eba85d52` was built by Cloud
-  Build `323e28cf-f7ec-4ab7-bf1a-e7a98d4dddce`; GitHub Actions run
-  `32558346003` passed the repository gates.
+  `driftline-00184-njf` at 100% traffic. Its immutable serving image is
+  `sha256:7d037b68cabb734900464a6f88810d27d55e6b0dda99db59041834f6b68e7cab`.
+- Source commit `dc4ab7f31cb0a887b680d8f6d4cc28f0027c1727` was built by Cloud
+  Build `3d4aa211-6aa2-43b3-8af7-61b0369122cb`; GitHub Actions run
+  `32559253255` passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `d0159657aa650bd6015267e785b86248eba85d52`, and build ID
-  `323e28cf-f7ec-4ab7-bf1a-e7a98d4dddce`; `/api/auth/config`
+  `dc4ab7f31cb0a887b680d8f6d4cc28f0027c1727`, and build ID
+  `3d4aa211-6aa2-43b3-8af7-61b0369122cb`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-54ce4784ad6c` with a passing
+- `/api/evals/latest` reports evaluation `eval-81139fb03ac1` with a passing
   `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, and a
-  `stable` trend against `eval-606be4fd0fb9` (all deltas `0.0` and no case
+  `stable` trend against `eval-bf02e828edec` (all deltas `0.0` and no case
   regressions). Trace data is
   redacted and `customer_outcome=false`; this is evaluator telemetry, not
   customer ROI evidence.
@@ -62,12 +62,12 @@ Checked `2026-08-22T07:06Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-f43acbeedcfc` / workflow `e80022a7-98ed-45f4-a145-9dd267916603` at
+  `job-1b84215d788a` / workflow `dab83a06-39f8-4870-b902-f11e0c9984d6` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier separately
-  created job `job-7bedfe50de78` / workflow
-  `54ca1f99-3aac-4b94-85eb-b394975de85a`, persisted the packet, reversed the
+  created job `job-f4b59eaec4b2` / workflow
+  `b89639be-8ce2-40ec-a606-141f20dc62bc`, persisted the packet, reversed the
   operational output, and recorded
   `external_write=false` / `external_systems_changed=false`.
 - A logged-out 500px browser check exercised every sidebar target after the
