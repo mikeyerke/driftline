@@ -533,9 +533,9 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`1855b1bb02512fde4dcdaee75025c59b7a6c95fe`, Cloud Build
-`4d1a21d3-80c3-4fa3-91f6-5edb66b5906a`, and Cloud Run revision
-`driftline-00165-pxw` at 100% traffic. Its immutable image digest is recorded
+`b7ed45f5639441359903d11b42207076d317bcaf`, Cloud Build
+`a0b58c78-bf88-495f-8873-ccccb26b4b65`, and Cloud Run revision
+`driftline-00166-4zz` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
@@ -558,8 +558,8 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates eleven independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-258e74fa9cee` is stable against the prior
-`eval-01486b1214cc` with zero score deltas and no case regressions; it is
+latest live report `eval-b308a86dfc3c` is stable against the prior
+`eval-258e74fa9cee` with zero score deltas and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
@@ -579,9 +579,9 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-c11bb713ee6a` / `180357f1-10d0-4f1a-8a6e-82b00f6c14f6` for the live agent
-and `job-0a6bbbd7467d` / `90d8cb78-c967-4299-a735-b39047c1ab70` for the paired
-approval/undo run. `scripts/verify_production.sh` also passed with zero
+`job-d2b68dc21ce1` / `006ecb90-3747-4fac-a6f2-93e4492a97c8` for the live agent
+and the same idempotent job/workflow for the paired approval/undo run.
+`scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
 removed from this isolated project. The signed browser client sends its

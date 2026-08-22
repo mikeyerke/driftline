@@ -125,9 +125,9 @@ product truth.
 ## Verified release evidence
 
 The current serving release is source commit
-`1855b1bb02512fde4dcdaee75025c59b7a6c95fe`, Cloud Build
-`4d1a21d3-80c3-4fa3-91f6-5edb66b5906a`, and Cloud Run revision
-`driftline-00165-pxw` at 100% traffic in project `driftline-hackathon-2026`.
+`b7ed45f5639441359903d11b42207076d317bcaf`, Cloud Build
+`a0b58c78-bf88-495f-8873-ccccb26b4b65`, and Cloud Run revision
+`driftline-00166-4zz` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
 `sha256:c73834d7fdb5c2ec80df79fd5da63eb557133d2b1d144e1f0bd8519521a997f3`.
 
@@ -153,8 +153,8 @@ claimed until fresh consent succeeds.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-c11bb713ee6a` / workflow
-  `180357f1-10d0-4f1a-8a6e-82b00f6c14f6` returned `needs_approval`,
+- Live agent check: fresh job `job-d2b68dc21ce1` / workflow
+  `006ecb90-3747-4fac-a6f2-93e4492a97c8` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -166,13 +166,13 @@ claimed until fresh consent succeeds.
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-0a6bbbd7467d` / workflow
-  `90d8cb78-c967-4299-a735-b39047c1ab70` persisted the packet, reversed the
+- Approval/undo check: the idempotent job `job-d2b68dc21ce1` / workflow
+  `006ecb90-3747-4fac-a6f2-93e4492a97c8` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-258e74fa9cee` passed the
+- Trace-to-eval check: live evaluation `eval-b308a86dfc3c` passed the
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
-  remaining `stable` against prior evaluation `eval-01486b1214cc` with no case
+  remaining `stable` against prior evaluation `eval-258e74fa9cee` with no case
   regressions; the report
   is redacted telemetry and explicitly does not claim customer outcomes.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was

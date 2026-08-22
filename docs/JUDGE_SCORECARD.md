@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `1855b1bb02512fde4dcdaee75025c59b7a6c95fe`, Cloud Run
-`driftline-00165-pxw`, Cloud Build
-`4d1a21d3-80c3-4fa3-91f6-5edb66b5906a`, project
+Current release: source `b7ed45f5639441359903d11b42207076d317bcaf`, Cloud Run
+`driftline-00166-4zz`, Cloud Build
+`a0b58c78-bf88-495f-8873-ccccb26b4b65`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-258e74fa9cee`, stable against `eval-01486b1214cc` with zero score
+  `eval-b308a86dfc3c`, stable against `eval-258e74fa9cee` with zero score
   deltas and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -42,11 +42,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-c11bb713ee6a`, workflow
-  `180357f1-10d0-4f1a-8a6e-82b00f6c14f6`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-d2b68dc21ce1`, workflow
+  `006ecb90-3747-4fac-a6f2-93e4492a97c8`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-0a6bbbd7467d` /
-  workflow `90d8cb78-c967-4299-a735-b39047c1ab70`; the packet persisted and
+- `scripts/verify_public_approval_undo.sh`: the idempotent job `job-d2b68dc21ce1` /
+  workflow `006ecb90-3747-4fac-a6f2-93e4492a97c8`; the packet persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
