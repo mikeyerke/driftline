@@ -676,8 +676,9 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .promise-ledger-header b { color: #16794c; font-size: 10px; }
 .promise-ledger > small { line-height: 1.35; }
 .promise-ledger-item { display: flex; justify-content: space-between; gap: 8px; padding-top: 3px; border-top: 1px solid #e4efea; }
+.promise-ledger-item > * { min-width: 0; }
 .promise-ledger-item strong { color: var(--ink); font-size: 10px; }
-.promise-ledger-item span { color: #16794c; text-align: right; }
+.promise-ledger-item span { color: #16794c; text-align: right; overflow-wrap: anywhere; }
 .exposure-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: auto; }
 .exposure-stats span { display: grid; gap: 2px; min-width: 0; color: var(--muted); font-size: 9px; line-height: 1.2; }
 .exposure-stats b { color: var(--ink); font-size: 16px; }
