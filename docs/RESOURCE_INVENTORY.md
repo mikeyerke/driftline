@@ -58,10 +58,20 @@ Checked `2026-08-21T23:56Z` with the active gcloud project set to
   stored refresh token was rejected by Salesforce, not that a CRM read
   succeeded. No object totals are claimed. The reauthorization control is the
   exact re-entry gate for the next live verification.
-- Local verification after the release's test additions: 261 backend tests
+- Local verification after the release's test additions: 263 backend tests
   passed; the focused Salesforce connector suite passed 37 tests; Ruff and
   `git diff --check` passed. The test-only additions assert that Salesforce
   reads use the tenant credential broker and aggregate `COUNT()` queries.
+- `scripts/verify_production.sh` passed on revision `driftline-00156-k4k`
+  with `Recent Cloud Run errors: 0`.
+- Fresh live-agent proof on this revision returned job
+  `job-400c45830923` / workflow `d5e25360-43c2-4911-95cf-7ea9de72f812`,
+  `needs_approval`, public-source mode, Gemini 3.5 Flash through Google ADK,
+  two allowlisted tools, four artifacts, five audit events, and two decision
+  options. Approval/undo proof returned job `job-9d91cfb22e0a` / workflow
+  `f524d78c-3535-465a-a3e5-4c1ac8711d73`, persisted the packet, reversed the
+  operational output, and recorded `external_write=false` and
+  `external_systems_changed=false`.
 
 ## 2026-08-21 map-to-worklist handoff release (historical serving revision)
 

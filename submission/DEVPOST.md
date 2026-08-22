@@ -128,18 +128,18 @@ stored refresh token is rejected. The callback metadata and tenant-scoped
 secret pointer are durable, but no Salesforce object totals or successful CRM
 read are claimed until fresh consent succeeds.
 
-- Local gate for the current source: 261 backend tests passed, the focused
+- Local gate for the current source: 263 backend tests passed, the focused
   Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32522531699` passed the backend suite, Ruff,
+- CI: GitHub Actions run `32538796189` passed the backend suite, Ruff,
   frontend build, standalone image build, and repository hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-6cee02e8b4cf` / workflow
-  `2997be46-f313-43d0-9a3d-89a9524cfa48` returned `needs_approval`,
+- Live agent check: fresh job `job-400c45830923` / workflow
+  `d5e25360-43c2-4911-95cf-7ea9de72f812` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -151,8 +151,8 @@ read are claimed until fresh consent succeeds.
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-bb0ae6f8abfa` / workflow
-  `0c062253-a31e-46b6-ad72-9ee7351d392e` persisted the packet, reversed the
+- Approval/undo check: fresh job `job-9d91cfb22e0a` / workflow
+  `f524d78c-3535-465a-a3e5-4c1ac8711d73` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was

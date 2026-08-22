@@ -538,9 +538,10 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-7b30aa304ccc` / `293433b0-1392-400e-8bff-dc8ca0ad969a` for the live agent
-and `job-52f6d5b1d6c4` / `5d062165-20d5-4c19-bebc-b814b9104b5a` for the
-approval/undo proof. Artifact Registry retains the
+`job-400c45830923` / `d5e25360-43c2-4911-95cf-7ea9de72f812` for the live agent
+and `job-9d91cfb22e0a` / `f524d78c-3535-465a-a3e5-4c1ac8711d73` for the
+approval/undo proof. `scripts/verify_production.sh` also passed with zero
+recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
 removed from this isolated project. The signed browser client sends its
 short-lived Google ID token only in the `Authorization` header, with a CI guard
