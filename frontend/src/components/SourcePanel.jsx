@@ -123,8 +123,8 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
               const deferred = !nearViewport;
               const status = deferred ? "deferred" : loading ? "checking" : unavailable ? "unavailable" : health?.status || "needs_baseline";
               const cadenceDue = Boolean(health?.cadence_due);
-              const statusLabel = deferred ? "Loads when in view" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status === "paused" ? "Monitoring paused" : status === "healthy" && cadenceDue ? "Due for check" : status.replaceAll("_", " ");
-              const freshness = deferred ? "Freshness read is deferred to keep the console fast" : loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : status === "paused" ? `Paused${health?.pause_reason ? ` · ${health.pause_reason}` : " · resume when ready"}` : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
+              const statusLabel = deferred ? "Loads when in view" : loading ? "Checking freshness" : unavailable ? "Freshness unavailable" : status === "paused" ? "Monitoring paused" : status === "source_failed" ? "Fetch failed · retrying" : status === "healthy" && cadenceDue ? "Due for check" : status.replaceAll("_", " ");
+              const freshness = deferred ? "Freshness read is deferred to keep the console fast" : loading ? "Reading append-only ledger…" : unavailable ? "Retry the monitor registry" : status === "paused" ? `Paused${health?.pause_reason ? ` · ${health.pause_reason}` : " · resume when ready"}` : status === "source_failed" && health?.last_failure_at ? `Last failure ${new Date(health.last_failure_at).toLocaleString()}` : health?.last_observed_at ? `Last observed ${new Date(health.last_observed_at).toLocaleString()}` : "Awaiting first scheduled observation";
               const observationResult = deferred || loading || unavailable
                 ? null
                 : health?.last_observation_status === "unchanged"
@@ -144,8 +144,9 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
                 <span>{status === "healthy" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{statusLabel}</span>
                 <strong>{source.name}</strong>
                 <small>{freshness}</small>
+                {status === "source_failed" && health?.last_failure_reason && <small className="registry-health-failure" title="Bounded monitor failure reason">Reason · {health.last_failure_reason}</small>}
                 {observationResult && <small className={`registry-health-result ${health?.last_observation_status}`}>{observationResult}</small>}
-                <small>{isPaused ? "Scheduler skips this source" : nextDue}</small>
+                <small>{isPaused ? "Scheduler skips this source" : status === "source_failed" ? `Scheduler retry · ${nextDue}` : nextDue}</small>
                 {operatorSession?.identityToken && <div className="registry-health-card-action" onClick={(event) => event.stopPropagation()}>
                   <button type="button" className="source-check-now" disabled={sourceRunBusy !== "" || isPaused} onClick={() => submitSourceRun(source)}>{sourceRunBusy === source.source_id ? "Checking…" : "Check now"}</button>
                   {isCustomSource && (editingPause

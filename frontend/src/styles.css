@@ -433,15 +433,17 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
  .registry-health-heading small { color: var(--muted); font-weight: 400; }
  .registry-health-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 7px; }
  .registry-health-card { min-width: 0; display: grid; gap: 3px; padding: 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
- .registry-health-card > span { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: capitalize; }
- .registry-health-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
- .registry-health-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 9px; }
+.registry-health-card > span { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: capitalize; }
+.registry-health-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.registry-health-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 9px; }
+.registry-health-failure { color: var(--red) !important; font-weight: 700; }
  .registry-health-result { color: var(--blue) !important; font-weight: 700; text-transform: capitalize; }
  .registry-health-result.unchanged { color: var(--green) !important; }
  .registry-health-result.changed { color: var(--orange) !important; }
  .registry-health-card.healthy { border-color: #b9dfc9; background: #f6fcf8; }.registry-health-card.healthy > span { color: var(--green); }
  .registry-health-card.due { border-color: #eed28d; background: #fff9e9; }.registry-health-card.due > span { color: #8a6200; }
- .registry-health-card.stale, .registry-health-card.synthetic_only { border-color: #eed28d; background: #fff9e9; }.registry-health-card.stale > span, .registry-health-card.synthetic_only > span { color: #8a6200; }
+.registry-health-card.stale, .registry-health-card.synthetic_only { border-color: #eed28d; background: #fff9e9; }.registry-health-card.stale > span, .registry-health-card.synthetic_only > span { color: #8a6200; }
+.registry-health-card.source_failed { border-color: #ffc0c4; background: #fff5f5; }.registry-health-card.source_failed > span { color: var(--red); }
 .registry-health-card.needs_baseline { border-color: #c7d9fa; background: var(--blue-soft); }.registry-health-card.needs_baseline > span { color: var(--blue); }
 .registry-health-card.checking { border-color: #c7d9fa; background: var(--blue-soft); }.registry-health-card.checking > span { color: var(--blue); }
 .registry-health-card.unavailable { border-color: #ffc0c4; background: #fff5f5; }.registry-health-card.unavailable > span { color: var(--red); }
