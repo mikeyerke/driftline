@@ -514,7 +514,7 @@ The current serving release is source commit `6215311`, Cloud Build
 `ddbb1aea-fa8c-4618-bda4-bba1468f852c`, and Cloud Run revision
 `driftline-00156-k4k` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
-GitHub Actions run `32538330453` passed the repository gates. This release adds
+GitHub Actions run `32539081146` passed the repository gates. This release adds
 the explicit Salesforce `reauthorization_required` contract, keeps the visible
 **Reauthorize read-only** recovery control, and retains the tenant-scoped Secret
 Manager access path. The owner must still complete a fresh consent before a
@@ -538,8 +538,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-400c45830923` / `d5e25360-43c2-4911-95cf-7ea9de72f812` for the live agent
-and `job-9d91cfb22e0a` / `f524d78c-3535-465a-a3e5-4c1ac8711d73` for the
+`job-7805da9f61c7` / `c8c5b957-7d06-450e-9af6-8f18fc0c47d8` for the live agent
+and `job-384b04338fb1` / `2518a1a8-b99a-44bf-bff5-87c5141f7b93` for the
 approval/undo proof. `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
