@@ -2915,7 +2915,10 @@ def get_connector_context_summary(request: ConnectorContextRequest) -> dict[str,
 
     The public demo cannot call this route: it requires the same signed/OIDC
     boundary used for configured connector writes. Results are aggregate-only
-    and intentionally not copied into public workflow state or model prompts.
+    and this summary response is request-scoped. A separate signed workflow
+    run may attach the same normalized projection to its Change Card and
+    bounded model provenance; raw records and credentials never cross that
+    seam.
     """
     identity = _verify_approval_mode(
         "connector-context-summary",
