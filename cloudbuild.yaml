@@ -44,11 +44,8 @@ steps:
           --project="${PROJECT_ID}" --region="${_REGION}" \
           --format='value(status.url)')"
         health="$$(curl --fail --silent --show-error --max-time 20 "$${service_url}/health")"
-        printf '%s\n' "$${health}" | jq -e \
-          --arg expected_sha "${_RELEASE_SHA}" \
-          --arg expected_build "${BUILD_ID}" \
-          '.status == "ok" and .release_sha == $expected_sha and .build_id == $expected_build' \
-          >/dev/null
+        printf '%s\n' "$${health}" | python3 -c \
+          'import json, sys; payload = json.load(sys.stdin); expected_sha = "${_RELEASE_SHA}"; expected_build = "${BUILD_ID}"; assert payload.get("status") == "ok" and payload.get("release_sha") == expected_sha and payload.get("build_id") == expected_build'
         printf 'Cloud Run release smoke: PASS (%s, sha=%s, build=%s)\n' \
           "$${service_url}" "${_RELEASE_SHA}" "${BUILD_ID}"
 substitutions:
