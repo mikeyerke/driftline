@@ -5505,6 +5505,44 @@ def _action_item(state: WorkflowState, item_id: str) -> dict[str, object]:
     return item
 
 
+def _action_request_is_idempotent(
+    state: WorkflowState,
+    item: dict[str, object],
+    operation: str,
+    actor: str,
+    request: ActionItemRequest,
+) -> bool:
+    """Identify safe repeats that do not create another state transition.
+
+    Rate limits protect new work, not transport retries. Keeping duplicate
+    requests quota-neutral prevents a double-click or a client retry from
+    consuming the public mutation budget while preserving the same policy
+    checks and CAS transition for every real change.
+    """
+    if state.status.value != "complete":
+        return False
+    status = item.get("status")
+    if operation == "claim":
+        return status == ActionItemStatus.CLAIMED.value and item.get("claimed_by") == actor
+    if operation == "complete":
+        return status == ActionItemStatus.COMPLETED.value and (
+            item.get("completed_by") == actor or item.get("claimed_by") == actor
+        )
+    if operation == "fail":
+        return status == ActionItemStatus.FAILED.value and (
+            item.get("failed_by") == actor
+            and item.get("failure_reason") == getattr(request, "reason", None)
+        )
+    if operation == "retry":
+        return status == ActionItemStatus.QUEUED.value and item.get("retried_by") in (
+            None,
+            actor,
+        )
+    if operation == "reverse":
+        return status == ActionItemStatus.REVERSED.value
+    return False
+
+
 def _action_event(state: WorkflowState, item_id: str, outcome: str, actor: str) -> None:
     state.events.append(
         {
@@ -5520,7 +5558,10 @@ def _action_event(state: WorkflowState, item_id: str, outcome: str, actor: str) 
 
 
 def _authorize_action_request(
-    workflow_id: str, request: ActionItemRequest
+    workflow_id: str,
+    item_id: str,
+    request: ActionItemRequest,
+    operation: str,
 ) -> dict[str, str]:
     identity = _verify_approval_mode(
         workflow_id,
@@ -5531,7 +5572,12 @@ def _authorize_action_request(
         request.tenant_id,
     )
     _authorize_workflow_tenant(workflow_id, identity)
-    if not _reserve_demo_mutation(identity.get("tenant_id")):
+    cleaned_actor = _require_action_actor(request.actor)
+    state = _resolve_workflow(workflow_id)
+    item = _action_item(state, item_id)
+    if not _action_request_is_idempotent(
+        state, item, operation, cleaned_actor, request
+    ) and not _reserve_demo_mutation(identity.get("tenant_id")):
         raise HTTPException(
             status_code=429,
             detail="Action mutation rate limit reached for this tenant; retry later.",
@@ -5544,9 +5590,11 @@ def _action_transition(
     item_id: str,
     request: ActionItemRequest,
     transition: Callable[[WorkflowState, dict[str, object], str], None],
+    *,
+    operation: str,
 ) -> dict:
     """Apply one idempotent action-item transition through workflow CAS."""
-    _authorize_action_request(workflow_id, request)
+    _authorize_action_request(workflow_id, item_id, request, operation)
     cleaned_actor = _require_action_actor(request.actor)
 
     def apply(state: WorkflowState) -> WorkflowState:
@@ -5591,7 +5639,9 @@ def claim_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> 
             )
             _action_event(state, item_id, "claimed", actor)
 
-        return _action_transition(workflow_id, item_id, request, transition)
+        return _action_transition(
+            workflow_id, item_id, request, transition, operation="claim"
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
@@ -5627,7 +5677,9 @@ def complete_action(workflow_id: str, item_id: str, request: ActionItemRequest) 
             )
             _action_event(state, item_id, "completed", actor)
 
-        return _action_transition(workflow_id, item_id, request, transition)
+        return _action_transition(
+            workflow_id, item_id, request, transition, operation="complete"
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
@@ -5664,7 +5716,9 @@ def fail_action(workflow_id: str, item_id: str, request: ActionFailureRequest) -
             )
             _action_event(state, item_id, "failed", actor)
 
-        return _action_transition(workflow_id, item_id, request, transition)
+        return _action_transition(
+            workflow_id, item_id, request, transition, operation="fail"
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
@@ -5695,7 +5749,9 @@ def retry_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> 
             )
             _action_event(state, item_id, "retried", actor)
 
-        return _action_transition(workflow_id, item_id, request, transition)
+        return _action_transition(
+            workflow_id, item_id, request, transition, operation="retry"
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:
@@ -5728,7 +5784,9 @@ def reverse_action(workflow_id: str, item_id: str, request: ActionItemRequest) -
             )
             _action_event(state, item_id, "reversed", actor)
 
-        return _action_transition(workflow_id, item_id, request, transition)
+        return _action_transition(
+            workflow_id, item_id, request, transition, operation="reverse"
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PolicyViolation as exc:

@@ -3106,6 +3106,35 @@ def test_action_claim_is_idempotent_for_the_same_human() -> None:
     assert duplicate.json()["action_items"][0]["attempts"] == 1
 
 
+def test_idempotent_action_retry_does_not_consume_mutation_quota(monkeypatch) -> None:
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Demo operator"},
+    )
+    item_id = approved.json()["action_items"][0]["item_id"]
+    reservations: list[str | None] = []
+
+    def reserve(tenant_id: str | None = None) -> bool:
+        reservations.append(tenant_id)
+        return True
+
+    monkeypatch.setattr(api, "_reserve_demo_mutation", reserve)
+    first = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/claim",
+        json={"actor": "Alex Kim"},
+    )
+    duplicate = client.post(
+        f"/api/workflows/{workflow_id}/actions/{item_id}/claim",
+        json={"actor": "Alex Kim"},
+    )
+
+    assert first.status_code == 200
+    assert duplicate.status_code == 200
+    assert len(reservations) == 1
+
+
 def test_failed_action_can_be_retried_and_repeated_retry_is_idempotent() -> None:
     started = client.post("/api/workflows/demo")
     workflow_id = started.json()["workflow_id"]
