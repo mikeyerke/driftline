@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `8ab6d3064dede191984ab1dad85f6b0aa5f2de8b`, Cloud Run
-`driftline-00209-pjx`, Cloud Build
-`ae502bee-9103-44f0-9bb0-fa62abed3a32`, project
+Current release: source `9af2bf6c86e5f450682b27af60e8ca3bdc65c6a7`, Cloud Run
+`driftline-00210-tpn`, Cloud Build
+`0266b505-a762-49c9-9681-7b51448bab08`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-7df3274f9ca2`, improved against the prior report with 100% safety,
+  `eval-89908c8e7a3a`, stable against the prior report with 100% safety,
   100% usefulness, 100% overall, and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -50,11 +50,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   Trace-to-eval, Value proof, and Change memory all hydrated instead of
   remaining behind an in-view placeholder. Desktop and 500px mobile widths had
   no horizontal overflow.
-- `scripts/verify_live_agent.sh`: fresh job `job-477a428b3f4c`, workflow
-  `7a753d41-1296-4841-ba78-dbcdc2d5b87e`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-046e5d170c2f`, workflow
+  `14323bde-626a-4e87-8bfe-340711954425`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-220e830bf9ee`,
-  workflow `5c13e15b-9605-47c8-a959-db46175bef27` persisted, approved one
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-109f783cf02f`,
+  workflow `e09ce290-8296-41ee-b1b6-28a38d4596d2` persisted, approved one
   owner action, recorded its completion, and then reversed it with
   `external_write=false` and `external_systems_changed=false`. The verifier
   fails closed unless the
@@ -75,6 +75,9 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   workflow-linked history row; opening it restored evidence, approval state,
   and artifact decisions without starting another scan or emitting console
   errors.
+- Source operations: the signed console now exposes **Check now** on each
+  source-health card, with paused sources disabled and anonymous judging kept
+  free of the operator mutation control.
 - The authenticated operator session preserves its Google token and tenant
   membership list when changing the selected tenant, keeping every subsequent
   request signed and tenant-scoped.
@@ -135,7 +138,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   with the exact Artifact Registry image tag and verifies the public health
   SHA/build contract before declaring the build successful.
 - Current immutable image digest:
-  `sha256:c852c21db558bcab1ac04d94feeba92bcb1cb554c5867754bc53adca7a71d229`.
+  `sha256:23b4a08d13d958dfa73b3fbc7f581a913b89b383acc996bd84df46a4bb8fc118`.
 - Public `/health` reports the same full release SHA as the source commit and
   the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
@@ -165,7 +168,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 ### Live evidence
 
 - 291 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32572301949`; the frozen
+  and repository hygiene pass in GitHub Actions run `32572937856`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).

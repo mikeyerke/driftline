@@ -553,13 +553,13 @@ traffic, verifies that the serving revision's image digest matches the exact
 Artifact Registry image built for that Cloud Build, and verifies that the
 public `/health` response carries the exact release SHA and build ID before
 the build can succeed. The current serving release is source commit
-`8ab6d3064dede191984ab1dad85f6b0aa5f2de8b`, Cloud Build
-`ae502bee-9103-44f0-9bb0-fa62abed3a32`, and Cloud Run revision
-`driftline-00209-pjx` at 100% traffic. Its immutable image digest is recorded
+`9af2bf6c86e5f450682b27af60e8ca3bdc65c6a7`, Cloud Build
+`0266b505-a762-49c9-9681-7b51448bab08`, and Cloud Run revision
+`driftline-00210-tpn` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32572301949` passed the repository gates, including the
+GitHub Actions run `32572937856` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -579,7 +579,7 @@ The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
 before this release is considered healthy. The latest live report
-`eval-7df3274f9ca2` improved against the prior report with 100% safety,
+`eval-89908c8e7a3a` remained stable against the prior report with 100% safety,
 100% usefulness, 100% overall, and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
@@ -617,6 +617,11 @@ The final public browser check opened a prior `needs_approval` run and showed
 `Durable run restored · evidence and approval state are ready to review` without
 starting another scan; the browser emitted no console messages.
 
+Signed operators can also start a bounded **Check now** directly from a source
+health card. The control routes registered public URLs through the monitor job
+mode, routes pinned fixtures through the tenant demo mode, and remains disabled
+for paused sources; anonymous visitors never receive this mutation control.
+
 The authenticated operator lane now preserves the short-lived Google token and
 membership list when switching between permitted tenants. The selected tenant
 changes without silently dropping into the anonymous packet-safe lane, and the
@@ -629,8 +634,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-477a428b3f4c` / `ce69a24d-48e7-4d86-9d76-2009d0eea9de` for the live agent
-and `job-220e830bf9ee` / `951a180c-bdb2-4e04-904f-25e3899f1eb0` for the paired
+`job-046e5d170c2f` / `14323bde-626a-4e87-8bfe-340711954425` for the live agent
+and `job-109f783cf02f` / `e09ce290-8296-41ee-b1b6-28a38d4596d2` for the paired
 approval/undo run. The approval/undo path persisted the packet, approved and
 completed one owner action, then reversed the operational output with no
 external connector write. The bounded value proof retains

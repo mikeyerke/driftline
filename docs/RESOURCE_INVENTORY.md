@@ -12,15 +12,15 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T12:16Z` with the active gcloud project set to
+Checked `2026-08-22T12:34Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00209-pjx` at 100% traffic. Its immutable serving image is
-  `sha256:c852c21db558bcab1ac04d94feeba92bcb1cb554c5867754bc53adca7a71d229`.
-- Source commit `8ab6d3064dede191984ab1dad85f6b0aa5f2de8b` was built by Cloud
-  Build `ae502bee-9103-44f0-9bb0-fa62abed3a32`; GitHub Actions run
-  `32572301949` passed the repository gates.
+  `driftline-00210-tpn` at 100% traffic. Its immutable serving image is
+  `sha256:23b4a08d13d958dfa73b3fbc7f581a913b89b383acc996bd84df46a4bb8fc118`.
+- Source commit `9af2bf6c86e5f450682b27af60e8ca3bdc65c6a7` was built by Cloud
+  Build `0266b505-a762-49c9-9681-7b51448bab08`; GitHub Actions run
+  `32572937856` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -29,11 +29,11 @@ Checked `2026-08-22T12:16Z` with the active gcloud project set to
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `8ab6d3064dede191984ab1dad85f6b0aa5f2de8b`, and build ID
-  `ae502bee-9103-44f0-9bb0-fa62abed3a32`; `/api/auth/config`
+  `9af2bf6c86e5f450682b27af60e8ca3bdc65c6a7`, and build ID
+  `0266b505-a762-49c9-9681-7b51448bab08`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-7df3274f9ca2` with a passing
+- `/api/evals/latest` reports evaluation `eval-89908c8e7a3a` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
@@ -69,12 +69,12 @@ Checked `2026-08-22T12:16Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-477a428b3f4c` / workflow `ce69a24d-48e7-4d86-9d76-2009d0eea9de` at
+  `job-046e5d170c2f` / workflow `14323bde-626a-4e87-8bfe-340711954425` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier created
-  job `job-220e830bf9ee` / workflow
-  `951a180c-bdb2-4e04-904f-25e3899f1eb0`, persisted the packet, approved and
+  job `job-109f783cf02f` / workflow
+  `e09ce290-8296-41ee-b1b6-28a38d4596d2`, persisted the packet, approved and
   completed one owner action, then reversed the operational output and
   recorded `external_write=false` / `external_systems_changed=false`. The
   bounded value proof retained two historical completions and 3.7-second
@@ -91,6 +91,10 @@ Checked `2026-08-22T12:16Z` with the active gcloud project set to
   state with no new scan; the status message was
   `Durable run restored · evidence and approval state are ready to review` and
   the browser reported no console errors.
+- The source-health operator path now exposes **Check now** for signed users;
+  it preserves the paused-source guard and sends custom public URLs through
+  the existing monitor job mode. Anonymous browser QA showed zero Check now
+  controls, so the public lane remains packet-safe.
 - A fresh logged-out browser check jumped directly to the bottom of the page
   after load; Trace-to-eval, Value proof, and Change memory all hydrated rather
   than remaining behind an in-view placeholder. Desktop and 500px mobile
