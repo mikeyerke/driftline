@@ -167,6 +167,31 @@ def _safety_trace_redaction(trace: Mapping[str, Any]) -> tuple[bool, str]:
     return False, f"Trace contains a forbidden raw field: {found}."
 
 
+def _safety_source_provenance(trace: Mapping[str, Any]) -> tuple[bool, str]:
+    evidence = _mapping(trace.get("evidence"))
+    retrieved_at = str(evidence.get("retrieved_at", "")).strip()
+    try:
+        datetime.fromisoformat(retrieved_at)
+        timestamp_valid = bool(retrieved_at)
+    except ValueError:
+        timestamp_valid = False
+    snapshot_hash = str(evidence.get("snapshot_hash", "")).strip()
+    previous_snapshot_hash = str(evidence.get("previous_snapshot_hash", "")).strip()
+    passed = (
+        bool(str(evidence.get("source_id", "")).strip())
+        and bool(str(evidence.get("evidence_hash", "")).strip())
+        and timestamp_valid
+        and len(snapshot_hash) == 64
+        and len(previous_snapshot_hash) == 64
+        and snapshot_hash != previous_snapshot_hash
+        and str(trace.get("data_mode", ""))
+        in {"public_source", "synthetic_demo", "synthetic_tenant_demo", "operator_registered_public"}
+    )
+    if passed:
+        return True, "The change is tied to a timestamped, non-duplicate before/after snapshot."
+    return False, "A changed workflow needs timestamped snapshot hashes with distinct before and after values."
+
+
 def _usefulness_artifact_coverage(trace: Mapping[str, Any]) -> tuple[bool, str]:
     impacts = _impact_list(trace)
     passed = len(impacts) == 4 and all(
@@ -177,6 +202,30 @@ def _usefulness_artifact_coverage(trace: Mapping[str, Any]) -> tuple[bool, str]:
     if passed:
         return True, "Four owner/action/risk surfaces are mapped for downstream work."
     return False, "The change must map four complete downstream artifact records."
+
+
+def _usefulness_change_card_identity(trace: Mapping[str, Any]) -> tuple[bool, str]:
+    evidence = _mapping(trace.get("evidence"))
+    card = _mapping(trace.get("change_card"))
+    source_id = str(evidence.get("source_id", "")).strip()
+    evidence_hash = str(evidence.get("evidence_hash", "")).strip()
+    expected_id = (
+        f"card-{hashlib.sha256(f'{source_id}:{evidence_hash}'.encode()).hexdigest()[:20]}"
+        if source_id and evidence_hash
+        else ""
+    )
+    source = _mapping(card.get("source"))
+    passed = (
+        bool(expected_id)
+        and str(card.get("change_card_id", "")) == expected_id
+        and str(card.get("workflow_id", "")) == str(trace.get("workflow_id", ""))
+        and str(source.get("id", "")) == source_id
+        and str(source.get("evidence_hash", "")) == evidence_hash
+        and bool(str(_mapping(card.get("closure")).get("state", "")).strip())
+    )
+    if passed:
+        return True, "The stable Change Card identity is derived from source and evidence, not the job attempt."
+    return False, "A Change Card must carry the exact source/evidence identity and a durable closure state."
 
 
 def _usefulness_decision_options(trace: Mapping[str, Any]) -> tuple[bool, str]:
@@ -256,11 +305,25 @@ QUALITY_CASES: tuple[QualityCase, ...] = (
         _safety_trace_redaction,
     ),
     QualityCase(
+        "safety_source_provenance",
+        "safety",
+        "critical",
+        "A change is bound to fresh, non-duplicate source snapshots.",
+        _safety_source_provenance,
+    ),
+    QualityCase(
         "usefulness_artifact_coverage",
         "usefulness",
         "high",
         "A source change maps to complete owner-ready work surfaces.",
         _usefulness_artifact_coverage,
+    ),
+    QualityCase(
+        "usefulness_change_card_identity",
+        "usefulness",
+        "high",
+        "The change remains deduplicable across job retries.",
+        _usefulness_change_card_identity,
     ),
     QualityCase(
         "usefulness_decision_options",
@@ -354,6 +417,9 @@ def _safe_trace_shape(trace: Mapping[str, Any]) -> dict[str, Any]:
         "data_mode": str(trace.get("data_mode", "")),
         "source_id": str(evidence.get("source_id", "")),
         "evidence_hash": str(evidence.get("evidence_hash", "")),
+        "snapshot_hash": str(evidence.get("snapshot_hash", "")),
+        "previous_snapshot_hash": str(evidence.get("previous_snapshot_hash", "")),
+        "retrieved_at": str(evidence.get("retrieved_at", "")),
         "confidence": evidence.get("confidence"),
         "impact_names": [str(item.get("name", "")) for item in impacts],
         "impact_count": len(impacts),
@@ -379,6 +445,10 @@ def _safe_trace_shape(trace: Mapping[str, Any]) -> dict[str, Any]:
             "action_reversible": _mapping(trace.get("action_record")).get("reversible"),
             "external_write": _mapping(trace.get("action_record")).get("external_write"),
         },
+        "change_card": {
+            "change_card_id": str(_mapping(trace.get("change_card")).get("change_card_id", "")),
+            "workflow_id": str(_mapping(trace.get("change_card")).get("workflow_id", "")),
+        },
     }
 
 
@@ -396,6 +466,9 @@ def build_quality_fixture() -> dict[str, Any]:
     before = "Enterprise includes unlimited audit-log retention."
     after = "Enterprise includes 365-day audit-log retention."
     evidence_hash = hashlib.sha256(f"{before}\n{after}".encode()).hexdigest()
+    previous_snapshot_hash = hashlib.sha256(before.encode()).hexdigest()
+    snapshot_hash = hashlib.sha256(after.encode()).hexdigest()
+    change_card_id = f"card-{hashlib.sha256(f'public/pricing:{evidence_hash}'.encode()).hexdigest()[:20]}"
     artifact_names = (
         ("Pricing battlecard", "Product Marketing", "Update comparison language", "high"),
         ("Renewal playbook", "Customer Success", "Add grandfathering guidance", "medium"),
@@ -461,6 +534,9 @@ def build_quality_fixture() -> dict[str, Any]:
             "source_name": "Public pricing snapshot",
             "evidence_hash": evidence_hash,
             "confidence": 0.99,
+            "retrieved_at": "2026-01-01T00:00:00+00:00",
+            "snapshot_hash": snapshot_hash,
+            "previous_snapshot_hash": previous_snapshot_hash,
         },
         "impacts": impacts,
         "approval": None,
@@ -489,6 +565,16 @@ def build_quality_fixture() -> dict[str, Any]:
                     "findings": [],
                 },
             },
+        },
+        "change_card": {
+            "version": "1.0",
+            "change_card_id": change_card_id,
+            "workflow_id": "workflow-quality-fixture",
+            "source": {
+                "id": "public/pricing",
+                "evidence_hash": evidence_hash,
+            },
+            "closure": {"state": "approval_pending"},
         },
     }
 

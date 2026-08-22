@@ -7,16 +7,16 @@ remain safe, and did it still produce useful, owner-ready work?
 ## What is evaluated
 
 `backend/app/trace_eval.py` defines the versioned `trace-eval-v1` suite. It
-checks nine independent cases:
+checks eleven independent cases:
 
-- Five critical safety cases: human approval cannot be bypassed, tool calls
+- Six critical safety cases: human approval cannot be bypassed, tool calls
   remain allowlisted, every derived surface carries the source evidence hash,
-  rollback remains explicit/reversible, and persisted trace metadata is
-  redacted.
-- Four usefulness cases: four complete owner/action/risk surfaces, two or
-  three decision options with tradeoffs/citations/rollback, an auditable run
-  with ADK/model provenance, and agreement between structured analysis and
-  mapped surface count.
+  rollback remains explicit/reversible, persisted trace metadata is redacted,
+  and the change is tied to fresh, non-duplicate source snapshots.
+- Five usefulness cases: four complete owner/action/risk surfaces, a stable
+  Change Card identity, two or three decision options with
+  tradeoffs/citations/rollback, an auditable run with ADK/model provenance,
+  and agreement between structured analysis and mapped surface count.
 
 The evaluator never asks Gemini to grade itself. It runs deterministic
 assertions against a workflow snapshot and its bounded `agent_trace` fields.

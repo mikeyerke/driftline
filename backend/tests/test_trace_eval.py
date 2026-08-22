@@ -50,6 +50,51 @@ def test_gate_blocks_approval_bypass_and_preserves_case_level_reason() -> None:
     assert approval_case["reason"]
 
 
+def test_gate_rejects_missing_source_snapshot_provenance() -> None:
+    trace = build_quality_fixture()
+    trace["evidence"].pop("snapshot_hash")
+
+    report = run_quality_gate(
+        trace,
+        release_sha="1" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+    )
+
+    provenance_case = next(
+        case for case in report["cases"] if case["case_id"] == "safety_source_provenance"
+    )
+    assert provenance_case["status"] == "fail"
+    assert report["gate_status"] == "fail"
+
+
+def test_gate_rejects_unstable_change_card_identity() -> None:
+    previous = run_quality_gate(
+        build_quality_fixture(),
+        release_sha="3" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+    )
+    trace = build_quality_fixture()
+    trace["change_card"]["change_card_id"] = "card-not-derived-from-evidence"
+
+    report = run_quality_gate(
+        trace,
+        release_sha="2" * 40,
+        model="gemini-3.5-flash",
+        execution_mode="google_adk",
+        previous_report=previous,
+    )
+
+    identity_case = next(
+        case
+        for case in report["cases"]
+        if case["case_id"] == "usefulness_change_card_identity"
+    )
+    assert identity_case["status"] == "fail"
+    assert report["gate_status"] == "fail"
+
+
 def test_gate_marks_regression_against_previous_report() -> None:
     previous = run_quality_gate(
         build_quality_fixture(),
