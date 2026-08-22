@@ -610,11 +610,12 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
-before this release is considered healthy. The latest recorded live report
-snapshot `eval-3781a961036e` remained stable against the prior report with 100% safety,
-100% usefulness, 100% overall, and no case regressions; it is
-evaluation telemetry, not a
-customer-outcome claim.
+before this release is considered healthy. The production verifier reads the
+latest redacted report at verification time and currently confirms stable 100%
+safety, 100% usefulness, 100% overall, and no case regressions; the exact
+evaluation ID is emitted by the verifier rather than hardcoded here so this
+document cannot drift after the next release. It is evaluation telemetry, not
+a customer-outcome claim.
 The approval trace also records the deterministic red-team reviewer and
 `red-team-v1` policy version, both bound to the current evidence hash; approval
 rejects a missing, mismatched, or blocking policy review.

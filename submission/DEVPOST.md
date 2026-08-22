@@ -204,12 +204,12 @@ claimed until fresh consent succeeds.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: the latest recorded live evaluation snapshot
-  `eval-3781a961036e` passed the 14-case
-  `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
-  remaining stable against the prior report with no case
-  regressions; the report
-  is redacted telemetry and explicitly does not claim customer outcomes.
+- Trace-to-eval check: the production verifier reads the latest recorded live
+  evaluation snapshot and currently confirms the 14-case `trace-eval-v1`
+  suite at 100% safety, 100% usefulness, and 100% overall, remaining stable
+  against the prior report with no case regressions. The exact evaluation ID
+  is emitted by the verifier at release time; the report is redacted telemetry
+  and explicitly does not claim customer outcomes.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
   manually triggered during the prior release and Cloud Logging recorded an
   OIDC-authenticated HTTP 200 request to `/api/scheduler/tick` on the then-serving
