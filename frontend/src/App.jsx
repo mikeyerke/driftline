@@ -26,6 +26,7 @@ import OperatorAccess from "./components/OperatorAccess";
 import SalesforceConnectorPanel from "./components/SalesforceConnectorPanel";
 import TraceEvalPanel from "./components/TraceEvalPanel";
 import ReleaseProof from "./components/ReleaseProof";
+import UtilityNextStep from "./components/UtilityNextStep";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -487,6 +488,12 @@ export default function App() {
     });
   };
 
+  const focusSection = (sectionId) => {
+    window.requestAnimationFrame(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Skip to main content</a>
@@ -509,6 +516,7 @@ export default function App() {
         <div className="workspace-banner"><div className="workspace-banner-copy"><strong>Production control plane</strong><span>{operatorSession.identityToken ? `Authenticated tenant lane · ${operatorSession.tenantId} · deterministic human gate` : "Public evaluation lane · pinned synthetic scenarios · deterministic human gate"}</span></div><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Packet-safe evaluation")}</span><ReleaseProof /></div>
           <section id="overview-section" className="overview-section">
             <p className="product-orientation">{approved ? "Driftline verified the change, recorded the approved operating plan, and is tracking owner closure." : "Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval."}</p>
+            <UtilityNextStep workflow={workflowState} scanning={scanning} sourcePaused={selectedSourcePaused} onRunScan={() => runScan()} onNavigate={focusSection} />
             <section className="incident-header">
               <span className="incident-icon"><AlertTriangle size={30} /></span>
               <div className="incident-title">

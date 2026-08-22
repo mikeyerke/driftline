@@ -167,12 +167,14 @@ an action. Unconfigured integrations remain explicitly
 `authorization_required=true` until the tenant completes consent. After the
 callback, Salesforce uses the same deterministic tenant binding
 (`driftline-tenant-<tenant>-salesforce`) and contributes only allowlisted object
-counts/field names. The owner-completed callback has been verified to persist a
-read-only connection record, tenant-scoped Secret Manager pointer, and the
-impersonated credential path. If Salesforce rejects the stored refresh token,
-the health endpoint returns an explicit `reauthorization_required` state (not a
-generic application outage) and the UI links directly back to owner consent.
-Until a fresh probe returns object totals, no live CRM read is claimed here.
+counts/field names. The callback is a strict verification gate: it persists a
+tenant binding only after all three reads pass. If an older connection record is
+missing that binding, the status endpoint now reports `setup_incomplete` rather
+than collapsing it into `oauth_ready`; if Salesforce rejects the stored refresh
+token, it reports `reauthorization_required` and the UI links directly back to
+owner consent. The current deployment is in that reauthorization-gated state,
+so no Salesforce object totals or live CRM read are claimed here until a fresh
+consent and aggregate probe succeed.
 Jira,
 Confluence, Slack, and GitHub remain aggregate-only connector evidence, not
 customer-pilot outcomes.

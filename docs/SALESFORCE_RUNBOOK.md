@@ -78,3 +78,6 @@ environment. A configured OAuth client, a stored refresh token, or an HTTP 200
 from the health route alone is not connection evidence. If Salesforce rejects
 the refresh token with `invalid_grant`, Driftline persists only the bounded
 `reauthorization_required` health state and keeps aggregate-read proof false.
+If an older connection record exists without its tenant binding, status reports
+`setup_incomplete` and instructs the owner to reconnect; it never treats the
+metadata record or a partial object read as CRM context.

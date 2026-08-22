@@ -1,0 +1,60 @@
+import { ArrowRight, CheckCircle2, Clock3, Play, ShieldCheck } from "lucide-react";
+
+function openItems(items) {
+  return (items || []).filter((item) => !["completed", "reversed"].includes(item.status));
+}
+
+/**
+ * Keep the console pointed at the operator's next useful move.
+ *
+ * Driftline's value is the change-to-work loop, not the number of panels on
+ * the page. This small rail turns the current workflow state into one clear,
+ * reversible action without pretending a connector or customer outcome exists.
+ */
+export default function UtilityNextStep({ workflow, scanning, sourcePaused, onRunScan, onNavigate }) {
+  const items = workflow?.action_items || [];
+  const open = openItems(items);
+  const pendingApproval = workflow?.status === "needs_approval";
+  const approved = workflow?.status === "complete";
+  const dismissed = workflow?.status === "dismissed";
+
+  if (!workflow) {
+    return (
+      <section className="utility-next-step ready" aria-label="Next best action">
+        <span className="utility-next-step-icon"><Play size={16} /></span>
+        <div><strong>Start with one approved change surface</strong><p>Run a bounded scan to turn the selected source into an evidence-linked decision packet.</p></div>
+        <button className="secondary compact" type="button" onClick={onRunScan} disabled={scanning || sourcePaused} title={sourcePaused ? "Resume this source before scanning" : undefined}>{scanning ? "Running…" : sourcePaused ? "Source paused" : "Run scan"}<ArrowRight size={14} /></button>
+      </section>
+    );
+  }
+
+  if (pendingApproval) {
+    const count = workflow.impact_graph?.summary?.artifact_count || workflow.impacts?.length || 0;
+    return (
+      <section className="utility-next-step review" aria-label="Next best action">
+        <span className="utility-next-step-icon"><ShieldCheck size={16} /></span>
+        <div><strong>Next move: review the bounded response</strong><p>Gemini mapped {count} downstream surface{count === 1 ? "" : "s"}; confirm the owners and approve the narrowest plan that fits the evidence.</p></div>
+        <button className="primary compact" type="button" onClick={() => onNavigate?.("approvals-section")}>Review decision<ArrowRight size={14} /></button>
+      </section>
+    );
+  }
+
+  if (approved && open.length > 0) {
+    const next = open[0];
+    return (
+      <section className="utility-next-step execute" aria-label="Next best action">
+        <span className="utility-next-step-icon"><Clock3 size={16} /></span>
+        <div><strong>Next move: put the decision to work</strong><p><b>{next.owner}</b> owns <b>{next.artifact}</b>. Claim it to start the auditable closure loop.</p></div>
+        <button className="primary compact" type="button" onClick={() => onNavigate?.("actions-section")}>Open owner queue<ArrowRight size={14} /></button>
+      </section>
+    );
+  }
+
+  return (
+    <section className={`utility-next-step${dismissed ? " dismissed" : " complete"}`} aria-label="Next best action">
+      <span className="utility-next-step-icon"><CheckCircle2 size={16} /></span>
+      <div><strong>{dismissed ? "Signal dismissed with an audit trail" : "Decision recorded; closure is complete"}</strong><p>{dismissed ? "Keep the evidence in change memory and reopen only if a new source observation warrants work." : "The packet is durable and reversible. Use the audit history to confirm what changed and when."}</p></div>
+      <button className="secondary compact" type="button" onClick={() => onNavigate?.("activity-section")}>Open audit<ArrowRight size={14} /></button>
+    </section>
+  );
+}

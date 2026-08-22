@@ -1188,6 +1188,60 @@ def test_salesforce_status_surfaces_persisted_reauthorization_state(monkeypatch)
     assert payload["credential_values_exposed"] is False
 
 
+def test_salesforce_status_does_not_collapse_missing_binding_into_oauth_ready(monkeypatch) -> None:
+    """A stale metadata record must expose the repair step, not a false setup state."""
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *_args, **_kwargs: {
+            "tenant_id": "salesforce-acme",
+            "role": "owner",
+            "identity": "signed_operator",
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {
+            "status": "oauth_ready",
+            "mode": "awaiting_authorization",
+            "scope": "read_only_context",
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "load_salesforce_connection",
+        lambda _tenant: {
+            "tenant_id": "salesforce-acme",
+            "status": "connected_read_only",
+            "instance_url": "https://acme.my.salesforce.com",
+            "health_status": "connected_read_only",
+            "health_checked_at": "2026-08-22T02:00:00Z",
+            "health_objects": [
+                {"object": "Product2", "total": 4, "fields": []},
+                {"object": "PricebookEntry", "total": 5, "fields": []},
+                {"object": "Opportunity", "total": 2, "fields": []},
+            ],
+        },
+    )
+    monkeypatch.setattr(api, "load_connector_binding", lambda *_args: None)
+
+    response = client.get(
+        "/api/connectors/salesforce/status",
+        params={"operator": "Owner", "tenant_id": "salesforce-acme"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "setup_incomplete"
+    assert payload["setup_state"] == "binding_missing"
+    assert payload["authorization_required"] is True
+    assert payload["aggregate_read_verified"] is False
+    assert payload["aggregate_read_status"] == "setup_incomplete"
+    assert payload["aggregate_read_reason"] == "connector_binding_missing"
+    assert "Reconnect Salesforce" in payload["next_step"]
+
+
 def test_salesforce_callback_verifies_aggregate_read_before_persisting_connection(monkeypatch) -> None:
     writes: list[tuple[str, str]] = []
     connections: list[dict[str, object]] = []
@@ -1284,6 +1338,37 @@ def test_salesforce_context_is_explicitly_unconfigured_before_oauth(monkeypatch)
     }
     assert "token" not in str(payload).casefold()
     assert "secret" not in str(payload).casefold()
+
+
+def test_salesforce_context_exposes_repair_state_without_attaching_crm(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {"status": "oauth_ready", "mode": "awaiting_authorization"},
+    )
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {
+                "status": "connected_read_only",
+                "instance_url": "https://acme.my.salesforce.com",
+                "health_status": "reauthorization_required",
+                "health_reason": "refresh_token_rejected",
+            },
+            None,
+            False,
+        ),
+    )
+
+    payload = api._salesforce_context_info("salesforce-acme")
+
+    assert payload["status"] == "reauthorization_required"
+    assert payload["external_read"] is False
+    assert payload["authorization_required"] is True
+    assert payload["reason"] == "refresh_token_rejected"
+    assert "instance_url" not in str(payload)
 
 
 def test_connector_context_preserves_salesforce_external_read_boundary(monkeypatch) -> None:

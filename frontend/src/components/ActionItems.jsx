@@ -40,7 +40,7 @@ export default function ActionItems({ workflowId, items, workflowStatus, onChang
   };
 
   return (
-    <section className="panel action-items" aria-labelledby="action-items-title">
+    <section id="actions-section" className="panel action-items" aria-labelledby="action-items-title">
       <header className="panel-header">
         <div><h2 id="action-items-title">Owner action queue</h2><span className="live-label public">Human-owned</span></div>
         <span className="muted">{completedCount}/{items.length} completed · {closedCount}/{items.length} closed</span>

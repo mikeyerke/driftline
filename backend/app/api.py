@@ -2241,14 +2241,29 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
     readiness = salesforce_readiness()
     connection, _binding, connected = _salesforce_connection_metadata(tenant_id)
     if not connected:
-        return {
-            "status": "not_configured",
-            "mode": readiness.get("mode", "prepared_only"),
+        persisted_health = str(connection.get("health_status", "")).casefold()
+        has_connection = bool(connection)
+        repair_status = (
+            "reauthorization_required"
+            if persisted_health == "reauthorization_required"
+            else "setup_incomplete"
+            if has_connection
+            else "not_configured"
+        )
+        payload = {
+            "status": repair_status,
+            "mode": "read_only_context" if has_connection else readiness.get("mode", "prepared_only"),
             "scope": "read_only_crm",
             "external_read": False,
             "redaction": "aggregate_metadata_only",
-            "authorization_required": readiness.get("status") == "oauth_ready",
+            "authorization_required": bool(
+                repair_status in {"reauthorization_required", "setup_incomplete"}
+                or readiness.get("status") == "oauth_ready"
+            ),
         }
+        if has_connection:
+            payload["reason"] = connection.get("health_reason") or "connector_binding_missing"
+        return payload
     config = SalesforceConfig.from_env()
     try:
         refresh_token = resolve_tenant_credential(
@@ -2367,12 +2382,15 @@ def _salesforce_status_payload(tenant_id: str) -> dict[str, object]:
     """Build signed Salesforce status, including the last aggregate-read proof."""
     readiness = salesforce_readiness()
     connection, binding, connected = _salesforce_connection_metadata(tenant_id)
+    has_connection = bool(connection)
     instance_url = str(connection.get("instance_url", "")).rstrip("/")
     hostname = urlparse(instance_url).hostname if instance_url else None
     persisted_health = str(connection.get("health_status", "")).casefold()
     status = (
         "reauthorization_required"
-        if connected and persisted_health == "reauthorization_required"
+        if has_connection and persisted_health == "reauthorization_required"
+        else "setup_incomplete"
+        if has_connection and not connected
         else "connected_read_only"
         if connected
         else readiness.get("status", "not_configured")
@@ -2385,26 +2403,38 @@ def _salesforce_status_payload(tenant_id: str) -> dict[str, object]:
         if aggregate_read_verified
         else "unverified"
         if connected and persisted_health == "connected_read_only"
+        else "setup_incomplete"
+        if status == "setup_incomplete"
         else persisted_health or "not_run"
     )
     return {
         "tenant_id": tenant_id,
         "connector": "salesforce",
         "status": status,
-        "mode": "read_only_context" if connected else readiness.get("mode", "prepared_only"),
+        "mode": "read_only_context" if has_connection else readiness.get("mode", "prepared_only"),
         "external_write": False,
         "scope": readiness.get("scope", "read_only_context"),
         "allowed_objects": readiness.get("allowed_objects", ["Product2", "PricebookEntry", "Opportunity"]),
         "authorization_required": bool(
-            status == "reauthorization_required"
+            status in {"reauthorization_required", "setup_incomplete"}
             or not connected and readiness.get("status") == "oauth_ready"
         ),
+        # A stale connection record must not look like a usable CRM binding.
+        # Keep the repair state explicit so operators know the next action is
+        # OAuth reauthorization, not a generic settings refresh.
+        "setup_state": (
+            "binding_active"
+            if connected
+            else "binding_missing"
+            if has_connection
+            else "not_connected"
+        ),
         "instance_hostname": hostname,
-        "connected_at": connection.get("connected_at") if connected else None,
+        "connected_at": connection.get("connected_at") if has_connection else None,
         "binding_status": binding.get("status") if binding else None,
         "verified_at": binding.get("verified_at") if connected else None,
-        "health_checked_at": connection.get("health_checked_at") if connected else None,
-        "health_reason": connection.get("health_reason") if status == "reauthorization_required" else None,
+        "health_checked_at": connection.get("health_checked_at") if has_connection else None,
+        "health_reason": connection.get("health_reason") if has_connection else None,
         "aggregate_read_verified": aggregate_read_verified,
         "aggregate_read_status": aggregate_read_status,
         "aggregate_read_verified_at": (
@@ -2419,7 +2449,17 @@ def _salesforce_status_payload(tenant_id: str) -> dict[str, object]:
             connection.get("health_failures")
         ),
         "aggregate_read_reason": connection.get("health_reason")
+        or ("connector_binding_missing" if status == "setup_incomplete" else None)
         or ("allowlist_incomplete" if aggregate_read_status == "unverified" else None),
+        "next_step": (
+            "Reauthorize Salesforce read-only access; the callback will rerun all three aggregate queries before activating the tenant binding."
+            if status == "reauthorization_required"
+            else "Reconnect Salesforce read-only access to rebuild the missing tenant binding, then run the aggregate read probe."
+            if status == "setup_incomplete"
+            else "Run the explicit aggregate read probe before using CRM context."
+            if status == "connected_read_only" and not aggregate_read_verified
+            else None
+        ),
         "credential_values_exposed": False,
     }
 
