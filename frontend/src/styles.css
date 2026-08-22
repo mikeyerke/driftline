@@ -140,8 +140,8 @@ main { min-width: 0; overflow-x: clip; }
 .release-proof-item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: #49658f; }
 .release-proof-item > svg { flex: 0 0 auto; color: #5475aa; }
 .release-proof-item.pass > svg { color: var(--green); }.release-proof-item.blocked > svg { color: var(--red); }
-.release-proof-item span { display: grid; gap: 1px; min-width: 0; }.release-proof-item small { color: #6e84a5; font-size: 9px; line-height: 1; }.release-proof-item strong { overflow-wrap: anywhere; color: #244675; font-size: 10px; line-height: 1.15; }
-.release-proof-note { color: #6e84a5; font-size: 9px; white-space: nowrap; }
+.release-proof-item span { display: grid; gap: 1px; min-width: 0; }.release-proof-item small { color: #49658f; font-size: 9px; line-height: 1; }.release-proof-item strong { overflow-wrap: anywhere; color: #244675; font-size: 10px; line-height: 1.15; }
+.release-proof-note { color: #49658f; font-size: 9px; white-space: nowrap; }
 .banner-status { margin-left: auto; border: 1px solid #bcd2fb; border-radius: 999px; padding: 3px 8px; background: #fff; color: var(--blue); font-weight: 600; }
 .view-notice { background: var(--blue-soft); border: 1px solid #cfe0ff; padding: 10px 13px; margin-bottom: 13px; font-size: 13px; color: #114ca9; }
 .incident-header { display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: start; margin-bottom: 15px; }
