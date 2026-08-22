@@ -125,11 +125,11 @@ product truth.
 ## Verified release evidence
 
 The current serving release is source commit
-`64be8932bf88bb68afc87220b2357bff644ae387`, Cloud Build
-`42f1cea1-a15b-4d47-adc8-be9ab34e3333`, and Cloud Run revision
-`driftline-00162-nvm` at 100% traffic in project `driftline-hackathon-2026`.
+`8f2d23c759f4c4e48f778ff479028de3ab23d1fc`, Cloud Build
+`70246ecd-9e12-4aa2-9552-0f246d22bb3e`, and Cloud Run revision
+`driftline-00163-ztb` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:bf338bffa78b77755707b91c4fc7348e3bb839b13b04c666151b6762592c0583`.
+`sha256:ea3c146683f9e23da7df7de415f275e8c628ae0ab96da691f38da3d7bbff8a20`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -142,19 +142,19 @@ across page reloads; the callback metadata and tenant-scoped secret pointer are
 durable as well, but no Salesforce object totals or successful CRM read are
 claimed until fresh consent succeeds.
 
-- Local gate for the current source: 265 backend tests passed, the focused
+- Local gate for the current source: 273 backend tests passed, the focused
   Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32545797712` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32547575437` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-9778ec4798cb` / workflow
-  `0ae93a41-8402-4360-8678-407f52c85c24` returned `needs_approval`,
+- Live agent check: fresh job `job-279871897328` / workflow
+  `355e2d4a-e774-4fe9-a8f6-d23a35755151` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -166,15 +166,20 @@ claimed until fresh consent succeeds.
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: the paired fresh run persisted the packet, reversed the
+- Approval/undo check: fresh job `job-e7b233938028` / workflow
+  `756834da-b29f-40c1-9dbe-5387787a40d9` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
+- Trace-to-eval check: live evaluation `eval-a52b99ca4846` passed the
+  `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall;
+  the report is redacted telemetry and explicitly does not claim customer
+  outcomes.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
-  manually triggered after this release and Cloud Logging recorded an
-  OIDC-authenticated HTTP 200 request to `/api/scheduler/tick` on
+  manually triggered during the prior release and Cloud Logging recorded an
+  OIDC-authenticated HTTP 200 request to `/api/scheduler/tick` on the then-serving
   `driftline-00162-nvm`. The registry reported five healthy bounded sources;
-  cadence rules deferred healthy sources that were not due. A post-deploy log
-  search found no Firestore positional-filter deprecation warning.
+  cadence rules deferred healthy sources that were not due. A log search from
+  that run found no Firestore positional-filter deprecation warning.
 - Breadth check on the same serving revision: competitor offerings
   (`job-82ac284398b6`, workflow `a1190503-0c2f-4182-83c9-22e4879fc6e1`),
   competitor narrative/blog (`job-b8a7d0ebcf6d`, workflow

@@ -12,24 +12,28 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T02:33Z` with the active gcloud project set to
+Checked `2026-08-22T03:04Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00162-nvm` at 100% traffic. Its immutable serving image is
-  `sha256:bf338bffa78b77755707b91c4fc7348e3bb839b13b04c666151b6762592c0583`.
-- Source commit `64be8932bf88bb68afc87220b2357bff644ae387` was built by Cloud
-  Build `42f1cea1-a15b-4d47-adc8-be9ab34e3333`; GitHub Actions run
-  `32545797712` passed the repository gates.
+  `driftline-00163-ztb` at 100% traffic. Its immutable serving image is
+  `sha256:ea3c146683f9e23da7df7de415f275e8c628ae0ab96da691f38da3d7bbff8a20`.
+- Source commit `8f2d23c759f4c4e48f778ff479028de3ab23d1fc` was built by Cloud
+  Build `70246ecd-9e12-4aa2-9552-0f246d22bb3e`; GitHub Actions run
+  `32547575437` passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `64be8932bf88bb68afc87220b2357bff644ae387`, and build ID
-  `42f1cea1-a15b-4d47-adc8-be9ab34e3333`; `/api/auth/config`
+  `8f2d23c759f4c4e48f778ff479028de3ab23d1fc`, and build ID
+  `70246ecd-9e12-4aa2-9552-0f246d22bb3e`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
+- `/api/evals/latest` reports evaluation `eval-a52b99ca4846` with a passing
+  `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, redacted
+  trace data, and `customer_outcome=false`. This is evaluator telemetry, not
+  customer ROI evidence.
 - The live production verifier also checks `Cache-Control: no-store` and the
   fail-closed `Permissions-Policy` deny-list on both health and API responses.
 - The Settings surface exposes the tenant-scoped Salesforce OAuth handoff,
@@ -56,24 +60,31 @@ Checked `2026-08-22T02:33Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-9778ec4798cb` / workflow `0ae93a41-8402-4360-8678-407f52c85c24` at
+  `job-279871897328` / workflow `355e2d4a-e774-4fe9-a8f6-d23a35755151` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
-  allowlisted tools, four artifacts, five audit events, and two decision
-  options. The paired approval/undo run persisted the packet, reversed the
-  operational output, and recorded
+  allowlisted tools, four artifacts, five audit events, two decision options,
+  and a passing trace evaluation. The paired approval/undo run returned job
+  `job-e7b233938028` / workflow `756834da-b29f-40c1-9dbe-5387787a40d9`,
+  persisted the packet, reversed the operational output, and recorded
   `external_write=false` / `external_systems_changed=false`.
+- `scripts/verify_production.sh` passed against this revision: Firestore,
+  Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
+  security headers, trace-eval release matching, and zero recent Cloud Run
+  errors.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
-- The post-deploy Scheduler trigger at `2026-08-22T02:32:43Z` returned HTTP
-  200 on `driftline-00162-nvm`; `/api/monitor/registry` immediately reported
+- A Scheduler trigger at `2026-08-22T02:32:43Z` returned HTTP
+  200 on the then-serving revision `driftline-00162-nvm`; `/api/monitor/registry` immediately reported
   five healthy sources, zero stale sources, and zero source failures. The
   scheduler delivered monitor jobs `job-21522b0640b0` and
   `job-dfe6217391b0` with HTTP 200 task dispatches; both completed with
   Gemini 3.5 Flash and no recorded error. A fresh log search found no
   Firestore positional-filter deprecation warning after the `FieldFilter`
-  query cleanup.
+  query cleanup. This is retained as historical scheduler evidence; the
+  current-state authority is the new revision and the production verifier
+  result above.
 
 ## 2026-08-21 Salesforce reauthorization recovery release (historical serving revision)
 

@@ -533,13 +533,13 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`64be8932bf88bb68afc87220b2357bff644ae387`, Cloud Build
-`42f1cea1-a15b-4d47-adc8-be9ab34e3333`, and Cloud Run revision
-`driftline-00162-nvm` at 100% traffic. Its immutable image digest is recorded
+`8f2d23c759f4c4e48f778ff479028de3ab23d1fc`, Cloud Build
+`70246ecd-9e12-4aa2-9552-0f246d22bb3e`, and Cloud Run revision
+`driftline-00163-ztb` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32545797712` passed the repository gates, including the
+GitHub Actions run `32547575437` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -555,6 +555,9 @@ URL.
 The latest console build also keeps the operator control in an explicit
 loading state until `/api/auth/config` resolves, avoiding a false
 "unavailable" flash on a cold production load.
+The new trace-to-eval quality gate evaluates nine independent safety and
+usefulness cases, persists only a redacted report, and is checked against the
+live Google ADK/Gemini trace before this release is considered healthy.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
 Flash, the allowlisted tool trace, the deterministic approval gate, persisted
 packet/undo behavior, and the direct `/api/agent/run` path; the public lane
@@ -572,8 +575,9 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-9778ec4798cb` / `0ae93a41-8402-4360-8678-407f52c85c24` for the live agent
-and the paired approval/undo run. `scripts/verify_production.sh` also passed with zero
+`job-279871897328` / `355e2d4a-e774-4fe9-a8f6-d23a35755151` for the live agent
+and `job-e7b233938028` / `756834da-b29f-40c1-9dbe-5387787a40d9` for the paired
+approval/undo run. `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were
 removed from this isolated project. The signed browser client sends its

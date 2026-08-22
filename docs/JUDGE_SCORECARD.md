@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `64be8932bf88bb68afc87220b2357bff644ae387`, Cloud Run
-`driftline-00162-nvm`, Cloud Build
-`42f1cea1-a15b-4d47-adc8-be9ab34e3333`, project
+Current release: source `8f2d23c759f4c4e48f778ff479028de3ab23d1fc`, Cloud Run
+`driftline-00163-ztb`, Cloud Build
+`70246ecd-9e12-4aa2-9552-0f246d22bb3e`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -40,11 +40,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-9778ec4798cb`, workflow
-  `0ae93a41-8402-4360-8678-407f52c85c24`, five audit events, four artifacts,
-  two decision options, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: paired with that fresh job/workflow;
-  the packet persisted and
+- `scripts/verify_live_agent.sh`: fresh job `job-279871897328`, workflow
+  `355e2d4a-e774-4fe9-a8f6-d23a35755151`, five audit events, four artifacts,
+  two decision options, a passing trace evaluation, and `needs_approval`.
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-e7b233938028` /
+  workflow `756834da-b29f-40c1-9dbe-5387787a40d9`; the packet persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
@@ -53,11 +53,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   OIDC-authenticated HTTP 200 `/api/scheduler/tick` request on the serving
   revision; healthy sources were correctly deferred until their cadence due
   time rather than spending another model call.
-- A post-deploy direct Scheduler run at `2026-08-22T02:32:43Z` returned an
-  OIDC-authenticated HTTP 200 on `driftline-00162-nvm`; the registry then
+- An earlier direct Scheduler run at `2026-08-22T02:32:43Z` returned an
+  OIDC-authenticated HTTP 200 on the then-serving `driftline-00162-nvm`; the registry then
   reported all five bounded sources healthy with zero stale or failed entries.
   Sources not due at that moment were deferred by cadence as designed.
-- A fresh post-deploy log search found no `Detected filter using positional
+- The latest production verifier found no `Detected filter using positional
   arguments` warning after the Firestore `FieldFilter` cleanup; the only
   recent warning was the known ADK response-part diagnostic, with zero
   application errors.
@@ -127,8 +127,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
-- 266 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32545797712`; the frozen
+- 273 backend tests, Ruff, frontend production build, standalone image build,
+  and repository hygiene pass in GitHub Actions run `32547575437`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).
