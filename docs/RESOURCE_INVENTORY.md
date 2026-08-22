@@ -12,27 +12,27 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T06:58Z` with the active gcloud project set to
+Checked `2026-08-22T07:06Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00182-247` at 100% traffic. Its immutable serving image is
-  `sha256:17d829aba803a0ce3f90cc8d24e91f13f2cdfff5dc7e9321d1ff20e7a590a93d`.
-- Source commit `210fc9ebb71c7b42aad2735702a6297f1d957890` was built by Cloud
-  Build `3e8e48b3-3db2-4136-984f-2a275f05a2dc`; GitHub Actions run
-  `32557959004` passed the repository gates.
+  `driftline-00183-7gt` at 100% traffic. Its immutable serving image is
+  `sha256:7434ad8846ffd9d6b1a922105f3d5b9c7f7b7159a76971b2dd298b7d6bb30917`.
+- Source commit `d0159657aa650bd6015267e785b86248eba85d52` was built by Cloud
+  Build `323e28cf-f7ec-4ab7-bf1a-e7a98d4dddce`; GitHub Actions run
+  `32558346003` passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `210fc9ebb71c7b42aad2735702a6297f1d957890`, and build ID
-  `3e8e48b3-3db2-4136-984f-2a275f05a2dc`; `/api/auth/config`
+  `d0159657aa650bd6015267e785b86248eba85d52`, and build ID
+  `323e28cf-f7ec-4ab7-bf1a-e7a98d4dddce`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-606be4fd0fb9` with a passing
+- `/api/evals/latest` reports evaluation `eval-54ce4784ad6c` with a passing
   `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, and a
-  `stable` trend against `eval-47243215ac47` (all deltas `0.0` and no case
+  `stable` trend against `eval-606be4fd0fb9` (all deltas `0.0` and no case
   regressions). Trace data is
   redacted and `customer_outcome=false`; this is evaluator telemetry, not
   customer ROI evidence.
@@ -62,15 +62,14 @@ Checked `2026-08-22T06:58Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-7e7d2c62a690` / workflow `6feb9709-537e-4dd2-a963-171cbada2691` at
+  `job-f43acbeedcfc` / workflow `e80022a7-98ed-45f4-a145-9dd267916603` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier separately
-  created job `job-43fe16fd77c4` / workflow
-  `784cc5a8-2d88-4d87-8353-d9a5d351cf3d`, persisted the packet, reversed the
+  created job `job-7bedfe50de78` / workflow
+  `54ca1f99-3aac-4b94-85eb-b394975de85a`, persisted the packet, reversed the
   operational output, and recorded
-  `external_write=false` / `external_systems_changed=false`; its verifier run
-  was job `job-1829f0e10f31` / workflow `279ccb29-9edb-4242-a57a-44985b003d76`.
+  `external_write=false` / `external_systems_changed=false`.
 - A logged-out 500px browser check exercised every sidebar target after the
   deferred panels mounted. Overview, Sources, Workflows, Approvals, Activity,
   and Settings each landed in view; the DOM had one `settings-section`, one
@@ -94,10 +93,10 @@ Checked `2026-08-22T06:58Z` with the active gcloud project set to
   current-state authority is the new revision and the production verifier
   result above.
 
-## 2026-08-22 audited source lifecycle release (current)
+## 2026-08-22 audited source lifecycle code release (included in current image)
 
-- Commit `210fc9ebb71c7b42aad2735702a6297f1d957890` is serving in Cloud Run
-  revision `driftline-00182-247` at 100% traffic. The release adds the
+- Commit `210fc9ebb71c7b42aad2735702a6297f1d957890` introduced the code now
+  included in the current Cloud Run image. The release adds the
   tenant-scoped `POST /api/operator/sources/{source_id}/lifecycle` route and
   the signed operator UI for pausing or resuming an exact registered public
   source.
@@ -113,7 +112,7 @@ Checked `2026-08-22T06:58Z` with the active gcloud project set to
   fixtures.
 - Local proof: 282 backend tests, Ruff, frontend production build, frontend
   literal-ID contract, and `git diff --check` passed before deployment. CI run
-  `32557959004` and Cloud Build `3e8e48b3-3db2-4136-984f-2a275f05a2dc` also
+  `32557959004` and the code-release Cloud Build `3e8e48b3-3db2-4136-984f-2a275f05a2dc` also
   passed.
 - The code path is deployed and covered by local signed-route tests. A final
   live Firestore lifecycle proof is intentionally not claimed yet: the browser
