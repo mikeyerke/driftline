@@ -1632,6 +1632,8 @@ def _complete_demo_fallback(job: JobState, error: Exception) -> bool:
     state = workflow_store.start_demo(
         source_id=source_id,
         source_name=definition["name"],
+        source_category=definition.get("category"),
+        source_change_type=definition.get("change_type"),
         source_url=definition["url"],
         before_text=definition["before"],
         after_text=definition["after"],
@@ -5182,6 +5184,8 @@ def start_demo(source_id: str = "public/pricing") -> dict:
     state = workflow_store.start_demo(
         source_id=source_id,
         source_name=definition["name"],
+        source_category=definition.get("category"),
+        source_change_type=definition.get("change_type"),
         source_url=definition["url"],
         before_text=definition["before"],
         after_text=definition["after"],

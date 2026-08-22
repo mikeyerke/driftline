@@ -8,6 +8,7 @@ they are not an arbitrary crawler or an unconstrained model-generated graph.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 IMPACT_PROFILES: dict[str, dict[str, Any]] = {
@@ -254,16 +255,141 @@ IMPACT_PROFILES: dict[str, dict[str, Any]] = {
 }
 
 
-def profile_for(source_id: str) -> dict[str, Any]:
-    """Return an explicit profile, with pricing as the safe fallback."""
-    return IMPACT_PROFILES.get(source_id, IMPACT_PROFILES["public/pricing"])
+_GENERIC_REGISTERED_PROFILE: dict[str, Any] = {
+    "category": "Registered change surface",
+    "change_type": "Public source transition",
+    "offering": "Registered change surface",
+    "title": "Registered change surface changed",
+    "impacts": [
+        {
+            "name": "Claim and comparison review",
+            "owner": "Product Marketing",
+            "action": "Review changed claim",
+            "risk": "medium",
+            "detail": "Positioning and claims",
+            "proposed": "Review the changed claim against current messaging and preserve the source citation.",
+            "area": "Positioning",
+            "target_systems": ["Confluence", "Jira", "Slack"],
+        },
+        {
+            "name": "Sales enablement note",
+            "owner": "Sales Enablement",
+            "action": "Draft field note",
+            "risk": "medium",
+            "detail": "Field readiness",
+            "proposed": "Draft evidence-cited guidance only if the observed change affects an active segment or deal motion.",
+            "area": "Revenue enablement",
+            "target_systems": ["Jira", "Slack"],
+        },
+        {
+            "name": "Customer-facing guidance",
+            "owner": "Customer Success",
+            "action": "Review lifecycle guidance",
+            "risk": "low",
+            "detail": "Customer lifecycle",
+            "proposed": "Check renewal and support guidance for contradictions before distributing an update.",
+            "area": "Customer lifecycle",
+            "target_systems": ["Confluence", "Slack"],
+        },
+        {
+            "name": "Product review",
+            "owner": "Product",
+            "action": "Triage implication",
+            "risk": "low",
+            "detail": "Product planning",
+            "proposed": "Review the signal as an input; do not treat a source change as an automatic roadmap commitment.",
+            "area": "Planning",
+            "target_systems": ["Jira", "Slack"],
+        },
+    ],
+}
+
+
+def _known_category(category: str | None, change_type: str | None) -> str | None:
+    """Map operator metadata to a reviewed profile without guessing silently."""
+    normalized = f"{category or ''} {change_type or ''}".casefold()
+    if "competitor" in normalized and any(
+        token in normalized for token in ("price", "packag", "commercial")
+    ):
+        return "Competitor pricing"
+    if "competitor" in normalized and any(
+        token in normalized for token in ("blog", "narrative", "message", "market", "promise")
+    ):
+        return "Competitor narrative"
+    if "competitor" in normalized and any(
+        token in normalized for token in ("offer", "capability", "feature", "product")
+    ):
+        return "Competitor offering"
+    if any(token in normalized for token in ("term", "contract", "legal")):
+        return "Own terms"
+    if any(token in normalized for token in ("price", "packag", "commercial")):
+        return "Own pricing"
+    return None
+
+
+_CATEGORY_SOURCE_IDS = {
+    "Own pricing": "public/pricing",
+    "Own terms": "public/terms",
+    "Competitor pricing": "competitor/pricing",
+    "Competitor offering": "competitor/offerings",
+    "Competitor narrative": "competitor/blog",
+}
+
+
+def profile_for(
+    source_id: str,
+    *,
+    category: str | None = None,
+    change_type: str | None = None,
+    source_name: str | None = None,
+) -> dict[str, Any]:
+    """Return the reviewed profile for a source, preserving custom metadata.
+
+    Built-in fixtures are keyed by source ID. Tenant-registered sources carry
+    their category and change type in the allowlisted registry; those values
+    now select a matching reviewed profile or a conservative generic worklist
+    instead of being misclassified as pricing. The returned object is copied
+    so a tenant label can never mutate a process-wide profile.
+    """
+    explicit = IMPACT_PROFILES.get(source_id)
+    if explicit is not None:
+        return explicit
+    matched = _known_category(category, change_type)
+    profile = (
+        deepcopy(IMPACT_PROFILES[_CATEGORY_SOURCE_IDS[matched]])
+        if matched
+        else deepcopy(_GENERIC_REGISTERED_PROFILE)
+    )
+    if matched is None:
+        safe_category = str(category or "Registered change surface").strip()[:80]
+        safe_change_type = str(change_type or "Public source transition").strip()[:100]
+        safe_name = str(source_name or "Registered change surface").strip()[:120]
+        profile.update(
+            {
+                "category": safe_category or _GENERIC_REGISTERED_PROFILE["category"],
+                "change_type": safe_change_type or _GENERIC_REGISTERED_PROFILE["change_type"],
+                "offering": safe_name or _GENERIC_REGISTERED_PROFILE["offering"],
+                "title": f"{safe_name or 'Registered change surface'} changed",
+            }
+        )
+    return profile
 
 
 def build_impact_graph(
-    source_name: str, source_id: str, impacts: list[dict[str, Any]]
+    source_name: str,
+    source_id: str,
+    impacts: list[dict[str, Any]],
+    *,
+    category: str | None = None,
+    change_type: str | None = None,
 ) -> dict[str, Any]:
     """Build a compact source → offering → domain → artifact → system graph."""
-    profile = profile_for(source_id)
+    profile = profile_for(
+        source_id,
+        category=category,
+        change_type=change_type,
+        source_name=source_name,
+    )
     nodes: list[dict[str, Any]] = [
         {
             "id": "source",

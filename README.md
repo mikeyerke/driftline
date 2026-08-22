@@ -366,7 +366,11 @@ fixtures. The internal scheduler carries each source's tenant ID into its
 bounded monitor job. A source that changes between scheduled reads creates a
 new hash-bound Firestore observation and a tenant workflow; an unchanged source
 advances source health without manufacturing an incident. It is an allowlist
-of sources, not an arbitrary web crawler.
+of sources, not an arbitrary web crawler. The registered category and change
+type are carried into the impact profile: a custom competitor blog is routed
+to narrative/enablement work, a pricing page to commercial work, and an
+unclassified source to a conservative generic review list. Driftline never
+silently treats an unknown source as the pricing fixture.
 
 Connector bindings have an explicit owner-only lifecycle: a binding is
 activated only after the deterministic tenant Secret Manager secret exists, and

@@ -118,6 +118,8 @@ class DriftlineWorkflow:
         tenant_id: str | None = None,
         source_id: str = "public/pricing",
         source_name: str = "Public pricing snapshot",
+        source_category: str | None = None,
+        source_change_type: str | None = None,
         data_mode: str = "synthetic_demo",
         source_url: str | None = None,
         snapshot_label: str | None = None,
@@ -128,7 +130,12 @@ class DriftlineWorkflow:
         confidence: float = 0.99,
         retrieved_at: str | None = None,
     ) -> WorkflowState:
-        profile = profile_for(source_id)
+        profile = profile_for(
+            source_id,
+            category=source_category,
+            change_type=source_change_type,
+            source_name=source_name,
+        )
         state = WorkflowState(
             workflow_id=str(uuid4()),
             title=profile["title"],
@@ -178,6 +185,8 @@ class DriftlineWorkflow:
                 }
                 for item in profile["impacts"]
             ],
+            category=source_category,
+            change_type=source_change_type,
         )
         state.integration_targets = integration_targets(profile["impacts"])
         self._refresh_change_card(state)

@@ -105,6 +105,11 @@ analysis_agent = Agent(
 def _allowed_artifacts_for_state(state: WorkflowState) -> dict[str, str]:
     if state.evidence is None:
         raise AnalysisUnavailable("Workflow has no source evidence")
+    # Use the already-reviewed workflow impact set. This keeps a custom
+    # operator-registered source aligned with its metadata-derived profile
+    # instead of re-resolving an unknown source ID to the pricing fixture.
+    if state.impacts:
+        return {item.name: item.owner for item in state.impacts}
     return {
         str(item["name"]): str(item["owner"])
         for item in profile_for(state.evidence.source_id)["impacts"]

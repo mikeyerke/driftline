@@ -99,6 +99,12 @@ def inspect_source_change(source_id: str) -> dict:
         source_name=(source_definition(source_id, _tenant_id.get()) or {}).get(
             "name", "Allowlisted public snapshot"
         ),
+        source_category=(source_definition(source_id, _tenant_id.get()) or {}).get(
+            "category"
+        ),
+        source_change_type=(source_definition(source_id, _tenant_id.get()) or {}).get(
+            "change_type"
+        ),
         data_mode=("synthetic_tenant_demo" if tenant_demo else snapshot["data_mode"]),
         source_url=snapshot["source_url"],
         snapshot_label=(

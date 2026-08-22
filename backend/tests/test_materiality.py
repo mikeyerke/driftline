@@ -1,3 +1,4 @@
+from app.impact import profile_for
 from app.materiality import model_internal_context
 from app.workflow import DriftlineWorkflow
 
@@ -176,3 +177,35 @@ def test_same_source_snapshot_reuses_change_card_and_action_identity() -> None:
         item["idempotency_key"].startswith(f"{first.change_card['change_card_id']}:")
         for item in approved_first.action_items
     )
+
+
+def test_registered_source_metadata_selects_the_matching_reviewed_profile() -> None:
+    state = DriftlineWorkflow().start_demo(
+        source_id="custom/acme-blog",
+        source_name="Acme product blog",
+        source_category="Competitor narrative",
+        source_change_type="Market narrative change",
+        before_text="Acme plans regional hosting.",
+        after_text="Acme now offers regional hosting.",
+    )
+
+    assert state.impact_graph["summary"]["category"] == "Competitor narrative"
+    assert state.impact_graph["summary"]["change_type"] == "Market narrative change"
+    assert state.impacts[0].name == "Comparison map"
+    assert state.impacts[0].owner == "Product Marketing"
+    assert state.title == "Competitor product narrative changed"
+
+
+def test_unknown_registered_source_uses_conservative_generic_worklist() -> None:
+    profile = profile_for(
+        "custom/unknown",
+        category="Partner release feed",
+        change_type="Availability announcement",
+        source_name="Partner release feed",
+    )
+
+    assert profile["category"] == "Partner release feed"
+    assert profile["change_type"] == "Availability announcement"
+    assert profile["offering"] == "Partner release feed"
+    assert profile["impacts"][0]["name"] == "Claim and comparison review"
+    assert profile["impacts"][0]["risk"] == "medium"
