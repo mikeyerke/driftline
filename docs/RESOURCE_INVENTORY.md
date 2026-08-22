@@ -12,15 +12,15 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T10:00Z` with the active gcloud project set to
+Checked `2026-08-22T10:14Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00198-gt8` at 100% traffic. Its immutable serving image is
-  `sha256:bdf839a6207b356f57064a42770e164cfef9d46f6daba249fbb864d25f85e6f3`.
-- Source commit `2bcd1fc0c86563a010364d202f9071dab5a1c52f` was built by Cloud
-  Build `17151a7f-5ccc-4639-b4d4-c3766b47ef5e`; GitHub Actions run
-  `32565915427` passed the repository gates.
+  `driftline-00199-xn6` at 100% traffic. Its immutable serving image is
+  `sha256:b9e47bdf856ab88806cb7adc5862945e08dd052bfe737816b2a64d4a680f7c20`.
+- Source commit `1685306bb238ecac88b2109801d508a2191977bb` was built by Cloud
+  Build `3a52b619-2376-4124-a906-7dcb9d631a71`; GitHub Actions run
+  `32566744555` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -29,11 +29,11 @@ Checked `2026-08-22T10:00Z` with the active gcloud project set to
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `2bcd1fc0c86563a010364d202f9071dab5a1c52f`, and build ID
-  `17151a7f-5ccc-4639-b4d4-c3766b47ef5e`; `/api/auth/config`
+  `1685306bb238ecac88b2109801d508a2191977bb`, and build ID
+  `3a52b619-2376-4124-a906-7dcb9d631a71`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-4b79963dc5a8` with a passing
+- `/api/evals/latest` reports evaluation `eval-8661d3c2b095` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
@@ -69,12 +69,12 @@ Checked `2026-08-22T10:00Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-aff29e557b12` / workflow `7776cfc9-d650-4264-8482-d48656bd1c5c` at
+  `job-618654d9c4e7` / workflow `0cbd39fa-c907-41bc-9143-1045046050d6` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier created
-  job `job-cc2120994ef3` / workflow
-  `8cc18533-8745-463a-b318-baa92eb4a328`, persisted the packet, reversed the
+  job `job-894a63cffdf3` / workflow
+  `184a0b37-cc90-4d27-806f-97462573a52c`, persisted the packet, reversed the
   operational output, and recorded `external_write=false` /
   `external_systems_changed=false`.
 - A logged-out 500px browser check exercised every sidebar target after the
@@ -715,6 +715,9 @@ Checked `2026-08-22T10:00Z` with the active gcloud project set to
   `scripts/verify_production.sh` passed against `driftline-00120-xnw`, including
   IAM, Artifact Registry retention, scheduler, Cloud Tasks, uptime, dashboard,
   and zero recent Cloud Run errors.
+- The monitor registry now reports cadence separately from freshness: this
+  check returned five healthy sources and two `cadence_due` sources
+  (`public/pricing`, `competitor/pricing`) while none were stale or failed.
 - Sequential live proofs on this exact revision created job
   `job-bf4c55cea0f1` / workflow `578e6409-e195-4188-84b6-59c75fd5598a` and
   proved `needs_approval`, `public_source`, `gemini-3.5-flash`, Google ADK,

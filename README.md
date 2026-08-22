@@ -553,9 +553,9 @@ traffic, verifies that the serving revision's image digest matches the exact
 Artifact Registry image built for that Cloud Build, and verifies that the
 public `/health` response carries the exact release SHA and build ID before
 the build can succeed. The current serving release is source commit
-`2bcd1fc0c86563a010364d202f9071dab5a1c52f`, Cloud Build
-`17151a7f-5ccc-4639-b4d4-c3766b47ef5e`, and Cloud Run revision
-`driftline-00198-gt8` at 100% traffic. Its immutable image digest is recorded
+`1685306bb238ecac88b2109801d508a2191977bb`, Cloud Build
+`3a52b619-2376-4124-a906-7dcb9d631a71`, and Cloud Run revision
+`driftline-00199-xn6` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
@@ -579,7 +579,7 @@ The new trace-to-eval quality gate evaluates fourteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
 before this release is considered healthy. The latest live report
-`eval-4b79963dc5a8` remained stable against the prior report with 100% safety,
+`eval-8661d3c2b095` remained stable against the prior report with 100% safety,
 100% usefulness, 100% overall, and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
