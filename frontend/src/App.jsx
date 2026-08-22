@@ -296,7 +296,7 @@ export default function App() {
     }
   }, [showEvidence]);
 
-  const runScan = async (sourceId = selectedSource) => {
+  const runScan = async (sourceId = selectedSource, requestedRunMode = null) => {
     const scanEpoch = sessionEpochRef.current;
     setScanMessage("");
     setScanning(true);
@@ -309,9 +309,10 @@ export default function App() {
       if (selectedDefinition?.enabled === false) {
         throw new Error("This source is paused; resume monitoring before scanning.");
       }
-      const runMode = operatorSession.identityToken && selectedDefinition?.mode === "public_only"
-        ? "monitor"
-        : null;
+      const runMode = requestedRunMode
+        || (operatorSession.identityToken && selectedDefinition?.mode === "public_only"
+          ? "monitor"
+          : null);
       const queued = await startDemoJob(sourceId, runMode);
       if (sessionEpochRef.current !== scanEpoch) return;
       setJob(queued);
@@ -374,7 +375,10 @@ export default function App() {
   const runSourceNow = async (sourceId) => {
     setSelectedSource(sourceId);
     selectNav("Overview");
-    return runScan(sourceId);
+    // The registry action is an operational check, not a synthetic replay.
+    // Keep the top-level signed demo repeatable for judges, while this path
+    // always compares the selected source against its tenant ledger.
+    return runScan(sourceId, "monitor");
   };
 
   const approve = async (selectedOption) => {

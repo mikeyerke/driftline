@@ -43,6 +43,17 @@ if { command -v rg >/dev/null 2>&1 \
   exit 1
 fi
 
+# The source-registry "Check now" action is the production monitor lane. The
+# repeatable synthetic replay remains available through the public/top demo
+# path, but operator checks must compare the tenant's append-only ledger.
+if { command -v rg >/dev/null 2>&1 \
+      && ! rg -q 'return runScan\(sourceId, "monitor"\)' frontend/src/App.jsx; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && ! grep -Eq 'return runScan\(sourceId, "monitor"\)' frontend/src/App.jsx; }; then
+  printf 'Monitor action contract is incomplete: source Check now is not routed to the monitor lane.\n' >&2
+  exit 1
+fi
+
 # Change Memory is a tenant-sensitive view. It must forward the in-memory
 # operator session so a signed operator never falls back to the anonymous
 # evaluation ledger after signing in or switching tenants.
