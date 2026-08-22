@@ -76,8 +76,8 @@ month. It is synthetic and visibly labelled as such. The console also exposes
 the append-only source ledger, recurring change memory, a bounded Gemini vision
 before/after pair, owner-action telemetry, and deployment health.
 
-The release includes a deterministic trace-to-eval quality gate. It checks five
-critical safety invariants and four usefulness invariants against the bounded
+The release includes a deterministic trace-to-eval quality gate. It checks six
+critical safety invariants and five usefulness invariants against the bounded
 workflow/ADK trace, fails closed on safety or score regressions, and persists a
 redacted live report with release identity and trend. This proves the control
 plane can get safer and more useful over time without pretending that synthetic
@@ -122,14 +122,20 @@ URLs only. It rejects redirects, query credentials, private addresses, and
 unbounded bodies. Competitor content is an observed signal, not verified
 product truth.
 
+Signed tenant operators can pause a registered source with a bounded reason and
+resume it later without deleting its append-only history. The lifecycle event
+is tenant-scoped and audited, the scheduler skips paused sources, and the
+anonymous five-fixture judge lane remains immutable. This control is deployed;
+its final live proof requires an operator Google identity in the browser.
+
 ## Verified release evidence
 
 The current serving release is source commit
-`63fa261c2ee75c77429d6c5785a0aeb8f9959207`, Cloud Build
-`dfec4a83-bf2f-451b-a988-72ebf910ed24`, and Cloud Run revision
-`driftline-00179-vhq` at 100% traffic in project `driftline-hackathon-2026`.
+`832c34e9650272d5af2f19bb3f5888fb151ea240`, Cloud Build
+`6e8ddca3-a1c5-4425-be48-1601054cf7be`, and Cloud Run revision
+`driftline-00180-mkf` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:e9bb4e1e577ef8c5557a1202ced5bf895cbe6f6bc549950bad15b1c9a71687e2`.
+`sha256:105598457463cda8305a33bfbaab758a0588364abfe4e8820755e078db99751d`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -142,19 +148,19 @@ across page reloads; the callback metadata and tenant-scoped secret pointer are
 durable as well, but no Salesforce object totals or successful CRM read are
 claimed until fresh consent succeeds.
 
-- Local gate for the current source: 277 backend tests passed, the focused
+- Local gate for the current source: 281 backend tests passed, the focused
   Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32556235741` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32557016250` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-923ce65116de` / workflow
-  `1db67778-31d9-460e-950b-e8ddff188270` returned `needs_approval`,
+- Live agent check: fresh job `job-534c274a6975` / workflow
+  `e8b2ba16-8af6-4290-b496-3285f716f0f0` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -171,9 +177,9 @@ claimed until fresh consent succeeds.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-f4263a8e1140` passed the
+- Trace-to-eval check: live evaluation `eval-4fdb15b49e5c` passed the
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
-  remaining `stable` against prior evaluation `eval-ecacc67253c4` with no case
+  remaining `stable` against prior evaluation `eval-f4263a8e1140` with no case
   regressions; the report
   is redacted telemetry and explicitly does not claim customer outcomes.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was

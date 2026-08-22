@@ -53,6 +53,15 @@ scan automatically.
 Every scheduled monitor job also carries the exact registered source ID through
 the durable job record, ADK turn, and append-only observation ledger.
 
+Signed tenant operators can also pause and resume a registered source without
+deleting its history. The lifecycle route requires a bounded reason, writes the
+durable source state before returning, appends `source_paused` or
+`source_resumed` audit metadata, and makes the scheduler skip paused sources.
+The anonymous fixture lane remains immutable and continues to expose exactly
+five public sources. The browser shows the pause reason and disables **Run
+scan** while a custom source is paused; a fresh Google-OIDC identity is still
+required for the live operator proof.
+
 ## Why it is agentic
 
 Driftline is a complete resumable workflow rather than a chat interface:
@@ -533,13 +542,13 @@ it never falls back to the default Compute service account. The checked-in
 trees, generated bundles, and screenshots from the uploaded build context.
 
 The current serving release is source commit
-`63fa261c2ee75c77429d6c5785a0aeb8f9959207`, Cloud Build
-`dfec4a83-bf2f-451b-a988-72ebf910ed24`, and Cloud Run revision
-`driftline-00179-vhq` at 100% traffic. Its immutable image digest is recorded
+`832c34e9650272d5af2f19bb3f5888fb151ea240`, Cloud Build
+`6e8ddca3-a1c5-4425-be48-1601054cf7be`, and Cloud Run revision
+`driftline-00180-mkf` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32556235741` passed the repository gates, including the
+GitHub Actions run `32557016250` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -558,8 +567,8 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates eleven independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-f4263a8e1140` is stable against
-`eval-ecacc67253c4` with zero score deltas and no case regressions; it is
+latest live report `eval-4fdb15b49e5c` is stable against
+`eval-f4263a8e1140` with zero score deltas and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
 Direct live proofs on this exact revision verified Google ADK + Gemini 3.5
@@ -598,8 +607,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-923ce65116de` / `1db67778-31d9-460e-950b-e8ddff188270` for the live agent
-and `job-52e4bc4c233c` / `1257bd30-ff80-4b57-b88c-512e6ca46950` for the paired
+`job-534c274a6975` / `e8b2ba16-8af6-4290-b496-3285f716f0f0` for the live agent
+and `job-43fe16fd77c4` / `784cc5a8-2d88-4d87-8353-d9a5d351cf3d` for the paired
 approval/undo run. Both returned a passing trace evaluation;
 the approval/undo path persisted and reversed the packet with no external
 connector write.

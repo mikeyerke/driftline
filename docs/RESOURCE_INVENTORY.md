@@ -12,27 +12,27 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T06:11Z` with the active gcloud project set to
+Checked `2026-08-22T06:36Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00179-vhq` at 100% traffic. Its immutable serving image is
-  `sha256:e9bb4e1e577ef8c5557a1202ced5bf895cbe6f6bc549950bad15b1c9a71687e2`.
-- Source commit `63fa261c2ee75c77429d6c5785a0aeb8f9959207` was built by Cloud
-  Build `dfec4a83-bf2f-451b-a988-72ebf910ed24`; GitHub Actions run
-  `32556235741` passed the repository gates.
+  `driftline-00180-mkf` at 100% traffic. Its immutable serving image is
+  `sha256:105598457463cda8305a33bfbaab758a0588364abfe4e8820755e078db99751d`.
+- Source commit `832c34e9650272d5af2f19bb3f5888fb151ea240` was built by Cloud
+  Build `6e8ddca3-a1c5-4425-be48-1601054cf7be`; GitHub Actions run
+  `32557016250` passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `63fa261c2ee75c77429d6c5785a0aeb8f9959207`, and build ID
-  `dfec4a83-bf2f-451b-a988-72ebf910ed24`; `/api/auth/config`
+  `832c34e9650272d5af2f19bb3f5888fb151ea240`, and build ID
+  `6e8ddca3-a1c5-4425-be48-1601054cf7be`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-f4263a8e1140` with a passing
+- `/api/evals/latest` reports evaluation `eval-4fdb15b49e5c` with a passing
   `trace-eval-v1` gate, 100% safety, 100% usefulness, 100% overall, and a
-  `stable` trend against `eval-ecacc67253c4` (all deltas `0.0` and no case
+  `stable` trend against `eval-f4263a8e1140` (all deltas `0.0` and no case
   regressions). Trace data is
   redacted and `customer_outcome=false`; this is evaluator telemetry, not
   customer ROI evidence.
@@ -62,13 +62,15 @@ Checked `2026-08-22T06:11Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-923ce65116de` / workflow `1db67778-31d9-460e-950b-e8ddff188270` at
+  `job-534c274a6975` / workflow `e8b2ba16-8af6-4290-b496-3285f716f0f0` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
-  and a passing trace evaluation. The paired approval/undo run used that
-  workflow, persisted the packet, reversed the operational output, and recorded
+  and a passing trace evaluation. The paired approval/undo verifier separately
+  created job `job-43fe16fd77c4` / workflow
+  `784cc5a8-2d88-4d87-8353-d9a5d351cf3d`, persisted the packet, reversed the
+  operational output, and recorded
   `external_write=false` / `external_systems_changed=false`; its verifier run
-  was job `job-52e4bc4c233c` / workflow `1257bd30-ff80-4b57-b88c-512e6ca46950`.
+  is that same job/workflow pair.
 - A logged-out 500px browser check exercised every sidebar target after the
   deferred panels mounted. Overview, Sources, Workflows, Approvals, Activity,
   and Settings each landed in view; the DOM had one `settings-section`, one
@@ -91,6 +93,33 @@ Checked `2026-08-22T06:11Z` with the active gcloud project set to
   query cleanup. This is retained as historical scheduler evidence; the
   current-state authority is the new revision and the production verifier
   result above.
+
+## 2026-08-22 audited source lifecycle release (current)
+
+- Commit `832c34e9650272d5af2f19bb3f5888fb151ea240` is serving in Cloud Run
+  revision `driftline-00180-mkf` at 100% traffic. The release adds the
+  tenant-scoped `POST /api/operator/sources/{source_id}/lifecycle` route and
+  the signed operator UI for pausing or resuming an exact registered public
+  source.
+- A pause requires a bounded reason. The durable source state is written before
+  the API returns; the route then appends `source_paused` or `source_resumed`
+  metadata to the tenant audit ledger. If audit persistence fails, the source
+  state is rolled back and the route returns 503 rather than retaining an
+  unaudited transition.
+- Paused sources remain visible to signed operators with their history and
+  reason, but the scheduler excludes them, the monitor registry reports
+  `status=paused`, and the browser disables **Run scan**. Built-in public
+  fixtures cannot be paused. Anonymous requests still see exactly five active
+  fixtures.
+- Local proof: 281 backend tests, Ruff, frontend production build, frontend
+  literal-ID contract, and `git diff --check` passed before deployment. CI run
+  `32557016250` and Cloud Build `6e8ddca3-a1c5-4425-be48-1601054cf7be` also
+  passed.
+- The code path is deployed and covered by local signed-route tests. A final
+  live Firestore lifecycle proof is intentionally not claimed yet: the browser
+  lane is waiting at Google's identity screen for the operator to select the
+  already-authenticated account. No credential was entered or handled by the
+  release automation.
 
 ## 2026-08-21 Salesforce reauthorization recovery release (historical serving revision)
 
