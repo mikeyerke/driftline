@@ -472,6 +472,14 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
 def test_public_telemetry_uses_recent_bounded_window_without_hiding_history(monkeypatch) -> None:
     monkeypatch.setattr(api, "PUBLIC_METRIC_WINDOW", 1)
     monkeypatch.setattr(api, "_reserve_demo_mutation", lambda *_args: True)
+    monkeypatch.setattr(
+        api,
+        "source_registry_health",
+        lambda **_kwargs: [
+            {"status": "healthy", "observation_count": 3},
+            {"status": "healthy", "observation_count": 2},
+        ],
+    )
 
     original_runs = dict(api.workflow_store._runs)
     try:
@@ -487,6 +495,8 @@ def test_public_telemetry_uses_recent_bounded_window_without_hiding_history(monk
             "append_only_history": True,
         }
         assert value["observed"]["workflows"] <= 1
+        assert value["observed"]["source_observations"] == 1
+        assert value["observed"]["source_observation_window"] == value["telemetry_window"]
 
         memory = client.get("/api/memory/summary?limit=50").json()
         assert memory["history_window"] == value["telemetry_window"]

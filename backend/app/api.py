@@ -4634,6 +4634,14 @@ def get_value_proof(
     source_health = source_registry_health(
         tenant_id=identity.get("tenant_id") if identity else None
     )
+    source_observation_total = sum(
+        int(item.get("observation_count", 0)) for item in source_health
+    )
+    source_observations = (
+        source_observation_total
+        if identity is not None
+        else min(metric_limit, source_observation_total)
+    )
     change_cards = [state.change_card for state in workflows if state.change_card]
     materiality_cards = [card.get("materiality") or {} for card in change_cards]
     closure_cards = [card.get("closure") or {} for card in change_cards]
@@ -4738,9 +4746,11 @@ def get_value_proof(
             "healthy_sources": sum(
                 item.get("status") == "healthy" for item in source_health
             ),
-            "source_observations": sum(
-                int(item.get("observation_count", 0)) for item in source_health
-            ),
+            # Anonymous source throughput uses the same recent bounded window
+            # as workflows/jobs. The append-only source ledger remains intact;
+            # signed tenant views retain their requested aggregate bound.
+            "source_observations": source_observations,
+            "source_observation_window": _metric_window(identity, metric_limit),
             "approval_latency_seconds": {
                 "sample_count": len(approval_latencies),
                 "p50": p50_latency,
