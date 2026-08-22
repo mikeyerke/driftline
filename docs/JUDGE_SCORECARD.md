@@ -31,11 +31,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-7805da9f61c7`, workflow
-  `c8c5b957-7d06-450e-9af6-8f18fc0c47d8`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-aafdfe5bf8c6`, workflow
+  `f14f7e58-99f4-4600-8b3a-f6aafa98e9e0`, five audit events, four artifacts,
   two decision options, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-384b04338fb1`,
-  workflow `2518a1a8-b99a-44bf-bff5-87c5141f7b93`; the packet persisted and
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-020b2051e844`,
+  workflow `3f505405-9a7e-44a3-afe2-29db425bdce5`; the packet persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
@@ -108,7 +108,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 ### Live evidence
 
 - 264 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32540668921`; the frozen
+  and repository hygiene pass in GitHub Actions run `32540856937`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).

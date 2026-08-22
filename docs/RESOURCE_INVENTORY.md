@@ -12,14 +12,14 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T00:35Z` with the active gcloud project set to
+Checked `2026-08-22T00:38Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
   `driftline-00156-k4k` at 100% traffic. Its immutable serving image is
   `sha256:2e2fd930a57591c99f99d2e084bd6e6dcd7dc923d778c97357596760b89372d1`.
 - Source commit `6215311` was built by Cloud Build
-  `ddbb1aea-fa8c-4618-bda4-bba1468f852c`; GitHub Actions run `32540668921`
+  `ddbb1aea-fa8c-4618-bda4-bba1468f852c`; GitHub Actions run `32540856937`
   passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
@@ -67,11 +67,11 @@ Checked `2026-08-22T00:35Z` with the active gcloud project set to
 - `scripts/verify_production.sh` passed on revision `driftline-00156-k4k`
   with `Recent Cloud Run errors: 0`.
 - Fresh live-agent proof on this revision returned job
-  `job-7805da9f61c7` / workflow `c8c5b957-7d06-450e-9af6-8f18fc0c47d8`,
+  `job-aafdfe5bf8c6` / workflow `f14f7e58-99f4-4600-8b3a-f6aafa98e9e0`,
   `needs_approval`, public-source mode, Gemini 3.5 Flash through Google ADK,
   two allowlisted tools, four artifacts, five audit events, and two decision
-  options. Approval/undo proof returned job `job-384b04338fb1` / workflow
-  `2518a1a8-b99a-44bf-bff5-87c5141f7b93`, persisted the packet, reversed the
+  options. Approval/undo proof returned job `job-020b2051e844` / workflow
+  `3f505405-9a7e-44a3-afe2-29db425bdce5`, persisted the packet, reversed the
   operational output, and recorded `external_write=false` and
   `external_systems_changed=false`.
 

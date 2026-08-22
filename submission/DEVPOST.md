@@ -133,14 +133,14 @@ read are claimed until fresh consent succeeds.
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32540668921` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32540856937` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-7805da9f61c7` / workflow
-  `c8c5b957-7d06-450e-9af6-8f18fc0c47d8` returned `needs_approval`,
+- Live agent check: fresh job `job-aafdfe5bf8c6` / workflow
+  `f14f7e58-99f4-4600-8b3a-f6aafa98e9e0` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -152,8 +152,8 @@ read are claimed until fresh consent succeeds.
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-384b04338fb1` / workflow
-  `2518a1a8-b99a-44bf-bff5-87c5141f7b93` persisted the packet, reversed the
+- Approval/undo check: fresh job `job-020b2051e844` / workflow
+  `3f505405-9a7e-44a3-afe2-29db425bdce5` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was
