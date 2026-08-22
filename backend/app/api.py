@@ -5160,7 +5160,7 @@ def download_pilot_packet(
         f"- Workflows observed: {_pilot_packet_value(observed.get('workflows'), fallback='0')}",
         f"- Source observations: {_pilot_packet_value(observed.get('source_observations'), fallback='0')}",
         f"- No-op source observations: {_pilot_packet_value(observed.get('source_observations_unchanged'), fallback='0')}",
-        f"- Material source changes: {_pilot_packet_value(observed.get('source_observations_changed'), fallback='0')}",
+        f"- Material ledger changes: {_pilot_packet_value(observed.get('source_observations_changed'), fallback='0')}",
         f"- No-op comparison rate: {_pilot_packet_value(observed.get('source_no_op_comparison_rate'))}",
         f"- Owner actions completed historically: {_pilot_packet_value(observed.get('action_items_completed_historically'), fallback='0')}",
         f"- Approval latency p50 / p90 seconds: {_pilot_packet_value(approval_latency.get('p50'))} / {_pilot_packet_value(approval_latency.get('p90'))}",

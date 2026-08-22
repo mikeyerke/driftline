@@ -127,13 +127,13 @@ export default function PilotMeasurementPanel({ operatorSession }) {
           <div><strong>{workflowCount}</strong><small>workflows</small></div>
           <div><strong>{observed.source_observations || 0}</strong><small>source observations</small></div>
           <div><strong>{observed.source_observations_unchanged || 0}</strong><small>no-op observations</small></div>
-          <div><strong>{observed.source_observations_changed || 0}</strong><small>material changes</small></div>
+          <div><strong>{observed.source_observations_changed || 0}</strong><small>material ledger changes</small></div>
           <div><strong>{formatPercent(observed.source_no_op_comparison_rate)}</strong><small>no-op comparison rate</small></div>
           <div><strong>{completedActions}</strong><small>historical closures</small></div>
           <div><strong>{formatSeconds(ownerActionCycle.p50)}</strong><small>owner cycle p50</small></div>
           <div><strong>{formatSeconds(approvalLatency.p90)}</strong><small>approval p90</small></div>
         </div>
-        <p>Bounded telemetry from this tenant’s Driftline workflows only. It does not establish customer ROI, revenue lift, retention, or willingness to pay.</p>
+        <p>Bounded telemetry from this tenant’s Driftline workflows only. Demo replays are repeatable and do not mutate the source ledger; these counts are recorded monitor comparisons, not customer proof.</p>
       </div>
       <div className="pilot-actions">
         <button className="secondary compact pilot-toggle" type="button" onClick={() => { setOpen((current) => !current); setMessage(""); setError(""); }}><Plus size={14} />{open ? "Close measurement form" : "Record a measurement"}</button>

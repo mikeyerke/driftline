@@ -821,7 +821,7 @@ def test_pilot_packet_is_aggregate_only(monkeypatch) -> None:
     assert "pilot-tenant" not in body
     assert "Workflows observed: 3" in body
     assert "No-op source observations: 5" in body
-    assert "Material source changes: 3" in body
+    assert "Material ledger changes: 3" in body
     assert "No-op comparison rate: 0.625" in body
     assert "Owner-action cycle p50 / p90 seconds: 3.7 / 4.1" in body
     assert "not customer proof" in body

@@ -63,7 +63,7 @@ export default function ValueProofPanel({ operatorSession }) {
             <dl>
               <div><dt>{telemetryWindow?.scope === "public_recent_evaluation_window" ? "Recent source observations" : "Source observations"}</dt><dd>{metric(observed.source_observations)}</dd></div>
               <div><dt>No-op observations</dt><dd>{metric(observed.source_observations_unchanged)}</dd></div>
-              <div><dt>Material source changes</dt><dd>{metric(observed.source_observations_changed)}</dd></div>
+              <div><dt>Material ledger changes</dt><dd>{metric(observed.source_observations_changed)}</dd></div>
               <div><dt>No-op comparison rate</dt><dd>{observed.source_no_op_comparison_rate === null || observed.source_no_op_comparison_rate === undefined ? "—" : `${Math.round(observed.source_no_op_comparison_rate * 100)}%`}</dd></div>
               <div><dt>Healthy sources</dt><dd>{metric(observed.healthy_sources)}</dd></div>
               <div><dt>Owner action completion (current)</dt><dd>{observed.action_item_completion_rate === null || observed.action_item_completion_rate === undefined ? "—" : `${Math.round(observed.action_item_completion_rate * 100)}%`}</dd></div>
@@ -90,7 +90,7 @@ export default function ValueProofPanel({ operatorSession }) {
           </div>
           <p>{metric(observed.tenant_scoped_workflows, " tenant-scoped")} · {metric(observed.tenantless_workflows, " tenantless")} workflow records visible in this scope.</p>
         </div>
-        <p className="value-proof-note">{proof.interpretation || "Counts are direct records from the isolated Driftline deployment."} This public panel is anonymous and intentionally excludes tenant-scoped customer records; signed tenant operators use the tenant-filtered API lane.</p>
+        <p className="value-proof-note">{proof.interpretation || "Counts are direct records from the isolated Driftline deployment."} Demo replays are repeatable and intentionally do not mutate the monitor ledger; the ledger metrics above count only recorded source comparisons. This public panel is anonymous and intentionally excludes tenant-scoped customer records; signed tenant operators use the tenant-filtered API lane.</p>
       </>}
       {nearViewport && !loading && !proof && <p className="empty-state">Value proof is unavailable; source evidence and workflow audit remain available.</p>}
     </section>

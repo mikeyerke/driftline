@@ -86,9 +86,10 @@ artifact reference in the measurement ledger. The packet also includes a
 separate **Driftline operational telemetry (not customer proof)** section with
 bounded workflow count, source observations, historical owner-action closures,
 approval latency, owner-action cycle time, and the ratio of repeated no-op
-observations to material source changes. The no-op signal shows whether a
-monitor is filtering repeated snapshots instead of manufacturing work. Those
-values make the pilot review operationally useful while remaining explicitly
+observations to material ledger changes. Repeatable demo replays are
+intentionally packet-safe and do not mutate this ledger; the no-op signal shows
+whether a monitor is filtering repeated snapshots instead of manufacturing
+work. Those values make the pilot review operationally useful while remaining explicitly
 distinct from customer time saved, revenue lift, retention, or willingness-to-
 pay evidence.
 
