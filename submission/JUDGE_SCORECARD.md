@@ -6,13 +6,12 @@ activity is labeled as evaluation telemetry, and no customer ROI is claimed.
 
 Official brief: [All Things Agentic Hackathon](https://allthingsagentichackathon.devpost.com/)
 
-Current release proof (2026-08-22): commit
-`be08c711e4ddb321650867cb33e2125e06c46cd0` serves Cloud Run revision
-`driftline-00260-hv4` from Cloud Build
-`c90da80e-6f2a-4512-bf72-1752132024a9`. Fresh live-agent and approval/undo
-checks passed; see [`docs/RESOURCE_INVENTORY.md`](../docs/RESOURCE_INVENTORY.md)
-for exact run IDs and the explicit Salesforce, pilot, and bounded-monitoring
-limitations. Re-run the repository scripts before submission.
+Current release proof (2026-08-22): the runtime-code proof passed fresh
+live-agent and approval/undo checks through Google ADK + Gemini 3.5 Flash.
+Read the exact serving SHA/build and fresh run IDs from `/health` and the
+repository scripts; see [`docs/RESOURCE_INVENTORY.md`](../docs/RESOURCE_INVENTORY.md)
+for the explicit Salesforce, pilot, and bounded-monitoring limitations. Re-run
+the repository scripts before submission.
 
 ## 40% — Innovation & operational utility
 

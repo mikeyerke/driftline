@@ -674,19 +674,17 @@ starts, so a public packet cannot appear as tenant work.
 The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
-The latest exact proof refresh on serving commit
-`be08c711e4ddb321650867cb33e2125e06c46cd0` used
-`job-70e6890461b6` / `6c571bf2-f514-494f-b2d4-a424df793467` for the live agent
-and `job-61a2e701d0ba` / `f9114cd2-817e-4a0b-a897-b105ad5a1f3a` for the paired
-approval/undo run. The approval/undo path persisted the packet, approved and
-completed one owner action, then reversed the operational output with
-`external_write=false` and `external_systems_changed=false`. The current
-bounded value proof reports 12 source observations, 11 workflows, five
-historical owner-action completions, and current completion intentionally
-`0%` after undo. These are deployment records, not customer ROI claims. The
-prior job/workflow identifiers remain in the append-only inventory as
-historical evidence. After **Reopen decision**, the console keeps the reversed
-owner-action queue visible with an explicit append-only history explanation.
+The verifier scripts emit fresh job, workflow, evaluation, SHA, and build IDs
+on every run; `/health` and `./scripts/verify_production.sh` are the current
+serving-state authority rather than copied identifiers. The latest runtime
+code proof (commit `be08c711e4ddb321650867cb33e2125e06c46cd0`) persisted the
+packet, approved and completed one owner action, then reversed the operational
+output with `external_write=false` and `external_systems_changed=false`. The
+bounded value proof at that point reported 12 source observations, 11
+workflows, five historical owner-action completions, and current completion
+intentionally `0%` after undo. These are deployment records, not customer ROI
+claims. After **Reopen decision**, the console keeps the reversed owner-action
+queue visible with an explicit append-only history explanation.
 `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were

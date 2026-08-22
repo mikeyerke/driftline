@@ -22,20 +22,14 @@ the current serving-state authority:
 
 ### Current exact proof — 2026-08-22
 
-The active project was rechecked as `driftline-hackathon-2026` immediately
-before the current release. Cloud Build `c90da80e-6f2a-4512-bf72-1752132024a9`
-deployed commit `be08c711e4ddb321650867cb33e2125e06c46cd0` to revision
-`driftline-00260-hv4` at 100% traffic. `/health` reports Firestore, async jobs,
-the same full release SHA, and the same build ID. GitHub Actions run
-`32601960196` passed. The deployed live-agent verifier recorded job
-`job-70e6890461b6` / workflow `6c571bf2-f514-494f-b2d4-a424df793467` with
-Gemini 3.5 Flash through Google ADK, two allowlisted tools, four artifacts,
-five audit events, two decision options, and trace evaluation
-`eval-546c9db297b2` at 100% safety/usefulness/overall with a stable trend.
-The paired approval/undo verifier recorded job `job-61a2e701d0ba` / workflow
-`f9114cd2-817e-4a0b-a897-b105ad5a1f3a`; packet persistence, owner completion,
-reversal, `external_write=false`, and `external_systems_changed=false` all
-passed.
+The active project was rechecked as `driftline-hackathon-2026` before the
+runtime-code proof. Commit `be08c711e4ddb321650867cb33e2125e06c46cd0` passed
+the live-agent and approval/undo verifiers with Gemini 3.5 Flash through Google
+ADK, two allowlisted tools, four artifacts, five audit events, two decision
+options, a passing stable trace-eval gate, packet persistence, owner completion,
+reversal, `external_write=false`, and `external_systems_changed=false`. The
+scripts print fresh job/workflow/evaluation IDs; `/health` prints the exact
+serving SHA/build and is the authority after later docs-only releases.
 
 The exact release was exercised in a logged-out browser: source evidence modal,
 interactive map focus/evidence path, approval, and undo all worked; source
