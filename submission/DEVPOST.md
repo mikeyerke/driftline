@@ -116,11 +116,16 @@ product truth.
 
 ## Verified release evidence
 
-The current serving release is source commit `6215311`, Cloud Build
-`ddbb1aea-fa8c-4618-bda4-bba1468f852c`, and Cloud Run revision
-`driftline-00156-k4k` at 100% traffic in project `driftline-hackathon-2026`.
+The current serving release is source commit
+`1868e2f63e14dd290a54cd24bd2c6711e756dfd5`, Cloud Build
+`a95212e2-28e8-4195-9a0d-5e5f760a513e`, and Cloud Run revision
+`driftline-00157-zcm` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:2e2fd930a57591c99f99d2e084bd6e6dcd7dc923d778c97357596760b89372d1`.
+`sha256:8bf4759c528f000a1637d1bad6bd85ee1139f4ae81da2e5dfab57411ee54415e`.
+
+The public `/health` probe reports the same full source SHA and Cloud Build ID,
+so the serving revision is independently traceable to the reviewed repository
+commit.
 
 The current release includes the visible Salesforce reauthorization recovery
 control and an explicit `reauthorization_required` health response when a
@@ -128,19 +133,19 @@ stored refresh token is rejected. The callback metadata and tenant-scoped
 secret pointer are durable, but no Salesforce object totals or successful CRM
 read are claimed until fresh consent succeeds.
 
-- Local gate for the current source: 264 backend tests passed, the focused
+- Local gate for the current source: 265 backend tests passed, the focused
   Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
   production build passed. The current serving image was built from the
   already-verified application code; the additional local tests protect the
   tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32541414000` passed the backend suite, Ruff, frozen
+- CI: GitHub Actions run `32541994859` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-aafdfe5bf8c6` / workflow
-  `f14f7e58-99f4-4600-8b3a-f6aafa98e9e0` returned `needs_approval`,
+- Live agent check: fresh job `job-6794ff30f254` / workflow
+  `7bac4743-4651-48e4-a5fb-deb9f5a6f7af` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -152,8 +157,8 @@ read are claimed until fresh consent succeeds.
   The undo response persisted action record
   `action-63355af11e1c35cb5150` as `reversed`; Jira, Confluence, and Slack
   all returned `external_write=false` in the public packet-safe lane.
-- Approval/undo check: fresh job `job-020b2051e844` / workflow
-  `3f505405-9a7e-44a3-afe2-29db425bdce5` persisted the packet, reversed the
+- Approval/undo check: fresh job `job-2c844100a597` / workflow
+  `4f146c18-f8a1-4222-ba8b-e70c480e47bf` persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was

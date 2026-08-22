@@ -12,20 +12,22 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T00:44Z` with the active gcloud project set to
+Checked `2026-08-22T01:03Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00156-k4k` at 100% traffic. Its immutable serving image is
-  `sha256:2e2fd930a57591c99f99d2e084bd6e6dcd7dc923d778c97357596760b89372d1`.
-- Source commit `6215311` was built by Cloud Build
-  `ddbb1aea-fa8c-4618-bda4-bba1468f852c`; GitHub Actions run `32541414000`
-  passed the repository gates.
+  `driftline-00157-zcm` at 100% traffic. Its immutable serving image is
+  `sha256:8bf4759c528f000a1637d1bad6bd85ee1139f4ae81da2e5dfab57411ee54415e`.
+- Source commit `1868e2f63e14dd290a54cd24bd2c6711e756dfd5` was built by Cloud
+  Build `a95212e2-28e8-4195-9a0d-5e5f760a513e`; GitHub Actions run
+  `32541994859` passed the repository gates.
 - The repository's frozen backend dependency export passed `pip-audit` with
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
-- `/health` reports Firestore persistence and async jobs; `/api/auth/config`
+- `/health` reports Firestore persistence, async jobs, release SHA
+  `1868e2f63e14dd290a54cd24bd2c6711e756dfd5`, and build ID
+  `a95212e2-28e8-4195-9a0d-5e5f760a513e`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
 - The live production verifier also checks `Cache-Control: no-store` and the
@@ -51,12 +53,20 @@ Checked `2026-08-22T00:44Z` with the active gcloud project set to
   workflow `75da1f00-e657-4ba3-bba6-80c298b747be` in `needs_approval`, with
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
+- Fresh public proof on this serving revision returned live-agent job
+  `job-6794ff30f254` / workflow `7bac4743-4651-48e4-a5fb-deb9f5a6f7af` at
+  `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
+  allowlisted tools, four artifacts, five audit events, and two decision
+  options. A separate approval/undo run returned job `job-2c844100a597` /
+  workflow `4f146c18-f8a1-4222-ba8b-e70c480e47bf`, persisted the packet,
+  reversed the operational output, and recorded
+  `external_write=false` / `external_systems_changed=false`.
 - Entries below are append-only release evidence. Some refer to earlier
   service lifecycles and are not claims about the currently serving revision;
   direct `gcloud run services describe` output above is the current-state
   authority.
 
-## 2026-08-21 Salesforce reauthorization recovery release (current serving revision)
+## 2026-08-21 Salesforce reauthorization recovery release (historical serving revision)
 
 - Source commit `6215311` deployed successfully through Cloud Build
   `ddbb1aea-fa8c-4618-bda4-bba1468f852c` (`SUCCESS`) as revision

@@ -4,8 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `6215311`, Cloud Run `driftline-00156-k4k`, Cloud Build
-`ddbb1aea-fa8c-4618-bda4-bba1468f852c`, project
+Current release: source `1868e2f63e14dd290a54cd24bd2c6711e756dfd5`, Cloud Run
+`driftline-00157-zcm`, Cloud Build
+`a95212e2-28e8-4195-9a0d-5e5f760a513e`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -31,11 +32,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   surface -> handoff stages, directional node focus, readable sibling dimming,
   bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
   the viewport width.
-- `scripts/verify_live_agent.sh`: fresh job `job-aafdfe5bf8c6`, workflow
-  `f14f7e58-99f4-4600-8b3a-f6aafa98e9e0`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-6794ff30f254`, workflow
+  `7bac4743-4651-48e4-a5fb-deb9f5a6f7af`, five audit events, four artifacts,
   two decision options, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-020b2051e844`,
-  workflow `3f505405-9a7e-44a3-afe2-29db425bdce5`; the packet persisted and
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-2c844100a597`,
+  workflow `4f146c18-f8a1-4222-ba8b-e70c480e47bf`; the packet persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot
@@ -86,7 +87,9 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
   membership, and the no-project-wide-secret-reader boundary all pass.
 - Current immutable image digest:
-  `sha256:2e2fd930a57591c99f99d2e084bd6e6dcd7dc923d778c97357596760b89372d1`.
+  `sha256:8bf4759c528f000a1637d1bad6bd85ee1139f4ae81da2e5dfab57411ee54415e`.
+- Public `/health` reports the same full release SHA as the source commit and
+  the Cloud Build ID, making the serving revision independently traceable.
 - Signed isolated connector probes are documented in
   [`RESOURCE_INVENTORY.md`](RESOURCE_INVENTORY.md); the anonymous lane remains
   packet-only by design. Salesforce has a durable read-only OAuth callback
@@ -113,8 +116,8 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
 
 ### Live evidence
 
-- 264 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32541414000`; the frozen
+- 265 backend tests, Ruff, frontend production build, standalone image build,
+  and repository hygiene pass in GitHub Actions run `32541994859`; the frozen
   dependency export separately passes `pip-audit` with no known vulnerabilities.
 - Desktop and mobile Lighthouse navigation both score 100 for accessibility,
   best practices, SEO, and agentic browsing (53/53 checks, zero failures).
