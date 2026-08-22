@@ -19,6 +19,11 @@ provisions a tenant-scoped OAuth client and secret.
 - OAuth callback verification gate: Driftline executes the aggregate probe with
   the short-lived access token before it stores the refresh token or activates
   the tenant binding. A callback cannot claim “connected” when the read fails.
+- The signed internal-context lane and console use the same complete-object
+  predicate as the callback. A stale binding or a partial diagnostic may be
+  visible for repair, but it is labelled `probe required` and remains
+  `aggregate_read_verified=false` / `external_read=false` until all three
+  objects are present in one successful probe.
 - Firestore connection metadata without bearer or refresh tokens.
 - Explicit disconnect metadata path; Salesforce app revocation remains an
   operator offboarding step.

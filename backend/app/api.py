@@ -2186,18 +2186,25 @@ def _safe_salesforce_health_failures(value: object) -> list[dict[str, str]]:
     )
 
 
+def _salesforce_health_objects_complete(value: object) -> bool:
+    """Return whether every allowlisted CRM object produced an aggregate read."""
+    objects = _safe_salesforce_health_objects(value)
+    return bool(
+        len(objects) == len(_SALESFORCE_OBJECT_ALLOWLIST)
+        and {str(item["object"]) for item in objects}
+        == set(_SALESFORCE_OBJECT_ALLOWLIST)
+    )
+
+
 def _salesforce_aggregate_read_is_complete(
     connection: dict[str, object], connected: bool, persisted_health: str
 ) -> bool:
     """Require the full bounded object allowlist before displaying proof."""
-    objects = _safe_salesforce_health_objects(connection.get("health_objects"))
     return bool(
         connected
         and persisted_health == "connected_read_only"
         and connection.get("health_checked_at")
-        and len(objects) == len(_SALESFORCE_OBJECT_ALLOWLIST)
-        and {str(item["object"]) for item in objects}
-        == set(_SALESFORCE_OBJECT_ALLOWLIST)
+        and _salesforce_health_objects_complete(connection.get("health_objects"))
     )
 
 
@@ -2297,13 +2304,23 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
             instance_url=str(connection["instance_url"]),
         )
         health = client.health_summary()
+        health_objects = _safe_salesforce_health_objects(health.get("objects"))
+        health_failures = _safe_salesforce_health_failures(health.get("failed_objects"))
+        aggregate_read_verified = bool(
+            health.get("status") == "connected_read_only"
+            and _salesforce_health_objects_complete(health_objects)
+        )
         summary = {
             **health,
             "scope": "read_only_crm",
             # A partial probe is useful diagnostics, not verified context.
             # Keep it out of the Change Card and model prompt until every
             # allowlisted object succeeds.
-            "external_read": health.get("status") == "connected_read_only",
+            "external_read": aggregate_read_verified,
+            "aggregate_read_verified": aggregate_read_verified,
+            "aggregate_read_status": "verified" if aggregate_read_verified else "unverified",
+            "aggregate_read_objects": health_objects,
+            "aggregate_read_failures": health_failures,
             "redaction": "aggregate_metadata_only",
         }
         _record_salesforce_health_status(
@@ -2696,14 +2713,29 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
             instance_url=str(connection["instance_url"]),
         )
         result = client.health_summary()
+        result_objects = _safe_salesforce_health_objects(result.get("objects"))
+        result_failures = _safe_salesforce_health_failures(result.get("failed_objects"))
+        aggregate_read_verified = bool(
+            result.get("status") == "connected_read_only"
+            and _salesforce_health_objects_complete(result_objects)
+        )
         _record_salesforce_health_status(
             tenant_id,
             str(result.get("status", "connected_read_only")),
             reason=result.get("reason"),
-            objects=result.get("objects"),
-            failures=result.get("failed_objects"),
+            objects=result_objects,
+            failures=result_failures,
         )
-        return {"tenant_id": tenant_id, **result}
+        return {
+            "tenant_id": tenant_id,
+            **result,
+            "objects": result_objects,
+            "failed_objects": result_failures,
+            "aggregate_read_verified": aggregate_read_verified,
+            "aggregate_read_status": "verified" if aggregate_read_verified else "unverified",
+            "external_read": aggregate_read_verified,
+            "external_write": False,
+        }
     except (ConnectorError, CredentialBrokerError) as exc:
         # Keep the public response deliberately generic, but preserve the
         # exception class chain in logs so an operator can distinguish an

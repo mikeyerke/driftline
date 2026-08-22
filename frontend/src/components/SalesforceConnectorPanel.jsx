@@ -4,8 +4,10 @@ import { getSalesforceHealth, getSalesforceStatus, startSalesforceConnection } f
 
 const fallbackObjects = ["Product2", "PricebookEntry", "Opportunity"];
 
-function statusCopy(status) {
-  if (status === "connected_read_only") return "Connected · read only";
+function statusCopy(status, aggregateReadVerified = false) {
+  if (status === "connected_read_only") {
+    return aggregateReadVerified ? "Connected · read verified" : "Connected · probe required";
+  }
   if (status === "reauthorization_required") return "Reauthorization required";
   if (status === "setup_incomplete") return "Reconnect to finish setup";
   if (status === "oauth_ready") return "Authorization required";
@@ -108,7 +110,8 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
 
   const signedIn = Boolean(operatorSession?.identityToken);
   const owner = operatorSession?.role === "owner";
-  const connected = status?.status === "connected_read_only";
+  const bindingConnected = status?.status === "connected_read_only";
+  const aggregateReadVerified = Boolean(status?.aggregate_read_verified);
   const objects = status?.allowed_objects || fallbackObjects;
 
   return (
@@ -125,7 +128,7 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
         {!signedIn && <p className="salesforce-note"><AlertCircle size={14} /><strong>No CRM context is available in this public lane.</strong> Sign in with Google above to manage a tenant-scoped, read-only Salesforce connection; the aggregate probe must pass all three allowlisted objects before any CRM context can influence a workflow.</p>}
         {signedIn && <>
           <div className="salesforce-status-row">
-            <span className={connected ? "salesforce-status ready" : "salesforce-status"}>{connected ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}{statusCopy(status?.status)}</span>
+            <span className={aggregateReadVerified ? "salesforce-status ready" : "salesforce-status"}>{aggregateReadVerified ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}{statusCopy(status?.status, aggregateReadVerified)}</span>
             <span className="salesforce-tenant">{operatorSession.tenantId} · {operatorSession.role}</span>
             <button className="secondary compact" type="button" onClick={loadStatus} disabled={loading}><RefreshCw size={13} className={loading ? "spin" : ""} />Refresh</button>
           </div>
@@ -140,7 +143,7 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
             {status.next_step && !status.aggregate_read_verified && <small className="salesforce-next-step">Next step · {status.next_step}</small>}
           </div>}
           {status?.authorization_required && <div className="salesforce-connect-action"><p>{status.status === "reauthorization_required" || status.status === "setup_incomplete" ? "Reconnect Driftline’s read-only Salesforce access. The callback reruns all three aggregate queries before activating the tenant binding; no partial credential is treated as connected." : "Authorize Driftline’s read-only access in Salesforce. The one-time state and PKCE verifier stay server-side; the refresh token is stored only in the tenant Secret Manager namespace."}</p>{status.authorize_url ? <a className="primary salesforce-auth-link" href={status.authorize_url} target="_blank" rel="noreferrer"><ExternalLink size={14} />Continue to Salesforce consent</a> : <button className="primary" type="button" onClick={beginAuthorization} disabled={!owner || authorizing}>{authorizing ? "Preparing…" : status.status === "reauthorization_required" || status.status === "setup_incomplete" ? "Reconnect read-only" : "Prepare Salesforce authorization"}</button>}{!owner && <small>Tenant owner role required to authorize a connector.</small>}</div>}
-          {connected && <div className="salesforce-connect-action"><div className="salesforce-action-row"><button className="secondary" type="button" onClick={runHealth} disabled={loading}>{loading ? <><RefreshCw size={14} className="spin" />Reading…</> : <><ShieldCheck size={14} />Run aggregate read probe</>}</button><button className="text-button" type="button" onClick={beginAuthorization} disabled={authorizing}>{authorizing ? "Preparing…" : "Reauthorize read-only"}</button></div>{health && <div className={`salesforce-health${health.status === "connected_read_only" ? "" : " warning"}`} role="status"><strong>{health.status === "connected_read_only" ? "Read verified" : health.status === "reauthorization_required" ? "Reauthorization required" : "Read unavailable"}</strong>{health.status === "reauthorization_required" && <span>Salesforce rejected the stored refresh token. Use “Reauthorize read-only” to renew consent.</span>}{health.status === "connected_read_only" && health.objects?.map((item) => <span key={item.object}>{item.object}: {item.total}</span>)}{health.status === "failed" && <><span>No CRM context was attached because the full allowlist did not pass.</span>{health.failed_objects?.map((item) => <span key={item.object}>{item.object}: {item.reason}</span>)}</>}</div>}</div>}
+          {bindingConnected && <div className="salesforce-connect-action"><div className="salesforce-action-row"><button className="secondary" type="button" onClick={runHealth} disabled={loading}>{loading ? <><RefreshCw size={14} className="spin" />Reading…</> : <><ShieldCheck size={14} />Run aggregate read probe</>}</button><button className="text-button" type="button" onClick={beginAuthorization} disabled={authorizing}>{authorizing ? "Preparing…" : "Reauthorize read-only"}</button></div>{health && <div className={`salesforce-health${health.aggregate_read_verified ? "" : " warning"}`} role="status"><strong>{health.aggregate_read_verified ? "Read verified" : health.status === "reauthorization_required" ? "Reauthorization required" : "Read unavailable"}</strong>{health.status === "reauthorization_required" && <span>Salesforce rejected the stored refresh token. Use “Reauthorize read-only” to renew consent.</span>}{health.status === "connected_read_only" && health.objects?.map((item) => <span key={item.object}>{item.object}: {item.total}</span>)}{health.status === "failed" && <><span>No CRM context was attached because the full allowlist did not pass.</span>{health.failed_objects?.map((item) => <span key={item.object}>{item.object}: {item.reason}</span>)}</>}</div>}</div>}
         </>}
         {error && <p className="salesforce-error" role="alert"><AlertCircle size={14} />{error}</p>}
       </div>

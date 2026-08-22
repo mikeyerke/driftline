@@ -1540,7 +1540,11 @@ def test_salesforce_context_returns_aggregate_health_only_after_binding(monkeypa
 
     assert payload["status"] == "connected_read_only"
     assert payload["scope"] == "read_only_crm"
-    assert payload["external_read"] is True
+    # A binding is not enough to ground a decision: all three allowlisted
+    # aggregate probes must succeed before CRM context enters the model lane.
+    assert payload["external_read"] is False
+    assert payload["aggregate_read_verified"] is False
+    assert payload["aggregate_read_status"] == "unverified"
     assert payload["redaction"] == "aggregate_metadata_only"
     assert payload["objects"][0]["total"] == 3
     assert "refresh-token" not in str(payload)
@@ -1652,6 +1656,8 @@ def test_salesforce_context_reads_refresh_token_through_tenant_identity(monkeypa
     payload = api._salesforce_context_info("salesforce-acme")
 
     assert payload["status"] == "connected_read_only"
+    assert payload["external_read"] is False
+    assert payload["aggregate_read_verified"] is False
 
 
 def test_salesforce_context_surfaces_reauthorization_required(monkeypatch) -> None:
@@ -1741,6 +1747,67 @@ def test_salesforce_health_returns_reauthorization_state(monkeypatch) -> None:
     assert payload["external_read"] is False
     assert payload["external_write"] is False
     assert payload["authorization_required"] is True
+
+
+def test_salesforce_health_marks_only_complete_allowlist_as_verified(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *_args, **_kwargs: {"tenant_id": "salesforce-acme", "role": "owner"},
+    )
+    monkeypatch.setattr(api, "_reserve_connector_call", lambda _tenant: True)
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {"status": "connected_read_only", "instance_url": "https://acme.my.salesforce.com"},
+            {"status": "active"},
+            True,
+        ),
+    )
+    monkeypatch.setattr(api.SalesforceConfig, "from_env", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        api,
+        "resolve_tenant_credential",
+        lambda *_args, **_kwargs: SimpleNamespace(value="refresh-token"),
+    )
+    monkeypatch.setattr(
+        api,
+        "refresh_salesforce_token",
+        lambda *_args, **_kwargs: {"access_token": "short-lived-access-token"},
+    )
+    monkeypatch.setattr(
+        api,
+        "_record_salesforce_health_status",
+        lambda *_args, **_kwargs: None,
+    )
+
+    class FakeSalesforceClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def health_summary(self):
+            return {
+                "status": "connected_read_only",
+                "objects": [
+                    {"object": "Product2", "total": 3, "fields": []},
+                    {"object": "PricebookEntry", "total": 5, "fields": []},
+                    {"object": "Opportunity", "total": 2, "fields": []},
+                ],
+                "external_write": False,
+            }
+
+    monkeypatch.setattr(api, "SalesforceReadOnlyClient", FakeSalesforceClient)
+
+    payload = api.salesforce_health(
+        api.SalesforceHealthRequest(operator="Owner", tenant_id="salesforce-acme")
+    )
+
+    assert payload["status"] == "connected_read_only"
+    assert payload["aggregate_read_verified"] is True
+    assert payload["aggregate_read_status"] == "verified"
+    assert payload["external_read"] is True
+    assert payload["external_write"] is False
 
 
 def test_owner_can_register_metadata_only_tenant_binding(monkeypatch) -> None:

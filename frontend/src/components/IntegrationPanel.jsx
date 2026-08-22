@@ -91,6 +91,7 @@ export default function IntegrationPanel({ targets = [], approved, dismissed, ac
             const binding = health?.checks?.find((item) => item.connector === key);
             const aggregateReadVerified = system === "Salesforce"
               && summary.status === "connected_read_only"
+              && summary.aggregate_read_verified === true
               && summary.external_read === true;
             const healthy = (summary.status === "ok" || aggregateReadVerified)
               && (!binding || binding.status === "healthy");
