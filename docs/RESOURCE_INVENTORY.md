@@ -23,13 +23,15 @@ the current serving-state authority:
 ### Current exact proof — 2026-08-22
 
 The active project was rechecked as `driftline-hackathon-2026` before the
-runtime-code proof. Commit `be08c711e4ddb321650867cb33e2125e06c46cd0` passed
-the live-agent and approval/undo verifiers with Gemini 3.5 Flash through Google
-ADK, two allowlisted tools, four artifacts, five audit events, two decision
-options, a passing stable trace-eval gate, packet persistence, owner completion,
-reversal, `external_write=false`, and `external_systems_changed=false`. The
-scripts print fresh job/workflow/evaluation IDs; `/health` prints the exact
-serving SHA/build and is the authority after later docs-only releases.
+runtime-code proof. Commit `a077faaecc138247b4286a4ec4d45b40a9aa0ad4` passed
+GitHub Actions run `32604379310`, the live-agent verifier, the approval/undo
+verifier, and the production verifier. The live run used Gemini 3.5 Flash
+through Google ADK, two allowlisted tools, four artifacts, five audit events,
+two decision options, and a passing stable trace-eval gate. Approval persisted
+the packet, completed and reversed an owner action, and reported
+`external_write=false` and `external_systems_changed=false`. The scripts print
+fresh job/workflow/evaluation IDs; `/health` prints the exact serving SHA/build
+and is the authority after later docs-only releases.
 
 The exact release was exercised in a logged-out browser: source evidence modal,
 interactive map focus/evidence path, approval, and undo all worked; source
@@ -39,30 +41,30 @@ audits passed 53/53 on both desktop and mobile (100 accessibility, best
 practices, SEO, and agentic browsing). A fresh performance trace measured LCP
 185ms and CLS 0.00.
 
-The current public value-proof window contains 12 source observations and 11
+The current public value-proof window contains 12 source observations and 12
 workflows, with five historical owner-action completions and current completion
 back at 0% after intentional undo. Customer time saved, revenue/win-rate lift,
 retention impact, and willingness-to-pay remain explicitly unmeasured. Public
 monitoring remains bounded to five pinned fixtures plus exact operator-registered
 URLs capped at 25 per tenant; it is not universal crawling.
 
-Salesforce remains evidence-gated: the isolated Firestore record for
-`driftline-demo` has historical `connected_read_only` metadata but current
-`health_status=reauthorization_required`, `health_reason=refresh_token_rejected`,
-and `aggregate_read_verified=false`. No CRM object totals are claimed until the
-owner completes fresh Salesforce consent and the three allowlisted aggregate
-queries succeed.
+Salesforce remains evidence-gated: the public deployment reports
+`oauth_ready` / `awaiting_authorization`, and no tenant aggregate read is
+claimed. No CRM object totals are claimed until the owner completes fresh
+Salesforce consent and the three allowlisted aggregate queries succeed.
 
 The source-health UI race fixed in commit `be08c71` is covered by
 `scripts/verify_frontend_contract.sh`; an older overlapping Firestore response
-can no longer overwrite newer freshness state.
+can no longer overwrite newer freshness state. Commit `a077faa` also preserves
+an explicitly paused custom source when it is re-registered through the
+Firestore-backed registry, so metadata updates cannot silently resume polling.
 
-- Cloud Run service `driftline` in `us-central1` served revision
-  `driftline-00239-mht` at 100% traffic. Its immutable serving image was
-  `sha256:2eb0b52fb62ad5a314abe40699e9e42038ab365c7c4b0cdeb4216d5cf73963be`.
-- Source commit `79517f2745ddaef3e3e190e515238c9d5c313c9e` was built by Cloud
-  Build `f04a5791-e31c-4e31-859a-ff538ba97f96`; GitHub Actions run
-  `32590613661` passed the repository gates.
+- Cloud Run service `driftline` in `us-central1` serves revision
+  `driftline-00264-vdw` at 100% traffic. Its immutable serving image is
+  `sha256:11e4d4981be4e354a74e40f465ce1172eb63c315c590cc36d52db9653e50e6b8`.
+- Source commit `a077faaecc138247b4286a4ec4d45b40a9aa0ad4` was built by Cloud
+  Build `473ccc70-9a69-48c8-a6f0-2564ce18e1e4`; GitHub Actions run
+  `32604379310` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -70,12 +72,12 @@ can no longer overwrite newer freshness state.
   `No known vulnerabilities found`; CI runs the same check on every change.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
-- The snapshot `/health` response reported Firestore persistence, async jobs,
-  release SHA `79517f2745ddaef3e3e190e515238c9d5c313c9e`, and build ID
-  `f04a5791-e31c-4e31-859a-ff538ba97f96`; `/api/auth/config`
+- The snapshot `/health` response reports Firestore persistence, async jobs,
+  release SHA `a077faaecc138247b4286a4ec4d45b40a9aa0ad4`, and build ID
+  `473ccc70-9a69-48c8-a6f0-2564ce18e1e4`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- The snapshot `/api/evals/latest` reported evaluation `eval-7e503a13f893` with a passing
+- The snapshot `/api/evals/latest` reported evaluation `eval-1c1c6e7f756a` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
