@@ -3937,6 +3937,8 @@ async def test_monitor_job_completes_without_inventing_a_workflow(monkeypatch) -
     assert result.status == "complete"
     assert result.workflow_id is None
     assert result.response == "No material source change was found."
+    assert result.source_status == "unchanged"
+    assert result.change_detected is False
 
 
 @pytest.mark.asyncio

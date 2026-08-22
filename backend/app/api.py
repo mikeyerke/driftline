@@ -1509,6 +1509,13 @@ async def _run_job(job_id: str) -> None:
                 job.run_mode,
                 tenant_id=job.tenant_id,
             )
+        # Preserve the deterministic source disposition on the durable job,
+        # even when no workflow is created for a baseline/no-op observation.
+        # This keeps monitor utility separate from the asynchronous job
+        # lifecycle: ``complete`` alone is not enough to explain what happened.
+        job.source_status = str(result.get("source_status")) if result.get("source_status") else None
+        if "change_detected" in result:
+            job.change_detected = bool(result.get("change_detected"))
         workflow_id = result.get("workflow_id")
         if not workflow_id:
             if result.get("change_detected") is False or result.get(
@@ -1583,6 +1590,8 @@ async def _run_job(job_id: str) -> None:
         # fail-closed.  The fallback is labelled in the durable job and
         # workflow records; it never claims a Gemini execution occurred.
         if _complete_demo_fallback(job, exc):
+            job.source_status = "changed"
+            job.change_detected = True
             _set_job(job)
             return
         logger.exception("Async Driftline job failed")

@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Clock3, Play, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock3, History, Play, ShieldCheck } from "lucide-react";
 
 function openItems(items) {
   return (items || []).filter((item) => !["completed", "reversed"].includes(item.status));
@@ -11,12 +11,24 @@ function openItems(items) {
  * the page. This small rail turns the current workflow state into one clear,
  * reversible action without pretending a connector or customer outcome exists.
  */
-export default function UtilityNextStep({ workflow, scanning, sourcePaused, onRunScan, onNavigate }) {
+export default function UtilityNextStep({ workflow, job, scanning, sourcePaused, onRunScan, onNavigate }) {
   const items = workflow?.action_items || [];
   const open = openItems(items);
   const pendingApproval = workflow?.status === "needs_approval";
   const approved = workflow?.status === "complete";
   const dismissed = workflow?.status === "dismissed";
+  const monitorNoOp = !workflow && job?.status === "complete" && job?.source_status === "unchanged";
+  const monitorBaseline = !workflow && job?.status === "complete" && job?.source_status === "baseline_established";
+
+  if (monitorNoOp || monitorBaseline) {
+    return (
+      <section className="utility-next-step monitor" aria-label="Next best action">
+        <span className="utility-next-step-icon"><History size={16} /></span>
+        <div><strong>{monitorNoOp ? "No material change found" : "Baseline captured"}</strong><p>{monitorNoOp ? "The source hash matched its prior observation, so Driftline created no noisy workflow. Continue on the next cadence or inspect the append-only history." : "Driftline recorded the first bounded observation without inventing a change. The next read will establish whether the source actually moved."}</p></div>
+        <button className="secondary compact" type="button" onClick={() => onNavigate?.("sources-section")}>Open source history<ArrowRight size={14} /></button>
+      </section>
+    );
+  }
 
   if (!workflow) {
     return (

@@ -117,6 +117,11 @@ class JobState:
     tenant_id: str | None = None
     run_mode: str = "demo"
     source_id: str = "public/pricing"
+    # Deterministic monitor disposition, kept separate from the job lifecycle.
+    # ``complete`` only means the job finished; this field tells the operator
+    # whether it established a baseline, confirmed a no-op, or found a change.
+    source_status: str | None = None
+    change_detected: bool | None = None
     # Links a bounded operator retry to its terminal predecessor.  Keeping
     # this on the durable job makes retry requests idempotent across Cloud Run
     # instances instead of relying on a browser button to prevent duplicates.

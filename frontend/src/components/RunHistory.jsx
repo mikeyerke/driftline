@@ -65,7 +65,13 @@ export default function RunHistory({ jobs, loading, publicMode = false, canRetry
                 <span className="run-kind"><strong>{job.run_mode === "monitor" ? "Historical monitor" : "Change scan"}</strong><small>{job.source_id || "public/pricing"}</small></span>
                 <span className="run-time">{job.created_at ? new Date(job.created_at).toLocaleString() : "—"}</span>
                 <span className="run-result">
-                  <span className="run-result-copy">{job.public_summary || job.response || (job.workflow_id ? "Workflow created · awaiting decision" : "Awaiting result")}</span>
+                  <span className={`run-result-copy${job.source_status === "unchanged" || job.source_status === "baseline_established" ? " monitor-result" : ""}`}>
+                    {job.source_status === "unchanged"
+                      ? "No material change · prior baseline retained"
+                      : job.source_status === "baseline_established"
+                        ? "Baseline established · awaiting next observation"
+                        : job.public_summary || job.response || (job.workflow_id ? "Workflow created · awaiting decision" : "Awaiting result")}
+                  </span>
                   {job.workflow_id && <button className="secondary compact run-open" type="button" disabled={openingJobId !== null} onClick={() => handleOpen(job)}>{openingJobId === job.job_id ? "Opening…" : "Open run"}</button>}
                 </span>
                 {job.workflow_id && <span className="run-workflow"><RotateCcw size={13} /> workflow linked</span>}
