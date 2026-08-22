@@ -22,6 +22,6 @@ uv export \
   --no-dev \
   --format requirements-txt \
   --directory "$ROOT_DIR/backend" \
-  | sed '/^-e \.\s*$/d' > "$requirements_file"
+  | sed '/^-e \.[[:space:]]*$/d' > "$requirements_file"
 
 pip-audit --requirement "$requirements_file" --progress-spinner off
