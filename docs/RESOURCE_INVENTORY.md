@@ -12,15 +12,15 @@ project number: 724959673622
 
 ## Current active release (authoritative check)
 
-Checked `2026-08-22T08:56Z` with the active gcloud project set to
+Checked `2026-08-22T09:10Z` with the active gcloud project set to
 `driftline-hackathon-2026`:
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00193-6bs` at 100% traffic. Its immutable serving image is
-  `sha256:cc88f658f3de5f947ec5a5a2f82a4a3655b22b6b7023bec5e02ff68aab6ac001`.
-- Source commit `bcfd38a4bf6b2048d1e7df9aa46f14819ca309c9` was built by Cloud
-  Build `24e57717-ab63-4137-9d64-97503124d25c`; GitHub Actions run
-  `32563434919` passed the repository gates.
+  `driftline-00195-kls` at 100% traffic. Its immutable serving image is
+  `sha256:54c2a08ae870a7fa828f80f1b0283c31e4c4c9d82ed3a78a165bf8c35b765d34`.
+- Source commit `d9a61724adf94a17888d4cfa11ee6064fad25711` was built by Cloud
+  Build `221a2259-5306-4e4d-83c5-50b11411ed19`; GitHub Actions run
+  `32563825711` passed the repository gates.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
   provenance comparison: the serving revision digest equals the tagged
   Artifact Registry image digest before the build was marked successful.
@@ -29,13 +29,13 @@ Checked `2026-08-22T08:56Z` with the active gcloud project set to
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - `/health` reports Firestore persistence, async jobs, release SHA
-  `bcfd38a4bf6b2048d1e7df9aa46f14819ca309c9`, and build ID
-  `24e57717-ab63-4137-9d64-97503124d25c`; `/api/auth/config`
+  `d9a61724adf94a17888d4cfa11ee6064fad25711`, and build ID
+  `221a2259-5306-4e4d-83c5-50b11411ed19`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- `/api/evals/latest` reports evaluation `eval-ef80169f4d77` with a passing
+- `/api/evals/latest` reports evaluation `eval-5d69471083dd` with a passing
   `trace-eval-v1` gate, 13 cases, 100% safety, 100% usefulness, 100% overall,
-  and an `improved` trend against `eval-32fad0ba607f` (no case regressions).
+  and a `stable` trend against the prior report (no case regressions).
   Trace data is
   redacted and `customer_outcome=false`; this is evaluator telemetry, not
   customer ROI evidence.
@@ -69,12 +69,12 @@ Checked `2026-08-22T08:56Z` with the active gcloud project set to
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-48b697d7dfcd` / workflow `d4d97a79-373f-4e19-87ef-6e0d5d25505f` at
+  `job-d36bbcb8a400` / workflow `bbcb0c0d-946f-4321-9f84-53fedfb95a1a` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier created
-  job `job-53fcad9ed7e4` / workflow
-  `5742ef64-8863-4234-ba7b-efc6dead6907`, persisted the packet, reversed the
+  job `job-14cf5cfca320` / workflow
+  `b8c28559-f01e-47ab-b0a9-6949c9c7b1a0`, persisted the packet, reversed the
   operational output, and recorded `external_write=false` /
   `external_systems_changed=false`.
 - A logged-out 500px browser check exercised every sidebar target after the

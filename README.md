@@ -551,13 +551,13 @@ traffic, verifies that the serving revision's image digest matches the exact
 Artifact Registry image built for that Cloud Build, and verifies that the
 public `/health` response carries the exact release SHA and build ID before
 the build can succeed. The current serving release is source commit
-`bcfd38a4bf6b2048d1e7df9aa46f14819ca309c9`, Cloud Build
-`24e57717-ab63-4137-9d64-97503124d25c`, and Cloud Run revision
-`driftline-00193-6bs` at 100% traffic. Its immutable image digest is recorded
+`d9a61724adf94a17888d4cfa11ee6064fad25711`, Cloud Build
+`221a2259-5306-4e4d-83c5-50b11411ed19`, and Cloud Run revision
+`driftline-00195-kls` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
-GitHub Actions run `32563434919` passed the repository gates, including the
+GitHub Actions run `32563825711` passed the repository gates, including the
 frozen dependency audit. This release adds
 the explicit Salesforce `reauthorization_required` contract, durably records
 bounded probe health so a rejected refresh token remains visible after reload,
@@ -577,7 +577,7 @@ The new trace-to-eval quality gate evaluates thirteen independent safety and
 usefulness cases, including a critical aggregate-context boundary, persists
 only a redacted report, and is checked against the live Google ADK/Gemini trace
 before this release is considered healthy. The latest live report
-`eval-ef80169f4d77` improved against `eval-32fad0ba607f` with 100% safety,
+`eval-5d69471083dd` remained stable against the prior report with 100% safety,
 100% usefulness, 100% overall, and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
