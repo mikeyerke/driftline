@@ -305,6 +305,29 @@ export function recordOutcomeMeasurement(measurement) {
   });
 }
 
+export async function downloadPilotPacket(cohortLabel = "") {
+  const params = new URLSearchParams();
+  if (cohortLabel.trim()) params.set("cohort_label", cohortLabel.trim());
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  const headers = operatorSession.identityToken
+    ? { Authorization: `Bearer ${operatorSession.identityToken}` }
+    : {};
+  const response = await fetch(`${API_BASE}/api/ops/pilot-packet?${params}`, { headers });
+  if (!response.ok) throw new Error(`Driftline API returned ${response.status}`);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "driftline-pilot-packet.md";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function getSourceHistory(sourceId, limit = 8) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (operatorSession.identityToken && operatorSession.tenantId) {

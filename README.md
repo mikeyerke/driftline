@@ -149,7 +149,10 @@ Authenticated tenant operators also get a bounded **Pilot measurement** panel
 for recording aggregate before/after minutes and optional outcome evidence.
 These records remain explicitly operator-reported and unverified until
 reviewed; Driftline never accepts customer names, raw notes, or CRM records in
-this lane.
+this lane. The same panel can download a signed, aggregate-only Markdown pilot
+packet for a reviewer; the export excludes evidence URLs, customer identifiers,
+source bodies, and CRM records so it is safe to reconcile against a dated pilot
+log outside Driftline.
 
 For an authenticated operator, `POST /api/connectors/context/summary` adds a
 bounded internal-workload view before approval: fixed-scope Jira, Confluence,

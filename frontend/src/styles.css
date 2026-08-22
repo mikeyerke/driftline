@@ -488,6 +488,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .pilot-summary strong { font-size: 17px; line-height: 1; }
 .pilot-summary small { color: var(--muted); font-size: 10px; }
 .pilot-note, .pilot-disclosure { margin: 0; padding: 0 16px 10px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.pilot-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 12px; }
 .pilot-readiness { margin: 0 16px 12px; padding: 11px 12px; border: 1px solid #c7d9fa; border-radius: 4px; background: var(--blue-soft); }
 .pilot-readiness-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 11px; }
 .pilot-readiness-heading small { color: var(--muted); font-size: 10px; font-weight: 400; }

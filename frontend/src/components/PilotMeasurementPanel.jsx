@@ -1,6 +1,6 @@
-import { ClipboardCheck, Clock3, Gauge, Plus, ShieldCheck } from "lucide-react";
+import { ClipboardCheck, Clock3, Download, Gauge, Plus, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getMonitorRegistry, getPilotReport, getValueProof, recordOutcomeMeasurement } from "../api";
+import { downloadPilotPacket, getMonitorRegistry, getPilotReport, getValueProof, recordOutcomeMeasurement } from "../api";
 import useNearViewport from "../hooks/useNearViewport";
 
 const initialForm = {
@@ -23,6 +23,7 @@ export default function PilotMeasurementPanel({ operatorSession }) {
   const [report, setReport] = useState(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [utility, setUtility] = useState({ registry: null, proof: null });
@@ -70,6 +71,20 @@ export default function PilotMeasurementPanel({ operatorSession }) {
     }
   };
 
+  const downloadPacket = async () => {
+    setDownloading(true);
+    setMessage("");
+    setError("");
+    try {
+      await downloadPilotPacket(report?.cohort_label || "");
+      setMessage("Pilot packet downloaded · aggregate-only and operator-reported");
+    } catch (requestError) {
+      setError(requestError.message || "Pilot packet could not be downloaded");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const measured = report?.record_count > 0;
   const customSourceCount = (utility.registry?.sources || []).filter((source) => source.source_kind === "operator_registered_public").length;
   const workflowCount = utility.proof?.observed?.workflows || 0;
@@ -101,7 +116,10 @@ export default function PilotMeasurementPanel({ operatorSession }) {
         </div>
         <p className="pilot-readiness-footnote">{completedActions > 0 ? `${completedActions} owner action${completedActions === 1 ? " has" : "s have"} closed in the append-only audit.` : "No owner action has been closed in this tenant audit yet."} Customer time saved, revenue, retention, and willingness-to-pay stay unmeasured until a real pilot produces source-backed records.</p>
       </div>
-      <button className="secondary compact pilot-toggle" type="button" onClick={() => { setOpen((current) => !current); setMessage(""); setError(""); }}><Plus size={14} />{open ? "Close measurement form" : "Record a measurement"}</button>
+      <div className="pilot-actions">
+        <button className="secondary compact pilot-toggle" type="button" onClick={() => { setOpen((current) => !current); setMessage(""); setError(""); }}><Plus size={14} />{open ? "Close measurement form" : "Record a measurement"}</button>
+        <button className="secondary compact pilot-toggle" type="button" onClick={downloadPacket} disabled={downloading}><Download size={14} />{downloading ? "Preparing…" : "Download pilot packet"}</button>
+      </div>
       {open && <form className="pilot-form" onSubmit={submit}>
         <label>Evidence type<select name="source_type" value={form.source_type} onChange={update}><option value="pilot_log">Pilot log</option><option value="customer_interview">Customer interview</option><option value="win_loss">Win / loss</option><option value="billing_record">Billing record</option></select></label>
         <label>Cohort label<input required name="cohort_label" value={form.cohort_label} onChange={update} maxLength={80} placeholder="Named pilot cohort" /></label>

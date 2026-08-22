@@ -705,6 +705,11 @@ def test_pilot_report_requires_signed_operator() -> None:
     assert response.status_code == 401
 
 
+def test_pilot_packet_requires_signed_operator() -> None:
+    response = client.get("/api/ops/pilot-packet")
+    assert response.status_code == 401
+
+
 def test_pilot_report_is_tenant_filtered_and_aggregate_only(monkeypatch) -> None:
     monkeypatch.setattr(
         api,
@@ -751,6 +756,50 @@ def test_pilot_report_is_tenant_filtered_and_aggregate_only(monkeypatch) -> None
     assert payload["willingness_to_pay_usd_median"] == 900
     assert "evidence_ref" not in str(payload)
     assert payload["status"] == "operator_reported_unverified"
+
+
+def test_pilot_packet_is_aggregate_only(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *args, **kwargs: {"tenant_id": "pilot-tenant", "identity": "signed_operator"},
+    )
+    monkeypatch.setattr(
+        api,
+        "list_outcome_measurements",
+        lambda _limit: [
+            {
+                "tenant_id": "pilot-tenant",
+                "cohort_label": "pilot-a\nforged-heading",
+                "changes_observed": 2,
+                "baseline_minutes": 120,
+                "driftline_minutes": 40,
+                "revenue_lift_usd": 1500,
+                "retention_lift_pct": 4,
+                "willingness_to_pay_usd": 900,
+                "evidence_ref": "gs://private/not-returned",
+            },
+        ],
+    )
+
+    response = client.get(
+        "/api/ops/pilot-packet",
+        params={
+            "operator": "Pilot owner",
+            "tenant_id": "pilot-tenant",
+            "cohort_label": "pilot-a\nforged-heading",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"].endswith('driftline-pilot-packet.md"')
+    body = response.text
+    assert "Time saved minutes total: 80.0" in body
+    assert "Revenue / win-rate lift: 1500.0" in body
+    assert "pilot-a forged-heading" in body
+    assert "gs://private/not-returned" not in body
+    assert "evidence_ref" not in body
+    assert "pilot-tenant" not in body
 
 
 def test_connector_context_summary_is_signed_and_redacted(monkeypatch) -> None:

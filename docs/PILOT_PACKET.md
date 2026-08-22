@@ -77,6 +77,13 @@ shape, not a result. After recording, use the signed
 `GET /api/ops/pilot-report` route for the tenant-filtered delta. The public
 console should continue to say `not_measured` until a real cohort is recorded.
 
+The authenticated Pilot measurement panel also offers **Download pilot packet**
+(`GET /api/ops/pilot-packet`). This is a reviewer-friendly Markdown export of
+the signed, tenant-filtered aggregate report. It intentionally omits evidence
+references, customer identifiers, raw source bodies, CRM records, and
+credentials; reconcile those details outside Driftline and keep only the stable
+artifact reference in the measurement ledger.
+
 ## Five-question closeout
 
 1. Did the same change reach an owner faster, with a dated before/after record?

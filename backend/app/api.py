@@ -5061,6 +5061,69 @@ def get_pilot_report(
     }
 
 
+def _pilot_packet_value(value: object, *, fallback: str = "Not measured") -> str:
+    """Render one aggregate pilot value without allowing Markdown injection."""
+    if value is None or value == "":
+        return fallback
+    return str(value).replace("\r", " ").replace("\n", " ").strip()[:160]
+
+
+@app.get("/api/ops/pilot-packet", response_class=PlainTextResponse)
+def download_pilot_packet(
+    cohort_label: str | None = None,
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> PlainTextResponse:
+    """Download a signed, aggregate-only pilot review packet.
+
+    The packet is deliberately separate from the public value-proof view. It
+    is useful to a pilot reviewer while keeping evidence references, customer
+    identifiers, source bodies, and CRM records out of the exported artifact.
+    """
+    report = get_pilot_report(
+        cohort_label=cohort_label,
+        operator=operator,
+        tenant_id=tenant_id,
+        approval_token=approval_token,
+        identity_token=identity_token,
+    )
+    lines = [
+        "# Driftline pilot measurement packet",
+        "",
+        f"Generated: {_pilot_packet_value(utc_now())}",
+        f"Cohort: {_pilot_packet_value(report.get('cohort_label'))}",
+        f"Status: {_pilot_packet_value(report.get('status'))}",
+        "",
+        "## Aggregate workflow measures",
+        "",
+        f"- Records: {_pilot_packet_value(report.get('record_count'), fallback='0')}",
+        f"- Changes observed: {_pilot_packet_value(report.get('changes_observed'), fallback='0')}",
+        f"- Baseline minutes total: {_pilot_packet_value(report.get('baseline_minutes_total'), fallback='0')}",
+        f"- Driftline minutes total: {_pilot_packet_value(report.get('driftline_minutes_total'), fallback='0')}",
+        f"- Time saved minutes total: {_pilot_packet_value(report.get('time_saved_minutes_total'), fallback='Not measured')}",
+        f"- Time saved percent: {_pilot_packet_value(report.get('time_saved_pct'), fallback='Not measured')}",
+        "",
+        "## Customer outcomes",
+        "",
+        f"- Revenue / win-rate lift: {_pilot_packet_value(report.get('revenue_lift_usd_total'))}",
+        f"- Retention lift: {_pilot_packet_value(report.get('retention_lift_pct_median'))}",
+        f"- Willingness to pay: {_pilot_packet_value(report.get('willingness_to_pay_usd_median'))}",
+        "",
+        "## Disclosure",
+        "",
+        _pilot_packet_value(report.get("disclosure")),
+        "This export contains aggregate values only. Reconcile the dated pilot evidence outside Driftline before making a customer, revenue, or ROI claim.",
+        "Evidence references, customer identifiers, CRM records, source bodies, and credentials are intentionally excluded.",
+        "",
+    ]
+    return PlainTextResponse(
+        "\n".join(lines),
+        headers={"Content-Disposition": 'attachment; filename="driftline-pilot-packet.md"'},
+    )
+
+
 @app.get("/api/sources/{source_id:path}/history")
 def get_source_history(
     source_id: str,
