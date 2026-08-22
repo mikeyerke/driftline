@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from app import persistence
+from app.models import JobState
 from app.trace_eval import build_quality_fixture, run_quality_gate
 
 
@@ -92,6 +93,47 @@ def test_workflow_state_roundtrip_preserves_aggregate_internal_context() -> None
 
     assert restored.internal_context["status"] == "verified"
     assert restored.internal_context["connectors"]["jira"]["open_issue_count"] == 12
+
+
+def test_job_roundtrip_preserves_monitor_disposition(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+
+    class FakeSnapshot:
+        exists = True
+
+        @staticmethod
+        def to_dict() -> dict[str, object]:
+            return {
+                "job_id": "job-monitor-roundtrip",
+                "status": "complete",
+                "run_mode": "monitor",
+                "source_status": "unchanged",
+                "change_detected": False,
+                "created_at": "2026-08-22T00:00:00+00:00",
+                "updated_at": "2026-08-22T00:00:01+00:00",
+            }
+
+    class FakeDocument:
+        @staticmethod
+        def get():
+            return FakeSnapshot()
+
+    class FakeCollection:
+        @staticmethod
+        def document(_job_id: str):
+            return FakeDocument()
+
+    class FakeClient:
+        @staticmethod
+        def collection(_name: str):
+            return FakeCollection()
+
+    monkeypatch.setattr(persistence, "_client", lambda: FakeClient())
+    restored = persistence.load_job("job-monitor-roundtrip")
+
+    assert isinstance(restored, JobState)
+    assert restored.source_status == "unchanged"
+    assert restored.change_detected is False
 
 
 def test_tenant_bootstrap_audit_is_committed_with_metadata(monkeypatch) -> None:
