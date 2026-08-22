@@ -152,8 +152,8 @@ customer-pilot outcomes.
 
 The latest signed context read (2026-08-22 UTC) verified `18` open Jira issues,
 `7` Confluence pages, `38` recent Slack messages, and `0` GitHub issues / PRs
-for the isolated Driftline tenant. Salesforce correctly returned
-`authorization_required` after its stored refresh token was rejected; no CRM
+for the isolated Driftline tenant. Salesforce remained explicitly
+reauthorization-gated after its stored refresh token was rejected; no CRM
 totals are inferred from that state.
 The same authenticated console also completed a signed tenant scan from the
 pinned `competitor/pricing` fixture; Firestore recorded job
