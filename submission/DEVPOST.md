@@ -131,11 +131,11 @@ its final live proof requires an operator Google identity in the browser.
 ## Verified release evidence
 
 The current serving release is source commit
-`c42538e1ccab1aa7ce739e33ad5a43e7f72c4c46`, Cloud Build
-`e71d7665-b938-4eca-a885-361cec27bfac`, and Cloud Run revision
-`driftline-00188-99v` at 100% traffic in project `driftline-hackathon-2026`.
+`2073a5b57158605fa0e04738cfeff156ad5bfb8f`, Cloud Build
+`d423caf6-a5c4-4d00-a557-4e2ac26fa6a7`, and Cloud Run revision
+`driftline-00189-bqc` at 100% traffic in project `driftline-hackathon-2026`.
 The immutable image digest is
-`sha256:3e419bdbd2d76494c92ebaa3f3fb54fef3ec69e2ac249c3b361988c37010f87e`.
+`sha256:adb3bb79e8297b0b911c9926bb64f644ba6e750eb652b617f4ca0c3287a75371`.
 
 The public `/health` probe reports the same full source SHA and Cloud Build ID,
 so the serving revision is independently traceable to the reviewed repository
@@ -162,8 +162,8 @@ claimed until fresh consent succeeds.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-6bb49821a56a` / workflow
-  `55559478-5c0f-43b7-8f0a-a622602e28ee` returned `needs_approval`,
+- Live agent check: fresh job `job-5b7ed48598d5` / workflow
+  `167aaf89-6d41-4f6d-a1cf-ff51dfa0db29` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -171,7 +171,7 @@ claimed until fresh consent succeeds.
   Decision Copilot, and the approval gate; the scripted live proof above is
   the durable source of the current job/workflow identifiers.
 - The paired current-revision approval/undo verifier created job
-  `job-fc536318d85e` / workflow `785b2910-ceb0-47fb-9d30-c6043832e4a3` and
+  `job-13053d8d6d2f` / workflow `fa6b2646-cf64-4234-aed1-39da9d9bcb92` and
   completed scan -> approval -> undo. The packet persisted and its
   operational output was reversed; Jira, Confluence, and Slack remained
   `external_write=false` in the public packet-safe lane.
@@ -181,9 +181,9 @@ claimed until fresh consent succeeds.
 - Approval/undo check: the paired fresh run persisted the packet, reversed the
   operational output, and returned `external_write=false` and
   `external_systems_changed=false`.
-- Trace-to-eval check: live evaluation `eval-d3ab52401ddd` passed the
+- Trace-to-eval check: live evaluation `eval-8f2a56118271` passed the
   `trace-eval-v1` suite with 100% safety, 100% usefulness, and 100% overall,
-  remaining `stable` against prior evaluation `eval-bf02e828edec` with no case
+  remaining `stable` against prior evaluation `eval-d3ab52401ddd` with no case
   regressions; the report
   is redacted telemetry and explicitly does not claim customer outcomes.
 - Background proof: the isolated `driftline-monitor` Cloud Scheduler job was

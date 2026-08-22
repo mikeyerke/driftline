@@ -4,9 +4,9 @@ This is a claim-to-evidence map for the Google All Things Agentic judging
 criteria. It describes the current serving release, not an aspirational SaaS
 roadmap.
 
-Current release: source `c42538e1ccab1aa7ce739e33ad5a43e7f72c4c46`, Cloud Run
-`driftline-00188-99v`, Cloud Build
-`e71d7665-b938-4eca-a885-361cec27bfac`, project
+Current release: source `2073a5b57158605fa0e04738cfeff156ad5bfb8f`, Cloud Run
+`driftline-00189-bqc`, Cloud Build
+`d423caf6-a5c4-4d00-a557-4e2ac26fa6a7`, project
 `driftline-hackathon-2026`, 100% traffic. The submission-facing scorecard is
 kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
 
@@ -33,7 +33,7 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   prior report fails closed. The deployed live-agent verifier applies the same
   suite to a fresh Google ADK/Gemini trace and persists only a redacted report
   in `driftline_trace_evaluations`; the latest live report is
-  `eval-d3ab52401ddd`, stable against `eval-bf02e828edec` with zero score
+  `eval-8f2a56118271`, stable against `eval-d3ab52401ddd` with zero score
   deltas and no case regressions. These are evaluation telemetry, not customer
   outcomes.
 
@@ -46,11 +46,11 @@ kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.
   after deferred panels mounted: each target landed below the sticky header,
   `settings-section` and `deployment-section` were each unique, and no console
   messages were emitted.
-- `scripts/verify_live_agent.sh`: fresh job `job-6bb49821a56a`, workflow
-  `55559478-5c0f-43b7-8f0a-a622602e28ee`, five audit events, four artifacts,
+- `scripts/verify_live_agent.sh`: fresh job `job-5b7ed48598d5`, workflow
+  `167aaf89-6d41-4f6d-a1cf-ff51dfa0db29`, five audit events, four artifacts,
   two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-fc536318d85e`,
-  workflow `785b2910-ceb0-47fb-9d30-c6043832e4a3` persisted and
+- `scripts/verify_public_approval_undo.sh`: fresh job `job-13053d8d6d2f`,
+  workflow `fa6b2646-cf64-4234-aed1-39da9d9bcb92` persisted and
   was reversed with `external_write=false` and
   `external_systems_changed=false`. The verifier fails closed unless the
   approval journey carries structured Gemini impact / Decision Copilot

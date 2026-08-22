@@ -547,9 +547,9 @@ traffic, verifies that the serving revision's image digest matches the exact
 Artifact Registry image built for that Cloud Build, and verifies that the
 public `/health` response carries the exact release SHA and build ID before
 the build can succeed. The current serving release is source commit
-`c42538e1ccab1aa7ce739e33ad5a43e7f72c4c46`, Cloud Build
-`e71d7665-b938-4eca-a885-361cec27bfac`, and Cloud Run revision
-`driftline-00188-99v` at 100% traffic. Its immutable image digest is recorded
+`2073a5b57158605fa0e04738cfeff156ad5bfb8f`, Cloud Build
+`d423caf6-a5c4-4d00-a557-4e2ac26fa6a7`, and Cloud Run revision
+`driftline-00189-bqc` at 100% traffic. Its immutable image digest is recorded
 in [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md).
 The public `/health` probe reports the same full release SHA and Cloud Build ID,
 so a reviewer can tie the serving revision to this exact repository commit.
@@ -572,8 +572,8 @@ loading state until `/api/auth/config` resolves, avoiding a false
 The new trace-to-eval quality gate evaluates twelve independent safety and
 usefulness cases, persists only a redacted report, and is checked against the
 live Google ADK/Gemini trace before this release is considered healthy. The
-latest live report `eval-d3ab52401ddd` is stable against
-`eval-bf02e828edec` with zero score deltas and no case regressions; it is
+latest live report `eval-8f2a56118271` is stable against
+`eval-d3ab52401ddd` with zero score deltas and no case regressions; it is
 evaluation telemetry, not a
 customer-outcome claim.
 The approval trace also records the deterministic red-team reviewer and
@@ -615,8 +615,8 @@ The release proof also exercises the real background delivery path: Cloud
 Scheduler sends an OIDC-authenticated HTTP 200 request to
 `/api/scheduler/tick`, and cadence rules defer healthy sources that are not due.
 Fresh repeatable proof identifiers on the current serving revision are
-`job-6bb49821a56a` / `55559478-5c0f-43b7-8f0a-a622602e28ee` for the live agent
-and `job-fc536318d85e` / `785b2910-ceb0-47fb-9d30-c6043832e4a3` for the paired
+`job-5b7ed48598d5` / `167aaf89-6d41-4f6d-a1cf-ff51dfa0db29` for the live agent
+and `job-13053d8d6d2f` / `fa6b2646-cf64-4234-aed1-39da9d9bcb92` for the paired
 approval/undo run. The approval/undo path persisted and reversed the packet
 with no external connector write. The prior job/workflow identifiers remain
 in the append-only inventory as historical evidence.
