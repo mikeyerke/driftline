@@ -33,8 +33,12 @@ the packet, completed and reversed an owner action, and reported
 fresh job/workflow/evaluation IDs; `/health` prints the exact serving SHA/build
 and is the authority after later docs-only releases.
 
-The unchanged console surface was exercised in a logged-out browser on the
-immediately preceding UI-equivalent release: source evidence modal,
+The current serving revision was exercised in a logged-out browser: the live
+console ran a scan to the deterministic approval gate, verified hash-bound
+evidence, approved one isolated reversible output, and reopened it so all four
+owner items became append-only `Reversed` history. The browser reported no
+application console errors. The preceding UI-equivalent release also proved
+the source evidence modal,
 interactive map focus/evidence path, approval, and undo all worked; source
 health loaded five healthy records; no application console errors were emitted;
 412px and 1440px document widths matched their viewports. Lighthouse navigation
