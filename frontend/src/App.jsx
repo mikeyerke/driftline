@@ -73,6 +73,7 @@ export default function App() {
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
+  const navScrollTimersRef = useRef([]);
   const lastTenantRef = useRef(operatorSession.tenantId || null);
   const sessionKeyRef = useRef(`${operatorSession.tenantId || "public"}:${operatorSession.identityToken ? "signed" : "anonymous"}`);
   const sessionEpochRef = useRef(0);
@@ -205,7 +206,32 @@ export default function App() {
   const selectNav = (label) => {
     setSelectedNav(label);
     const targetId = `${label.toLowerCase()}-section`;
-    window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    navScrollTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    navScrollTimersRef.current = [];
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+      // Below-the-fold panels use near-viewport loading. They can mount while
+      // this scroll is moving, shifting a deep target after the browser has
+      // already computed its destination. Reconcile once after those panels
+      // have had a chance to mount, and once more only if the document grew.
+      const firstSettleTimer = window.setTimeout(() => {
+        const currentTarget = document.getElementById(targetId);
+        if (!currentTarget) return;
+        const heightBeforeSettle = document.documentElement.scrollHeight;
+        currentTarget.scrollIntoView({ behavior: "auto", block: "start" });
+        const secondSettleTimer = window.setTimeout(() => {
+          const finalTarget = document.getElementById(targetId);
+          if (finalTarget && document.documentElement.scrollHeight !== heightBeforeSettle) {
+            finalTarget.scrollIntoView({ behavior: "auto", block: "start" });
+          }
+        }, 350);
+        navScrollTimersRef.current.push(secondSettleTimer);
+      }, 750);
+      navScrollTimersRef.current.push(firstSettleTimer);
+    });
   };
 
   const handleSourceChange = (nextSource) => {
