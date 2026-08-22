@@ -49,8 +49,14 @@ printf 'Health: %s\n' "${health}"
 
 trace_eval="$(curl --fail --silent --show-error --max-time 20 \
   "${public_url}/api/evals/latest")"
+serving_release_sha="$(printf '%s' "${health}" | jq -er '.release_sha')"
+trace_release_sha="$(printf '%s' "${trace_eval}" | jq -er '.evaluation.release_sha // empty')"
+if [[ -z "${trace_release_sha}" || "${trace_release_sha}" != "${serving_release_sha}" ]]; then
+  printf 'Trace-to-eval gate: FAIL (latest evaluation is not bound to serving SHA; run ./scripts/verify_live_agent.sh first)\n' >&2
+  exit 1
+fi
 printf '%s\n' "${trace_eval}" | jq -e \
-  --arg release_sha "$(printf '%s' "${health}" | jq -er '.release_sha')" \
+  --arg release_sha "${serving_release_sha}" \
   '.status == "ok" and
    .evaluation.gate_status == "pass" and
    .evaluation.release_sha == $release_sha and

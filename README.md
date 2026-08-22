@@ -695,10 +695,14 @@ their cadence deadlines.
 ~~~bash
 BASE=https://driftline-xvxczqg62a-uc.a.run.app
 curl -fsS "$BASE/health"
-./scripts/verify_production.sh
 ./scripts/verify_live_agent.sh
 ./scripts/verify_public_approval_undo.sh
+./scripts/verify_production.sh
 ~~~
+
+Run `verify_live_agent.sh` before `verify_production.sh`: the live check writes
+the fresh redacted trace evaluation, and the production gate intentionally
+fails closed when the newest evaluation belongs to an older serving SHA.
 
 `verify_live_agent.sh` creates one bounded public workflow and waits for the
 human approval gate. It fails closed unless the deployed response proves

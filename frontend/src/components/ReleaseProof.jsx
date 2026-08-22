@@ -31,15 +31,34 @@ export default function ReleaseProof() {
     return () => { active = false; };
   }, []);
 
-  const passed = evaluation?.gate_status === "pass";
-  const blocked = evaluation && !passed;
-  const label = loading
+  const releaseShaValue = isReleaseSha(health?.release_sha) ? health.release_sha : null;
+  const releaseSha = releaseShaValue ? releasePart(releaseShaValue, 7) : null;
+  const buildId = releasePart(health?.build_id, 8);
+  const releaseVersioned = Boolean(releaseSha && buildId);
+  const evaluationNotBound = Boolean(evaluation && releaseVersioned && evaluation.release_sha !== releaseShaValue);
+  const gateChecking = loading || healthLoading;
+  const passed = Boolean(
+    !gateChecking &&
+    health?.status === "ok" &&
+    evaluation &&
+    releaseVersioned &&
+    !evaluationNotBound &&
+    evaluation.gate_status === "pass",
+  );
+  const blocked = Boolean(!gateChecking && evaluation && !passed);
+  const label = gateChecking
     ? "Checking"
-    : !evaluation
+    : health?.status !== "ok"
       ? "Unavailable"
-      : passed
-        ? `Pass · ${percent(evaluation.overall_score)}`
-        : "Blocked";
+      : !evaluation
+        ? "Unavailable"
+        : !releaseVersioned
+          ? "Unversioned"
+          : evaluationNotBound
+            ? "Stale · rerun"
+            : passed
+              ? `Pass · ${percent(evaluation.overall_score)}`
+              : "Blocked";
   const GateIcon = passed ? CheckCircle2 : blocked ? XCircle : ShieldCheck;
   const monitorLabel = monitor
     ? `${monitor.healthy || 0}/${monitor.total || 0} healthy${monitor.due ? ` · ${monitor.due} due` : ""}`
@@ -47,9 +66,6 @@ export default function ReleaseProof() {
       ? "Checking"
       : "Unavailable";
   const monitorDegraded = Boolean(monitor && ((monitor.stale || 0) > 0 || (monitor.source_failed || 0) > 0));
-  const releaseSha = isReleaseSha(health?.release_sha) ? releasePart(health.release_sha, 7) : null;
-  const buildId = releasePart(health?.build_id, 8);
-  const releaseVersioned = Boolean(releaseSha && buildId);
   const releaseLabel = releaseVersioned
     ? `${releaseSha} · ${buildId}`
     : healthLoading
@@ -60,10 +76,13 @@ export default function ReleaseProof() {
   const releaseTitle = health
     ? `Serving SHA: ${health.release_sha || "unknown"}; build: ${health.build_id || "unknown"}`
     : undefined;
+  const gateTitle = evaluationNotBound
+    ? `Trace evaluation SHA: ${evaluation.release_sha || "unknown"}; serving SHA: ${health.release_sha}. Run a fresh evaluation for this release.`
+    : undefined;
 
   return (
     <div className="release-proof" aria-label="Latest deployment proof">
-      <div className={`release-proof-item ${passed ? "pass" : blocked ? "blocked" : ""}`}>
+      <div className={`release-proof-item ${passed ? "pass" : blocked ? "blocked" : ""}`} title={gateTitle} aria-label={gateTitle || "Latest trace gate status"}>
         <GateIcon size={14} aria-hidden="true" />
         <span><small>Latest trace gate</small><strong>{label}</strong></span>
       </div>

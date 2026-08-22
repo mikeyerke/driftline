@@ -65,6 +65,9 @@ curl -fsS "$BASE/health"
 ./scripts/verify_trace_eval.sh
 ```
 
+Run `verify_live_agent.sh` before `verify_production.sh`; the latter rejects a
+trace evaluation that is not bound to the current serving SHA.
+
 The scripts fail closed unless the public service is healthy, the active Cloud
 Run deployment is in the isolated project, the live job reaches
 `needs_approval`, the response proves `gemini-3.5-flash` and `google_adk`, the
