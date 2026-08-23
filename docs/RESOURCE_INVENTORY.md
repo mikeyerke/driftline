@@ -34,13 +34,13 @@ and `/health` reports the exact same release SHA and build ID.
 
 Fresh live proof on this revision:
 
-- `scripts/verify_live_agent.sh` passed with job `job-b023297b19ee`, workflow
-  `30b38263-391d-4ac9-9040-f0ce2c156e51`, `needs_approval`, `public_source`,
+- `scripts/verify_live_agent.sh` passed with job `job-cd8a7384e26d`, workflow
+  `825bb0f1-0abf-467a-adad-57c5337e37ce`, `needs_approval`, `public_source`,
   Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
   audit events, two decision options, and trace evaluation
-  `eval-5351f4a6c98d` at 100% / stable.
+  `eval-a253ca2ea043` at 100% / stable.
 - `scripts/verify_public_approval_undo.sh` passed with job
-  `job-c0e6ed0d1008`, workflow `6bf31740-4d41-4d98-bac6-d305b8250a95`:
+  `job-7792d964a34b`, workflow `2428d668-5525-4d55-840b-de7e18286d19`:
   the packet persisted, one owner action completed then reversed, and
   `external_write=false` / `external_systems_changed=false` remained
   explicit.

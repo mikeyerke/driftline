@@ -27,11 +27,11 @@ full local gate passed before deployment.
 
 Fresh live proof on that exact revision:
 
-- ADK/Gemini execution: job `job-b023297b19ee`, workflow
-  `30b38263-391d-4ac9-9040-f0ce2c156e51`, `needs_approval`,
+- ADK/Gemini execution: job `job-cd8a7384e26d`, workflow
+  `825bb0f1-0abf-467a-adad-57c5337e37ce`, `needs_approval`,
   `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
-  two decision options, and trace evaluation `eval-5351f4a6c98d` at 100% / stable.
-- Approval/undo: job `job-c0e6ed0d1008` persisted a packet, completed one
+  two decision options, and trace evaluation `eval-a253ca2ea043` at 100% / stable.
+- Approval/undo: job `job-7792d964a34b` persisted a packet, completed one
   owner action, and reversed it; `external_write=false` and
   `external_systems_changed=false` remained explicit.
 - Scheduler: a fresh manual run at `2026-08-23T14:28:49.246321Z` returned HTTP
