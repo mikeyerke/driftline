@@ -39,7 +39,7 @@ tenant and its configured connectors.
 
 ## Current release custody
 
-- Repository: `main` at `2e4786a` (documentation-only commit after the runtime
+- Repository: `main` at `a74d74d` (documentation-only commit after the runtime
   candidate); working tree is clean and matches `origin/main`.
 - Serving runtime: `ddf5a5b2df731ad6ea451700c48ad9e9915df0db`.
 - Cloud Run revision: `driftline-00283-g9w`.
@@ -77,4 +77,3 @@ The following are deliberately not claimed:
    browser proof, and no stale claims in README/Devpost.
 4. Freeze scope, record the demo, and submit. No additional connector or UI
    feature work after these gates unless a gate fails.
-
