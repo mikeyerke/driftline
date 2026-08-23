@@ -1780,6 +1780,61 @@ def test_salesforce_context_surfaces_reauthorization_required(monkeypatch) -> No
     assert payload["reason"] == "refresh_token_rejected"
 
 
+def test_salesforce_context_invalidates_stale_proof_after_non_auth_failure(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {"status": "oauth_ready", "mode": "awaiting_authorization"},
+    )
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {
+                "status": "connected_read_only",
+                "instance_url": "https://acme.my.salesforce.com",
+                "health_status": "connected_read_only",
+                "health_objects": [
+                    {"object": "Product2", "total": 3, "fields": []},
+                    {"object": "PricebookEntry", "total": 4, "fields": []},
+                    {"object": "Opportunity", "total": 5, "fields": []},
+                ],
+            },
+            {"status": "active"},
+            True,
+        ),
+    )
+    monkeypatch.setattr(api.SalesforceConfig, "from_env", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        api,
+        "resolve_tenant_credential",
+        lambda *_args, **_kwargs: SimpleNamespace(value="refresh-token"),
+    )
+    monkeypatch.setattr(
+        api,
+        "refresh_salesforce_token",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ConnectorError("salesforce_query_failed")
+        ),
+    )
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        api,
+        "_record_salesforce_health_status",
+        lambda _tenant, status, **kwargs: recorded.append((status, kwargs["reason"])),
+    )
+
+    payload = api._salesforce_context_info("salesforce-acme")
+
+    assert payload["status"] == "failed"
+    assert payload["external_read"] is False
+    assert payload["aggregate_read_verified"] is False
+    assert payload["aggregate_read_status"] == "unverified"
+    assert payload["reason"] == "context_read_failed"
+    assert recorded == [("failed", "context_read_failed")]
+
+
 def test_salesforce_health_returns_reauthorization_state(monkeypatch) -> None:
     monkeypatch.setattr(
         api,
@@ -1826,6 +1881,51 @@ def test_salesforce_health_returns_reauthorization_state(monkeypatch) -> None:
     assert payload["external_read"] is False
     assert payload["external_write"] is False
     assert payload["authorization_required"] is True
+
+
+def test_salesforce_health_records_non_auth_failure_and_fails_closed(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *_args, **_kwargs: {"tenant_id": "salesforce-acme", "role": "owner"},
+    )
+    monkeypatch.setattr(api, "_reserve_connector_call", lambda _tenant: True)
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {"status": "connected_read_only", "instance_url": "https://acme.my.salesforce.com"},
+            {"status": "active"},
+            True,
+        ),
+    )
+    monkeypatch.setattr(api.SalesforceConfig, "from_env", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        api,
+        "resolve_tenant_credential",
+        lambda *_args, **_kwargs: SimpleNamespace(value="refresh-token"),
+    )
+    monkeypatch.setattr(
+        api,
+        "refresh_salesforce_token",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ConnectorError("salesforce_query_failed")
+        ),
+    )
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        api,
+        "_record_salesforce_health_status",
+        lambda _tenant, status, **kwargs: recorded.append((status, kwargs["reason"])),
+    )
+
+    with pytest.raises(api.HTTPException) as error:
+        api.salesforce_health(
+            api.SalesforceHealthRequest(operator="Owner", tenant_id="salesforce-acme")
+        )
+
+    assert error.value.status_code == 503
+    assert recorded == [("failed", "read_probe_failed")]
 
 
 def test_salesforce_health_marks_only_complete_allowlist_as_verified(monkeypatch) -> None:

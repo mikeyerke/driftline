@@ -2435,13 +2435,26 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
                 "authorization_required": True,
                 "reason": "refresh_token_rejected",
             }
+        # A non-auth provider or credential failure must invalidate the last
+        # verified snapshot as well. Otherwise a transient outage could leave
+        # ``health_status=connected_read_only`` in Firestore and make an old
+        # aggregate proof look current to the next workflow. Persist only a
+        # stable internal reason; provider bodies and credentials stay out of
+        # the tenant record.
+        _record_salesforce_health_status(
+            tenant_id,
+            "failed",
+            reason="context_read_failed",
+        )
         return {
             "status": "failed",
             "mode": "read_only_context",
             "scope": "read_only_crm",
             "external_read": False,
             "redaction": "aggregate_metadata_only",
-            "reason": str(exc),
+            "aggregate_read_verified": False,
+            "aggregate_read_status": "unverified",
+            "reason": "context_read_failed",
         }
 
 
@@ -2749,6 +2762,11 @@ def salesforce_oauth_callback(
         )
     except (ConnectorError, ValueError) as exc:
         logger.warning("Salesforce OAuth callback failed: %s", str(exc))
+        if str(exc) == "salesforce_aggregate_read_unverified":
+            return PlainTextResponse(
+                "Salesforce authorization succeeded, but the three-object aggregate read did not pass. Check Product2, PricebookEntry, and Opportunity read permissions, then reconnect.",
+                status_code=503,
+            )
         return PlainTextResponse(
             "Driftline could not finish Salesforce setup. Provision the tenant Secret Manager secret and retry.",
             status_code=503,
@@ -2864,6 +2882,14 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
                 "authorization_required": True,
                 "reason": "refresh_token_rejected",
             }
+        # Clear any previously verified proof when a non-auth probe fails.
+        # The connection remains repairable, but no stale aggregate snapshot
+        # may continue to ground a workflow after this failed read.
+        _record_salesforce_health_status(
+            tenant_id,
+            "failed",
+            reason="read_probe_failed",
+        )
         raise HTTPException(
             status_code=503, detail="Salesforce read probe failed"
         ) from exc
