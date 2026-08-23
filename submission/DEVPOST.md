@@ -22,7 +22,7 @@ Run revision `driftline-00276-kwx`, built by Cloud Build
 `7575e6f6-acaa-4e9f-ac8a-fba56b1549e9` with image digest
 `sha256:3cba623b253abf5a617fbe10fada00c9f0b69b067cdd01ca5eeb8de983b89cc7`.
 The revision serves 100% of traffic in the isolated
-`driftline-hackathon-2026` project. GitHub Actions run `32644401999` and the
+`driftline-hackathon-2026` project. GitHub Actions run `32645277490` and the
 full local gate passed before deployment.
 
 Fresh live proof on that exact revision:
@@ -58,11 +58,12 @@ third-party systems.
 The following constraints remain explicit rather than inferred: Salesforce
 aggregate read is not verified (`external_read=false`,
 `aggregate_read_verified=false`, no object totals); signed tenant
-`driftline-demo` still requires Salesforce reauthorization; no real customer pilot has
-produced before/after time-saved, revenue, retention, or willingness-to-pay
-evidence; and monitoring is intentionally bounded to five pinned fixtures plus
-exact operator-registered URLs capped at 25 per tenant, not universal
-competitor crawling.
+`driftline-demo` still requires Salesforce reauthorization because an
+independent refresh-token probe returned Salesforce `invalid_grant` / expired
+access-refresh token; no real customer pilot has produced before/after
+time-saved, revenue, retention, or willingness-to-pay evidence; and monitoring
+is intentionally bounded to five pinned fixtures plus exact operator-registered
+URLs capped at 25 per tenant, not universal competitor crawling.
 
 The serving release is `c3f16cf3d2765f787cb245f5123dcee4e2c38e73` on Cloud Run
 revision `driftline-00271-8vk`, built by Cloud Build
