@@ -16,19 +16,28 @@ export default function ReleaseProof() {
 
   useEffect(() => {
     let active = true;
+    const refreshMonitor = () => {
+      getMonitorRegistry()
+        .then((payload) => active && setMonitor(payload.summary || null))
+        .catch(() => active && setMonitor(null))
+        .finally(() => active && setMonitorLoading(false));
+    };
     getLatestEvaluation()
       .then((payload) => active && setEvaluation(payload.evaluation || null))
       .catch(() => active && setEvaluation(null))
       .finally(() => active && setLoading(false));
-    getMonitorRegistry()
-      .then((payload) => active && setMonitor(payload.summary || null))
-      .catch(() => active && setMonitor(null))
-      .finally(() => active && setMonitorLoading(false));
+    refreshMonitor();
     getHealth()
       .then((payload) => active && setHealth(payload || null))
       .catch(() => active && setHealth(null))
       .finally(() => active && setHealthLoading(false));
-    return () => { active = false; };
+    // Cadence due state changes even when the release and trace gate do not.
+    // Keep the operator-facing proof honest without requiring a full reload.
+    const timer = window.setInterval(refreshMonitor, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
 
   const releaseShaValue = isReleaseSha(health?.release_sha) ? health.release_sha : null;
@@ -66,6 +75,15 @@ export default function ReleaseProof() {
       ? "Checking"
       : "Unavailable";
   const monitorDegraded = Boolean(monitor && ((monitor.stale || 0) > 0 || (monitor.source_failed || 0) > 0));
+  const monitorAttention = monitor
+    ? [
+      monitor.stale ? `${monitor.stale} stale` : null,
+      monitor.source_failed ? `${monitor.source_failed} failed` : null,
+      monitor.needs_baseline ? `${monitor.needs_baseline} need a baseline` : null,
+      monitor.paused ? `${monitor.paused} paused` : null,
+      monitor.due ? `${monitor.due} due for check` : null,
+    ].filter(Boolean).join(" · ")
+    : "Monitor readiness is unavailable";
   const releaseLabel = releaseVersioned
     ? `${releaseSha} · ${buildId}`
     : healthLoading
@@ -93,7 +111,7 @@ export default function ReleaseProof() {
       <div className="release-proof-item">
         <span><small>Checks</small><strong>{evaluation ? `${evaluation.passed_case_count}/${evaluation.case_count}` : "—"}</strong></span>
       </div>
-      <div className={`release-proof-item ${monitorDegraded ? "blocked" : monitor ? "pass" : ""}`}>
+      <div className={`release-proof-item ${monitorDegraded ? "blocked" : monitor ? "pass" : ""}`} title={monitorAttention} aria-label={`Monitor pulse: ${monitorAttention}`}>
         <Activity size={14} aria-hidden="true" />
         <span><small>Monitor pulse</small><strong>{monitorLabel}</strong></span>
       </div>

@@ -45,10 +45,13 @@ export default function TrustPanel({ actionRecord }) {
   const sourceSummary = ops?.source_health_summary || {};
   const healthySources = sourceSummary.healthy ?? sourceHealth.filter((source) => source.status === "healthy").length;
   const totalSources = sourceSummary.total ?? sourceHealth.length;
-  const sourceAttention = sourceHealth.filter((source) => ["stale", "needs_baseline", "source_failed", "paused"].includes(source.status) || (source.status === "healthy" && source.cadence_due)).length;
+  const sourceDue = sourceSummary.due ?? sourceHealth.filter((source) => source.cadence_due).length;
+  const sourceAttention = sourceHealth.filter((source) => ["stale", "needs_baseline", "source_failed", "paused"].includes(source.status)).length;
   const syntheticSources = sourceSummary.synthetic_only || sourceHealth.filter((source) => source.status === "synthetic_only").length;
   const sourcePulseNote = sourceAttention
-    ? `${sourceAttention} need attention`
+    ? `${sourceAttention} need attention${sourceDue ? ` · ${sourceDue} due for check` : ""}`
+    : sourceDue
+      ? `${sourceDue} due for check`
     : syntheticSources
       ? `${syntheticSources} synthetic fixtures`
       : "all on cadence";
@@ -80,7 +83,7 @@ export default function TrustPanel({ actionRecord }) {
           <div><Activity size={15} /><strong>{ops ? `${healthySources}/${totalSources}` : "—"}</strong><small>sources healthy · {ops ? sourcePulseNote : "readiness pending"}</small></div>
           <div><ListChecks size={15} /><strong>{ops ? `${deadLettered || 0}` : "—"}</strong><small>dead-lettered jobs · {queuedJobs || 0} queued</small></div>
           <div><Database size={15} /><strong>{ops ? connectorLanes : "—"}</strong><small>connector lanes available</small></div>
-          <div>{sourceAttention ? <AlertTriangle size={15} /> : <ShieldCheck size={15} />}<strong>{ops ? (sourceAttention ? sourceAttention : "Clear") : "—"}</strong><small>{ops ? (sourceAttention ? "source checks or lifecycle actions" : "no source attention required") : "guardrail status unavailable"}</small></div>
+          <div>{sourceAttention ? <AlertTriangle size={15} /> : sourceDue ? <Activity size={15} /> : <ShieldCheck size={15} />}<strong>{ops ? (sourceAttention || sourceDue ? sourceAttention + sourceDue : "Clear") : "—"}</strong><small>{ops ? (sourceAttention ? `${sourceAttention} stale/failed/lifecycle` : sourceDue ? `${sourceDue} cadence checks due` : "no source attention required") : "guardrail status unavailable"}</small></div>
         </div>
         <p className="ops-pulse-note">{telemetryNote}</p>
       </div>
