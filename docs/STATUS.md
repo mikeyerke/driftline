@@ -22,11 +22,11 @@ tenant and its configured connectors.
 
 | Capability | State | Evidence | Boundary |
 | --- | --- | --- | --- |
-| Cloud Run production service | **Deployed and live** | `driftline-00284-5kd`, 100% traffic; `/health` returns release SHA `63d9699` | Isolated `driftline-hackathon-2026` project |
+| Cloud Run production service | **Deployed and live** | `driftline-00285-jgl`, 100% traffic; `/health` returns release SHA `e38facc` | Isolated `driftline-hackathon-2026` project |
 | Firestore workflow/audit persistence | **Live verified** | Production verifier and live workflow records | 30-day default retention; tenant policy can narrow/extend within bounds |
-| Google ADK + Gemini | **Live verified** | Current revision: `job-8cf6826d7ceb`, `eval-aa793a59568d`, 14/14 trace gate | Public runs are fixed, bounded scenarios |
+| Google ADK + Gemini | **Live verified** | Current revision: `job-ca1b4ef81e1c`, `eval-7a657a4708df`, 14/14 trace gate | Public runs are fixed, bounded scenarios |
 | Deterministic approval gate | **Live verified** | High-risk actions stop at `needs_approval` | The model cannot approve itself |
-| Reversible Driftline packet/owner action | **Live verified** | Current revision: `job-8b45b24f28b4`, workflow `7799a5ee-5cc1-41c1-967c-8403d955bd4e`; completed then reversed | Public lane writes only Driftline-owned packet artifacts |
+| Reversible Driftline packet/owner action | **Live verified** | Current revision: `job-351e6456de66`, workflow `6f09a2b3-2e7a-4b7c-8575-5c88b075bc63`; completed then reversed | Public lane writes only Driftline-owned packet artifacts |
 | Bounded monitoring | **Live verified** | Five healthy pinned fixtures; scheduler and append-only observations | No universal crawling; tenant URLs require explicit registration |
 | Interactive impact map | **Live verified** | Source, offering, impact, work-surface, and handoff node traversal | Evidence hash is inherited by every node |
 | Jira context read | **Externally verified** | Isolated `KAN` project; aggregate open-work read succeeds | Fixed project scope; no user-supplied JQL |
@@ -42,14 +42,14 @@ tenant and its configured connectors.
 - Repository: `main` (documentation-only commits after the runtime candidate);
   working tree is clean and matches `origin/main`. Verify the exact current
   source SHA from the repository before a future code release.
-- Serving runtime: `63d96995808c8b1a891abd16682d645db19986fb`.
-- Cloud Run revision: `driftline-00284-5kd`.
-- Cloud Build: `92a1fcac-7d63-4c73-8306-0dcbe18c2466`.
-- Image digest: `sha256:832079417ab85423c7b8fdd4682aa29430e723ecf30344708a663f26eb1c69b7`.
+- Serving runtime: `e38facc43745eab267eacd2da4aa28914dff383b`.
+- Cloud Run revision: `driftline-00285-jgl`.
+- Cloud Build: `96dbf2d7-7ee3-490a-a854-bef5c9615efc`.
+- Image digest: `sha256:19980ec57ed89d34f62474ef5b043fd9ce47f0e815650d09b04152fa3e6114f4`.
 
-The repository head is the serving candidate. The deployment was a deliberate
-documentation-aligned promotion over the previously tested runtime; no
-unverified code was introduced.
+The serving candidate is `e38facc`; any later repository changes in the
+release ledger are documentation-only and do not alter the deployed runtime.
+No unverified code was introduced.
 
 ## What “real” means here
 

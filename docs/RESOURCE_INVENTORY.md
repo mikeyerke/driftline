@@ -23,27 +23,27 @@ the current serving-state authority:
 ### Current exact proof — 2026-08-23 (latest release)
 
 The active project was rechecked as `driftline-hackathon-2026` before the
-promotion. Repository head `63d96995808c8b1a891abd16682d645db19986fb` is a
+promotion. Serving candidate `e38facc43745eab267eacd2da4aa28914dff383b` is a
 documentation-aligned promotion over the previously tested runtime candidate;
-GitHub Actions run `32663767296` passed the standalone image, backend tests and
+GitHub Actions run `32664426033` passed the standalone image, backend tests and
 lint, trace-to-eval, dependency audit, frontend production build, and hygiene
-gates. Cloud Build `92a1fcac-7d63-4c73-8306-0dcbe18c2466` deployed Cloud Run
-revision `driftline-00284-5kd` at 100% traffic with image digest
-`sha256:832079417ab85423c7b8fdd4682aa29430e723ecf30344708a663f26eb1c69b7`.
-`/health` reports release SHA `63d96995808c8b1a891abd16682d645db19986fb`
-and build ID `92a1fcac-7d63-4c73-8306-0dcbe18c2466`.
+gates. Cloud Build `96dbf2d7-7ee3-490a-a854-bef5c9615efc` deployed Cloud Run
+revision `driftline-00285-jgl` at 100% traffic with image digest
+`sha256:19980ec57ed89d34f62474ef5b043fd9ce47f0e815650d09b04152fa3e6114f4`.
+`/health` reports release SHA `e38facc43745eab267eacd2da4aa28914dff383b`
+and build ID `96dbf2d7-7ee3-490a-a854-bef5c9615efc`.
 
 Fresh live proof on this exact revision (rerun 2026-08-23):
 
 - `scripts/verify_live_agent.sh` passed on the current revision with job
-  `job-8cf6826d7ceb`, workflow `0ea6e233-a7e4-4d5b-9cc3-5ad7ab12d9c6`,
+  `job-ca1b4ef81e1c`, workflow `6f27b9aa-84f9-407f-91f4-0f87c6b2f72b`,
   `needs_approval`, `public_source`,
   Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
   audit events, two decision options, and trace evaluation
-  `eval-aa793a59568d` at 100% / stable.
+  `eval-7a657a4708df` at 100% / stable.
 - `scripts/verify_public_approval_undo.sh` passed on the current revision with
-  job `job-8b45b24f28b4`, workflow `7799a5ee-5cc1-41c1-967c-8403d955bd4e`:
-  the packet persisted, owner action `item-de93a7a745ed` completed then
+  job `job-351e6456de66`, workflow `6f09a2b3-2e7a-4b7c-8575-5c88b075bc63`:
+  the packet persisted, owner action `item-5ebc7a3ab177` completed then
   reversed, and `external_write=false` /
   `external_systems_changed=false` remained explicit.
 - Fresh hosted signed-OIDC Jira proof (2026-08-23) ran from the authenticated
@@ -53,15 +53,16 @@ Fresh live proof on this exact revision (rerun 2026-08-23):
   Driftline-owned marker `KAN-19`; the signed undo reversed the marker and the
   UI ended at `Decision reopened · no external systems were changed`.
   Cloud Run logs show the tenant-scoped Secret Manager impersonation path. The
-  later `driftline-00284-5kd` promotion changed documentation/release metadata
-  only; no second Jira write was performed during deployment.
+  later `driftline-00284-5kd` and `driftline-00285-jgl` promotions changed
+  documentation/release metadata only; no second Jira write was performed
+  during deployment.
 - `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
   Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
   headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
-  The current-revision trace-to-eval record is `eval-5877b8d9097f` (stable),
+  The current-revision trace-to-eval record is `eval-7a657a4708df` (stable),
   and current-revision Cloud Run errors were `0`.
-- Post-promotion browser QA loaded the public lane from revision `63d9699`,
-  showed `Serving release 63d9699 · 92a1fcac`, and found no Driftline console
+- Post-promotion browser QA loaded the public lane from revision `e38facc`,
+  showed `Serving release e38facc · 96dbf2d7`, and found no Driftline console
   errors or desktop horizontal overflow. The signed pilot measurement path is
   locally covered and exposes aggregate owner-ready, closure, and reversal
   deltas without changing the public lane.
