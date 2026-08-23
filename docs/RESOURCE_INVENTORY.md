@@ -421,7 +421,7 @@ followed by an explicit resume.
   unaudited transition.
 - Paused sources remain visible to signed operators with their history and
   reason, but the scheduler excludes them, the monitor registry reports
-  `status=paused`, and the browser disables **Run scan**. Built-in public
+  `status=paused`, and the browser disables **Run live agent**. Built-in public
   fixtures cannot be paused. Anonymous requests still see exactly five active
   fixtures.
 - Local proof: 282 backend tests, Ruff, frontend production build, frontend
@@ -1763,7 +1763,7 @@ followed by an explicit resume.
   presents a recovery card with a reload action and does not erase persisted
   workflow state or transmit exception details to a third party.
 - Post-deploy probes returned `/health` HTTP 200, Firestore persistence,
-  `gemini-3.5-flash` ADK execution through the public Run scan, deterministic
+  `gemini-3.5-flash` ADK execution through the public Run live agent action, deterministic
   `needs_approval`, zero browser warning/error logs, and zero severity `ERROR`
   Cloud Logging entries for the active revision.
 
@@ -1781,7 +1781,7 @@ followed by an explicit resume.
 - The deployed auth client is still pending replacement with a new OAuth client
   created inside this isolated project; the current `32555940559...` value is
   retained only until that action is completed and live sign-in is reverified.
-- A fresh logged-out browser journey on this revision completed **Run scan**;
+- A fresh logged-out browser journey on this revision completed **Run live agent**;
   the durable job reached `needs_approval`, the UI rendered the live
   `gemini-3.5-flash` ADK trace with `inspect_source_change` and
   `get_workflow_state`, and the browser captured no warning or error logs.
@@ -1893,7 +1893,7 @@ followed by an explicit resume.
   Build `c1a93c09-1bc0-43d5-bcc7-d18870318d6b` completed `SUCCESS`; Cloud Run
   revision `driftline-00072-lg8` serves 100% of traffic.
 - The authenticated console now detects a tenant's operator-registered
-  `public_only` source and queues `run_mode=monitor` when **Run scan** is
+  `public_only` source and queues `run_mode=monitor` when **Run live agent** is
   pressed. Pinned fixtures continue to use the bounded `tenant_demo` lane.
   This closes the product loop from source onboarding to a real public fetch,
   append-only baseline/history, ADK analysis, and deterministic approval; it

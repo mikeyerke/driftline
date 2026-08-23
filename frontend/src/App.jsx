@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, Play, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ShieldCheck, X } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import EvidenceDiff from "./components/EvidenceDiff";
 import ImpactMap from "./components/ImpactMap";
@@ -27,6 +27,7 @@ import SalesforceConnectorPanel from "./components/SalesforceConnectorPanel";
 import TraceEvalPanel from "./components/TraceEvalPanel";
 import ReleaseProof from "./components/ReleaseProof";
 import UtilityNextStep from "./components/UtilityNextStep";
+import JudgeJourney from "./components/JudgeJourney";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -119,20 +120,6 @@ export default function App() {
   const jiraWriteOccurred = ["created", "reused", "reactivated", "reversed"].includes(actionRecord?.jira_status);
   const selectedSourceDefinition = sources.find((source) => source.source_id === selectedSource);
   const selectedSourcePaused = selectedSourceDefinition?.enabled === false;
-  const runHint = actionRecord?.jira_status === "reversed"
-    ? "Jira handoff reversed · other destinations remain prepared-only"
-    : actionRecord?.jira_status === "reactivated"
-      ? "Jira handoff reactivated · external state remains reversible"
-      : jiraWriteOccurred
-      ? "Jira handoff recorded · other destinations remain prepared-only"
-    : selectedSourcePaused
-      ? "Monitoring paused · resume this source before scanning"
-    : operatorSession.identityToken && selectedSourceDefinition?.mode === "public_only"
-      ? "Authenticated source monitor · approval-gated analysis"
-      : operatorSession.identityToken
-      ? "Authenticated tenant run · approval-gated connector actions"
-      : "Public allowlisted monitor · live packet-safe access · no external writes";
-
   const refreshHistory = async (expectedEpoch = sessionEpochRef.current) => {
     const requestId = historyRequestRef.current + 1;
     historyRequestRef.current = requestId;
@@ -556,22 +543,18 @@ export default function App() {
       <Sidebar selected={selectedNav} onSelect={selectNav} />
       <main id="main-content">
         <header className="topbar">
-          <h1>Driftline promise drift operations</h1>
+          <h1>Promise change control room</h1>
           <div className="topbar-actions">
             <OperatorAccess />
-            {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
-            <span className="workspace-button">Production control plane<ChevronDown size={15} /></span>
-            <span className="run-hint">{runHint}</span>
-            <button className="primary" onClick={() => runScan()} disabled={scanning || selectedSourcePaused} type="button" title={selectedSourcePaused ? "Resume this paused source before scanning" : undefined}>
-              <Play size={17} />{scanning ? "Running…" : selectedSourcePaused ? "Source paused" : "Run scan"}
-            </button>
+            {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : liveWorkflow ? "Ready for decision" : "Status updated"}</span>}
+            <span className="lane-indicator"><ShieldCheck size={15} />{operatorSession.identityToken ? "Signed operator lane" : "Public judge lane"}</span>
           </div>
         </header>
 
         <div className="content">
-        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>Production control plane</strong><span>{operatorSession.identityToken ? `Authenticated tenant lane · ${operatorSession.tenantId} · deterministic human gate` : "Public evaluation lane · pinned synthetic scenarios · deterministic human gate"}</span></div><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Packet-safe evaluation")}</span><ReleaseProof /></div>
+        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>Live production proof</strong><span>{operatorSession.identityToken ? `Signed tenant lane · ${operatorSession.tenantId} · human-gated connector execution` : "Public judge lane · real ADK + Gemini workflow · no external writes"}</span></div><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live agent workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Safe to evaluate")}</span><ReleaseProof /></div>
           <section id="overview-section" className="overview-section">
-            <p className="product-orientation">{approved ? "Driftline verified the change, recorded the approved operating plan, and is tracking owner closure." : "Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval."}</p>
+            <p className="product-orientation">{approved ? "The source change is verified, the human decision is recorded, and every owner action remains traceable and reversible." : "A public promise changed. Driftline verifies the evidence, maps every affected owner, and stops at a human decision."}</p>
             <UtilityNextStep workflow={workflowState} job={job} scanning={scanning} sourcePaused={selectedSourcePaused} onRunScan={() => runScan()} onNavigate={focusSection} />
             <section className="incident-header">
               <span className="incident-icon"><AlertTriangle size={30} /></span>
@@ -585,11 +568,7 @@ export default function App() {
               <button className="secondary incident-details" onClick={() => setShowEvidence(true)} type="button">View source evidence<ChevronDown size={16} /></button>
             </section>
 
-            <section className="change-brief" aria-label="Change decision brief">
-              <div><span>Why this matters</span><strong>One source change can create conflicting promises across the business.</strong><p>Driftline turns the verified sentence-level change into owner-ready work, with evidence attached before anything can be approved.</p></div>
-              <div><span>Decision scope</span><strong>{workflowState?.impact_graph?.summary?.artifact_count || 4} downstream surfaces</strong><p>Review each mapped owner surface before approving the bounded outputs.</p></div>
-              <div><span>Guardrail</span><strong>Human approval required</strong><p>High-risk changes stop here. The agent cannot approve its own action.</p></div>
-            </section>
+            <JudgeJourney workflow={workflowState} scanning={scanning} onNavigate={focusSection} />
 
             <ChangeCardPanel card={workflowState?.change_card} />
 
@@ -603,7 +582,7 @@ export default function App() {
 
             <div className="dashboard-grid">
               <div className="main-column">
-                <div className="upper-grid">
+                <div id="evidence-section" className="upper-grid">
                   <EvidenceDiff collapsed={evidenceCollapsed} onToggle={() => setEvidenceCollapsed((current) => !current)} evidence={evidence} />
                   <ImpactMap items={impacts} graph={workflowState?.impact_graph} approved={approved} sourceName={evidence.source_name} sourceCategory={selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} onSelectArtifact={focusArtifactWorklist} />
                 </div>

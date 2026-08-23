@@ -49,7 +49,7 @@ scheduler then owns recurring observations and retry behavior. Local and public
 synthetic demo modes stay metadata-only for deterministic evaluation.
 
 The authenticated console uses the same production monitor lane for a registered
-URL: after onboarding, selecting that source and pressing **Run scan** queues a
+URL: after onboarding, selecting that source and pressing **Run live agent** queues a
 tenant-bound `monitor` job rather than the synthetic fixture lane. A registered
 source therefore follows the real fetch, append-only baseline, ADK analysis, and
 approval path from the product UI; pinned fixtures remain available separately

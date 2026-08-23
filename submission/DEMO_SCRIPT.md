@@ -15,10 +15,10 @@ approved is the real work. Driftline turns that change into reversible action.�
 ## 0:18–0:48 — Trigger the Taskmaster workflow
 
 **Screen:** Show the public URL and packet-safe label. Select **Competitor
-pricing snapshot** and click **Run scan**. Keep production proof and job progress
+pricing snapshot** and click **Run live agent**. Keep production proof and job progress
 visible.
 
-**Narration:** “This is the live Cloud Run application. Run scan creates a
+**Narration:** “This is the live Cloud Run application. Run live agent creates a
 durable Cloud Tasks job. Google ADK and Gemini 3.5 Flash inspect an allowlisted
 source while Firestore stores the job, workflow, and audit state. The browser
 does not hold the model request open.”

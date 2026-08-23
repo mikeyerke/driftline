@@ -46,10 +46,10 @@ export default function UtilityNextStep({ workflow, job, scanning, sourcePaused,
 
   if (!workflow) {
     return (
-      <section className="utility-next-step ready" aria-label="Next best action">
+      <section className={`utility-next-step ready${scanning ? " scanning" : ""}`} aria-label="Next best action">
         <span className="utility-next-step-icon"><Play size={16} /></span>
-        <div><strong>Start with one approved change surface</strong><p>Run a bounded scan to turn the selected source into an evidence-linked decision packet.</p></div>
-        <button className="secondary compact" type="button" onClick={onRunScan} disabled={scanning || sourcePaused} title={sourcePaused ? "Resume this source before scanning" : undefined}>{scanning ? "Running…" : sourcePaused ? "Source paused" : "Run scan"}<ArrowRight size={14} /></button>
+        <div><strong>{scanning ? "Gemini + ADK are tracing the change" : "Turn this source change into owner-ready work"}</strong><p>{scanning ? "Verifying the evidence and mapping every affected surface. No action can bypass the human gate." : "Watch Gemini + ADK verify the evidence, map downstream work, and stop at a human decision."}</p></div>
+        <button className="primary compact" type="button" onClick={onRunScan} disabled={scanning || sourcePaused} title={sourcePaused ? "Resume this source before scanning" : undefined}>{scanning ? "Agent running…" : sourcePaused ? "Source paused" : "Run live agent"}<ArrowRight size={14} /></button>
       </section>
     );
   }
@@ -59,7 +59,7 @@ export default function UtilityNextStep({ workflow, job, scanning, sourcePaused,
     return (
       <section className="utility-next-step review" aria-label="Next best action">
         <span className="utility-next-step-icon"><ShieldCheck size={16} /></span>
-        <div><strong>Next move: review the bounded response</strong><p>Gemini mapped {count} downstream surface{count === 1 ? "" : "s"}; confirm the owners and approve the narrowest plan that fits the evidence.</p></div>
+        <div><strong>Compare the evidence-cited response plans</strong><p>Gemini mapped {count} downstream surface{count === 1 ? "" : "s"}. Choose the narrowest safe plan, then approve or dismiss it.</p></div>
         <button className="primary compact" type="button" onClick={() => onNavigate?.("approvals-section")}>Review decision<ArrowRight size={14} /></button>
       </section>
     );

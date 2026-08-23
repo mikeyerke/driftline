@@ -95,7 +95,7 @@ upload-ready diagram is
 ## Reproducible testing instructions
 
 1. Open https://driftline-xvxczqg62a-uc.a.run.app/ while logged out.
-2. Leave **Competitor pricing snapshot** selected and click **Run scan**.
+2. Leave **Competitor pricing snapshot** selected and click **Run live agent**.
 3. Wait for **Human approval required**.
 4. Inspect **Evidence diff**, **Open evidence**, **Agent trace**, the impact map,
    and an artifact detail row.

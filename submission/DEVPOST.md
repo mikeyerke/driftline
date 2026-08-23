@@ -155,7 +155,7 @@ to pay as `not_measured` until an independent pilot provides evidence.
 ## Testing instructions
 
 1. Open https://driftline-xvxczqg62a-uc.a.run.app/ logged out.
-2. Leave **Competitor pricing snapshot** selected and click **Run scan**.
+2. Leave **Competitor pricing snapshot** selected and click **Run live agent**.
 3. Wait for the asynchronous job to reach **Human approval required**.
 4. Inspect **Evidence diff**, **Open evidence**, **Agent trace**, the impact map,
    and an artifact detail row.

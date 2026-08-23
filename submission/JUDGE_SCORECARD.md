@@ -28,7 +28,7 @@ alert feed or chat summary.
 **Live proof:**
 
 1. Open the [deployed console](https://driftline-xvxczqg62a-uc.a.run.app/).
-2. Select `Competitor pricing snapshot` and click **Run scan**.
+2. Select `Competitor pricing snapshot` and click **Run live agent**.
 3. Watch the agent trace move from durable queue to Google ADK tools and the
    structured Gemini impact pass.
 4. Open the source evidence and follow the graph to the comparison map,

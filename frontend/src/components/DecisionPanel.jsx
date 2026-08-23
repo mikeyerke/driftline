@@ -97,16 +97,20 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
       <div className="decision-rationale"><strong>Why this needs a decision</strong><p>{sourceCategory?.startsWith("Competitor") ? "This signal can change comparison claims and deal guidance; Driftline keeps the observed source attached before anyone acts." : "This change affects contractual expectations and may require an exception path for existing customers."}</p></div>
       <DecisionCopilot copilot={copilot} evidence={evidence} selectedId={selectedOptionId} onSelect={(option) => { setSelectedOptionId(option.option_id); onOptionSelect?.(option); }} />
       {customRouting && <label className="override-reason"><span>Why change the recommended artifact routing?</span><textarea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} maxLength={240} rows={2} /></label>}
-      <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>{customRouting ? "Custom artifact routing selected · the reviewed workflow decision remains bounded by policy." : "High-risk artifacts remain behind this deterministic human gate."}</small></div>
-      <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || copilotUnavailable || (copilot && !selectedOption) || (customRouting && overrideReason.trim().length < 3)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : copilotUnavailable ? "Rerun scan for Gemini review" : "Approve action plan"}</button>
-      <button className="secondary full" onClick={() => {
-        const reason = window.prompt("Why is this signal not material right now?", "Reviewed as non-material for the current segment");
-        if (reason?.trim()) onDismiss?.(reason.trim());
-      }} disabled={!isLive || busy}><Ban size={17} />Dismiss as non-material</button>
-      <button className="secondary full" onClick={onEvidence}><FileText size={17} />Open evidence</button>
-      <p className="decision-note">Approval creates a reversible, evidence-linked packet and one isolated Google Cloud operational output. The agent cannot approve itself.</p>
+      <div className="decision-action-dock">
+        <div className="approval-scope"><strong>Human decision · reversible</strong><span>{outcomeSummary}</span><small>{customRouting ? "Custom routing selected · policy boundaries still apply." : "Creates owner-ready work only after your approval."}</small></div>
+        <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || copilotUnavailable || (copilot && !selectedOption) || (customRouting && overrideReason.trim().length < 3)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : copilotUnavailable ? "Rerun scan for Gemini review" : "Approve action plan"}</button>
+        <div className="decision-secondary-actions">
+          <button className="secondary" onClick={onEvidence}><FileText size={17} />Open evidence</button>
+          <button className="text-button" onClick={() => {
+            const reason = window.prompt("Why is this signal not material right now?", "Reviewed as non-material for the current segment");
+            if (reason?.trim()) onDismiss?.(reason.trim());
+          }} disabled={!isLive || busy}><Ban size={17} />Dismiss signal</button>
+        </div>
+        <p className="decision-note">The agent cannot approve itself. Any created output stays evidence-linked and reversible.</p>
+      </div>
       {copilotUnavailable && <p className="decision-note decision-warning">Gemini decision analysis was unavailable for this tenant run. Approval is disabled until a new scan produces a reviewed option.</p>}
-      {!isLive && <p className="decision-note decision-warning">Run the scan to create a live Firestore workflow before deciding.</p>}
+      {!isLive && <p className="decision-note decision-warning">Run the live agent to create a Firestore workflow before deciding.</p>}
     </aside>
   );
 }

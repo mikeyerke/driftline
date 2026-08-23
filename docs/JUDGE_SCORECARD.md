@@ -211,7 +211,7 @@ each release rather than trusting a copied identifier.
 
 ## Suggested demo order
 
-Run scan → evidence diff → Gemini/ADK trace → impact map → artifact details →
+Run live agent → evidence diff → Gemini/ADK trace → impact map → artifact details →
 Decision Copilot → approve → packet/audit → undo → append-only history and
 multimodal evidence → Cloud Run proof. Keep the video public and under four
 minutes when it is finally uploaded.
