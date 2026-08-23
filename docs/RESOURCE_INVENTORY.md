@@ -22,6 +22,51 @@ the current serving-state authority:
 
 ### Current exact proof — 2026-08-23 (latest release)
 
+The active project was rechecked as `driftline-hackathon-2026` before the
+latest runtime hardening release. Commit
+`747e5b891fc01c6317666527ecfc8049f82be160` passed the full local gate (328
+backend tests, Ruff, frontend production build, frontend contract checks, and
+frozen dependency audit) and GitHub Actions run `32646428785`. Cloud Build
+`a2240b63-2d17-4bea-af38-230e11e34c63` deployed Cloud Run revision
+`driftline-00277-mrw` at 100% traffic with image digest
+`sha256:7d64754a1dd27a98f9e9286102560355dbe9e02695f1a40fafef27617a4fa0d7`.
+`/health` reports that exact release SHA and build ID.
+
+Fresh live proof on this exact revision:
+
+- `scripts/verify_live_agent.sh` passed with job `job-048b0b4b64c1`, workflow
+  `628f54c4-e663-427f-b4c2-a5b246ed4c57`, `needs_approval`, `public_source`,
+  Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
+  audit events, two decision options, and trace evaluation
+  `eval-b4e22563fa6b` at 100% / stable.
+- `scripts/verify_public_approval_undo.sh` passed with job
+  `job-73d58fc3cf55`, workflow `cd225763-b64a-4a9b-b942-c3d9d6bf2983`:
+  the packet persisted, one owner action completed then reversed, and
+  `external_write=false` / `external_systems_changed=false` remained
+  explicit.
+- `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
+  Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
+  headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
+  A fresh manual Scheduler run at `2026-08-23T14:28:49.209402Z` returned HTTP
+  200 on `/api/scheduler/tick` at revision `driftline-00277-mrw`.
+
+This hardening release also stops Salesforce context reads from retrying a
+refresh token after an explicit `reauthorization_required` health marker. The
+metadata remains repair-visible while CRM context fails closed; the explicit
+operator aggregate-read probe remains the only path that can establish a
+verified CRM read. The monitor UI still refreshes append-only history after
+no-op and baseline outcomes. The public evaluation lane remains packet-safe
+and writes no third-party systems.
+
+The limits below remain intentional and evidence-gated: Salesforce aggregate
+read is not verified (`external_read=false`, `aggregate_read_verified=false`);
+no real customer pilot has produced before/after time-saved, revenue, win-rate,
+retention, or willingness-to-pay evidence; and public monitoring is bounded to
+five pinned fixtures plus exact operator-registered HTTPS URLs capped at 25 per
+tenant, not universal competitor crawling.
+
+### Historical exact proof — 2026-08-23 (superseded)
+
 The active project was rechecked as `driftline-hackathon-2026` before this
 runtime-code release. Commit `f28bc6e8bcfbf9651ce47f53dbbe8980e7376781`
 passed the full local gate (327 backend tests, Ruff, frontend production

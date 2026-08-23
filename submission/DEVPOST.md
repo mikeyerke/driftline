@@ -17,6 +17,47 @@
 
 ### Current exact proof — 2026-08-23
 
+The current serving release is
+`747e5b891fc01c6317666527ecfc8049f82be160` on Cloud Run revision
+`driftline-00277-mrw`, built by Cloud Build
+`a2240b63-2d17-4bea-af38-230e11e34c63` with image digest
+`sha256:7d64754a1dd27a98f9e9286102560355dbe9e02695f1a40fafef27617a4fa0d7`.
+It serves 100% of traffic in the isolated `driftline-hackathon-2026` project.
+GitHub Actions run `32646428785`; the full local gate passed with 328 backend
+tests, Ruff, frontend production build, frontend contract checks, and frozen
+dependency audit.
+
+Fresh live proof on that exact revision:
+
+- ADK/Gemini execution: job `job-048b0b4b64c1`, workflow
+  `628f54c4-e663-427f-b4c2-a5b246ed4c57`, `needs_approval`,
+  `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
+  two decision options, and trace evaluation `eval-b4e22563fa6b` at 100% /
+  stable.
+- Approval/undo: job `job-73d58fc3cf55` persisted a packet, completed one
+  owner action, and reversed it; `external_write=false` and
+  `external_systems_changed=false` remained explicit.
+- Production verification passed for Firestore, Cloud Tasks, Scheduler,
+  uptime, alerting, IAM, Artifact Registry retention, security headers, OIDC
+  tenant boundaries, and zero current-revision Cloud Run errors. A fresh
+  Scheduler run returned HTTP 200 on `/api/scheduler/tick` at this revision.
+
+This hardening release stops Salesforce context reads from retrying a refresh
+token after an explicit `reauthorization_required` marker. The metadata remains
+repair-visible while CRM context fails closed; only the explicit operator
+aggregate-read probe can establish a verified CRM read. Append-only source
+history remains visible after no-op and baseline monitor outcomes, and the
+public evaluation lane remains packet-safe with no third-party writes.
+
+The remaining limits are intentional and evidence-gated: Salesforce aggregate
+read is not verified (`external_read=false`, `aggregate_read_verified=false`,
+no object totals); no real customer pilot has produced before/after time-saved,
+revenue, win-rate, retention, or willingness-to-pay evidence; and monitoring is
+bounded to five pinned fixtures plus exact operator-registered HTTPS URLs capped
+at 25 per tenant, not universal competitor crawling.
+
+### Historical exact proof — 2026-08-23 (superseded)
+
 The serving release is `f28bc6e8bcfbf9651ce47f53dbbe8980e7376781` on Cloud
 Run revision `driftline-00276-kwx`, built by Cloud Build
 `7575e6f6-acaa-4e9f-ac8a-fba56b1549e9` with image digest
