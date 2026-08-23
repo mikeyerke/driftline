@@ -58,7 +58,10 @@ metadata remains repair-visible while CRM context fails closed; the explicit
 operator aggregate-read probe remains the only path that can establish a
 verified CRM read. The monitor UI still refreshes append-only history after
 no-op and baseline outcomes. The public evaluation lane remains packet-safe
-and writes no third-party systems.
+and writes no third-party systems. The release also corrects the interactive
+impact-map medium-risk label contrast; post-deploy desktop and mobile
+Lighthouse snapshots both returned 100 accessibility, 100 best practices, 100
+SEO, and 100 agentic-browsing with zero failed audits.
 
 The limits below remain intentional and evidence-gated: Salesforce aggregate
 read is not verified (`external_read=false`, `aggregate_read_verified=false`);

@@ -48,7 +48,10 @@ token after an explicit `reauthorization_required` marker. The metadata remains
 repair-visible while CRM context fails closed; only the explicit operator
 aggregate-read probe can establish a verified CRM read. Append-only source
 history remains visible after no-op and baseline monitor outcomes, and the
-public evaluation lane remains packet-safe with no third-party writes.
+public evaluation lane remains packet-safe with no third-party writes. The
+interactive impact-map medium-risk label contrast was corrected in this
+release; the post-deploy desktop and mobile Lighthouse snapshots both passed
+accessibility, best practices, SEO, and agentic-browsing audits.
 
 The remaining limits are intentional and evidence-gated: Salesforce aggregate
 read is not verified (`external_read=false`, `aggregate_read_verified=false`,
