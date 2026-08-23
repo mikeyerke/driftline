@@ -190,6 +190,12 @@ The Cloud Build `release-smoke` step also compared the serving revision's
 image digest with the exact Artifact Registry image tag before marking the
 build successful.
 
+The exact current proof is the **Latest verified release** section near the
+top of this document. The detailed bullet record below is retained as a
+historical submission snapshot; it is not a second source of current serving
+IDs. The latest code gate passed 326 backend tests (the 325-test count below
+belongs to the earlier snapshot).
+
 The current release includes the visible Salesforce reauthorization recovery
 control and an explicit `reauthorization_required` health response when a
 stored refresh token is rejected. That bounded health state is now durable
