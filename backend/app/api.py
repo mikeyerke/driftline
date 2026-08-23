@@ -6418,17 +6418,10 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             # tenant id on the action also lets a later signed undo resolve the
             # same binding after the approval object is cleared.
             state.action_record["tenant_id"] = approval_identity["tenant_id"]
-        storage_info = persist_action_artifact(state, kind="active")
-        operational_info = persist_operational_output(state, kind="active")
         connector_info = _connector_handoff_info(state, approval_identity)
         state.action_record = {
             **(state.action_record or {}),
-            **storage_info,
-            **operational_info,
             **connector_info,
-            "operational_side_effect": operational_info.get(
-                "operational_status", "not_configured"
-            ),
             "external_write_authorized": approval_identity.get("scope") == "configured",
             "external_write": any(
                 connector_info.get(f"{name}_external_write", False)
@@ -6441,9 +6434,27 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
                 for name, _, _ in _CONNECTOR_HANDOFFS
             ),
         }
-        if storage_info.get("storage_status") != "not_configured":
-            compare_and_set_workflow(state, "complete")
-            workflow_store.restore(state)
+        # Persist artifacts after connector execution so signed packets and
+        # immutable operational outputs report the same external-write truth
+        # as the durable action record. Public packet-only approvals still
+        # render the explicit no-write state.
+        storage_info = persist_action_artifact(state, kind="active")
+        operational_info = persist_operational_output(state, kind="active")
+        state.action_record = {
+            **(state.action_record or {}),
+            **storage_info,
+            **operational_info,
+            "operational_side_effect": operational_info.get(
+                "operational_status", "not_configured"
+            ),
+        }
+        # The connector outcome is durable state even when the optional
+        # Cloud Storage evidence bucket is not configured or is temporarily
+        # unavailable. Always commit the post-handoff action record; otherwise
+        # a signed external write could be real while Firestore still shows the
+        # pre-connector packet-only state.
+        compare_and_set_workflow(state, "complete")
+        workflow_store.restore(state)
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:
@@ -6525,17 +6536,10 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
             "complete",
             apply,
         )
-        storage_info = persist_action_artifact(state, kind="rollback")
-        operational_info = persist_operational_output(state, kind="rollback")
         connector_info = _connector_handoff_info(state, approval_identity, reverse=True)
         state.action_record = {
             **(state.action_record or {}),
-            **storage_info,
-            **operational_info,
             **connector_info,
-            "operational_side_effect": operational_info.get(
-                "operational_status", "not_configured"
-            ),
             "external_write_authorized": approval_identity.get("scope") == "configured",
             "external_write": any(
                 connector_info.get(f"{name}_external_write", False)
@@ -6548,9 +6552,20 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
                 for name, _, _ in _CONNECTOR_HANDOFFS
             ),
         }
-        if storage_info.get("storage_status") != "not_configured":
-            compare_and_set_workflow(state, "needs_approval")
-            workflow_store.restore(state)
+        storage_info = persist_action_artifact(state, kind="rollback")
+        operational_info = persist_operational_output(state, kind="rollback")
+        state.action_record = {
+            **(state.action_record or {}),
+            **storage_info,
+            **operational_info,
+            "operational_side_effect": operational_info.get(
+                "operational_status", "not_configured"
+            ),
+        }
+        # Persist the connector reversal and its truthful external-write flags
+        # even when optional artifact storage is disabled or unavailable.
+        compare_and_set_workflow(state, "needs_approval")
+        workflow_store.restore(state)
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:

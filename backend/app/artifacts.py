@@ -15,6 +15,11 @@ from .workflow import packet_markdown
 logger = logging.getLogger(__name__)
 
 
+def _external_systems_changed(state: WorkflowState) -> bool:
+    """Read the signed connector outcome without exposing connector details."""
+    return bool((state.action_record or {}).get("external_systems_changed", False))
+
+
 def _upload_immutable(blob: Any, body: bytes, *, content_type: str) -> tuple[str | None, bool]:
     """Create an object once and reuse its generation on deterministic replay.
 
@@ -69,7 +74,7 @@ def persist_action_artifact(state: WorkflowState, *, kind: str) -> dict[str, Any
                     "evidence_hash": (
                         state.evidence.evidence_hash if state.evidence else None
                     ),
-                    "external_systems_changed": False,
+                    "external_systems_changed": _external_systems_changed(state),
                     "reversible": True,
                 },
                 sort_keys=True,
@@ -133,7 +138,7 @@ def persist_operational_output(state: WorkflowState, *, kind: str) -> dict[str, 
                 f"- Owner: {packet['owner']}\n"
                 f"- Artifact: {packet['artifact']}\n"
                 "- Operational status: **Active**\n"
-                "- External customer systems changed: **No**\n\n"
+                f"- External customer systems changed: **{'Yes' if _external_systems_changed(state) else 'No'}**\n\n"
                 "## Approved content\n\n"
                 f"{packet['content']}\n"
             ).encode()
@@ -150,7 +155,7 @@ def persist_operational_output(state: WorkflowState, *, kind: str) -> dict[str, 
                     "evidence_hash": (
                         state.evidence.evidence_hash if state.evidence else None
                     ),
-                    "external_customer_systems_changed": False,
+                    "external_customer_systems_changed": _external_systems_changed(state),
                     "reversible": True,
                 },
                 sort_keys=True,

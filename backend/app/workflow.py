@@ -453,6 +453,15 @@ class DriftlineWorkflow:
 def packet_markdown(state: WorkflowState) -> str:
     """Render the bounded, evidence-carrying output packet for a workflow."""
     evidence = state.evidence
+    action = state.action_record or {}
+    external_systems_changed = bool(action.get("external_systems_changed", False))
+    external_write_authorized = bool(action.get("external_write_authorized", False))
+    external_change_label = "Yes" if external_systems_changed else "No"
+    lane_label = (
+        "configured connector lane"
+        if external_write_authorized
+        else "packet-safe public lane"
+    )
     lines = [
         "# Driftline change packet",
         "",
@@ -462,10 +471,10 @@ def packet_markdown(state: WorkflowState) -> str:
         f"- Source ID: `{evidence.source_id if evidence else 'unknown'}`",
         f"- Evidence hash: `{evidence.evidence_hash if evidence else 'none'}`",
         f"- Data mode: `{state.data_mode}`",
-        "- External systems changed: **No** (isolated public-demo output)",
-        f"- Firestore action record: `{(state.action_record or {}).get('action_id', 'none')}`",
-        f"- Action status: `{(state.action_record or {}).get('status', 'none')}`",
-        f"- Google Cloud operational output: `{(state.action_record or {}).get('operational_side_effect', 'not yet published')}`",
+        f"- External systems changed: **{external_change_label}** ({lane_label})",
+        f"- Firestore action record: `{action.get('action_id', 'none')}`",
+        f"- Action status: `{action.get('status', 'none')}`",
+        f"- Google Cloud operational output: `{action.get('operational_side_effect', 'not yet published')}`",
         "",
         "## Materiality and exposure",
         "",
@@ -492,6 +501,21 @@ def packet_markdown(state: WorkflowState) -> str:
         "## Artifact actions",
         "",
     ]
+    connector_names = ("jira", "confluence", "slack", "github")
+    connector_lines = [
+        (name, action.get(f"{name}_status"), bool(action.get(f"{name}_external_write")))
+        for name in connector_names
+        if action.get(f"{name}_status") is not None
+    ]
+    if connector_lines:
+        lines.extend(["## Connector execution", ""])
+        for name, status, external_write in connector_lines:
+            label = name.title()
+            write_label = "yes" if external_write else "no"
+            lines.append(
+                f"- {label}: status `{status}` · external write `{write_label}`"
+            )
+        lines.append("")
     promise_ledger = state.change_card.get("promise_ledger") or {}
     if promise_ledger.get("items"):
         lines.extend(

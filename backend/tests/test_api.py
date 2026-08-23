@@ -3409,6 +3409,7 @@ def test_demo_approval_never_calls_configured_connectors(monkeypatch) -> None:
 
 def test_signed_approval_can_cross_connector_boundary_when_enabled(monkeypatch) -> None:
     calls: list[str] = []
+    persisted_packets: list[str] = []
 
     def create(state):
         calls.append("write")
@@ -3422,6 +3423,14 @@ def test_signed_approval_can_cross_connector_boundary_when_enabled(monkeypatch) 
         api,
         "_CONNECTOR_HANDOFFS",
         (("jira", create, create),),
+    )
+    monkeypatch.setattr(
+        api,
+        "persist_action_artifact",
+        lambda state, kind: (
+            persisted_packets.append(api.packet_markdown(state))
+            or {"storage_status": "not_configured"}
+        ),
     )
     tenant_state = api.workflow_store.start_demo(tenant_id="driftline-demo")
     api.persist_workflow(tenant_state)
@@ -3442,6 +3451,9 @@ def test_signed_approval_can_cross_connector_boundary_when_enabled(monkeypatch) 
     assert approved.status_code == 200
     assert calls == ["write"]
     assert approved.json()["action_record"]["external_write_authorized"] is True
+    assert approved.json()["action_record"]["external_systems_changed"] is True
+    assert "External systems changed: **Yes** (configured connector lane)" in persisted_packets[0]
+    assert "Jira: status `created` · external write `yes`" in persisted_packets[0]
 
 
 def test_configured_handoff_only_runs_mapped_connectors_and_names_writes(monkeypatch) -> None:
