@@ -46,7 +46,7 @@ audits passed 53/53 on both desktop and mobile (100 accessibility, best
 practices, SEO, and agentic browsing). A fresh performance trace measured LCP
 185ms and CLS 0.00.
 
-The current public value-proof window contains 12 source observations and 12
+The current public value-proof window contains 12 source observations and 11
 workflows, with five historical owner-action completions and current completion
 back at 0% after intentional undo. Customer time saved, revenue/win-rate lift,
 retention impact, and willingness-to-pay remain explicitly unmeasured. Public
@@ -91,7 +91,7 @@ followed by an explicit resume.
   `931d9db1-6880-497b-a3ce-28383bf9f206`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- The current `/api/evals/latest` reported evaluation `eval-e76be6a1f5c6` with a passing
+- The current `/api/evals/latest` reported evaluation `eval-a11ca23168f5` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
@@ -115,12 +115,27 @@ followed by an explicit resume.
   owner and the real aggregate probe returned `reauthorization_required`.
   Driftline prepared a fresh Salesforce consent link; no CRM object totals were
   inferred from the failed probe.
-- At `2026-08-22T00:44Z`, the signed **Refresh context** read verified the
-  tenant-scoped connector boundaries with aggregate-only results: Jira `18`
-  open issues, Confluence `7` pages in scope, Slack `38` recent messages, and
-  GitHub `0` issues / `0` PRs. Salesforce correctly remained
-  `reauthorization_required`; these counts are connector proof, not customer
-  outcome or ROI evidence.
+- At `2026-08-22T23:56Z`, the signed **Refresh context** read verified the
+  tenant-scoped connector boundaries with aggregate-only results: Jira `19`
+  open issues, Confluence `7` pages in scope, Slack `40` recent messages, and
+  GitHub `1` issue / `0` PRs. Salesforce correctly remained
+  `authorization_required`; these counts are connector proof, not customer
+  outcome or ROI evidence. The authenticated UI showed no raw records or
+  credential values.
+- The signed tenant workflow `81b80588-30d8-4a23-b33e-f0d9750f5710` reached the
+  deterministic approval gate through Google ADK/Gemini 3.5 Flash, then a named
+  human approval reactivated the idempotent Jira, Confluence, Slack, and GitHub
+  handoff markers. The same named human reopened the decision; all four external
+  connector statuses returned `reversed`, and the browser showed no application
+  console errors. This is a real reversible connector smoke, not a customer
+  pilot or business-outcome claim.
+- The public live-agent verifier subsequently recorded job
+  `job-34dc36310a77` / workflow `c8daf98d-de41-4925-836b-d26f18f06570` at
+  `needs_approval`, with two allowlisted tools, four artifacts, five audit
+  events, two decision options, and evaluation `eval-a11ca23168f5` bound to the
+  serving SHA. The paired public approval/undo verifier passed with
+  `external_write=false`; these public records remain packet-safe and separate
+  from the signed connector smoke.
 - The authenticated console then ran a signed tenant scan from the pinned
   `competitor/pricing` fixture. Firestore contains job `job-a33d07ac658c` /
   workflow `75da1f00-e657-4ba3-bba6-80c298b747be` in `needs_approval`, with
