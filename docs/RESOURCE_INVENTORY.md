@@ -31,6 +31,8 @@ frozen dependency audit) and GitHub Actions run `32648932816`. Cloud Build
 `driftline-00280-n9n` at 100% traffic with image digest
 `sha256:fb766792df380c1f0856194152d13dcbf66b321e3acbaaba27ae3535d162fa5`.
 `/health` reports that exact release SHA and build ID.
+GitHub `main` later received documentation-only commit `8ff5ec4`; it does not
+change the serving image or runtime release proof.
 
 Fresh live proof on this exact revision (rerun 2026-08-23):
 

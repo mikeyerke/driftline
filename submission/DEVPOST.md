@@ -23,6 +23,8 @@ The current serving release is
 `2fb60d0e-f5d6-4b6e-9db2-56039b6dfb2b` with image digest
 `sha256:fb766792df380c1f0856194152d13dcbf66b321e3acbaaba27ae3535d162fa5`.
 It serves 100% of traffic in the isolated `driftline-hackathon-2026` project.
+The later GitHub `main` commit `8ff5ec4` is documentation-only and does not
+change this serving image.
 GitHub Actions run `32648932816`; the full local gate passed with 330 backend
 tests, Ruff, frontend production build, frontend contract checks, and frozen
 dependency audit.
