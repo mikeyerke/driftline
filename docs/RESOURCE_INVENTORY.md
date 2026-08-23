@@ -20,10 +20,10 @@ digest. The current exact proof is recorded immediately below. An earlier
 release-proof snapshot is retained after it as historical evidence; it is not
 the current serving-state authority:
 
-### Current exact proof — 2026-08-22
+### Current exact proof — 2026-08-23
 
 The active project was rechecked as `driftline-hackathon-2026` before the
-runtime-code proof. Commit `d77a3300e253d5ddb086120e6da3b5f5b3bc0381` passed
+runtime-code proof. Commit `be870345482a4f3050404d465ea9e42d6c05bc3f` passed
 the local repository gates, the live-agent verifier, the approval/undo
 verifier, and the production verifier. The live run used Gemini 3.5 Flash
 through Google ADK, two allowlisted tools, four artifacts, five audit events,
@@ -32,7 +32,10 @@ the packet, completed and reversed an owner action, and reported
 `external_write=false` and `external_systems_changed=false`. The release also
 closed a connector fan-out seam: configured writes now execute only for
 connectors explicitly present in the workflow's impact map, while per-connector
-write flags and legacy reversal behavior remain auditable. The scripts print
+write flags and legacy reversal behavior remain auditable. The public CRM
+readiness contract now also exposes `external_read=false`,
+`aggregate_read_verified=false`, and `credential_values_exposed=false` until a
+tenant's three Salesforce aggregate queries succeed. The scripts print
 fresh job/workflow/evaluation IDs; `/health` prints the exact serving SHA/build
 and is the authority after later docs-only releases.
 
@@ -56,10 +59,12 @@ retention impact, and willingness-to-pay remain explicitly unmeasured. Public
 monitoring remains bounded to five pinned fixtures plus exact operator-registered
 URLs capped at 25 per tenant; it is not universal crawling.
 
-Salesforce remains evidence-gated: the public deployment reports
-`oauth_ready` / `awaiting_authorization`, and no tenant aggregate read is
-claimed. No CRM object totals are claimed until the owner completes fresh
-Salesforce consent and the three allowlisted aggregate queries succeed.
+Salesforce remains evidence-gated: the anonymous deployment reports
+`oauth_ready` / `awaiting_authorization`; the signed `driftline-demo` tenant
+currently reports `reauthorization_required` after Salesforce rejected its
+stored refresh token. No tenant aggregate read is claimed. No CRM object
+totals are claimed until the owner completes fresh Salesforce consent and the
+three allowlisted aggregate queries succeed.
 
 The source-health UI race fixed in commit `be08c71` is covered by
 `scripts/verify_frontend_contract.sh`; an older overlapping Firestore response
@@ -73,11 +78,11 @@ explicit signed resume. The regression suite covers a native Firestore pause
 followed by an explicit resume.
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00268-qrw` at 100% traffic. Its immutable serving image is
-  `sha256:62d3ef3d818bd1c12c30020ec89ef56fd738f7a56d7c391e467c4f3f8cb8e9f9`.
-- Source commit `d77a3300e253d5ddb086120e6da3b5f5b3bc0381` was built by Cloud
-  Build `a71e6274-1d35-4156-8634-be760ea31733`; GitHub Actions run
-  `32606799798` passed the repository gates.
+  `driftline-00269-4bh` at 100% traffic. Its immutable serving image is
+  `sha256:cb1ccdd9045d4fab1c6abdaca669410d417c366f012515b02ed87748a0be0c84`.
+- Source commit `be870345482a4f3050404d465ea9e42d6c05bc3f` was built by Cloud
+  Build `b34bf526-e5d3-4109-bcb9-e06b2b3d612f`; GitHub Actions run
+  `32608006535` passed the repository gates.
 - The final local gate for this release passed `.venv/bin/uv run pytest`
   (325 tests), Ruff, the trace-to-eval baseline (14/14 cases), the frontend
   production build, the frontend contract check, shell syntax/hygiene, and
@@ -90,11 +95,11 @@ followed by an explicit resume.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - The current `/health` response reports Firestore persistence, async jobs,
-  release SHA `d77a3300e253d5ddb086120e6da3b5f5b3bc0381`, and build ID
-  `a71e6274-1d35-4156-8634-be760ea31733`; `/api/auth/config`
+  release SHA `be870345482a4f3050404d465ea9e42d6c05bc3f`, and build ID
+  `b34bf526-e5d3-4109-bcb9-e06b2b3d612f`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- The current `/api/evals/latest` reported evaluation `eval-c977ead508de` with a passing
+- The current `/api/evals/latest` reported evaluation `eval-c78e85c9245f` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
@@ -134,14 +139,19 @@ followed by an explicit resume.
   application console errors. This is a real reversible connector smoke, not a
   customer pilot or business-outcome claim.
 - The public live-agent verifier subsequently recorded job
-  `job-0fc9966bf4b3` / workflow `4b3e0b7b-3496-4c1d-b36d-8a694c5ad7eb` at
+  `job-d12b13245dc8` / workflow `3b23899c-e63e-4128-9ad9-e415ace0ac98` at
   `needs_approval`, with two allowlisted tools, four artifacts, five audit
-  events, two decision options, and evaluation `eval-c977ead508de` bound to the
+  events, two decision options, and evaluation `eval-c78e85c9245f` bound to the
   serving SHA. The paired public approval/undo verifier passed with
   `external_write=false`; these public records remain packet-safe and separate
   from the signed connector smoke.
+- The paired approval/undo run on this revision recorded job
+  `job-14446499342f` / workflow `39a6e84c-0c08-4732-ae30-c6ee5b3f8be4`.
+  It persisted the packet, completed one owner action, then reversed the
+  operational output; `external_write=false` and
+  `external_systems_changed=false` remained explicit in the response.
 - A manual run of the isolated `driftline-monitor` Scheduler job at
-  `2026-08-23T00:21:07Z` reached `/api/scheduler/tick` with an
+  `2026-08-23T00:35:58Z` reached `/api/scheduler/tick` with an
   OIDC-authenticated HTTP 200 on the new revision. No stale-source or
   application-error entry followed the tick; due-source cadence remains
   bounded by the five pinned fixtures and the per-tenant URL cap.
@@ -151,12 +161,12 @@ followed by an explicit resume.
   `run_mode=tenant_demo`, `execution_mode=google_adk`, and
   `model=gemini-3.5-flash`. No approval or external write was attempted.
 - Fresh public proof on this serving revision returned live-agent job
-  `job-67fb5360ef0e` / workflow `88d33648-e21a-4314-82d2-ee9b69a26861` at
+  `job-d12b13245dc8` / workflow `3b23899c-e63e-4128-9ad9-e415ace0ac98` at
   `needs_approval` with `public_source`, Google ADK, Gemini 3.5 Flash, two
   allowlisted tools, four artifacts, five audit events, two decision options,
   and a passing trace evaluation. The paired approval/undo verifier created
-  job `job-caaa4a7dc275` / workflow
-  `13b996e7-6f86-40a4-9fdb-84e52f588be6`, persisted the packet, approved and
+  job `job-14446499342f` / workflow
+  `39a6e84c-0c08-4732-ae30-c6ee5b3f8be4`, persisted the packet, approved and
   completed one owner action, then reversed the operational output and
   recorded `external_write=false` / `external_systems_changed=false`. The
   bounded value proof retained two historical completions and 3.7-second

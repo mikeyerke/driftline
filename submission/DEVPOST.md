@@ -156,19 +156,20 @@ across page reloads; the callback metadata and tenant-scoped secret pointer are
 durable as well, but no Salesforce object totals or successful CRM read are
 claimed until fresh consent succeeds.
 
-- Local gate for the current source: 291 backend tests passed, the focused
-  Salesforce connector suite passed 37 tests, Ruff passed, and the frontend
-  production build passed. The current serving image was built from the
-  already-verified application code; the additional local tests protect the
-  tenant credential broker and aggregate Salesforce query boundary.
-- CI: GitHub Actions run `32572937856` passed the backend suite, Ruff, frozen
+- Local gate for the current source: 325 backend tests passed, Ruff passed,
+  the frontend production build and frontend contract passed, and the
+  Salesforce aggregate-read boundary tests passed. The current serving image
+  was built from this exact clean SHA; public CRM readiness now fails closed
+  with `external_read=false`, `aggregate_read_verified=false`, and no exposed
+  credential values until a tenant completes all three reads.
+- CI: GitHub Actions run `32608006535` passed the backend suite, Ruff, frozen
   dependency audit, frontend build, standalone image build, and repository
   hygiene.
 - Production check: `scripts/verify_production.sh` passed Firestore,
   Cloud Tasks, Scheduler, uptime, alerting, IAM, Artifact Registry retention,
   and zero recent Cloud Run errors.
-- Live agent check: fresh job `job-17f83337c4b8` / workflow
-  `0ac5d4f9-71cb-47ff-8c64-821e1f9ad71f` returned `needs_approval`,
+- Live agent check: fresh job `job-d12b13245dc8` / workflow
+  `3b23899c-e63e-4128-9ad9-e415ace0ac98` returned `needs_approval`,
   `public_source`, `gemini-3.5-flash`, `google_adk`, two allowlisted tools,
   four artifacts, five audit events, and two decision options.
 - Current-revision logged-out browser QA visibly rendered
@@ -176,7 +177,7 @@ claimed until fresh consent succeeds.
   Decision Copilot, and the approval gate; the scripted live proof above is
   the durable source of the current job/workflow identifiers.
 - The paired current-revision approval/undo verifier created job
-  `job-8f08d64a2939` / workflow `a5ef3d5e-01d6-4a53-80ff-e81b0d2492b1` and
+  `job-14446499342f` / workflow `39a6e84c-0c08-4732-ae30-c6ee5b3f8be4` and
   completed scan -> approval -> owner claim -> owner completion -> undo. The
   packet persisted and its operational output was reversed; Jira, Confluence,
   and Slack remained `external_write=false` in the public packet-safe lane.
