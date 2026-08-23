@@ -4102,6 +4102,21 @@ def test_identity_free_demo_mutations_are_rate_limited(monkeypatch) -> None:
         api._demo_mutation_times.clear()
 
 
+def test_live_agent_rate_limit_includes_retry_after_header(monkeypatch) -> None:
+    monkeypatch.setattr(api, "PUBLIC_AGENT_MAX_CALLS", 0)
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+
+    response = client.post(
+        "/api/jobs/demo",
+        json={"source_id": "competitor/pricing", "query": "run"},
+    )
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == "Live agent demo rate limit reached; retry later."
+    assert response.headers["retry-after"] == str(api.AGENT_WINDOW_SECONDS)
+
+
 @pytest.mark.asyncio
 async def test_duplicate_job_delivery_cannot_run_agent_twice(monkeypatch) -> None:
     calls = 0

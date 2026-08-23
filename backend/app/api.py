@@ -797,6 +797,15 @@ def _reserve_agent_call(tenant_id: str | None = None) -> bool:
         return True
 
 
+def _agent_rate_limit_error(detail: str) -> HTTPException:
+    """Return a bounded, machine-readable recovery signal for agent work."""
+    return HTTPException(
+        status_code=429,
+        detail=detail,
+        headers={"Retry-After": str(max(1, AGENT_WINDOW_SECONDS))},
+    )
+
+
 def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
     limit = _tenant_quota_limit(tenant_id, "workflow_mutations", DEMO_MAX_MUTATIONS)
     if limit < 1:
@@ -5539,9 +5548,8 @@ async def start_demo_job(
                 payload["deduplicated"] = True
                 return payload
             if not _reserve_agent_call(tenant_id):
-                raise HTTPException(
-                    status_code=429,
-                    detail="Live agent demo rate limit reached; retry later.",
+                raise _agent_rate_limit_error(
+                    "Live agent demo rate limit reached; retry later."
                 )
             # The anonymous lane is a deterministic judge surface. Do not
             # persist or send arbitrary caller text to Gemini; otherwise a
@@ -5562,9 +5570,8 @@ async def start_demo_job(
             return job.to_dict()
 
     if not _reserve_agent_call(tenant_id):
-        raise HTTPException(
-            status_code=429,
-            detail="Live agent demo rate limit reached; retry later.",
+        raise _agent_rate_limit_error(
+            "Live agent demo rate limit reached; retry later."
         )
     query = (
         f"{request.query.strip()} Use the exact allowlisted source_id "
@@ -5689,9 +5696,7 @@ async def scheduler_tick(
         jobs.append(job)
         queued_source_ids.append(current_source_id)
     if not jobs and skipped:
-        raise HTTPException(
-            status_code=429, detail="Monitor rate limit reached; retry later."
-        )
+        raise _agent_rate_limit_error("Monitor rate limit reached; retry later.")
     return {
         "status": "queued",
         "source_ids": queued_source_ids,
@@ -5827,7 +5832,7 @@ async def retry_job(
             "source_id": failed_job.source_id,
         }
     if not _reserve_agent_call(identity["tenant_id"]):
-        raise HTTPException(status_code=429, detail="Tenant agent rate limit reached; retry later.")
+        raise _agent_rate_limit_error("Tenant agent rate limit reached; retry later.")
     retried = _start_job(
         query=failed_job.query,
         user_id=failed_job.user_id,
@@ -5935,9 +5940,8 @@ async def run_agent(request: AgentRunRequest) -> dict:
     ):
         raise HTTPException(status_code=422, detail="Source is not allowlisted")
     if not _reserve_agent_call(bound_tenant):
-        raise HTTPException(
-            status_code=429,
-            detail="Live agent demo rate limit reached; retry later.",
+        raise _agent_rate_limit_error(
+            "Live agent demo rate limit reached; retry later."
         )
     if bound_tenant is None:
         # Anonymous direct runs are a judge surface, not a general-purpose

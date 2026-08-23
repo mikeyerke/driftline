@@ -74,7 +74,20 @@ async function request(path, options = {}) {
   }
   if (!response.ok) {
     let detail = "";
-    try { detail = (await response.json()).detail || ""; } catch { /* non-JSON response */ }
+    try {
+      const payload = await response.json();
+      detail = typeof payload?.detail === "string"
+        ? payload.detail
+        : payload?.detail?.message || "";
+    } catch { /* non-JSON response */ }
+    if (response.status === 429) {
+      const retryAfter = Number(response.headers.get("Retry-After"));
+      if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        const minutes = Math.max(1, Math.ceil(retryAfter / 60));
+        const recovery = `Retry after approximately ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+        detail = detail ? `${detail} ${recovery}` : recovery;
+      }
+    }
     throw new Error(detail || `Driftline API returned ${response.status}`);
   }
   return response.json();
