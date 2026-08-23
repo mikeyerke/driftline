@@ -18,30 +18,32 @@
 ### Current exact proof — 2026-08-23
 
 The current serving release is
-`84b5a12b8bcbba9bc10888a8cadb2836e0ddba70` on Cloud Run revision
-`driftline-00282-kfb`, built by Cloud Build
-`744dad9a-5245-46fa-ac8f-738c1861b52e`. It serves 100% of traffic in the
-isolated `driftline-hackathon-2026` project. The local gate passed with 335
+`ddf5a5b2df731ad6ea451700c48ad9e9915df0db` on Cloud Run revision
+`driftline-00283-g9w`, built by Cloud Build
+`721e1bc2-f294-4366-b77e-dea29a4c10d5` with image digest
+`sha256:4b02f5d1b8432f5ce4a0055db1d4ad944606b4597d59386a421d981c27537ce3`.
+It serves 100% of traffic in the isolated `driftline-hackathon-2026` project.
+The local gate passed with 337
 backend tests, Ruff, frontend production build, frontend contract checks, and
 a 14/14 trace-to-eval suite. The optional dependency audit was not run on the
 laptop because `uv` is unavailable; hosted repository verification remains the
-source of truth for that check; GitHub Actions run `32651710617` passed all
+source of truth for that check; GitHub Actions run `32652299665` passed all
 repository verification jobs for this commit.
 
 Fresh live proof on that exact revision (rerun 2026-08-23):
 
-- ADK/Gemini execution: job `job-308a9aeb76b1`, workflow
-  `bd4de954-b3a0-4f4a-bee6-f003fec6029e`, `needs_approval`,
+- ADK/Gemini execution: job `job-f4e0f0a0ae41`, workflow
+  `52f0cc30-6f09-46fb-b8d2-e58bde068f76`, `needs_approval`,
   `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
-  two decision options, and trace evaluation `eval-5b18966e3236` at 100% /
+  two decision options, and trace evaluation `eval-665f410abf36` at 100% /
   stable.
-- Approval/undo: job `job-ff76d470b8f2` persisted a packet, completed owner
-  action `item-497a50fecf14`, and reversed it; `external_write=false` and
+- Approval/undo: job `job-2563a7cc5cbf` persisted a packet, completed owner
+  action `item-09261c13ac90`, and reversed it; `external_write=false` and
   `external_systems_changed=false` remained explicit.
 - Production verification passed for Firestore, Cloud Tasks, Scheduler,
   uptime, alerting, IAM, Artifact Registry retention, security headers, OIDC
   tenant boundaries, and zero current-revision Cloud Run errors. The current
-  revision's trace-to-eval record is `eval-5b18966e3236` (stable).
+  revision's trace-to-eval record is `eval-665f410abf36` (stable).
 - Post-deploy browser QA reached `Scan complete · evidence verified · approval
   gate active` with no Driftline console errors and no horizontal overflow at
   desktop or 390px mobile width.
@@ -49,7 +51,9 @@ Fresh live proof on that exact revision (rerun 2026-08-23):
 This release also makes pilot evidence operationally useful without inventing
 customer outcomes: minutes are recorded as totals plus per-change deltas,
 operational counts require paired baseline/Driftline values bounded by the
-change set, and negative deltas are labeled `time added`. Source-fetch outages
+change set, and negative deltas are labeled `time added`. Identical measurement
+retries are idempotent while changed values for the same evidence key fail
+closed. Source-fetch outages
 are durable, truthful monitor outcomes with immediate retry and source-health
 inspection. API reads have bounded timeout/retry behavior, and the Salesforce
 consent handoff preserves the provider URL until the operator leaves for
