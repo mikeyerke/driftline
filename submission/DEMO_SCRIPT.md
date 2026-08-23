@@ -12,11 +12,11 @@ visible Google Cloud proof; no slide-only substitute.
 Finding every stale promise, assigning the right owner, and proving what a human
 approved is the real work. Driftline turns that change into reversible action.”
 
-## 0:18–0:48 — Trigger the Taskmaster workflow
+## 0:18–0:48 — Enter Judge Mode and trigger Taskmaster
 
-**Screen:** Show the public URL and packet-safe label. Select **Competitor
-pricing snapshot** and click **Run live agent**. Keep production proof and job progress
-visible.
+**Screen:** Show `driftline-ops.web.app`, turn **Judge Mode** on, select
+**Competitor pricing snapshot**, and click **Run live agent**. Keep the
+packet-safe label and four-step Evidence → Decision → Action → Proof path visible.
 
 **Narration:** “This is the live Cloud Run application. Run live agent creates a
 durable Cloud Tasks job. Google ADK and Gemini 3.5 Flash inspect an allowlisted
@@ -41,22 +41,25 @@ The persisted trace shows the model and only the two allowlisted tools.”
 High-risk work stops in deterministic policy. The ADK agent has no approval
 tool, and approval fails if the evidence hash or allowlisted action changes.”
 
-## 1:55–2:38 — Wow moment: persisted action and reversal
+## 1:55–2:40 — Wow moment: durable operation, action receipt, reversal
 
 **Screen:** In the same continuous browser take, approve the recommended plan.
-Show the Firestore action, persisted Cloud Storage packet, owner action queue,
-audit IDs, and both external-write flags. Click **Reopen decision** and show the
+Show the operation ID, Firestore action, persisted Cloud Storage packet, owner
+action queue, audit IDs, and both external-write flags. Pause on the four-part
+proof receipt. Click **Reopen decision** and show the
 persisted reversal marker. If a pre-authenticated operator tab is available,
 show the Jira marker and its scoped reversal only after this public proof; the
 public path remains sufficient and reproducible without credentials.
 
-**Narration:** “Approval is an action, not a chat response. Driftline persists
+**Narration:** “Approval is an action, not a chat response. Before any side
+effect, Driftline durably claims one operation ID and blocks conflicting
+decisions. It persists
 the evidence-linked packet, creates accountable owner work, and records the
 operation in Firestore and Cloud Storage. Reopen decision writes a scoped
 reversal marker. In a signed tenant, the same policy boundary can create or
 reactivate one idempotent Jira marker and reverse only Driftline-owned state.”
 
-## 2:38–3:16 — Visible Google Cloud proof
+## 2:40–3:18 — Visible Google Cloud proof
 
 **Screen:** Show `/health`, `/api/ops/summary`, one Firestore workflow/audit
 record, and Cloud Run revision/log view. Never show tokens or secret values.
@@ -66,7 +69,7 @@ the API and console, Cloud Tasks dispatches work, Firestore restores state,
 Scheduler drives monitoring, and the latest trace gate passes fourteen of
 fourteen safety and usefulness checks.”
 
-## 3:16–3:45 — Close
+## 3:18–3:48 — Close
 
 **Screen:** Architecture image followed by project name, live URL, repository,
 and Taskmaster.
@@ -75,9 +78,16 @@ and Taskmaster.
 is an evidence-bound Taskmaster agent: autonomous where policy allows, human
 where judgment matters, and reversible when the decision changes.”
 
+## Optional recovery insert (replace 12 seconds of Cloud proof, never stage as a production outage)
+
+Use a local test build with the deterministic failure fixture. Show
+`reconciliation_required`, the unchanged operation ID, and **Reconcile same
+operation** completing attempt two. Label this clearly as a simulated recovery
+test. Do not imply a real provider outage occurred.
+
 ## Recording gate
 
-- [ ] Total duration is 3:45 or shorter.
+- [ ] Total duration is 3:50 or shorter, leaving 10 seconds below the rule limit.
 - [ ] Live URL appears in the first 30 seconds.
 - [ ] Gemini 3.5 Flash, Google ADK, and actual action appear on screen or aloud.
 - [ ] Public persisted action and reversal form one continuous truthful
@@ -86,3 +96,5 @@ where judgment matters, and reversible when the decision changes.”
 - [ ] No credentials, tokens, private records, or raw prompts appear.
 - [ ] Captions are accurate and English.
 - [ ] Final upload is public, not private or unlisted.
+- [ ] The operation ID is readable before and after action/recovery.
+- [ ] No cut hides the human approval click or changes the external-write lane.

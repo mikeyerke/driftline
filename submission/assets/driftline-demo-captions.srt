@@ -38,4 +38,4 @@ The ADK agent has no approval or publish tool.
 00:03:20,000 --> 00:03:50,000
 LIVE GOOGLE PATH VERIFIED · Gemini 3.5 Flash + Google ADK · Cloud Run + Firestore
 Allowlisted inspect/state tools · deterministic human gate
-driftline-xvxczqg62a-uc.a.run.app · github.com/mikeyerke/driftline
+driftline-ops.web.app · github.com/mikeyerke/driftline

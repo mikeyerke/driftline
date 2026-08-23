@@ -16,7 +16,7 @@ the rendered Devpost project and explicitly confirms the final action.
 | Organization | N/A — individual entrant |
 | Project start date | August 18, 2026 |
 | Repository | https://github.com/mikeyerke/driftline |
-| Hosted application | https://driftline-xvxczqg62a-uc.a.run.app/ |
+| Hosted application | https://driftline-ops.web.app/ |
 | Reproducible testing | Yes |
 | Google agent framework | Google Agent Development Kit (ADK) |
 | Google Cloud services | Cloud Run; Firestore |
@@ -37,6 +37,19 @@ options. Deterministic policy—not the model—controls authorization. The publ
 lane proves the complete evidence, approval, packet, audit, and reversal loop;
 the signed tenant lane additionally proves one least-privilege, idempotent, and
 reversible Jira action.
+
+## Judge scan — the first 45 seconds
+
+1. Open the hosted application; **Judge Mode** is on by default.
+2. Click **Run live agent** and follow Evidence → Human decision → Reversible
+   action → Proof.
+3. At the human gate, verify that Gemini recommends but cannot approve.
+4. Approve once and inspect the operation ID, evidence-bound action, packet,
+   external-write truth, and rollback path in one receipt.
+
+The differentiator is not another summary. Driftline converts one verified
+change into accountable work while making the authority boundary and durable
+side-effect lifecycle inspectable.
 
 ## Full submission description
 
@@ -73,6 +86,7 @@ membership, and rollback semantics remain deterministic code.
 - Bounded source registry with cadence and freshness health
 - Immutable before/after evidence and full SHA-256 provenance
 - Durable Cloud Tasks jobs and Firestore workflow recovery
+- Crash-safe operation claims and explicit same-ID reconciliation
 - Gemini impact mapping across four named owner surfaces
 - Evidence-cited decision options with tradeoffs and rollback
 - Deterministic human approval outside model authority
@@ -94,7 +108,7 @@ upload-ready diagram is
 
 ## Reproducible testing instructions
 
-1. Open https://driftline-xvxczqg62a-uc.a.run.app/ while logged out.
+1. Open https://driftline-ops.web.app/ while logged out.
 2. Leave **Competitor pricing snapshot** selected and click **Run live agent**.
 3. Wait for **Human approval required**.
 4. Inspect **Evidence diff**, **Open evidence**, **Agent trace**, the impact map,

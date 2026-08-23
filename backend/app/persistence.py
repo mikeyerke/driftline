@@ -122,6 +122,7 @@ def _state_from_dict(payload: dict[str, Any]) -> WorkflowState:
         data_mode=payload.get("data_mode", "synthetic_demo"),
         artifact_packets=[dict(item) for item in payload.get("artifact_packets", [])],
         action_record=payload.get("action_record"),
+        operation=dict(payload.get("operation") or {}),
         action_items=[dict(item) for item in payload.get("action_items", [])],
         impact_graph=dict(payload.get("impact_graph") or {}),
         change_card=dict(payload.get("change_card") or {}),

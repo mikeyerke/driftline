@@ -20,6 +20,18 @@ export default function UtilityNextStep({ workflow, job, scanning, sourcePaused,
   const monitorNoOp = !workflow && job?.status === "complete" && job?.source_status === "unchanged";
   const monitorBaseline = !workflow && job?.status === "complete" && job?.source_status === "baseline_established";
   const monitorFailed = !workflow && job?.status === "complete" && job?.source_status === "source_fetch_failed";
+  const reconciliationRequired = workflow?.status === "reconciliation_required";
+  const operationExecuting = ["approval_executing", "reversal_executing"].includes(workflow?.status);
+
+  if (reconciliationRequired || operationExecuting) {
+    return (
+      <section className={`utility-next-step ${reconciliationRequired ? "failed" : "execute"}`} aria-label="Next best action">
+        <span className="utility-next-step-icon">{reconciliationRequired ? <AlertTriangle size={16} /> : <Clock3 size={16} />}</span>
+        <div><strong>{reconciliationRequired ? "Confirm the claimed operation" : "A durable operation is in progress"}</strong><p>{reconciliationRequired ? "Driftline blocked conflicting decisions and preserved the operation ID for an idempotent retry." : "The action was claimed before side effects began; wait for the durable receipt."}</p></div>
+        <button className="primary compact" type="button" onClick={() => onNavigate?.("approvals-section")}>{reconciliationRequired ? "Open recovery" : "View operation"}<ArrowRight size={14} /></button>
+      </section>
+    );
+  }
 
   if (monitorFailed) {
     return (

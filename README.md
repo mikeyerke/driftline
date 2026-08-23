@@ -724,7 +724,7 @@ their cadence deadlines.
 
 ## Public links
 
-- Live demo: https://driftline-xvxczqg62a-uc.a.run.app/
+- Live demo: https://driftline-ops.web.app/
 - GitHub: https://github.com/mikeyerke/driftline
 - Demo video: held while the product is being pressure-tested; do not submit this draft yet
 - Form-ready submission packet: https://github.com/mikeyerke/driftline/blob/main/devpost-submission.md
@@ -742,7 +742,7 @@ their cadence deadlines.
 ## Reproducible verification
 
 ~~~bash
-BASE=https://driftline-xvxczqg62a-uc.a.run.app
+BASE=https://driftline-ops.web.app
 curl -fsS "$BASE/health"
 ./scripts/verify_live_agent.sh
 ./scripts/verify_public_approval_undo.sh

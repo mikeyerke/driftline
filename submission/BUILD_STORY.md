@@ -13,7 +13,7 @@ work, make a consequential decision, and preserve who approved it.
 
 Driftline handles that path as an asynchronous Taskmaster workflow:
 
-`observe -> hash -> interpret -> map -> gate -> act -> reverse -> audit`
+`observe -> hash -> interpret -> map -> gate -> claim -> act -> reconcile -> reverse -> audit`
 
 ## Gemini interprets; deterministic code authorizes
 
@@ -38,6 +38,16 @@ job, workflow, trace metadata, action state, and append-only audit trail. A
 stable Change Card identity derives from source and evidence hash, so retries
 cannot manufacture duplicate work.
 
+The hardest failure is not a clean connector rejection. It is a process ending
+after a provider may have accepted a write but before the application records
+the final result. Driftline claims a credential-free operation record before
+side effects begin. Approval and reversal enter distinct executing states,
+conflicting decisions fail closed, and an interrupted attempt moves to
+`reconciliation_required`. A named human retries the same operation ID and
+generation; idempotent adapters and artifact keys converge on one durable
+outcome instead of manufacturing a second action. Configured-write recovery
+still requires signed tenant authority.
+
 The public judge lane creates only Driftline-owned packets. External writes are
 reserved for a signed tenant lane. In the isolated Jira proof, an approved
 action created or reactivated one scoped marker. Repeating it reused the same
@@ -54,7 +64,7 @@ authority boundary explicit:
 - traces exclude prompts, source bodies, and credentials;
 - approval is deterministic and evidence-bound;
 - credentials are tenant-scoped and never sent to the browser;
-- retries are idempotent;
+- retries reuse one durable operation ID and are idempotent;
 - every action has a reversal contract.
 
 ## What we refused to claim
@@ -68,6 +78,6 @@ The most important build decision was not adding another connector. It was
 keeping the story focused: one change, four affected work surfaces, one human
 gate, one real least-privilege action, and one clean reversal.
 
-Live application: https://driftline-xvxczqg62a-uc.a.run.app/
+Live application: https://driftline-ops.web.app/
 
 Source: https://github.com/mikeyerke/driftline

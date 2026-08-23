@@ -452,6 +452,14 @@ export function undoWorkflow(workflowId) {
   });
 }
 
+export function reconcileWorkflow(workflowId) {
+  return request(`/api/workflows/${workflowId}/reconcile`, {
+    method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
+    body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
+  });
+}
+
 export function dismissWorkflow(workflowId, reason = "Reviewed as non-material for the current segment") {
   return request(`/api/workflows/${workflowId}/dismiss`, {
     method: "POST",

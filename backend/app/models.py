@@ -26,6 +26,7 @@ class WorkflowStatus(StrEnum):
     NEEDS_APPROVAL = "needs_approval"
     APPROVAL_EXECUTING = "approval_executing"
     REVERSAL_EXECUTING = "reversal_executing"
+    RECONCILIATION_REQUIRED = "reconciliation_required"
     COMPLETE = "complete"
     DISMISSED = "dismissed"
     FAILED = "failed"
@@ -80,6 +81,10 @@ class WorkflowState:
     data_mode: str = "synthetic_demo"
     artifact_packets: list[dict[str, Any]] = field(default_factory=list)
     action_record: dict[str, Any] | None = None
+    # Durable, idempotency-oriented metadata for the one externally visible
+    # operation attached to this decision. It intentionally excludes bearer
+    # tokens and connector credentials.
+    operation: dict[str, Any] = field(default_factory=dict)
     action_items: list[dict[str, Any]] = field(default_factory=list)
     impact_graph: dict[str, Any] = field(default_factory=dict)
     change_card: dict[str, Any] = field(default_factory=dict)

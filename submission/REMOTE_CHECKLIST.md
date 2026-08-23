@@ -17,7 +17,7 @@
    current-spend thresholds in docs/RESOURCE_INVENTORY.md.
 7. Record the final Cloud Build ID, image digest, and serving Cloud Run
    revision in docs/RESOURCE_INVENTORY.md.
-8. Open https://driftline-xvxczqg62a-uc.a.run.app/ in a logged-out browser and
+8. Open https://driftline-ops.web.app/ in a logged-out browser and
    exercise the asynchronous scan, evidence, packet, reopening, and live ADK
    trace. Record the job ID and matching Firestore documents.
 9. From the repository root, run `./scripts/verify_public_approval_undo.sh`.

@@ -12,7 +12,7 @@ import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence, demoEvidenceBySource } from "./data";
-import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, retryJob, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, reconcileWorkflow, retryJob, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
 import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
 import IntegrationPanel from "./components/IntegrationPanel";
@@ -75,6 +75,7 @@ export default function App() {
   const [sourceHistoryRefreshKey, setSourceHistoryRefreshKey] = useState(0);
   const [selectedSource, setSelectedSource] = useState("competitor/pricing");
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
+  const [judgeMode, setJudgeMode] = useState(true);
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
   const navScrollTimersRef = useRef([]);
@@ -83,6 +84,7 @@ export default function App() {
   const sessionEpochRef = useRef(0);
   const historyRequestRef = useRef(0);
   const sourceHealthRequestRef = useRef(0);
+  const lastGuidedStatusRef = useRef(null);
 
   const approved = workflowState?.status === "complete";
   const dismissed = workflowState?.status === "dismissed";
@@ -424,9 +426,13 @@ export default function App() {
         ...current,
         status: state.status,
         workflow: state,
-        public_summary: "Action plan recorded · reversible packet created",
+        public_summary: state.status === "reconciliation_required"
+          ? "Action safely paused · same-operation recovery required"
+          : "Action plan recorded · reversible packet created",
       } : current);
-      setScanMessage("Action plan recorded · reversible packet created");
+      setScanMessage(state.status === "reconciliation_required"
+        ? "Action safely paused · reconcile the claimed operation"
+        : "Action plan recorded · reversible packet created");
       refreshHistory();
     } catch (error) {
       if (sessionEpochRef.current !== decisionEpoch) return;
@@ -448,13 +454,41 @@ export default function App() {
         ...current,
         status: state.status,
         workflow: state,
-        public_summary: "Decision reopened · no external systems were changed",
+        public_summary: state.status === "reconciliation_required"
+          ? "Reversal safely paused · same-operation recovery required"
+          : "Decision reopened · no external systems were changed",
       } : current);
-      setScanMessage("Decision reopened · no external systems were changed");
+      setScanMessage(state.status === "reconciliation_required"
+        ? "Reversal safely paused · reconcile the claimed operation"
+        : "Decision reopened · no external systems were changed");
       refreshHistory();
     } catch (error) {
       if (sessionEpochRef.current !== decisionEpoch) return;
       setScanMessage(`Unable to reopen the decision · ${error.message || "retry the request"}`);
+    } finally {
+      setDecisionBusy(false);
+    }
+  };
+
+  const reconcile = async () => {
+    if (!workflowId || !liveWorkflow || decisionBusy) return;
+    const decisionEpoch = sessionEpochRef.current;
+    setDecisionBusy(true);
+    try {
+      const state = await reconcileWorkflow(workflowId);
+      if (sessionEpochRef.current !== decisionEpoch) return;
+      setWorkflowState(state);
+      setJob((current) => current ? {
+        ...current,
+        status: state.status,
+        workflow: state,
+        public_summary: state.status === "complete" ? "Operation reconciled · durable receipt confirmed" : "Operation recovery remains safely queued",
+      } : current);
+      setScanMessage(state.status === "reconciliation_required" ? "Recovery still required · no conflicting action allowed" : "Operation reconciled · durable outcome confirmed");
+      refreshHistory();
+    } catch (error) {
+      if (sessionEpochRef.current !== decisionEpoch) return;
+      setScanMessage(`Unable to reconcile the operation · ${error.message || "retry the request"}`);
     } finally {
       setDecisionBusy(false);
     }
@@ -537,6 +571,24 @@ export default function App() {
     });
   };
 
+  useEffect(() => {
+    const status = workflowState?.status || (scanning ? "scanning" : "idle");
+    if (!judgeMode || lastGuidedStatusRef.current === status) return;
+    lastGuidedStatusRef.current = status;
+    const target = status === "needs_approval"
+      ? "approvals-section"
+      : status === "complete"
+        ? "proof-section"
+        : ["approval_executing", "reversal_executing", "reconciliation_required"].includes(status)
+          ? "approvals-section"
+          : null;
+    if (target) {
+      const timer = window.setTimeout(() => focusSection(target), 150);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [judgeMode, scanning, workflowState?.status]);
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Skip to main content</a>
@@ -568,7 +620,7 @@ export default function App() {
               <button className="secondary incident-details" onClick={() => setShowEvidence(true)} type="button">View source evidence<ChevronDown size={16} /></button>
             </section>
 
-            <JudgeJourney workflow={workflowState} scanning={scanning} onNavigate={focusSection} />
+            <JudgeJourney workflow={workflowState} scanning={scanning} judgeMode={judgeMode} onToggleJudgeMode={() => setJudgeMode((current) => !current)} onNavigate={focusSection} />
 
             <ChangeCardPanel card={workflowState?.change_card} />
 
@@ -590,7 +642,7 @@ export default function App() {
                 <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} />
               </div>
               <aside id="approvals-section">
-              <DecisionPanel approved={approved} dismissed={dismissed} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} evidence={evidence} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onDismiss={dismissSignal} onEvidence={() => setShowEvidence(true)} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category || selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} requiresDecisionCopilot={Boolean(operatorSession.identityToken)} />
+              <DecisionPanel status={workflowState?.status} operation={workflowState?.operation} approved={approved} dismissed={dismissed} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} evidence={evidence} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onReconcile={reconcile} onDismiss={dismissSignal} onEvidence={() => setShowEvidence(true)} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category || selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} requiresDecisionCopilot={Boolean(operatorSession.identityToken)} />
               </aside>
             </div>
             {workflowState?.action_items?.length > 0 && <ActionItems workflowId={workflowId} items={workflowState.action_items} workflowStatus={workflowState.status} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}

@@ -27,14 +27,16 @@ alert feed or chat summary.
 
 **Live proof:**
 
-1. Open the [deployed console](https://driftline-xvxczqg62a-uc.a.run.app/).
-2. Select `Competitor pricing snapshot` and click **Run live agent**.
+1. Open the [deployed console](https://driftline-ops.web.app/).
+2. Leave **Judge Mode** on, select `Competitor pricing snapshot`, and click
+   **Run live agent**.
 3. Watch the agent trace move from durable queue to Google ADK tools and the
    structured Gemini impact pass.
 4. Open the source evidence and follow the graph to the comparison map,
    pricing battlecard, deal-desk guidance, and executive brief.
-5. Approve the recommended or narrower plan, claim/complete an owner action,
-   then **Reopen decision**. The output and reversal remain in the audit trail.
+5. Approve the recommended or narrower plan, inspect the operation ID and
+   four-part proof receipt, claim/complete an owner action, then **Reopen
+   decision**. The output and reversal remain in the audit trail.
 
 The public lane creates a real private Cloud Storage change packet and
 Firestore workflow, but never writes a customer's systems. The signed tenant
@@ -56,7 +58,8 @@ The model receives only bounded, quoted source evidence and two allowlisted
 read/state tools. It cannot approve itself, widen permissions, or call undo.
 Cloud Tasks is at-least-once with durable deduplication; connector actions use
 tenant-bound Secret Manager bindings, operation scopes, marker idempotency, and
-reversal markers. Firestore and Cloud Storage are in the isolated
+reversal markers. Side effects are claimed before execution; ambiguous outcomes
+block conflicting work and reconcile the same operation ID. Firestore and Cloud Storage are in the isolated
 `driftline-hackathon-2026` project.
 
 ## 30% — Demo & production readiness
@@ -64,7 +67,7 @@ reversal markers. Firestore and Cloud Storage are in the isolated
 Run the exact release checks from the repository root:
 
 ```bash
-BASE=https://driftline-xvxczqg62a-uc.a.run.app
+BASE=https://driftline-ops.web.app
 curl -fsS "$BASE/health"
 ./scripts/verify_live_agent.sh
 ./scripts/verify_public_approval_undo.sh

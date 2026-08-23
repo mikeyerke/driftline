@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Ban, Check, Download, FileText, RotateCcw } from "lucide-react";
+import { AlertTriangle, Ban, Check, Download, FileText, LoaderCircle, RefreshCw, RotateCcw } from "lucide-react";
 import DecisionCopilot from "./DecisionCopilot";
 
-export default function DecisionPanel({ approved, dismissed, approval, artifactDecisions, actionRecord, copilot, evidence, onApprove, onOptionSelect, onUndo, onDismiss, onEvidence, onPacket, isLive, busy, packetHref, sourceCategory, requiresDecisionCopilot = false }) {
+export default function DecisionPanel({ status, operation, approved, dismissed, approval, artifactDecisions, actionRecord, copilot, evidence, onApprove, onOptionSelect, onUndo, onReconcile, onDismiss, onEvidence, onPacket, isLive, busy, packetHref, sourceCategory, requiresDecisionCopilot = false }) {
   const decisions = approval?.artifact_decisions || artifactDecisions || { "Pricing battlecard": "packet", "Renewal playbook": "packet", "Enterprise FAQ": "owner_review", "CRM guidance": "queued" };
   const counts = Object.values(decisions).reduce((result, value) => ({ ...result, [value]: (result[value] || 0) + 1 }), {});
   const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
@@ -48,7 +48,7 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
             ? `One approved operational output is versioned inside the isolated Driftline project${["created", "reused", "reactivated"].includes(actionRecord?.jira_status) ? "; one bounded Jira issue was recorded" : ""}; no customer-facing system was changed.`
             : "No server decision was recorded."}
         </p>
-        {actionRecord && <section className="action-receipt" aria-label="Proof of action">
+        {actionRecord && <section id="proof-section" className="action-receipt" aria-label="Proof of action">
           <header className="action-receipt-header">
             <div><strong>Proof of action</strong><small>Durable output · reversible lifecycle</small></div>
             <span className={`action-receipt-state ${actionStatus}`}>{actionStatus.replaceAll("_", " ")}</span>
@@ -57,6 +57,7 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
             <div><strong>1</strong><span>Firestore action</span><code>{actionRecord.action_id}</code></div>
             <div><strong>2</strong><span>Cloud Storage</span><code>{actionRecord.storage_status || "not configured"}</code></div>
             <div><strong>3</strong><span>Rollback path</span><code>{actionRecord.reversible ? "available" : "not available"}</code></div>
+            <div><strong>4</strong><span>Operation</span><code>{operation?.operation_id || "legacy record"}</code></div>
           </div>
           <p className="action-receipt-footer"><span>External systems changed</span><b className={externalSystemsChanged ? "changed" : "unchanged"}>{externalSystemsChanged ? "Yes · scoped connector" : "No · packet-safe lane"}</b></p>
         </section>}
@@ -69,6 +70,32 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
           ? <button className="secondary full packet-link" type="button" onClick={onPacket} disabled={busy}><Download size={17} />Download change packet</button>
           : <a className="secondary full packet-link" href={packetHref} target="_blank" rel="noreferrer"><Download size={17} />Download change packet</a>)}
         <button className="secondary full evidence-button" onClick={onEvidence}><FileText size={17} />Open evidence</button>
+      </aside>
+    );
+  }
+
+  if (["approval_executing", "reversal_executing"].includes(status)) {
+    return (
+      <aside className="decision-panel operating" aria-live="polite">
+        <LoaderCircle className="spin" size={27} />
+        <h2>{status === "reversal_executing" ? "Reopening safely" : "Recording the action"}</h2>
+        <p className="decision-question">Driftline claimed one durable operation before touching any connector or artifact.</p>
+        <div className="audit-id"><strong>Operation</strong><span>{operation?.operation_id || "Claiming…"}</span></div>
+        <p className="decision-note">Conflicting decisions are blocked until this idempotent operation reaches a durable outcome.</p>
+      </aside>
+    );
+  }
+
+  if (status === "reconciliation_required") {
+    return (
+      <aside className="decision-panel recovery" aria-live="assertive">
+        <AlertTriangle className="warning-icon" size={27} />
+        <h2>Safe recovery required</h2>
+        <p className="decision-question">The operation was durably claimed, but its final outcome could not be confirmed.</p>
+        <div className="audit-id"><strong>Operation</strong><span>{operation?.operation_id}</span></div>
+        <div className="audit-id"><strong>Attempts</strong><span>{operation?.attempts || 1} · generation {operation?.generation || 1}</span></div>
+        <button className="primary full" type="button" onClick={onReconcile} disabled={busy}><RefreshCw size={17} />{busy ? "Reconciling…" : "Reconcile same operation"}</button>
+        <p className="decision-note">This retries the same idempotent operation. Configured connector recovery still requires signed operator authority.</p>
       </aside>
     );
   }

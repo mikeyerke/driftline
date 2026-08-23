@@ -17,7 +17,11 @@ The part I am proudest of is the authority boundary. The model can recommend,
 but it cannot approve itself, access a tenant credential, or bypass the evidence
 hash and rollback contract.
 
-Live demo: https://driftline-xvxczqg62a-uc.a.run.app/
+The detail that changed the architecture: every side-effecting decision is
+durably claimed before it runs. If execution becomes ambiguous, Driftline
+blocks conflicting actions and reconciles the same operation ID.
+
+Live demo: https://driftline-ops.web.app/
 Code: https://github.com/mikeyerke/driftline
 
 #AllThingsAgenticHackathon #GoogleCloud #AIagents #ProductMarketing #RevOps
@@ -27,4 +31,5 @@ Code: https://github.com/mikeyerke/driftline
 Built Driftline for #AllThingsAgenticHackathon: a Taskmaster agent that turns a
 verified promise change into owner-ready work. Gemini 3.5 Flash + Google ADK
 reason; deterministic policy authorizes; signed Jira actions are idempotent and
-reversible. Live: https://driftline-xvxczqg62a-uc.a.run.app/
+reversible. Interrupted work reconciles the same durable operation rather than
+duplicating action. Live: https://driftline-ops.web.app/

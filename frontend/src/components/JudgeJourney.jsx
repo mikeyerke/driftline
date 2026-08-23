@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, FileSearch, ShieldCheck, Undo2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, FileSearch, ReceiptText, ShieldCheck, Sparkles, Undo2 } from "lucide-react";
 
 const steps = [
   {
@@ -19,19 +19,31 @@ const steps = [
     detail: "Create owner-ready work",
     Icon: Undo2,
   },
+  {
+    id: "proof-section",
+    label: "Proof",
+    detail: "Inspect the durable receipt",
+    Icon: ReceiptText,
+  },
 ];
 
-export default function JudgeJourney({ workflow, scanning, onNavigate }) {
+export default function JudgeJourney({ workflow, scanning, judgeMode, onToggleJudgeMode, onNavigate }) {
   const hasEvidence = Boolean(workflow);
   const resolved = ["complete", "dismissed"].includes(workflow?.status);
-  const activeIndex = !hasEvidence ? 0 : resolved ? 2 : 1;
+  const operating = ["approval_executing", "reversal_executing", "reconciliation_required"].includes(workflow?.status);
+  const activeIndex = !hasEvidence ? 0 : resolved ? 3 : operating ? 2 : 1;
 
   return (
-    <nav className="judge-journey" aria-label="Driftline workflow">
+    <section className={`judge-mode-shell${judgeMode ? " active" : ""}`} aria-label="Judge mode">
+      <header className="judge-mode-header">
+        <div><Sparkles size={15} /><span><strong>Judge Mode</strong><small>One guided path from evidence to durable proof</small></span></div>
+        <button className={judgeMode ? "judge-mode-toggle active" : "judge-mode-toggle"} type="button" aria-pressed={judgeMode} onClick={onToggleJudgeMode}>{judgeMode ? "Guided · on" : "Guided · off"}</button>
+      </header>
+      <nav className="judge-journey" aria-label="Driftline workflow">
       {steps.map(({ id, label, detail, Icon }, index) => {
         const complete = index < activeIndex;
         const current = index === activeIndex;
-        const target = id === "actions-section" && !workflow?.action_items?.length ? "approvals-section" : id;
+        const target = (id === "actions-section" && !workflow?.action_items?.length) || (id === "proof-section" && !resolved) ? "approvals-section" : id;
         return (
           <div className="judge-journey-item" key={id}>
             <button
@@ -47,6 +59,7 @@ export default function JudgeJourney({ workflow, scanning, onNavigate }) {
           </div>
         );
       })}
-    </nav>
+      </nav>
+    </section>
   );
 }

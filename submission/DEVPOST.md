@@ -5,10 +5,18 @@ reversible owner action—autonomous where policy allows, human where judgment
 matters.
 
 - Category: **Taskmaster**
-- Live application: https://driftline-xvxczqg62a-uc.a.run.app/
+- Live application: https://driftline-ops.web.app/
 - Public repository: https://github.com/mikeyerke/driftline
 - Architecture: `submission/assets/driftline-architecture.png`
 - Demo video: **TODO — public YouTube or Vimeo URL, maximum four minutes**
+
+## Judge this in 45 seconds
+
+Open the live application with **Judge Mode** on, click **Run live agent**, and
+follow the four visible stages: Evidence → Human decision → Reversible action →
+Proof. Gemini recommends but cannot approve. One human click creates a durable
+operation ID and a receipt showing the Firestore action, artifact persistence,
+external-write truth, and rollback path.
 
 ## Inspiration
 
@@ -35,8 +43,10 @@ Driftline is an evidence-bound change-to-action agent:
    approval gate.
 6. Approval creates evidence-linked owner work. In the authenticated tenant
    lane, Driftline can create or reactivate one least-privilege Jira marker.
-7. Repeating the same action reuses the marker instead of duplicating work.
-8. **Reopen decision** reverses only Driftline-owned Jira state and appends the
+7. Before side effects begin, Driftline claims one durable operation. An
+   interrupted result blocks conflicting decisions and reconciles the same ID.
+8. Repeating the same action reuses the marker instead of duplicating work.
+9. **Reopen decision** reverses only Driftline-owned Jira state and appends the
    reversal to the audit ledger.
 
 The public judge lane is deliberately packet-safe and requires no credentials.
@@ -84,6 +94,12 @@ Model output never directly authorizes an action. Pydantic schemas, source and
 artifact allowlists, evidence-hash checks, materiality rules, approval policy,
 idempotency keys, tenant membership, credential scope, and rollback semantics
 are deterministic code.
+
+Approval and reversal have distinct durable executing states. If a process
+ends during a side-effect sequence, the workflow enters
+`reconciliation_required` with the same credential-free operation ID and
+generation. A named human can retry that operation; configured connector
+recovery still requires signed tenant authority.
 
 Source text is treated as untrusted evidence. Instruction-like content and
 control characters are removed from the model-visible projection while raw
@@ -154,7 +170,7 @@ to pay as `not_measured` until an independent pilot provides evidence.
 
 ## Testing instructions
 
-1. Open https://driftline-xvxczqg62a-uc.a.run.app/ logged out.
+1. Open https://driftline-ops.web.app/ logged out.
 2. Leave **Competitor pricing snapshot** selected and click **Run live agent**.
 3. Wait for the asynchronous job to reach **Human approval required**.
 4. Inspect **Evidence diff**, **Open evidence**, **Agent trace**, the impact map,
