@@ -3403,6 +3403,70 @@ def test_signed_approval_can_cross_connector_boundary_when_enabled(monkeypatch) 
     assert approved.json()["action_record"]["external_write_authorized"] is True
 
 
+def test_configured_handoff_only_runs_mapped_connectors_and_names_writes(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def make_operation(name: str):
+        def operation(_state):
+            calls.append(name)
+            return {f"{name}_status": "created", "external_write": True}
+
+        return operation
+
+    monkeypatch.setattr(
+        api,
+        "_CONNECTOR_HANDOFFS",
+        tuple(
+            (name, make_operation(name), make_operation(name))
+            for name, _, _ in api._CONNECTOR_HANDOFFS
+        ),
+    )
+    state = api.workflow_store.start_demo()
+
+    result = api._connector_handoff_info(
+        state,
+        {"scope": "configured", "tenant_id": "driftline-demo"},
+    )
+
+    assert calls == ["jira", "confluence", "slack"]
+    assert result["jira_external_write"] is True
+    assert result["confluence_external_write"] is True
+    assert result["slack_external_write"] is True
+    assert result["github_status"] == "not_selected"
+    assert result["github_external_write"] is False
+    assert result["external_write"] is True
+
+
+def test_legacy_connector_write_is_still_reversed_when_target_is_not_mapped(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def reverse_github(_state):
+        calls.append("github")
+        return {"github_status": "reversed", "external_write": True}
+
+    monkeypatch.setattr(
+        api,
+        "_CONNECTOR_HANDOFFS",
+        (("github", lambda _state: {}, reverse_github),),
+    )
+    state = api.workflow_store.start_demo()
+    state.action_record = {
+        "github_status": "created",
+        "github_external_write": True,
+    }
+
+    result = api._connector_handoff_info(
+        state,
+        {"scope": "configured", "tenant_id": "driftline-demo"},
+        reverse=True,
+    )
+
+    assert calls == ["github"]
+    assert result["github_status"] == "reversed"
+    assert result["github_external_write"] is True
+    assert result["external_write"] is True
+
+
 def test_source_history_endpoint_is_explicitly_append_only() -> None:
     response = client.get("/api/sources/public/pricing/history")
     assert response.status_code == 200

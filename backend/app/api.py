@@ -1347,13 +1347,54 @@ def _connector_handoff_info(
     *,
     reverse: bool = False,
 ) -> dict[str, object]:
-    """Execute connector work only inside the signed, configured lane."""
+    """Execute only the signed workflow's explicitly mapped connectors.
+
+    A connector being configured for a tenant is not itself permission to fan
+    out every packet to that provider.  The impact graph is the source of truth
+    for the current approval: forward work is sent only to destinations shown
+    in ``integration_targets``.  During reversal, retain compatibility with
+    older action records by reversing any connector that actually recorded an
+    external write, even if that legacy workflow did not expose the target in
+    its original graph.
+    """
     if approval_identity.get("scope") != "configured":
         return _prepared_connector_info()
+    selected = {
+        str(target.get("system", "")).casefold()
+        for target in state.integration_targets
+        if isinstance(target, dict)
+    }
+    action = state.action_record or {}
     result: dict[str, object] = {}
     for name, execute, undo in _CONNECTOR_HANDOFFS:
+        status_key = f"{name}_status"
+        external_key = f"{name}_external_write"
+        if reverse:
+            prior_status = str(action.get(status_key, "")).casefold()
+            should_run = bool(action.get(external_key)) or prior_status in {
+                "created",
+                "reused",
+                "reactivated",
+            }
+        else:
+            should_run = name.casefold() in selected
+        if not should_run:
+            result[status_key] = "not_selected"
+            result[f"{name}_prepared_only"] = True
+            result[external_key] = False
+            continue
         operation = undo if reverse else execute
-        result.update(_safe_connector_call(operation, name, state))
+        connector_result = _safe_connector_call(operation, name, state)
+        connector_external_write = bool(connector_result.get("external_write", False))
+        result.update(
+            {
+                key: value
+                for key, value in connector_result.items()
+                if key != "external_write"
+            }
+        )
+        result[external_key] = connector_external_write
+        result["external_write"] = bool(result.get("external_write", False)) or connector_external_write
     return result
 
 
