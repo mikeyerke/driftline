@@ -17,41 +17,46 @@
 
 ### Current exact proof — 2026-08-23
 
-The serving release is `eeecbe6b978c4e90ecef994177cf8730e50ad818` on Cloud Run
-revision `driftline-00272-9wn`, built by Cloud Build
-`b1f42de1-85dc-4e29-ab2e-f2e287fb4e5d` with image digest
-`sha256:eda480f3ca3fdf7a2b9c6301089455b926f40707e16ebf48c5a714ee224785e3`.
+The serving release is `604a353826aba55b309e2084a61140cbef767de8` on Cloud
+Run revision `driftline-00273-kdl`, built by Cloud Build
+`b8ad1827-c8e5-42d0-99dd-0745e67d5979` with image digest
+`sha256:3b5d83671fe3ffb970ffb8e699d915d734061e9dc0f0ed0a9f6f32e90765f5d1`.
 The revision serves 100% of traffic in the isolated
-`driftline-hackathon-2026` project. GitHub Actions run `32610180580` and the
+`driftline-hackathon-2026` project. GitHub Actions run `32642860266` and the
 full local gate passed before deployment.
 
 Fresh live proof on that exact revision:
 
-- ADK/Gemini execution: job `job-562ae6667bb0`, workflow
-  `d8327970-d0af-4c25-99ac-0324c4d6679e`, `needs_approval`,
+- ADK/Gemini execution: job `job-3e39a50a6a83`, workflow
+  `0cd726dd-aedf-4829-ac5e-4226ae989ef6`, `needs_approval`,
   `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
-  two decision options, and trace evaluation `eval-69ab5ead4970` at 100% / stable.
-- Approval/undo: job `job-40a261b3ed25` persisted a packet, completed one
+  two decision options, and trace evaluation `eval-3c87d36b2a85` at 100% / stable.
+- Approval/undo: job `job-ff85035948f4` persisted a packet, completed one
   owner action, and reversed it; `external_write=false` and
   `external_systems_changed=false` remained explicit.
-- Scheduler: a fresh manual run at `2026-08-23T13:21:42.787837Z` returned HTTP
-  200 for `/api/scheduler/tick` on `driftline-00272-9wn`.
+- Scheduler: a fresh manual run at `2026-08-23T13:41:30.625928Z` returned HTTP
+  200 for `/api/scheduler/tick` on `driftline-00273-kdl`.
 - Browser QA: the deployed public console reached the evidence-bound approval
   gate; source evidence, map selection, artifact detail, and approval copy
   worked. After reload, Run history restored the durable workflow with its
   evidence and approval state. Desktop width was 1422px with no Driftline
   console errors; 390px mobile width had no horizontal overflow or console
   errors.
+- Signed operator audit: `Check now` completed for all six configured source
+  cards and each returned `healthy` with a durable last-observed timestamp.
 
-This release fixes a consequential trust bug: approval/undo packets now state
-the actual durable connector outcome and lane (configured connector vs
+This release makes bounded agent quotas recoverable: 429 responses carry a
+machine-readable retry window and the console explains when the operator can
+retry. It also fixes a consequential trust bug: approval/undo packets now
+state the actual durable connector outcome and lane (configured connector vs
 packet-safe public), and the workflow state is committed even if optional
 artifact storage is unavailable. The public evaluation lane remains
 packet-safe and writes no third-party systems.
 
 The following constraints remain explicit rather than inferred: Salesforce
 aggregate read is not verified (`external_read=false`,
-`aggregate_read_verified=false`, no object totals); no real customer pilot has
+`aggregate_read_verified=false`, no object totals); signed tenant
+`driftline-demo` still requires Salesforce reauthorization; no real customer pilot has
 produced before/after time-saved, revenue, retention, or willingness-to-pay
 evidence; and monitoring is intentionally bounded to five pinned fixtures plus
 exact operator-registered URLs capped at 25 per tenant, not universal
