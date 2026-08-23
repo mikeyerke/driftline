@@ -32,3 +32,9 @@
   architecture PNG/SVG, build story, and optional social drafts.
 - Remaining entrant-owned gates: registration answers/agreements, public video,
   optional social publication, and explicit final-submission confirmation.
+- Opened https://github.com/mikeyerke/driftline/pull/16 after rebasing onto the
+  latest `main`; GitHub Actions `Verify Driftline` run `32664779091` passed.
+- The Devpost project-creation endpoint remained blocked on a missing
+  server-side hackathon context even after resolving the official event. The
+  exact project copy is preserved in `devpost-submission.md`; no incomplete or
+  duplicate Devpost project was created.

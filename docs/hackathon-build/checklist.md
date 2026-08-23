@@ -55,7 +55,7 @@ Wow moment: signed evidence-bound Jira action, idempotent reuse, and scoped reve
   Acceptance: Every required official field has either final copy or one explicit owner-only TODO.
   Verify: Compare with the live Devpost submission requirements.
 
-- [ ] **9. Push the reviewed branch and open one PR**
+- [x] **9. Push the reviewed branch and open one PR**
   Spec ref: `spec.md > Release contract`
   What to build: Commit the package, push the branch, open a focused PR, and let GitHub verification complete.
   Acceptance: Public diff is reviewable and all CI checks pass.
