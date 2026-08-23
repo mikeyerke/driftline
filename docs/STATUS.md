@@ -24,9 +24,9 @@ tenant and its configured connectors.
 | --- | --- | --- | --- |
 | Cloud Run production service | **Deployed and live** | `driftline-00283-g9w`, 100% traffic; `/health` returns `ddf5a5b` | Isolated `driftline-hackathon-2026` project |
 | Firestore workflow/audit persistence | **Live verified** | Production verifier and live workflow records | 30-day default retention; tenant policy can narrow/extend within bounds |
-| Google ADK + Gemini | **Live verified** | `job-f4e0f0a0ae41`, `eval-665f410abf36`, 14/14 trace gate | Public runs are fixed, bounded scenarios |
+| Google ADK + Gemini | **Live verified** | `job-737f3c871329`, `eval-a8a6ae0dd580`, 14/14 trace gate | Public runs are fixed, bounded scenarios |
 | Deterministic approval gate | **Live verified** | High-risk actions stop at `needs_approval` | The model cannot approve itself |
-| Reversible Driftline packet/owner action | **Live verified** | `job-2563a7cc5cbf`; completed then reversed | Public lane writes only Driftline-owned packet artifacts |
+| Reversible Driftline packet/owner action | **Live verified** | `job-6014eaf19c24`; completed then reversed | Public lane writes only Driftline-owned packet artifacts |
 | Bounded monitoring | **Live verified** | Five healthy pinned fixtures; scheduler and append-only observations | No universal crawling; tenant URLs require explicit registration |
 | Interactive impact map | **Live verified** | Source, offering, impact, work-surface, and handoff node traversal | Evidence hash is inherited by every node |
 | Jira context read | **Externally verified** | Isolated `KAN` project; aggregate open-work read succeeds | Fixed project scope; no user-supplied JQL |
