@@ -9,6 +9,12 @@ const initialForm = {
   changes_observed: "",
   baseline_minutes: "",
   driftline_minutes: "",
+  baseline_owner_ready_within_24h: "",
+  driftline_owner_ready_within_24h: "",
+  baseline_actions_completed_within_7d: "",
+  driftline_actions_completed_within_7d: "",
+  baseline_reversed_or_reopened: "",
+  driftline_reversed_or_reopened: "",
   evidence_ref: "",
   revenue_lift_usd: "",
   retention_lift_pct: "",
@@ -58,6 +64,12 @@ export default function PilotMeasurementPanel({ operatorSession }) {
         changes_observed: Number(form.changes_observed),
         baseline_minutes: Number(form.baseline_minutes),
         driftline_minutes: Number(form.driftline_minutes),
+        baseline_owner_ready_within_24h: numberOrNull(form.baseline_owner_ready_within_24h),
+        driftline_owner_ready_within_24h: numberOrNull(form.driftline_owner_ready_within_24h),
+        baseline_actions_completed_within_7d: numberOrNull(form.baseline_actions_completed_within_7d),
+        driftline_actions_completed_within_7d: numberOrNull(form.driftline_actions_completed_within_7d),
+        baseline_reversed_or_reopened: numberOrNull(form.baseline_reversed_or_reopened),
+        driftline_reversed_or_reopened: numberOrNull(form.driftline_reversed_or_reopened),
         revenue_lift_usd: numberOrNull(form.revenue_lift_usd),
         retention_lift_pct: numberOrNull(form.retention_lift_pct),
         willingness_to_pay_usd: numberOrNull(form.willingness_to_pay_usd),
@@ -94,6 +106,11 @@ export default function PilotMeasurementPanel({ operatorSession }) {
   const completedActions = observed.action_items_completed_historically || 0;
   const formatSeconds = (value) => value === null || value === undefined || Number.isNaN(Number(value)) ? "—" : `${Number(value).toFixed(1)}s`;
   const formatPercent = (value) => value === null || value === undefined || Number.isNaN(Number(value)) ? "—" : `${Math.round(Number(value) * 100)}%`;
+  const timeDirection = report?.time_delta_direction;
+  const timeDeltaLabel = !measured ? "time delta recorded" : timeDirection === "added" ? "time added" : timeDirection === "neutral" ? "no time delta" : "time saved";
+  const timeDeltaValue = measured && report?.time_saved_minutes_total !== null && report?.time_saved_minutes_total !== undefined
+    ? `${Math.abs(Number(report.time_saved_minutes_total))}m`
+    : "—";
   const readiness = [
     { label: "Tenant lane connected", ready: Boolean(operatorSession.tenantId), detail: operatorSession.tenantId || "Sign in and select a tenant" },
     { label: "Real source registered", ready: customSourceCount > 0, detail: customSourceCount > 0 ? `${customSourceCount} exact HTTPS source${customSourceCount === 1 ? "" : "s"}` : "Add one owned or competitor change surface" },
@@ -107,9 +124,9 @@ export default function PilotMeasurementPanel({ operatorSession }) {
         <span className="muted">Aggregate evidence only</span>
       </header>
       <div className="pilot-summary">
-        <div><Clock3 size={15} /><strong>{measured ? `${report.time_saved_minutes_total}m` : "—"}</strong><small>time saved recorded</small></div>
+        <div><Clock3 size={15} /><strong>{timeDeltaValue}</strong><small>{timeDeltaLabel}</small></div>
         <div><ClipboardCheck size={15} /><strong>{report?.changes_observed || 0}</strong><small>changes measured</small></div>
-        <div><ShieldCheck size={15} /><strong>{measured ? `${report.time_saved_pct}%` : "—"}</strong><small>before/after delta</small></div>
+        <div><ShieldCheck size={15} /><strong>{measured ? `${report.time_delta_pct ?? report.time_saved_pct}%` : "—"}</strong><small>before/after delta</small></div>
       </div>
       <p className="pilot-note">Record aggregate before/after observations from a real pilot. No example measurements are prefilled: enter only values reconciled to the dated evidence reference. Driftline stores no customer names, raw notes, or CRM records; every entry remains explicitly operator-reported until independently reviewed.</p>
       <div className="pilot-readiness" aria-label="Pilot readiness checklist">
@@ -135,6 +152,17 @@ export default function PilotMeasurementPanel({ operatorSession }) {
         </div>
         <p>Bounded telemetry from this tenant’s Driftline workflows only. Demo replays are repeatable and do not mutate the source ledger; these counts are recorded monitor comparisons, not customer proof.</p>
       </div>
+      {measured && report?.operational_metrics && <div className="pilot-outcome-metrics" aria-label="Aggregate pilot operational outcomes">
+        <div className="pilot-observed-heading"><strong>Operational pilot outcomes</strong><small>Aggregate, operator-reported · not independently verified</small></div>
+        <div className="pilot-outcome-table" role="table">
+          {[['owner_ready_within_24h', 'Owner-ready within 24h'], ['actions_completed_within_7d', 'Actions completed within 7d'], ['reversed_or_reopened', 'Reversed or reopened']].map(([key, label]) => {
+            const metric = report.operational_metrics[key] || {};
+            const formatRate = (value) => value === null || value === undefined ? '—' : `${value}%`;
+            return <div className="pilot-outcome-row" role="row" key={key}><strong role="cell">{label}</strong><span role="cell">Baseline {formatRate(metric.baseline_rate_pct)}</span><span role="cell">Driftline {formatRate(metric.driftline_rate_pct)}</span><b role="cell">Δ {metric.delta_percentage_points === null || metric.delta_percentage_points === undefined ? '—' : `${metric.delta_percentage_points} pp`}</b></div>;
+          })}
+        </div>
+        <p className="pilot-readiness-footnote">Rates use the recorded change count as denominator. Blank rates mean that measure was not supplied; Driftline does not infer a customer outcome from workflow telemetry.</p>
+      </div>}
       <div className="pilot-actions">
         <button className="secondary compact pilot-toggle" type="button" onClick={() => { setOpen((current) => !current); setMessage(""); setError(""); }}><Plus size={14} />{open ? "Close measurement form" : "Record a measurement"}</button>
         <button className="secondary compact pilot-toggle" type="button" onClick={downloadPacket} disabled={downloading}><Download size={14} />{downloading ? "Preparing…" : "Download pilot packet"}</button>
@@ -143,8 +171,9 @@ export default function PilotMeasurementPanel({ operatorSession }) {
         <label>Evidence type<select name="source_type" value={form.source_type} onChange={update}><option value="pilot_log">Pilot log</option><option value="customer_interview">Customer interview</option><option value="win_loss">Win / loss</option><option value="billing_record">Billing record</option></select></label>
         <label>Cohort label<input required name="cohort_label" value={form.cohort_label} onChange={update} maxLength={80} placeholder="Named pilot cohort" /></label>
         <label>Changes observed<input required type="number" min="1" name="changes_observed" value={form.changes_observed} onChange={update} placeholder="Measured count" /></label>
-        <label>Baseline minutes<input required type="number" min="0" step="0.1" name="baseline_minutes" value={form.baseline_minutes} onChange={update} placeholder="Observed baseline" /></label>
+        <label>Baseline minutes (total)<input required type="number" min="0.1" step="0.1" name="baseline_minutes" value={form.baseline_minutes} onChange={update} placeholder="Observed baseline" /></label>
         <label>Driftline minutes<input required type="number" min="0" step="0.1" name="driftline_minutes" value={form.driftline_minutes} onChange={update} placeholder="Observed Driftline time" /></label>
+        <fieldset className="pilot-form-group"><legend>Optional operational counts</legend><small>Use counts from the same change set; each must be ≤ changes observed.</small><label>Baseline owner-ready ≤24h<input type="number" min="0" step="1" name="baseline_owner_ready_within_24h" value={form.baseline_owner_ready_within_24h} onChange={update} placeholder="Not measured" /></label><label>Driftline owner-ready ≤24h<input type="number" min="0" step="1" name="driftline_owner_ready_within_24h" value={form.driftline_owner_ready_within_24h} onChange={update} placeholder="Not measured" /></label><label>Baseline actions closed ≤7d<input type="number" min="0" step="1" name="baseline_actions_completed_within_7d" value={form.baseline_actions_completed_within_7d} onChange={update} placeholder="Not measured" /></label><label>Driftline actions closed ≤7d<input type="number" min="0" step="1" name="driftline_actions_completed_within_7d" value={form.driftline_actions_completed_within_7d} onChange={update} placeholder="Not measured" /></label><label>Baseline reversed / reopened<input type="number" min="0" step="1" name="baseline_reversed_or_reopened" value={form.baseline_reversed_or_reopened} onChange={update} placeholder="Not measured" /></label><label>Driftline reversed / reopened<input type="number" min="0" step="1" name="driftline_reversed_or_reopened" value={form.driftline_reversed_or_reopened} onChange={update} placeholder="Not measured" /></label></fieldset>
         <label>Evidence reference<input required name="evidence_ref" value={form.evidence_ref} onChange={update} placeholder="artifact://… or https://…" maxLength={300} /></label>
         <label>Revenue lift USD<input type="number" min="-1000000000" step="0.01" name="revenue_lift_usd" value={form.revenue_lift_usd} onChange={update} placeholder="Optional" /></label>
         <label>Retention lift %<input type="number" min="-100" max="100" step="0.01" name="retention_lift_pct" value={form.retention_lift_pct} onChange={update} placeholder="Optional" /></label>

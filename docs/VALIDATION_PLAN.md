@@ -36,13 +36,17 @@ Use aggregate counters only: scan count, source freshness, time from detected ch
 
 When a real pilot exists, a signed operator can submit one aggregate record to
 `POST /api/ops/outcomes` with a source type, cohort label, before/after minutes,
-and an evidence reference. The API rejects raw customer text and marks every
-record `operator_reported_unverified` until a human reconciles it to the
+an evidence reference, and (optionally) baseline/Driftline counts for
+owner-ready-within-24-hours, actions-completed-within-seven-days, and
+reversed-or-reopened decisions. The API rejects raw customer text, rejects a
+zero baseline or operational counts larger than the observed change set, and
+marks every record `operator_reported_unverified` until a human reconciles it to the
 referenced interview, pilot log, win/loss record, or billing artifact. The
 public console exposes only the redacted outcome ledger through
 `GET /api/ops/outcomes`. Tenant owners can use the signed
-`GET /api/ops/pilot-report` endpoint to compute before/after totals and deltas
-for one cohort without returning evidence references or other tenant records.
+`GET /api/ops/pilot-report` endpoint to compute before/after totals, per-change
+time direction, operational rates, and percentage-point deltas for one cohort
+without returning evidence references or other tenant records.
 
 ## Open proof gaps
 

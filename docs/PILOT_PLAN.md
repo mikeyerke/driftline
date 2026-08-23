@@ -27,8 +27,16 @@ budget. No customer metrics are prefilled or inferred.
 
 Record only aggregate values through `POST /api/ops/outcomes`; never upload
 customer names, raw interview text, opportunity IDs, or private CRM records.
-The endpoint labels entries `operator_reported_unverified` until a human
-reviews the referenced artifact.
+The endpoint accepts the baseline and Driftline counts for the three operational
+measures above, validates that every count is no greater than the observed
+change set, and reports rates plus percentage-point deltas. Minutes are totals
+for the change set; the report also exposes a per-change value and labels the
+direction as `saved`, `added`, or `neutral`. A zero baseline is rejected because
+it cannot establish a defensible before/after comparison. Each optional
+operational measure must provide both its baseline and Driftline count, so a
+partial comparison cannot masquerade as a result. The endpoint labels
+entries `operator_reported_unverified` until a human reviews the referenced
+artifact.
 
 The signed console includes a pilot-readiness checklist that is deliberately
 separate from customer evidence. It confirms the tenant lane, an exact

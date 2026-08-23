@@ -537,8 +537,17 @@ class OutcomeMeasurementRequest(BaseModel):
     ]
     cohort_label: str = Field(min_length=1, max_length=80)
     changes_observed: int = Field(ge=1, le=10000)
-    baseline_minutes: float = Field(ge=0, le=1_000_000)
+    # Minutes are totals for the observed change set, not per-change values.
+    # A zero baseline cannot establish a before/after delta, so reject it at
+    # the boundary instead of allowing a misleading "time saved" record.
+    baseline_minutes: float = Field(gt=0, le=1_000_000)
     driftline_minutes: float = Field(ge=0, le=1_000_000)
+    baseline_owner_ready_within_24h: int | None = Field(default=None, ge=0, le=10000)
+    driftline_owner_ready_within_24h: int | None = Field(default=None, ge=0, le=10000)
+    baseline_actions_completed_within_7d: int | None = Field(default=None, ge=0, le=10000)
+    driftline_actions_completed_within_7d: int | None = Field(default=None, ge=0, le=10000)
+    baseline_reversed_or_reopened: int | None = Field(default=None, ge=0, le=10000)
+    driftline_reversed_or_reopened: int | None = Field(default=None, ge=0, le=10000)
     revenue_lift_usd: float | None = Field(
         default=None, ge=-1_000_000_000, le=1_000_000_000
     )
@@ -5141,6 +5150,55 @@ def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, 
             status_code=422,
             detail="evidence_ref_must_point_to_audit_artifact_or_https_source",
         )
+    operational_counts = {
+        name: value
+        for name, value in {
+            "baseline_owner_ready_within_24h": request.baseline_owner_ready_within_24h,
+            "driftline_owner_ready_within_24h": request.driftline_owner_ready_within_24h,
+            "baseline_actions_completed_within_7d": request.baseline_actions_completed_within_7d,
+            "driftline_actions_completed_within_7d": request.driftline_actions_completed_within_7d,
+            "baseline_reversed_or_reopened": request.baseline_reversed_or_reopened,
+            "driftline_reversed_or_reopened": request.driftline_reversed_or_reopened,
+        }.items()
+        if value is not None
+    }
+    operational_pairs = (
+        (
+            "baseline_owner_ready_within_24h",
+            "driftline_owner_ready_within_24h",
+        ),
+        (
+            "baseline_actions_completed_within_7d",
+            "driftline_actions_completed_within_7d",
+        ),
+        ("baseline_reversed_or_reopened", "driftline_reversed_or_reopened"),
+    )
+    partial_pairs = [
+        baseline_key
+        for baseline_key, driftline_key in operational_pairs
+        if (getattr(request, baseline_key) is None)
+        != (getattr(request, driftline_key) is None)
+    ]
+    if partial_pairs:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "pilot_operational_metric_requires_baseline_and_driftline",
+                "fields": partial_pairs,
+            },
+        )
+    over_count = [
+        name for name, value in operational_counts.items() if value > request.changes_observed
+    ]
+    if over_count:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "pilot_operational_count_exceeds_changes_observed",
+                "fields": over_count,
+            },
+        )
+    time_delta = round(request.baseline_minutes - request.driftline_minutes, 2)
     measurement_id = f"measurement-{uuid4().hex[:16]}"
     payload = {
         "measurement_id": measurement_id,
@@ -5150,9 +5208,12 @@ def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, 
         "changes_observed": request.changes_observed,
         "baseline_minutes": request.baseline_minutes,
         "driftline_minutes": request.driftline_minutes,
-        "time_saved_minutes_per_change": round(
-            request.baseline_minutes - request.driftline_minutes, 2
+        "time_saved_minutes_total": time_delta,
+        "time_saved_minutes_per_change": round(time_delta / request.changes_observed, 2),
+        "time_delta_direction": (
+            "saved" if time_delta > 0 else "added" if time_delta < 0 else "neutral"
         ),
+        **operational_counts,
         "revenue_lift_usd": request.revenue_lift_usd,
         "retention_lift_pct": request.retention_lift_pct,
         "willingness_to_pay_usd": request.willingness_to_pay_usd,
@@ -5229,6 +5290,54 @@ def get_pilot_report(
         for record in records
         if record.get("retention_lift_pct") is not None
     ]
+    def _operational_metric(
+        baseline_key: str, driftline_key: str
+    ) -> dict[str, object]:
+        baseline_values = [
+            int(record[baseline_key])
+            for record in records
+            if record.get(baseline_key) is not None
+        ]
+        driftline_values = [
+            int(record[driftline_key])
+            for record in records
+            if record.get(driftline_key) is not None
+        ]
+        baseline_count = sum(baseline_values) if baseline_values else None
+        driftline_count = sum(driftline_values) if driftline_values else None
+        baseline_rate = (
+            round(baseline_count / total_changes * 100, 2)
+            if baseline_count is not None and total_changes
+            else None
+        )
+        driftline_rate = (
+            round(driftline_count / total_changes * 100, 2)
+            if driftline_count is not None and total_changes
+            else None
+        )
+        return {
+            "baseline_count": baseline_count,
+            "driftline_count": driftline_count,
+            "baseline_rate_pct": baseline_rate,
+            "driftline_rate_pct": driftline_rate,
+            "delta_percentage_points": (
+                round(driftline_rate - baseline_rate, 2)
+                if baseline_rate is not None and driftline_rate is not None
+                else None
+            ),
+        }
+    operational_metrics = {
+        "owner_ready_within_24h": _operational_metric(
+            "baseline_owner_ready_within_24h", "driftline_owner_ready_within_24h"
+        ),
+        "actions_completed_within_7d": _operational_metric(
+            "baseline_actions_completed_within_7d", "driftline_actions_completed_within_7d"
+        ),
+        "reversed_or_reopened": _operational_metric(
+            "baseline_reversed_or_reopened", "driftline_reversed_or_reopened"
+        ),
+    }
+    time_saved_total = round(baseline_total - driftline_total, 2)
     return {
         "scope": "signed_tenant_pilot_records",
         "tenant_id": identity["tenant_id"],
@@ -5238,7 +5347,16 @@ def get_pilot_report(
         "changes_observed": total_changes,
         "baseline_minutes_total": round(baseline_total, 2),
         "driftline_minutes_total": round(driftline_total, 2),
-        "time_saved_minutes_total": round(baseline_total - driftline_total, 2),
+        "time_saved_minutes_total": time_saved_total,
+        "time_saved_minutes_per_change": (
+            round(time_saved_total / total_changes, 2) if total_changes else None
+        ),
+        "time_delta_direction": (
+            "saved" if time_saved_total > 0 else "added" if time_saved_total < 0 else "neutral"
+        ) if records else None,
+        "time_delta_pct": (
+            round(time_saved_total / baseline_total * 100, 2) if baseline_total else None
+        ),
         "time_saved_pct": (
             round((baseline_total - driftline_total) / baseline_total * 100, 2)
             if baseline_total
@@ -5247,6 +5365,7 @@ def get_pilot_report(
         "revenue_lift_usd_total": round(sum(revenue_values), 2) if revenue_values else None,
         "retention_lift_pct_median": round(median(retention_values), 2) if retention_values else None,
         "willingness_to_pay_usd_median": round(median(wtp_values), 2) if wtp_values else None,
+        "operational_metrics": operational_metrics,
         "disclosure": (
             "Aggregate operator-reported evidence only; independently verify each "
             "record against its source before making a customer or revenue claim."
@@ -5308,7 +5427,16 @@ def download_pilot_packet(
         f"- Baseline minutes total: {_pilot_packet_value(report.get('baseline_minutes_total'), fallback='0')}",
         f"- Driftline minutes total: {_pilot_packet_value(report.get('driftline_minutes_total'), fallback='0')}",
         f"- Time saved minutes total: {_pilot_packet_value(report.get('time_saved_minutes_total'), fallback='Not measured')}",
-        f"- Time saved percent: {_pilot_packet_value(report.get('time_saved_pct'), fallback='Not measured')}",
+        f"- Time saved minutes per change: {_pilot_packet_value(report.get('time_saved_minutes_per_change'), fallback='Not measured')}",
+        f"- Time delta direction: {_pilot_packet_value(report.get('time_delta_direction'), fallback='Not measured')}",
+        f"- Time delta percent (saved positive): {_pilot_packet_value(report.get('time_saved_pct'), fallback='Not measured')}",
+        "",
+        "## Operational pilot outcomes (aggregate, operator-reported)",
+        "",
+        f"- Owner-ready within 24h (baseline → Driftline): {_pilot_packet_value((report.get('operational_metrics') or {}).get('owner_ready_within_24h', {}).get('baseline_rate_pct'))} → {_pilot_packet_value((report.get('operational_metrics') or {}).get('owner_ready_within_24h', {}).get('driftline_rate_pct'))}",
+        f"- Actions completed within 7d (baseline → Driftline): {_pilot_packet_value((report.get('operational_metrics') or {}).get('actions_completed_within_7d', {}).get('baseline_rate_pct'))} → {_pilot_packet_value((report.get('operational_metrics') or {}).get('actions_completed_within_7d', {}).get('driftline_rate_pct'))}",
+        f"- Reversed or reopened (baseline → Driftline): {_pilot_packet_value((report.get('operational_metrics') or {}).get('reversed_or_reopened', {}).get('baseline_rate_pct'))} → {_pilot_packet_value((report.get('operational_metrics') or {}).get('reversed_or_reopened', {}).get('driftline_rate_pct'))}",
+        "Rates are percentages of the observed change set; omitted fields remain not measured.",
         "",
         "## Customer outcomes",
         "",

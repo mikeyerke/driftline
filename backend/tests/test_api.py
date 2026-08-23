@@ -772,6 +772,121 @@ def test_outcome_measurements_require_signed_operator(monkeypatch) -> None:
     assert response.status_code == 401
 
 
+def test_outcome_measurement_records_direction_and_operational_counts(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *args, **kwargs: {"tenant_id": "pilot-tenant", "identity": "signed_operator"},
+    )
+    monkeypatch.setattr(
+        api,
+        "persist_outcome_measurement",
+        lambda payload: captured.update(payload),
+    )
+
+    response = client.post(
+        "/api/ops/outcomes",
+        json={
+            "operator": "Pilot owner",
+            "tenant_id": "pilot-tenant",
+            "source_type": "pilot_log",
+            "cohort_label": "pilot-a",
+            "changes_observed": 2,
+            "baseline_minutes": 120,
+            "driftline_minutes": 40,
+            "baseline_owner_ready_within_24h": 1,
+            "driftline_owner_ready_within_24h": 2,
+            "baseline_actions_completed_within_7d": 0,
+            "driftline_actions_completed_within_7d": 1,
+            "baseline_reversed_or_reopened": 1,
+            "driftline_reversed_or_reopened": 0,
+            "evidence_ref": "artifact://pilot-a",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["time_saved_minutes_total"] == 80
+    assert captured["time_saved_minutes_per_change"] == 40
+    assert captured["time_delta_direction"] == "saved"
+    assert captured["baseline_owner_ready_within_24h"] == 1
+    assert captured["driftline_actions_completed_within_7d"] == 1
+
+
+def test_outcome_measurement_rejects_operational_count_above_change_set(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *args, **kwargs: {"tenant_id": "pilot-tenant", "identity": "signed_operator"},
+    )
+    response = client.post(
+        "/api/ops/outcomes",
+        json={
+            "operator": "Pilot owner",
+            "tenant_id": "pilot-tenant",
+            "source_type": "pilot_log",
+            "cohort_label": "pilot-a",
+            "changes_observed": 1,
+            "baseline_minutes": 60,
+            "driftline_minutes": 20,
+            "baseline_actions_completed_within_7d": 1,
+            "driftline_actions_completed_within_7d": 2,
+            "evidence_ref": "artifact://pilot-a",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["message"] == "pilot_operational_count_exceeds_changes_observed"
+
+
+def test_outcome_measurement_rejects_partial_operational_pair(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *args, **kwargs: {"tenant_id": "pilot-tenant", "identity": "signed_operator"},
+    )
+    response = client.post(
+        "/api/ops/outcomes",
+        json={
+            "operator": "Pilot owner",
+            "tenant_id": "pilot-tenant",
+            "source_type": "pilot_log",
+            "cohort_label": "pilot-a",
+            "changes_observed": 1,
+            "baseline_minutes": 60,
+            "driftline_minutes": 20,
+            "baseline_owner_ready_within_24h": 1,
+            "evidence_ref": "artifact://pilot-a",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["message"] == "pilot_operational_metric_requires_baseline_and_driftline"
+
+
+def test_outcome_measurement_rejects_zero_baseline(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *args, **kwargs: {"tenant_id": "pilot-tenant", "identity": "signed_operator"},
+    )
+    response = client.post(
+        "/api/ops/outcomes",
+        json={
+            "operator": "Pilot owner",
+            "tenant_id": "pilot-tenant",
+            "source_type": "pilot_log",
+            "cohort_label": "pilot-a",
+            "changes_observed": 1,
+            "baseline_minutes": 0,
+            "driftline_minutes": 0,
+            "evidence_ref": "artifact://pilot-a",
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def test_pilot_report_requires_signed_operator() -> None:
     response = client.get("/api/ops/pilot-report")
     assert response.status_code == 401
@@ -798,6 +913,12 @@ def test_pilot_report_is_tenant_filtered_and_aggregate_only(monkeypatch) -> None
                 "changes_observed": 2,
                 "baseline_minutes": 120,
                 "driftline_minutes": 40,
+                "baseline_owner_ready_within_24h": 1,
+                "driftline_owner_ready_within_24h": 2,
+                "baseline_actions_completed_within_7d": 0,
+                "driftline_actions_completed_within_7d": 1,
+                "baseline_reversed_or_reopened": 1,
+                "driftline_reversed_or_reopened": 0,
                 "revenue_lift_usd": 1500,
                 "retention_lift_pct": 4,
                 "willingness_to_pay_usd": 900,
@@ -823,6 +944,11 @@ def test_pilot_report_is_tenant_filtered_and_aggregate_only(monkeypatch) -> None
     assert payload["record_count"] == 1
     assert payload["changes_observed"] == 2
     assert payload["time_saved_minutes_total"] == 80
+    assert payload["time_saved_minutes_per_change"] == 40
+    assert payload["time_delta_direction"] == "saved"
+    assert payload["time_delta_pct"] == 66.67
+    assert payload["operational_metrics"]["owner_ready_within_24h"]["delta_percentage_points"] == 50
+    assert payload["operational_metrics"]["actions_completed_within_7d"]["driftline_rate_pct"] == 50
     assert payload["time_saved_pct"] == 66.67
     assert payload["revenue_lift_usd_total"] == 1500
     assert payload["willingness_to_pay_usd_median"] == 900
