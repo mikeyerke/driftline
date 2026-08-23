@@ -140,6 +140,11 @@ followed by an explicit resume.
   serving SHA. The paired public approval/undo verifier passed with
   `external_write=false`; these public records remain packet-safe and separate
   from the signed connector smoke.
+- A manual run of the isolated `driftline-monitor` Scheduler job at
+  `2026-08-23T00:21:07Z` reached `/api/scheduler/tick` with an
+  OIDC-authenticated HTTP 200 on the new revision. No stale-source or
+  application-error entry followed the tick; due-source cadence remains
+  bounded by the five pinned fixtures and the per-tenant URL cap.
 - The authenticated console then ran a signed tenant scan from the pinned
   `competitor/pricing` fixture. Firestore contains job `job-a33d07ac658c` /
   workflow `75da1f00-e657-4ba3-bba6-80c298b747be` in `needs_approval`, with
