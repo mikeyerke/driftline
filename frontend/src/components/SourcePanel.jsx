@@ -38,6 +38,8 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
     ? "Comparison recorded · no material change"
     : monitorOutcome === "baseline_established"
       ? "Baseline recorded · awaiting next comparison"
+      : monitorOutcome === "source_fetch_failed"
+        ? "Monitor failed · source unavailable; Scheduler will retry"
       : null;
 
   useEffect(() => {

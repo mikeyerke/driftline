@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Clock3, History, Play, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, History, Play, ShieldCheck } from "lucide-react";
 
 function openItems(items) {
   return (items || []).filter((item) => !["completed", "reversed"].includes(item.status));
@@ -19,6 +19,20 @@ export default function UtilityNextStep({ workflow, job, scanning, sourcePaused,
   const dismissed = workflow?.status === "dismissed";
   const monitorNoOp = !workflow && job?.status === "complete" && job?.source_status === "unchanged";
   const monitorBaseline = !workflow && job?.status === "complete" && job?.source_status === "baseline_established";
+  const monitorFailed = !workflow && job?.status === "complete" && job?.source_status === "source_fetch_failed";
+
+  if (monitorFailed) {
+    return (
+      <section className="utility-next-step failed" aria-label="Next best action">
+        <span className="utility-next-step-icon"><AlertTriangle size={16} /></span>
+        <div><strong>Source monitor needs attention</strong><p>The exact source could not be fetched. No workflow or business change was created; Scheduler will retry the bounded source.</p></div>
+        <div className="utility-next-step-actions">
+          <button className="secondary compact" type="button" onClick={onRunScan} disabled={scanning || sourcePaused} title={sourcePaused ? "Resume this source before retrying" : undefined}>{scanning ? "Retrying…" : sourcePaused ? "Source paused" : "Retry now"}<ArrowRight size={14} /></button>
+          <button className="text-button compact" type="button" onClick={() => onNavigate?.("sources-section")}>Inspect source health</button>
+        </div>
+      </section>
+    );
+  }
 
   if (monitorNoOp || monitorBaseline) {
     return (

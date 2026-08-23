@@ -1619,9 +1619,21 @@ async def _run_job(job_id: str) -> None:
                 job.execution_mode = result.get("execution_mode")
                 job.tool_calls = result.get("tool_calls", [])
                 job.event_count = int(result.get("event_count", 0))
-                job.response = (
-                    result.get("response") or "No material source change was found."
-                )
+                if result.get("source_status") == "source_fetch_failed":
+                    # A fetch outage is a durable monitor disposition, not a
+                    # material change and not an ADK failure. Keep the job
+                    # complete so the scheduler can retry on cadence, while
+                    # making the operator-facing outcome unambiguous instead
+                    # of borrowing the model's generic no-change wording.
+                    job.response = (
+                        "Source fetch failed; no workflow was created. "
+                        "The bounded scheduler will retry this source."
+                    )
+                else:
+                    job.response = (
+                        result.get("response")
+                        or "No material source change was found."
+                    )
                 job.error = None
                 _set_job(job)
                 return

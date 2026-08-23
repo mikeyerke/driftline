@@ -332,7 +332,26 @@ export default function App() {
         const current = await getJob(queued.job_id);
         if (sessionEpochRef.current !== scanEpoch) return;
         setJob(current);
-        if (current.status === "failed") throw new Error(current.error || "Agent job failed");
+        if (current.status === "failed") {
+          throw new Error(current.error || (runMode === "monitor" ? "The source monitor failed after bounded retries." : "Agent job failed"));
+        }
+        // A source outage is a durable monitor outcome, not an agent timeout
+        // and not a material business change. Surface it immediately so the
+        // operator can inspect the source health card while Scheduler retries
+        // on its normal cadence.
+        if (
+          current.status === "complete"
+          && !current.workflow
+          && current.source_status === "source_fetch_failed"
+        ) {
+          setScanMessage("Monitor unavailable · source fetch failed; Scheduler will retry");
+          setSourceHistoryRefreshKey((value) => value + 1);
+          await Promise.all([
+            refreshHistory(scanEpoch),
+            refreshSourceHealth(scanEpoch),
+          ]);
+          return;
+        }
         // A monitor no-op is a successful, durable outcome without a
         // workflow. Exit the poller immediately so an unchanged source is
         // presented as useful signal suppression instead of timing out as a
@@ -380,7 +399,7 @@ export default function App() {
       throw new Error("The agent job timed out");
     } catch (error) {
       if (sessionEpochRef.current !== scanEpoch) return;
-      setScanMessage(`Unable to start the live scan · ${error.message || "retry the request"}`);
+      setScanMessage(`${runMode === "monitor" ? "Monitor unavailable" : "Unable to complete the live scan"} · ${error.message || "retry the request"}`);
       setJob((current) => current ? { ...current, status: "failed", error: error.message } : current);
     } finally {
       setScanning(false);

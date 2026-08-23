@@ -4309,6 +4309,38 @@ async def test_monitor_job_completes_without_inventing_a_workflow(monkeypatch) -
 
 
 @pytest.mark.asyncio
+async def test_monitor_source_failure_is_a_clear_durable_disposition(monkeypatch) -> None:
+    async def fake_run_agent_task(query: str, user_id: str, run_mode: str) -> dict:
+        assert run_mode == "monitor"
+        return {
+            "model": "test-model",
+            "execution_mode": "google_adk",
+            "tool_calls": ["inspect_source_change"],
+            "event_count": 2,
+            "response": "No material source change was found.",
+            "source_status": "source_fetch_failed",
+            "change_detected": False,
+        }
+
+    monkeypatch.setattr(api, "run_agent_task", fake_run_agent_task)
+    job = JobState(job_id="job-monitor-source-failure", query="monitor", run_mode="monitor")
+    api._set_job(job)
+
+    await api._run_job(job.job_id)
+
+    result = api._resolve_job(job.job_id)
+    assert result.status == "complete"
+    assert result.workflow_id is None
+    assert result.source_status == "source_fetch_failed"
+    assert result.change_detected is False
+    assert result.error is None
+    assert result.response == (
+        "Source fetch failed; no workflow was created. "
+        "The bounded scheduler will retry this source."
+    )
+
+
+@pytest.mark.asyncio
 async def test_public_demo_falls_back_to_labelled_synthetic_replay_on_adk_failure(
     monkeypatch,
 ) -> None:

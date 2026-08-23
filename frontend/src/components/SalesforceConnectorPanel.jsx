@@ -60,7 +60,11 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
     // failure) is visible without requiring a second manual click. This does
     // not probe Salesforce or poll while the operator remains in Driftline.
     const refreshOnReturn = () => {
-      if (!document.hidden) void refreshStatus({ clearHealth: false });
+      // Starting OAuth can briefly return focus to this tab before the
+      // authorization URL has rendered. Do not immediately overwrite the
+      // handoff with the stale reauthorization state; refresh only after the
+      // operator actually returns from the provider tab.
+      if (!document.hidden && !authorizing) void refreshStatus({ clearHealth: false });
     };
     window.addEventListener("focus", refreshOnReturn);
     document.addEventListener("visibilitychange", refreshOnReturn);
@@ -68,10 +72,11 @@ export default function SalesforceConnectorPanel({ operatorSession }) {
       window.removeEventListener("focus", refreshOnReturn);
       document.removeEventListener("visibilitychange", refreshOnReturn);
     };
-    // The session identity is the only lifecycle input; refreshStatus is
-    // intentionally excluded to avoid re-registering listeners every render.
+    // Session identity and the short authorization-handoff guard are the only
+    // lifecycle inputs; refreshStatus is intentionally excluded to avoid
+    // re-registering listeners every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [operatorSession?.identityToken, operatorSession?.tenantId]);
+  }, [operatorSession?.identityToken, operatorSession?.tenantId, authorizing]);
 
   const beginAuthorization = async () => {
     setAuthorizing(true);
