@@ -17,39 +17,43 @@
 
 ### Current exact proof — 2026-08-23
 
-The serving release is `f077292181c713827f11cb9a3f382b34725e3645` on Cloud
-Run revision `driftline-00275-nhv`, built by Cloud Build
-`e35631ee-af38-4973-9a97-e28c52e7f054` with image digest
-`sha256:12dd95f3abafcbd8139d29a4b1de1a800c22367fac7fde58e9555e7ec25ba745`.
+The serving release is `f28bc6e8bcfbf9651ce47f53dbbe8980e7376781` on Cloud
+Run revision `driftline-00276-kwx`, built by Cloud Build
+`7575e6f6-acaa-4e9f-ac8a-fba56b1549e9` with image digest
+`sha256:3cba623b253abf5a617fbe10fada00c9f0b69b067cdd01ca5eeb8de983b89cc7`.
 The revision serves 100% of traffic in the isolated
 `driftline-hackathon-2026` project. GitHub Actions run `32644401999` and the
 full local gate passed before deployment.
 
 Fresh live proof on that exact revision:
 
-- ADK/Gemini execution: job `job-9b0ad8024d22`, workflow
-  `923c21d2-971c-4c9f-9453-37c1066ab099`, `needs_approval`,
+- ADK/Gemini execution: job `job-b023297b19ee`, workflow
+  `30b38263-391d-4ac9-9040-f0ce2c156e51`, `needs_approval`,
   `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
-  two decision options, and trace evaluation `eval-c952ab064fcf` at 100% / stable.
-- Approval/undo: job `job-5fbdf081a894` persisted a packet, completed one
+  two decision options, and trace evaluation `eval-5351f4a6c98d` at 100% / stable.
+- Approval/undo: job `job-c0e6ed0d1008` persisted a packet, completed one
   owner action, and reversed it; `external_write=false` and
   `external_systems_changed=false` remained explicit.
-- Scheduler: a fresh manual run at `2026-08-23T14:11:24.409472Z` returned HTTP
-  200 for `/api/scheduler/tick` on `driftline-00275-nhv`.
+- Scheduler: a fresh manual run at `2026-08-23T14:28:49.246321Z` returned HTTP
+  200 for `/api/scheduler/tick` on `driftline-00276-kwx`.
 - Browser QA: the deployed public console reached the evidence-bound approval
-  gate; source evidence, map selection, artifact detail, and approval copy
+  gate and Gemini Decision Copilot returned two bounded options for four mapped
+  surfaces. Source evidence, map selection, artifact detail, and approval copy
   worked. Desktop and 390px mobile browser QA reported the current serving
-  SHA/build, zero Driftline console errors, and no horizontal overflow. The
-  monitor pulse refreshes every minute and distinguishes cadence-due work from
-  stale or failed sources.
+  SHA/build, zero Driftline console errors, and no horizontal overflow; the
+  390px mobile viewport retained the responsive console shell without
+  horizontal overflow. The monitor pulse refreshes every minute and the source-history panel refreshes
+  after no-op and baseline monitor outcomes.
 
 This release makes bounded agent quotas recoverable: 429 responses carry a
 machine-readable retry window and the console explains when the operator can
 retry. It also fixes a consequential trust bug: approval/undo packets now
 state the actual durable connector outcome and lane (configured connector vs
 packet-safe public), and the workflow state is committed even if optional
-artifact storage is unavailable. The public evaluation lane remains
-packet-safe and writes no third-party systems.
+artifact storage is unavailable. The monitor UI keeps append-only history
+visible after a no-op or first baseline instead of leaving the operator with a
+stale panel. The public evaluation lane remains packet-safe and writes no
+third-party systems.
 
 The following constraints remain explicit rather than inferred: Salesforce
 aggregate read is not verified (`external_read=false`,

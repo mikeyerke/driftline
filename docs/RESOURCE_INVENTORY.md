@@ -23,52 +23,58 @@ the current serving-state authority:
 ### Current exact proof — 2026-08-23 (latest release)
 
 The active project was rechecked as `driftline-hackathon-2026` before this
-runtime-code release. Commit `f077292181c713827f11cb9a3f382b34725e3645`
+runtime-code release. Commit `f28bc6e8bcfbf9651ce47f53dbbe8980e7376781`
 passed the full local gate (327 backend tests, Ruff, frontend production
 build, frontend contract checks, frozen dependency audit) and GitHub Actions
-run `32644401999`. Cloud Build `e35631ee-af38-4973-9a97-e28c52e7f054`
-deployed Cloud Run revision `driftline-00275-nhv` at 100% traffic. The
+run `32645277490`. Cloud Build `7575e6f6-acaa-4e9f-ac8a-fba56b1549e9`
+deployed Cloud Run revision `driftline-00276-kwx` at 100% traffic. The
 serving image digest is
-`sha256:12dd95f3abafcbd8139d29a4b1de1a800c22367fac7fde58e9555e7ec25ba745`,
+`sha256:3cba623b253abf5a617fbe10fada00c9f0b69b067cdd01ca5eeb8de983b89cc7`,
 and `/health` reports the exact same release SHA and build ID.
 
 Fresh live proof on this revision:
 
-- `scripts/verify_live_agent.sh` passed with job `job-9b0ad8024d22`, workflow
-  `923c21d2-971c-4c9f-9453-37c1066ab099`, `needs_approval`, `public_source`,
+- `scripts/verify_live_agent.sh` passed with job `job-b023297b19ee`, workflow
+  `30b38263-391d-4ac9-9040-f0ce2c156e51`, `needs_approval`, `public_source`,
   Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
   audit events, two decision options, and trace evaluation
-  `eval-c952ab064fcf` at 100% / stable.
+  `eval-5351f4a6c98d` at 100% / stable.
 - `scripts/verify_public_approval_undo.sh` passed with job
-  `job-5fbdf081a894`, workflow `7cd026c0-4b06-4a9d-9856-6b9d2b493b28`:
+  `job-c0e6ed0d1008`, workflow `6bf31740-4d41-4d98-bac6-d305b8250a95`:
   the packet persisted, one owner action completed then reversed, and
   `external_write=false` / `external_systems_changed=false` remained
   explicit.
 - `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
   Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
   headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
-  A fresh manual Scheduler run at `2026-08-23T14:11:24.409472Z` returned HTTP
-  200 on `/api/scheduler/tick` at revision `driftline-00275-nhv`.
+  A fresh manual Scheduler run at `2026-08-23T14:28:49.246321Z` returned HTTP
+  200 on `/api/scheduler/tick` at revision `driftline-00276-kwx`.
 - The public browser reached `Scan complete · evidence verified · approval
   gate active`; the source-evidence modal, map node selection, artifact detail,
-  and deterministic approval copy all rendered. After a reload, Run history's
-  `Open run` restored a durable workflow with its evidence, impact map, and
-  approval state. Desktop browser QA showed the current serving SHA/build,
-  zero Driftline console errors, and no horizontal overflow; a 390px mobile
-  viewport was 390/390 with the same scan/map/approval surfaces and no
-  horizontal overflow. The monitor pulse now refreshes on a one-minute cadence
-  and distinguishes healthy-but-due sources from stale or failed sources.
-- The public source registry surfaced cadence-due counts before the fresh
-  scheduler run; the run returned HTTP 200 and cleared those due entries. This
-  is scheduler evidence, not universal crawling.
+  and deterministic approval copy all rendered. The live browser scan on this
+  release reached the Gemini Decision Copilot with two evidence-cited options
+  and four mapped surfaces. Desktop browser QA showed the current serving
+  SHA/build, zero Driftline console errors, and no horizontal overflow; a 390px
+  mobile viewport was 390/390 with the responsive console shell and no
+  horizontal overflow. The monitor pulse refreshes on a one-minute cadence and
+  distinguishes healthy-but-due sources from stale or failed sources.
+- The source-history panel now explicitly refreshes after every terminal
+  monitor result, including a no-op or first baseline, and labels that result
+  as `Comparison recorded · no material change` or `Baseline recorded ·
+  awaiting next comparison`. The fresh scheduler run returned HTTP 200 and
+  the public registry reported all five sources healthy with zero due, stale,
+  failed, paused, or baseline-pending entries. This is scheduler evidence, not
+  universal crawling.
 
 The code release makes bounded agent quotas recoverable: 429 responses carry a
 machine-readable `Retry-After` window and the console explains when the
 operator can retry. It also closes a trust seam in the action plane: versioned
 approval/undo packets reflect the durable connector outcome instead of a
 hard-coded public-demo value, and connector outcomes are committed even when
-optional Cloud Storage is unavailable. The public lane still remains
-packet-safe and writes no third-party systems.
+optional Cloud Storage is unavailable. The monitor UI now keeps append-only
+source history in sync with no-op and baseline outcomes, so the always-on
+signal-suppression loop is visible rather than implied. The public lane still
+remains packet-safe and writes no third-party systems.
 
 The remaining limits are intentional and evidence-gated. The latest public
 value proof is deployment telemetry, not customer ROI: time saved, revenue or
