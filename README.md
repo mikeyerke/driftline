@@ -11,6 +11,12 @@ execute least-privilege, idempotent, reversible connector actions. This is a
 real deployed control plane with a deliberately safe public surface, not a
 claim that an unauthenticated visitor can mutate a customer's systems.
 
+For the current truth about what is deployed, externally verified, and still
+unmeasured, start with [`docs/STATUS.md`](docs/STATUS.md). The concise release
+contract is: one evidence-bound change, one human decision, one reversible
+downstream handoff. Historical release proof is retained for auditability but
+is not a substitute for a customer pilot.
+
 For the fastest rubric-aligned review, see the [judge scorecard](submission/JUDGE_SCORECARD.md):
 it maps the official 40/30/30 judging weights to the live journey, architecture,
 and reproducible release checks.
@@ -726,6 +732,9 @@ their cadence deadlines.
 - Verified rules: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
 - Cloud inventory: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
 - Pilot packet: https://github.com/mikeyerke/driftline/blob/main/docs/PILOT_PACKET.md
+- Current status: https://github.com/mikeyerke/driftline/blob/main/docs/STATUS.md
+- Definition of done: https://github.com/mikeyerke/driftline/blob/main/docs/DEFINITION_OF_DONE.md
+- Internal technical pilot (not customer evidence): https://github.com/mikeyerke/driftline/blob/main/docs/INTERNAL_PILOT_2026-08-23.md
 
 ## Reproducible verification
 
@@ -735,6 +744,8 @@ curl -fsS "$BASE/health"
 ./scripts/verify_live_agent.sh
 ./scripts/verify_public_approval_undo.sh
 ./scripts/verify_production.sh
+# Real tenant-scoped Jira adapter proof (external write; final state is reversed)
+DRIFTLINE_JIRA_LIVE_WRITE=1 ./scripts/verify_jira_roundtrip.sh
 ~~~
 
 Run `verify_live_agent.sh` before `verify_production.sh`: the live check writes
@@ -759,6 +770,13 @@ gate, verifies that the private Cloud Storage packet is persisted without an
 external write, then reopens the decision and verifies a durable rollback
 marker. It is safe to run repeatedly: the public lane cannot call Jira,
 Confluence, Slack, GitHub, or Salesforce.
+
+The Jira command is intentionally separate from the public smoke: it reads the
+isolated tenant credential through Secret Manager, creates or reuses one
+marker-based `Task` in project `KAN`, and reverses only Driftline-owned state.
+Run it only when an external Jira write is intended. The resulting record is
+an adapter-level technical pilot, not customer ROI evidence; see
+[`docs/INTERNAL_PILOT_2026-08-23.md`](docs/INTERNAL_PILOT_2026-08-23.md).
 
 ## Safety model
 

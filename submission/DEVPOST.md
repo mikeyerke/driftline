@@ -9,6 +9,8 @@
 - Cloud/resource evidence: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
 - Rules and eligibility evidence: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
 - Trace-to-eval quality gate: https://github.com/mikeyerke/driftline/blob/main/docs/TRACE_EVAL.md
+- Current release status: https://github.com/mikeyerke/driftline/blob/main/docs/STATUS.md
+- Definition of done: https://github.com/mikeyerke/driftline/blob/main/docs/DEFINITION_OF_DONE.md
 - Demonstration video: held for final owner review; no upload or submission has been made
 - Pending-approval frame: [`live-pending-approval-2026-08-20.jpg`](assets/live-pending-approval-2026-08-20.jpg)
 - Completed frame: [`live-completed-2026-08-20.jpg`](assets/live-completed-2026-08-20.jpg)
