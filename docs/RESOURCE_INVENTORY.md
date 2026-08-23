@@ -23,44 +23,44 @@ the current serving-state authority:
 ### Current exact proof — 2026-08-23 (latest release)
 
 The active project was rechecked as `driftline-hackathon-2026` before this
-runtime-code release. Commit `02d8e73c64246c4bb1aaf451354c9c0c420f9a86`
+runtime-code release. Commit `f077292181c713827f11cb9a3f382b34725e3645`
 passed the full local gate (327 backend tests, Ruff, frontend production
 build, frontend contract checks, frozen dependency audit) and GitHub Actions
-run `32643522668`. Cloud Build `61a87ba3-9ddb-431b-bbaa-9411066957fe`
-deployed Cloud Run revision `driftline-00274-7xd` at 100% traffic. The
+run `32644401999`. Cloud Build `e35631ee-af38-4973-9a97-e28c52e7f054`
+deployed Cloud Run revision `driftline-00275-nhv` at 100% traffic. The
 serving image digest is
-`sha256:a3957d7008f497feb6c39097c5a5c2e19fa9efd3aea185dd155480e2559eedbb`,
+`sha256:12dd95f3abafcbd8139d29a4b1de1a800c22367fac7fde58e9555e7ec25ba745`,
 and `/health` reports the exact same release SHA and build ID.
 
 Fresh live proof on this revision:
 
-- `scripts/verify_live_agent.sh` passed with job `job-850d27793a91`, workflow
-  `4f9948d1-5932-45d6-8266-d263432ce289`, `needs_approval`, `public_source`,
+- `scripts/verify_live_agent.sh` passed with job `job-9b0ad8024d22`, workflow
+  `923c21d2-971c-4c9f-9453-37c1066ab099`, `needs_approval`, `public_source`,
   Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
   audit events, two decision options, and trace evaluation
-  `eval-807cd9a3515d` at 100% / stable.
+  `eval-c952ab064fcf` at 100% / stable.
 - `scripts/verify_public_approval_undo.sh` passed with job
-  `job-45d78834a963`, workflow `a3c159d2-4f2b-4b6a-b5b9-f3bca74c5ce6`:
+  `job-5fbdf081a894`, workflow `7cd026c0-4b06-4a9d-9856-6b9d2b493b28`:
   the packet persisted, one owner action completed then reversed, and
   `external_write=false` / `external_systems_changed=false` remained
   explicit.
 - `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
   Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
   headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
-  A fresh manual Scheduler run at `2026-08-23T13:54:48.502966Z` returned HTTP
-  200 on `/api/scheduler/tick` at revision `driftline-00274-7xd`.
+  A fresh manual Scheduler run at `2026-08-23T14:11:24.409472Z` returned HTTP
+  200 on `/api/scheduler/tick` at revision `driftline-00275-nhv`.
 - The public browser reached `Scan complete · evidence verified · approval
   gate active`; the source-evidence modal, map node selection, artifact detail,
   and deterministic approval copy all rendered. After a reload, Run history's
   `Open run` restored a durable workflow with its evidence, impact map, and
-  approval state. Desktop dimensions were 1422/1422 with zero Driftline console
-  errors; a 390px mobile viewport was 390/390 with the same scan/map/approval
-  surfaces and zero console errors.
-- In the signed operator audit, `Check now` completed for all six configured
-  source cards; each returned `healthy` with a durable last-observed timestamp.
-- After a hard reload on this revision, the public console reported the
-  current serving SHA, zero Driftline console errors, and equal 1422px
-  viewport/document widths.
+  approval state. Desktop browser QA showed the current serving SHA/build,
+  zero Driftline console errors, and no horizontal overflow; a 390px mobile
+  viewport was 390/390 with the same scan/map/approval surfaces and no
+  horizontal overflow. The monitor pulse now refreshes on a one-minute cadence
+  and distinguishes healthy-but-due sources from stale or failed sources.
+- The public source registry surfaced cadence-due counts before the fresh
+  scheduler run; the run returned HTTP 200 and cleared those due entries. This
+  is scheduler evidence, not universal crawling.
 
 The code release makes bounded agent quotas recoverable: 429 responses carry a
 machine-readable `Retry-After` window and the console explains when the

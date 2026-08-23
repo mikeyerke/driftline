@@ -17,35 +17,31 @@
 
 ### Current exact proof — 2026-08-23
 
-The serving release is `02d8e73c64246c4bb1aaf451354c9c0c420f9a86` on Cloud
-Run revision `driftline-00274-7xd`, built by Cloud Build
-`61a87ba3-9ddb-431b-bbaa-9411066957fe` with image digest
-`sha256:a3957d7008f497feb6c39097c5a5c2e19fa9efd3aea185dd155480e2559eedbb`.
+The serving release is `f077292181c713827f11cb9a3f382b34725e3645` on Cloud
+Run revision `driftline-00275-nhv`, built by Cloud Build
+`e35631ee-af38-4973-9a97-e28c52e7f054` with image digest
+`sha256:12dd95f3abafcbd8139d29a4b1de1a800c22367fac7fde58e9555e7ec25ba745`.
 The revision serves 100% of traffic in the isolated
-`driftline-hackathon-2026` project. GitHub Actions run `32643522668` and the
+`driftline-hackathon-2026` project. GitHub Actions run `32644401999` and the
 full local gate passed before deployment.
 
 Fresh live proof on that exact revision:
 
-- ADK/Gemini execution: job `job-850d27793a91`, workflow
-  `4f9948d1-5932-45d6-8266-d263432ce289`, `needs_approval`,
+- ADK/Gemini execution: job `job-9b0ad8024d22`, workflow
+  `923c21d2-971c-4c9f-9453-37c1066ab099`, `needs_approval`,
   `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
-  two decision options, and trace evaluation `eval-807cd9a3515d` at 100% / stable.
-- Approval/undo: job `job-45d78834a963` persisted a packet, completed one
+  two decision options, and trace evaluation `eval-c952ab064fcf` at 100% / stable.
+- Approval/undo: job `job-5fbdf081a894` persisted a packet, completed one
   owner action, and reversed it; `external_write=false` and
   `external_systems_changed=false` remained explicit.
-- Scheduler: a fresh manual run at `2026-08-23T13:54:48.502966Z` returned HTTP
-  200 for `/api/scheduler/tick` on `driftline-00274-7xd`.
+- Scheduler: a fresh manual run at `2026-08-23T14:11:24.409472Z` returned HTTP
+  200 for `/api/scheduler/tick` on `driftline-00275-nhv`.
 - Browser QA: the deployed public console reached the evidence-bound approval
   gate; source evidence, map selection, artifact detail, and approval copy
-  worked. After reload, Run history restored the durable workflow with its
-  evidence and approval state. Desktop width was 1422px with no Driftline
-  console errors; 390px mobile width had no horizontal overflow or console
-  errors.
-- Signed operator audit: `Check now` completed for all six configured source
-  cards and each returned `healthy` with a durable last-observed timestamp.
-- Hard-reloaded browser proof on this revision reported the current serving
-  SHA, zero Driftline console errors, and no desktop horizontal overflow.
+  worked. Desktop and 390px mobile browser QA reported the current serving
+  SHA/build, zero Driftline console errors, and no horizontal overflow. The
+  monitor pulse refreshes every minute and distinguishes cadence-due work from
+  stale or failed sources.
 
 This release makes bounded agent quotas recoverable: 429 responses carry a
 machine-readable retry window and the console explains when the operator can
