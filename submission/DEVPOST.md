@@ -15,6 +15,48 @@
 
 ## Latest verified release
 
+### Current exact proof — 2026-08-23
+
+The serving release is `eeecbe6b978c4e90ecef994177cf8730e50ad818` on Cloud Run
+revision `driftline-00272-9wn`, built by Cloud Build
+`b1f42de1-85dc-4e29-ab2e-f2e287fb4e5d` with image digest
+`sha256:eda480f3ca3fdf7a2b9c6301089455b926f40707e16ebf48c5a714ee224785e3`.
+The revision serves 100% of traffic in the isolated
+`driftline-hackathon-2026` project. GitHub Actions run `32610180580` and the
+full local gate passed before deployment.
+
+Fresh live proof on that exact revision:
+
+- ADK/Gemini execution: job `job-562ae6667bb0`, workflow
+  `d8327970-d0af-4c25-99ac-0324c4d6679e`, `needs_approval`,
+  `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
+  two decision options, and trace evaluation `eval-69ab5ead4970` at 100% / stable.
+- Approval/undo: job `job-40a261b3ed25` persisted a packet, completed one
+  owner action, and reversed it; `external_write=false` and
+  `external_systems_changed=false` remained explicit.
+- Scheduler: a fresh manual run at `2026-08-23T13:21:42.787837Z` returned HTTP
+  200 for `/api/scheduler/tick` on `driftline-00272-9wn`.
+- Browser QA: the deployed public console reached the evidence-bound approval
+  gate; source evidence, map selection, artifact detail, and approval copy
+  worked. After reload, Run history restored the durable workflow with its
+  evidence and approval state. Desktop width was 1422px with no Driftline
+  console errors; 390px mobile width had no horizontal overflow or console
+  errors.
+
+This release fixes a consequential trust bug: approval/undo packets now state
+the actual durable connector outcome and lane (configured connector vs
+packet-safe public), and the workflow state is committed even if optional
+artifact storage is unavailable. The public evaluation lane remains
+packet-safe and writes no third-party systems.
+
+The following constraints remain explicit rather than inferred: Salesforce
+aggregate read is not verified (`external_read=false`,
+`aggregate_read_verified=false`, no object totals); no real customer pilot has
+produced before/after time-saved, revenue, retention, or willingness-to-pay
+evidence; and monitoring is intentionally bounded to five pinned fixtures plus
+exact operator-registered URLs capped at 25 per tenant, not universal
+competitor crawling.
+
 The serving release is `c3f16cf3d2765f787cb245f5123dcee4e2c38e73` on Cloud Run
 revision `driftline-00271-8vk`, built by Cloud Build
 `75d20c28-4620-4633-b896-bba1b2c66822` with image digest

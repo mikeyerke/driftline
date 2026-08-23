@@ -22,6 +22,56 @@ the current serving-state authority:
 
 ### Current exact proof — 2026-08-23 (latest release)
 
+The active project was rechecked as `driftline-hackathon-2026` before this
+runtime-code release. Commit `eeecbe6b978c4e90ecef994177cf8730e50ad818`
+passed local verification and GitHub Actions run `32610180580` (frontend
+production build, 326 backend tests, Ruff, trace-to-eval, frozen dependency
+audit, standalone image build, repository hygiene). Cloud Build
+`b1f42de1-85dc-4e29-ab2e-f2e287fb4e5d` deployed Cloud Run revision
+`driftline-00272-9wn` at 100% traffic. The serving image digest is
+`sha256:eda480f3ca3fdf7a2b9c6301089455b926f40707e16ebf48c5a714ee224785e3`,
+and `/health` reports the exact same release SHA and build ID.
+
+Fresh live proof on this revision:
+
+- `scripts/verify_live_agent.sh` passed with job `job-562ae6667bb0`, workflow
+  `d8327970-d0af-4c25-99ac-0324c4d6679e`, `needs_approval`, `public_source`,
+  Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
+  audit events, two decision options, and trace evaluation
+  `eval-69ab5ead4970` at 100% / stable.
+- `scripts/verify_public_approval_undo.sh` passed with job
+  `job-40a261b3ed25`, workflow `b6d1d61d-28eb-40f7-b82a-e4f7056bbde1`:
+  the packet persisted, one owner action completed then reversed, and
+  `external_write=false` / `external_systems_changed=false` remained
+  explicit.
+- `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
+  Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
+  headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
+  A fresh manual Scheduler run at `2026-08-23T13:21:42.787837Z` returned HTTP
+  200 on `/api/scheduler/tick` at revision `driftline-00272-9wn`.
+- The public browser reached `Scan complete · evidence verified · approval
+  gate active`; the source-evidence modal, map node selection, artifact detail,
+  and deterministic approval copy all rendered. After a reload, Run history's
+  `Open run` restored a durable workflow with its evidence, impact map, and
+  approval state. Desktop dimensions were 1422/1422 with zero Driftline console
+  errors; a 390px mobile viewport was 390/390 with the same scan/map/approval
+  surfaces and zero console errors.
+
+The code release also closes a trust seam in the action plane: versioned
+approval/undo packets now reflect the durable connector outcome instead of a
+hard-coded public-demo value, and connector outcomes are committed even when
+optional Cloud Storage is unavailable. The public lane still remains
+packet-safe and writes no third-party systems.
+
+The remaining limits are intentional and evidence-gated. The latest public
+value proof is deployment telemetry, not customer ROI: time saved, revenue or
+win-rate lift, retention impact, and willingness-to-pay remain unmeasured.
+Salesforce remains `oauth_ready` / `awaiting_authorization` with
+`external_read=false` and `aggregate_read_verified=false`; no object totals
+are claimed. Public monitoring remains bounded to five pinned fixtures plus
+exact operator-registered URLs capped at 25 per tenant; it is not universal
+crawling.
+
 The active project was rechecked as `driftline-hackathon-2026` before release.
 Commit `c3f16cf3d2765f787cb245f5123dcee4e2c38e73` passed the full local gate,
 GitHub Actions run `32609226525`, Cloud Build release smoke, and the live
