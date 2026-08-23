@@ -27,23 +27,38 @@ promotion. Serving candidate `e38facc43745eab267eacd2da4aa28914dff383b` is a
 documentation-aligned promotion over the previously tested runtime candidate;
 GitHub Actions run `32664426033` passed the standalone image, backend tests and
 lint, trace-to-eval, dependency audit, frontend production build, and hygiene
-gates. Cloud Build `96dbf2d7-7ee3-490a-a854-bef5c9615efc` deployed Cloud Run
-revision `driftline-00285-jgl` at 100% traffic with image digest
+gates. Cloud Build `96dbf2d7-7ee3-490a-a854-bef5c9615efc` deployed the
+immutable runtime image used by Cloud Run revision `driftline-00285-jgl` with
+image digest
 `sha256:19980ec57ed89d34f62474ef5b043fd9ce47f0e815650d09b04152fa3e6114f4`.
 `/health` reports release SHA `e38facc43745eab267eacd2da4aa28914dff383b`
 and build ID `96dbf2d7-7ee3-490a-a854-bef5c9615efc`.
 
+The polished public facade is Firebase Hosting site `driftline-ops` at
+`https://driftline-ops.web.app/` (alternate
+`https://driftline-ops.firebaseapp.com/`). Its deployed Hosting version is
+`785bced7a4cae7e4`, released at `2026-08-23T21:03:23Z`, with a same-origin
+`**` rewrite to Cloud Run service `driftline` in `us-central1`. The isolated
+project also has the required default Firebase site
+`driftline-hackathon-2026`; it is not the public demo link. Firebase Analytics
+was explicitly disabled during project setup.
+
+The current serving revision `driftline-00286-plm` is a configuration-only
+promotion of that same immutable image. It adds the Firebase facade, existing
+Cloud Run origin, and local development origins to `ALLOWED_ORIGINS`; a preflight from
+`https://driftline-ops.web.app` returns HTTP 200 with the expected CORS header.
+
 Fresh live proof on this exact revision (rerun 2026-08-23):
 
-- `scripts/verify_live_agent.sh` passed on the current revision with job
-  `job-ca1b4ef81e1c`, workflow `6f27b9aa-84f9-407f-91f4-0f87c6b2f72b`,
+- `scripts/verify_live_agent.sh` passed through the polished facade with job
+  `job-987fd00ebd03`, workflow `e326bdab-d4e6-4cc7-bc26-559cfaa93749`,
   `needs_approval`, `public_source`,
   Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
   audit events, two decision options, and trace evaluation
-  `eval-7a657a4708df` at 100% / stable.
-- `scripts/verify_public_approval_undo.sh` passed on the current revision with
-  job `job-351e6456de66`, workflow `6f09a2b3-2e7a-4b7c-8575-5c88b075bc63`:
-  the packet persisted, owner action `item-5ebc7a3ab177` completed then
+  `eval-716c031352d6` at 100% / stable.
+- `scripts/verify_public_approval_undo.sh` passed through the polished facade
+  with job `job-ca3895116dad`, workflow `90bbba3d-2941-48a6-9cb9-f18579eaf290`:
+  the packet persisted, owner action `item-b3fac028bc03` completed then
   reversed, and `external_write=false` /
   `external_systems_changed=false` remained explicit.
 - Fresh hosted signed-OIDC Jira proof (2026-08-23) ran from the authenticated
@@ -53,13 +68,13 @@ Fresh live proof on this exact revision (rerun 2026-08-23):
   Driftline-owned marker `KAN-19`; the signed undo reversed the marker and the
   UI ended at `Decision reopened · no external systems were changed`.
   Cloud Run logs show the tenant-scoped Secret Manager impersonation path. The
-  later `driftline-00284-5kd` and `driftline-00285-jgl` promotions changed
+  later `driftline-00284-5kd`, `driftline-00285-jgl`, and `driftline-00286-plm` promotions changed
   documentation/release metadata only; no second Jira write was performed
   during deployment.
 - `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
   Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
   headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
-  The current-revision trace-to-eval record is `eval-7a657a4708df` (stable),
+  The current-revision trace-to-eval record is `eval-716c031352d6` (stable),
   and current-revision Cloud Run errors were `0`.
 - Post-promotion browser QA loaded the public lane from revision `e38facc`,
   showed `Serving release e38facc · 96dbf2d7`, and found no Driftline console

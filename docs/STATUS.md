@@ -13,6 +13,15 @@ work package:
 
 `source change -> evidence/hash -> impact map -> owner work -> human approval -> reversible action -> audit`
 
+## Public access
+
+The polished public entry point is **https://driftline-ops.web.app/**. Firebase
+Hosting is a same-origin HTTPS facade in the isolated Driftline project and
+rewrites every request to the Cloud Run `driftline` service in `us-central1`.
+The generated Cloud Run URL remains available as the health/fallback origin:
+`https://driftline-xvxczqg62a-uc.a.run.app/`. The facade does not introduce a
+second backend, database, identity, or connector credential store.
+
 The product wedge is one real operational handoff, not a chat assistant or an
 unbounded crawler. The anonymous surface is a deterministic, packet-safe judge
 lane. The signed operator surface is the production control plane for a real
@@ -22,11 +31,12 @@ tenant and its configured connectors.
 
 | Capability | State | Evidence | Boundary |
 | --- | --- | --- | --- |
-| Cloud Run production service | **Deployed and live** | `driftline-00285-jgl`, 100% traffic; `/health` returns release SHA `e38facc` | Isolated `driftline-hackathon-2026` project |
+| Cloud Run production service | **Deployed and live** | `driftline-00286-plm`, 100% traffic; `/health` returns release SHA `e38facc` | Isolated `driftline-hackathon-2026` project |
+| Firebase Hosting public facade | **Live verified** | `driftline-ops.web.app` rewrites to Cloud Run; `/health` and the browser console load over HTTPS | Firebase is linked to the same isolated project; Google Analytics disabled |
 | Firestore workflow/audit persistence | **Live verified** | Production verifier and live workflow records | 30-day default retention; tenant policy can narrow/extend within bounds |
-| Google ADK + Gemini | **Live verified** | Current revision: `job-ca1b4ef81e1c`, `eval-7a657a4708df`, 14/14 trace gate | Public runs are fixed, bounded scenarios |
+| Google ADK + Gemini | **Live verified** | Current facade proof: `job-987fd00ebd03`, `eval-716c031352d6`, 14/14 trace gate | Public runs are fixed, bounded scenarios |
 | Deterministic approval gate | **Live verified** | High-risk actions stop at `needs_approval` | The model cannot approve itself |
-| Reversible Driftline packet/owner action | **Live verified** | Current revision: `job-351e6456de66`, workflow `6f09a2b3-2e7a-4b7c-8575-5c88b075bc63`; completed then reversed | Public lane writes only Driftline-owned packet artifacts |
+| Reversible Driftline packet/owner action | **Live verified** | Current facade proof: `job-ca3895116dad`, workflow `90bbba3d-2941-48a6-9cb9-f18579eaf290`; completed then reversed | Public lane writes only Driftline-owned packet artifacts |
 | Bounded monitoring | **Live verified** | Five healthy pinned fixtures; scheduler and append-only observations | No universal crawling; tenant URLs require explicit registration |
 | Interactive impact map | **Live verified** | Source, offering, impact, work-surface, and handoff node traversal | Evidence hash is inherited by every node |
 | Jira context read | **Externally verified** | Isolated `KAN` project; aggregate open-work read succeeds | Fixed project scope; no user-supplied JQL |
@@ -43,13 +53,14 @@ tenant and its configured connectors.
   working tree is clean and matches `origin/main`. Verify the exact current
   source SHA from the repository before a future code release.
 - Serving runtime: `e38facc43745eab267eacd2da4aa28914dff383b`.
-- Cloud Run revision: `driftline-00285-jgl`.
+- Cloud Run revision: `driftline-00286-plm` (same immutable image; CORS allowlist now includes the Firebase facade).
 - Cloud Build: `96dbf2d7-7ee3-490a-a854-bef5c9615efc`.
 - Image digest: `sha256:19980ec57ed89d34f62474ef5b043fd9ce47f0e815650d09b04152fa3e6114f4`.
 
-The serving candidate is `e38facc`; any later repository changes in the
-release ledger are documentation-only and do not alter the deployed runtime.
-No unverified code was introduced.
+The serving candidate is `e38facc`; the later `00286` promotion changed only
+the runtime CORS allowlist so browser actions from the Firebase facade are
+accepted. Repository changes after the candidate are documentation/config
+only; no unverified application code was introduced.
 
 ## What “real” means here
 

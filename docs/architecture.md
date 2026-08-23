@@ -1,5 +1,11 @@
 # Architecture
 
+The public console is served at `https://driftline-ops.web.app/` by Firebase
+Hosting. Hosting applies a same-origin `**` rewrite to the isolated Cloud Run
+`driftline` service in `us-central1`, so the polished URL does not create a
+second backend, data store, identity boundary, or connector credential path.
+The generated Cloud Run URL remains an operational health/fallback origin.
+
 ```mermaid
 flowchart TD
     S[Allowlisted public snapshot or synthetic replay] --> A[Google ADK coordinator]
