@@ -673,6 +673,26 @@ def _metric_window(identity: dict[str, str] | None, limit: int) -> dict[str, obj
     }
 
 
+def _source_health_summary(source_health: list[dict[str, object]]) -> dict[str, int]:
+    """Summarize every source state without dropping paused tenant entries."""
+    return {
+        "total": len(source_health),
+        "healthy": sum(item.get("status") == "healthy" for item in source_health),
+        "stale": sum(item.get("status") == "stale" for item in source_health),
+        "needs_baseline": sum(
+            item.get("status") == "needs_baseline" for item in source_health
+        ),
+        "synthetic_only": sum(
+            item.get("status") == "synthetic_only" for item in source_health
+        ),
+        "source_failed": sum(
+            item.get("status") == "source_failed" for item in source_health
+        ),
+        "paused": sum(item.get("status") == "paused" for item in source_health),
+        "due": sum(bool(item.get("cadence_due")) for item in source_health),
+    }
+
+
 def _visible_tenant_record(record: Any, identity: dict[str, str] | None) -> bool:
     """Apply the public-vs-tenant record visibility contract.
 
@@ -3087,22 +3107,7 @@ def get_monitor_registry(
         "append_only": True,
         "generated_at": utc_now(),
         "sources": sources,
-        "summary": {
-            "total": len(sources),
-            "healthy": sum(item["status"] == "healthy" for item in sources),
-            "stale": sum(item["status"] == "stale" for item in sources),
-            "needs_baseline": sum(
-                item["status"] == "needs_baseline" for item in sources
-            ),
-            "synthetic_only": sum(
-                item["status"] == "synthetic_only" for item in sources
-            ),
-            "source_failed": sum(
-                item["status"] == "source_failed" for item in sources
-            ),
-            "paused": sum(item["status"] == "paused" for item in sources),
-            "due": sum(bool(item.get("cadence_due")) for item in sources),
-        },
+        "summary": _source_health_summary(sources),
     }
 
 
@@ -3150,8 +3155,10 @@ def get_ops_summary(
         if _visible_tenant_record(state, identity)
     ]
     source_health = source_registry_health(
-        tenant_id=identity.get("tenant_id") if identity else None
+        tenant_id=identity.get("tenant_id") if identity else None,
+        include_disabled=identity is not None,
     )
+    source_health_summary = _source_health_summary(source_health)
     job_failures = (
         list_job_failures(identity["tenant_id"], limit=20)
         if identity is not None
@@ -3294,6 +3301,7 @@ def get_ops_summary(
             )
         },
         "source_health": source_health,
+        "source_health_summary": source_health_summary,
     }
 
 
@@ -4801,8 +4809,10 @@ def get_value_proof(
     ]
     action_items = [item for state in workflows for item in state.action_items]
     source_health = source_registry_health(
-        tenant_id=identity.get("tenant_id") if identity else None
+        tenant_id=identity.get("tenant_id") if identity else None,
+        include_disabled=identity is not None,
     )
+    source_health_summary = _source_health_summary(source_health)
     source_observation_total = sum(
         int(item.get("observation_count", 0)) for item in source_health
     )
@@ -4944,6 +4954,13 @@ def get_value_proof(
             "healthy_sources": sum(
                 item.get("status") == "healthy" for item in source_health
             ),
+            "sources_total": source_health_summary["total"],
+            "sources_due": source_health_summary["due"],
+            "sources_stale": source_health_summary["stale"],
+            "sources_needing_baseline": source_health_summary["needs_baseline"],
+            "sources_failed": source_health_summary["source_failed"],
+            "sources_paused": source_health_summary["paused"],
+            "sources_synthetic_only": source_health_summary["synthetic_only"],
             # Anonymous source throughput uses the same recent bounded window
             # as workflows/jobs. The append-only source ledger remains intact;
             # signed tenant views retain their requested aggregate bound.

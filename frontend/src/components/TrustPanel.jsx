@@ -1,4 +1,4 @@
-import { Activity, Database, ListChecks, LockKeyhole, Scale, Server, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, Database, ListChecks, LockKeyhole, Scale, Server, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getOpsSummary } from "../api";
 import useNearViewport from "../hooks/useNearViewport";
@@ -42,7 +42,10 @@ export default function TrustPanel({ actionRecord }) {
     };
   }, [nearViewport]);
   const sourceHealth = ops?.source_health || [];
-  const healthySources = sourceHealth.filter((source) => source.status === "healthy").length;
+  const sourceSummary = ops?.source_health_summary || {};
+  const healthySources = sourceSummary.healthy ?? sourceHealth.filter((source) => source.status === "healthy").length;
+  const totalSources = sourceSummary.total ?? sourceHealth.length;
+  const sourceAttention = sourceHealth.filter((source) => source.status !== "healthy" || source.cadence_due).length;
   const deadLettered = ops?.jobs?.dead_lettered;
   const queuedJobs = ops?.jobs?.by_status?.queued;
   const connectorLanes = Object.values(ops?.connectors || {}).filter(Boolean).length;
@@ -68,10 +71,10 @@ export default function TrustPanel({ actionRecord }) {
       <div className="ops-pulse" aria-label="Live operational pulse">
         <div className="ops-pulse-heading"><strong>Live operational pulse</strong><span>{!nearViewport ? "Deployment telemetry loads when in view" : ops ? `Refreshed ${new Date(ops.generated_at).toLocaleTimeString()}` : "Reading deployment telemetry…"}</span></div>
         <div className="ops-pulse-grid">
-          <div><Activity size={15} /><strong>{ops ? `${healthySources}/${sourceHealth.length}` : "—"}</strong><small>sources healthy</small></div>
+          <div><Activity size={15} /><strong>{ops ? `${healthySources}/${totalSources}` : "—"}</strong><small>sources healthy · {ops ? (sourceAttention ? `${sourceAttention} need attention` : "all on cadence") : "readiness pending"}</small></div>
           <div><ListChecks size={15} /><strong>{ops ? `${deadLettered || 0}` : "—"}</strong><small>dead-lettered jobs · {queuedJobs || 0} queued</small></div>
           <div><Database size={15} /><strong>{ops ? connectorLanes : "—"}</strong><small>connector lanes available</small></div>
-          <div><ShieldCheck size={15} /><strong>{ops ? "Signed" : "—"}</strong><small>{ops ? "approval required for writes" : "guardrail status unavailable"}</small></div>
+          <div>{sourceAttention ? <AlertTriangle size={15} /> : <ShieldCheck size={15} />}<strong>{ops ? (sourceAttention ? sourceAttention : "Clear") : "—"}</strong><small>{ops ? (sourceAttention ? "source checks or lifecycle actions" : "no source attention required") : "guardrail status unavailable"}</small></div>
         </div>
         <p className="ops-pulse-note">{telemetryNote}</p>
       </div>

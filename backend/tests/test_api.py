@@ -481,6 +481,8 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert ops_payload["approval_security"]["credential_model"]["tenant_bound"] is True
     assert ops_payload["guardrails"]["tenant_policy"] is None
     assert ops_payload["jobs"]["dead_lettered"] == 0
+    assert ops_payload["source_health_summary"]["total"] == 5
+    assert ops_payload["source_health_summary"]["paused"] == 0
 
     value_proof = client.get("/api/ops/value-proof")
     assert value_proof.status_code == 200
@@ -502,6 +504,41 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     outcomes = client.get("/api/ops/outcomes")
     assert outcomes.status_code == 200
     assert outcomes.json()["status"] == "not_measured"
+
+
+def test_signed_operational_metrics_keep_paused_sources_visible(monkeypatch) -> None:
+    """A paused tenant source remains part of operational truth."""
+    captured: dict[str, object] = {}
+
+    def fake_identity(*_args, **_kwargs) -> dict[str, str]:
+        return {"tenant_id": "paused-acme", "role": "owner", "identity": "owner"}
+
+    def fake_health(**kwargs):
+        captured.update(kwargs)
+        return [
+            {
+                "source_id": "custom/paused-pricing",
+                "status": "paused",
+                "observation_count": 2,
+                "unchanged_observation_count": 2,
+                "changed_observation_count": 0,
+                "cadence_due": False,
+            }
+        ]
+
+    monkeypatch.setattr(api, "_verify_approval_mode", fake_identity)
+    monkeypatch.setattr(api, "source_registry_health", fake_health)
+
+    payload = api.get_value_proof(
+        operator="owner",
+        tenant_id="paused-acme",
+        approval_token="signed-token",
+    )
+
+    assert captured["tenant_id"] == "paused-acme"
+    assert captured["include_disabled"] is True
+    assert payload["observed"]["sources_total"] == 1
+    assert payload["observed"]["sources_paused"] == 1
 
 
 def test_public_telemetry_uses_recent_bounded_window_without_hiding_history(monkeypatch) -> None:
