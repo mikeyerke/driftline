@@ -39,8 +39,9 @@ tenant and its configured connectors.
 
 ## Current release custody
 
-- Repository: `main` at `a74d74d` (documentation-only commit after the runtime
-  candidate); working tree is clean and matches `origin/main`.
+- Repository: `main` (documentation-only commits after the runtime candidate);
+  working tree is clean and matches `origin/main`. Verify the exact current
+  source SHA from the repository before a future code release.
 - Serving runtime: `ddf5a5b2df731ad6ea451700c48ad9e9915df0db`.
 - Cloud Run revision: `driftline-00283-g9w`.
 - Cloud Build: `721e1bc2-f294-4366-b77e-dea29a4c10d5`.
