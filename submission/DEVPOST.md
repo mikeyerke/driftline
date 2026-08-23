@@ -18,42 +18,42 @@
 ### Current exact proof — 2026-08-23
 
 The current serving release is
-`fcdbcf6a343561d972a6325a1492f413db6e9fd9` on Cloud Run revision
-`driftline-00280-n9n`, built by Cloud Build
-`2fb60d0e-f5d6-4b6e-9db2-56039b6dfb2b` with image digest
-`sha256:fb766792df380c1f0856194152d13dcbf66b321e3acbaaba27ae3535d162fa5`.
+`05422dfc0b0e54487872befebfacd548c312fda3` on Cloud Run revision
+`driftline-00281-mh2`, built by Cloud Build
+`7d6bd60f-c16f-43b9-a8e2-3ebe073aea33` with image digest
+`sha256:15277d5288abec4bfe6140e1cd1a1b247c520c055ecface81090d61a2715bda8`.
 It serves 100% of traffic in the isolated `driftline-hackathon-2026` project.
-The later GitHub `main` commit `8ff5ec4` is documentation-only and does not
-change this serving image.
-GitHub Actions run `32648932816`; the full local gate passed with 330 backend
-tests, Ruff, frontend production build, frontend contract checks, and frozen
-dependency audit.
+The local gate passed with 331 backend tests, Ruff, frontend production build,
+frontend contract checks, and a 14/14 trace-to-eval suite. The optional
+dependency audit was not run on the laptop because `uv` is unavailable;
+GitHub Actions run `32650587605` passed its repository verification.
 
 Fresh live proof on that exact revision (rerun 2026-08-23):
 
-- ADK/Gemini execution: job `job-1500a00c58f2`, workflow
-  `d981335f-2b7c-48c9-b04f-be1678388b43`, `needs_approval`,
+- ADK/Gemini execution: job `job-301fc2e65cd3`, workflow
+  `cb0bd5bb-a867-43dd-9ff0-74ce16e4f324`, `needs_approval`,
   `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
-  two decision options, and trace evaluation `eval-036b8255d1b9` at 100% /
+  two decision options, and trace evaluation `eval-0757dfba317a` at 100% /
   stable.
-- Approval/undo: job `job-18db4090cf1f` persisted a packet, completed owner
-  action `item-b1cd1f57394f`, and reversed it; `external_write=false` and
+- Approval/undo: job `job-2c3f266ef6e3` persisted a packet, completed owner
+  action `item-2241193bfad8`, and reversed it; `external_write=false` and
   `external_systems_changed=false` remained explicit.
 - Production verification passed for Firestore, Cloud Tasks, Scheduler,
   uptime, alerting, IAM, Artifact Registry retention, security headers, OIDC
   tenant boundaries, and zero current-revision Cloud Run errors. The current
-  revision's trace-to-eval record is `eval-036b8255d1b9` (stable), and the
-  latest Scheduler attempt was `2026-08-23T15:00:33.563833Z`.
+  revision's trace-to-eval record is `eval-0757dfba317a` (stable), and the
+  latest Scheduler attempt was `2026-08-23T16:00:41.530441Z`.
+- Post-deploy browser QA reached `Scan complete · evidence verified · approval
+  gate active` with no Driftline console errors and no horizontal overflow at
+  desktop or 390px mobile width.
 
-This hardening release stops Salesforce context reads from retrying a refresh
-token after an explicit `reauthorization_required` marker. The metadata remains
-repair-visible while CRM context fails closed; only the explicit operator
-aggregate-read probe can establish a verified CRM read. Append-only source
-history remains visible after no-op and baseline monitor outcomes, and the
-public evaluation lane remains packet-safe with no third-party writes. The
-interactive impact-map medium-risk label contrast was corrected in this
-release; the post-deploy desktop and mobile Lighthouse snapshots both passed
-accessibility, best practices, SEO, and agentic-browsing audits.
+This hardening release makes source-fetch outages a durable, truthful monitor
+outcome instead of a misleading generic no-change or timeout. Operators see
+that no workflow was created, can retry immediately, and can inspect source
+health while the bounded Scheduler retries. API reads have a bounded timeout
+with safe retries, and the Salesforce consent handoff now preserves the
+provider URL until the operator leaves for consent. The public evaluation lane
+remains packet-safe with no third-party writes.
 
 The remaining limits are intentional and evidence-gated: Salesforce aggregate
 read is not verified (`external_read=false`, `aggregate_read_verified=false`,

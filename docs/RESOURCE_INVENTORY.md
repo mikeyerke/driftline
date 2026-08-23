@@ -24,46 +24,48 @@ the current serving-state authority:
 
 The active project was rechecked as `driftline-hackathon-2026` before the
 latest runtime hardening release. Commit
-`fcdbcf6a343561d972a6325a1492f413db6e9fd9` passed the full local gate (330
-backend tests, Ruff, frontend production build, frontend contract checks, and
-frozen dependency audit) and GitHub Actions run `32648932816`. Cloud Build
-`2fb60d0e-f5d6-4b6e-9db2-56039b6dfb2b` deployed Cloud Run revision
-`driftline-00280-n9n` at 100% traffic with image digest
-`sha256:fb766792df380c1f0856194152d13dcbf66b321e3acbaaba27ae3535d162fa5`.
-`/health` reports that exact release SHA and build ID.
-GitHub `main` later received documentation-only commit `8ff5ec4`; it does not
-change the serving image or runtime release proof.
+`05422dfc0b0e54487872befebfacd548c312fda3` passed 331 backend tests, Ruff,
+the frontend production build, the frontend contract checks, and the local
+trace-to-eval gate (14/14, safety/usefulness/overall 100%). The optional
+dependency audit was not run on the laptop because `uv` is unavailable; it is
+not represented as a passing check here. GitHub Actions run `32650587605`
+passed its repository verification. Cloud Build
+`7d6bd60f-c16f-43b9-a8e2-3ebe073aea33` deployed Cloud Run revision
+`driftline-00281-mh2` at 100% traffic with image digest
+`sha256:15277d5288abec4bfe6140e1cd1a1b247c520c055ecface81090d61a2715bda8`.
+`/health` reports the exact release SHA and build ID.
 
 Fresh live proof on this exact revision (rerun 2026-08-23):
 
-- `scripts/verify_live_agent.sh` passed with job `job-1500a00c58f2`, workflow
-  `d981335f-2b7c-48c9-b04f-be1678388b43`, `needs_approval`, `public_source`,
+- `scripts/verify_live_agent.sh` passed with job `job-301fc2e65cd3`, workflow
+  `cb0bd5bb-a867-43dd-9ff0-74ce16e4f324`, `needs_approval`, `public_source`,
   Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
   audit events, two decision options, and trace evaluation
-  `eval-036b8255d1b9` at 100% / stable.
+  `eval-0757dfba317a` at 100% / stable.
 - `scripts/verify_public_approval_undo.sh` passed with job
-  `job-18db4090cf1f`, workflow `1a4dd9a5-faa6-4fe0-bff9-a3b97e08b6c7`:
-  the packet persisted, owner action `item-b1cd1f57394f` completed then
-  reversed, and
-  `external_write=false` / `external_systems_changed=false` remained
-  explicit.
+  `job-2c3f266ef6e3`, workflow `8bd3025d-b816-409e-af9a-1d9945695b4a`:
+  the packet persisted, owner action `item-2241193bfad8` completed then
+  reversed, and `external_write=false` /
+  `external_systems_changed=false` remained explicit.
 - `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
   Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
   headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
-  the current-revision trace-to-eval record is `eval-036b8255d1b9` (stable),
+  The current-revision trace-to-eval record is `eval-0757dfba317a` (stable),
   current-revision Cloud Run errors were `0`, and the latest Scheduler attempt
-  was `2026-08-23T15:00:33.563833Z`.
+  was `2026-08-23T16:00:41.530441Z`.
+- Post-deploy browser QA reached `Scan complete · evidence verified · approval
+  gate active` on the public lane with no Driftline console errors. Desktop
+  and 390px mobile checks showed no horizontal overflow; the mobile shell kept
+  the navigation, Run scan control, release proof, and approval path usable.
 
-This hardening release also stops Salesforce context reads from retrying a
-refresh token after an explicit `reauthorization_required` health marker. The
-metadata remains repair-visible while CRM context fails closed; the explicit
-operator aggregate-read probe remains the only path that can establish a
-verified CRM read. The monitor UI still refreshes append-only history after
-no-op and baseline outcomes. The public evaluation lane remains packet-safe
-and writes no third-party systems. The release also corrects the interactive
-impact-map medium-risk label contrast; post-deploy desktop and mobile
-Lighthouse snapshots both returned 100 accessibility, 100 best practices, 100
-SEO, and 100 agentic-browsing with zero failed audits.
+This hardening release makes source-fetch outages a durable, truthful monitor
+outcome instead of a misleading generic no-change or timeout. Operators see
+that no workflow was created, can retry immediately, and can inspect source
+health while the bounded Scheduler retries. API reads now have a bounded
+30-second timeout with safe retry behavior. The Salesforce consent handoff no
+longer loses its provider URL to an early focus refresh; the signed tenant UI
+now exposes a working **Continue to Salesforce consent** link. The public
+evaluation lane remains packet-safe and writes no third-party systems.
 
 The limits below remain intentional and evidence-gated: Salesforce aggregate
 read is not verified (`external_read=false`, `aggregate_read_verified=false`);
