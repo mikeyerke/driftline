@@ -36,10 +36,11 @@
 
 ## Demo and submission
 
-1. Capture the four-minute flow in DEMO_SCRIPT.md at 1080p.
+1. Capture the 3:45 target flow in DEMO_SCRIPT.md at 1080p.
 2. Add captions and upload a publicly visible video using the entrant's
    account; unlisted YouTube videos do not satisfy the official rules.
-3. Replace every pending link in DEVPOST.md with a verified public URL.
+3. Replace the entrant-owned video/social placeholders in
+   `devpost-submission.md` with verified public URLs.
 4. Select only Taskmaster and disclose the earlier concept/source package as
    required by the new-project rule.
 5. Verify entrant identity, eligibility, category selection, and required

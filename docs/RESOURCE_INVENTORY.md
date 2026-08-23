@@ -65,6 +65,15 @@ Fresh live proof on this exact revision (rerun 2026-08-23):
   errors or desktop horizontal overflow. The signed pilot measurement path is
   locally covered and exposes aggregate owner-ready, closure, and reversal
   deltas without changing the public lane.
+- During final submission packaging, another bounded production run passed with
+  job `job-aac8734762a9`, workflow
+  `19794095-577e-4286-a868-cfbbd694f597`, and trace evaluation
+  `eval-d8b89b654b3a` at 100%. A separate public approval/owner-closure/undo
+  run passed with job `job-25ee7d98747b`, workflow
+  `b3d280e4-1f0e-47c5-9418-38ee30bf6c29`, and action
+  `item-230c92b6846b` completed then reversed; both external-write flags stayed
+  false. The locked dependency resolution passed `pip-audit` with no known
+  vulnerabilities.
 
 This release adds evidence-safe pilot utility: minutes are explicit totals and
 per-change deltas, zero baselines are rejected, operational measures require

@@ -1,73 +1,84 @@
-# Four-minute demo
+# Driftline proof-of-action demo — 3:45 target
 
-The official rules cap the evaluated video at four minutes. Use captions or
-the entrant's own narration; do not synthesize the entrant's voice or likeness.
-Show the public Cloud Run URL and a Cloud Run or log view in the same recording.
+The official limit is four minutes. Record at 1080p, narrate briskly, and upload
+the final cut publicly to YouTube or Vimeo. Show real application behavior and
+visible Google Cloud proof; no slide-only substitute.
 
-## 0:00–0:25 — The problem
+## 0:00–0:18 — Hook
 
-Caption: “One sentence changes on a public pricing page. The alert is easy.
-Finding every downstream promise, deciding what can update safely, and proving
-who approved the risky part is the actual work.”
+**Screen:** Deployed Driftline URL with the competitor pricing diff in view.
 
-Show the deployed Driftline console at
-https://driftline-xvxczqg62a-uc.a.run.app/ and the “Synthetic demo data” label.
+**Narration:** “A competitor changes one pricing sentence. The alert is easy.
+Finding every stale promise, assigning the right owner, and proving what a human
+approved is the real work. Driftline turns that change into reversible action.”
 
-## 0:25–0:55 — Choose the change surface and start the workflow
+## 0:18–0:48 — Trigger the Taskmaster workflow
 
-Choose **Competitor pricing snapshot** in the scenario selector, then click
-**Run scan**. Explain that Driftline is bounded to allowlisted source types,
-not arbitrary URLs, and that this creates a durable asynchronous job: the
-browser queues work, Cloud Tasks invokes the worker, and Firestore stores the
-job and workflow. The public snapshot badge shows whether the allowlisted
-GitHub fixture was fetched; synthetic replay is explicitly labelled if the
-fetch is unavailable. Keep the agent trace panel visible.
+**Screen:** Show the public URL and packet-safe label. Select **Competitor
+pricing snapshot** and click **Run scan**. Keep production proof and job progress
+visible.
 
-## 0:55–1:35 — Evidence and impact
+**Narration:** “This is the live Cloud Run application. Run scan creates a
+durable Cloud Tasks job. Google ADK and Gemini 3.5 Flash inspect an allowlisted
+source while Firestore stores the job, workflow, and audit state. The browser
+does not hold the model request open.”
 
-Open **Evidence diff** and then **Open evidence**. Show the exact removed and
-added language, the synthetic source ID, the full SHA-256 hash, and the
-confidence value. Trace the impact map from the observed competitor price move
-into the affected offering and four downstream artifacts: a comparison map,
-pricing battlecard, deal-desk guidance, and executive brief. Show each
-artifact's owner, bounded action, risk, and target-specific handoff status.
-Select an artifact row to show its detail card.
+## 0:48–1:25 — Prove evidence became work
 
-## 1:35–2:10 — The autonomy boundary
+**Screen:** Open evidence, show the full SHA-256 hash, then trace the impact map
+from source to offering to four work surfaces. Open one artifact detail.
 
-Point to **Human decision needed**. Explain that a contractual expectation is a
-high-risk change. Deterministic policy pauses the workflow; the ADK agent is
-not given an approval tool and cannot manufacture a human decision.
+**Narration:** “Driftline binds the exact before and after bytes to an evidence
+hash. Gemini maps the change into a comparison map, battlecard, deal-desk rule,
+and executive brief. Every action has an owner, risk, citation, and rollback.
+The persisted trace shows the model and only the two allowlisted tools.”
 
-## 2:10–2:45 — Approve, resume, and undo
+## 1:25–1:55 — Show the autonomy boundary
 
-Choose a different action for one artifact, then click **Approve action plan**.
-Call out that the deterministic decision is a human gate, not a model-generated
-permission. The public flow creates only an isolated packet and operational
-output; it does not write to external systems.
-Show the packet-ready, owner-review, and queued rows, the named Demo operator,
-the evidence hash, and the real audit event ID. Open the generated packet and
-show its explicit “External systems changed: No” line plus the connector cards'
-`prepared_only` status. Explain that public demo approvals cannot write to
-external systems; only the separately authenticated signed-operator lane can.
-Click **Reopen decision** and show that the high-risk gate and draft statuses
-return.
+**Screen:** Decision Copilot options and **Human approval required**.
 
-## 2:45–3:25 — Live Google path and Cloud proof
+**Narration:** “The model can interpret and recommend, but it cannot authorize.
+High-risk work stops in deterministic policy. The ADK agent has no approval
+tool, and approval fails if the evidence hash or allowlisted action changes.”
 
-Show the Agent run panel with `gemini-3.5-flash`, `google_adk`, the two
-allowlisted tools, and the job event count. In a terminal or API client, show
-the same `/api/jobs/{job_id}` payload, the Cloud Run revision, the
-`/api/ops/summary` approval posture, and a Firestore job/workflow document with
-its `audit_events` subcollection. If signed-operator proof is shown, use a
-separate authenticated capture and never expose the signing secret.
+## 1:55–2:38 — Wow moment: real signed action and reversal
 
-## 3:25–4:00 — Close
+**Screen:** Cut to the already authenticated operator lane without showing the
+login flow. Approve the Jira handoff. Show the returned Jira marker and activity
+event, then click **Reopen decision** and show the reversed action status.
 
-Caption: “Driftline is not another alert and not another chat window. It is an
-auditable change-to-action system: autonomous where policy allows, human where
-judgment matters.”
+**Narration:** “In the signed tenant lane, approval uses a tenant-scoped Secret
+Manager credential to create or reactivate one Jira marker. The same evidence
+and idempotency key prevent duplicates. Reopen decision reverses only
+Driftline-owned labels and comments. It never deletes unrelated Jira work, and
+the reversal remains in the append-only audit ledger.”
 
-End on the deployed URL, repository URL, and architecture diagram URL. The
-official rules require the final video to be publicly visible; keep the current
-YouTube draft private until the product and all claims are final.
+## 2:38–3:16 — Visible Google Cloud proof
+
+**Screen:** Show `/health`, `/api/ops/summary`, one Firestore workflow/audit
+record, and Cloud Run revision/log view. Never show tokens or secret values.
+
+**Narration:** “This is the serving Git SHA and Cloud Build ID. Cloud Run hosts
+the API and console, Cloud Tasks dispatches work, Firestore restores state,
+Scheduler drives monitoring, and the latest trace gate passes fourteen of
+fourteen safety and usefulness checks.”
+
+## 3:16–3:45 — Close
+
+**Screen:** Architecture image followed by project name, live URL, repository,
+and Taskmaster.
+
+**Narration:** “Driftline is not another alert and not another chat window. It
+is an evidence-bound Taskmaster agent: autonomous where policy allows, human
+where judgment matters, and reversible when the decision changes.”
+
+## Recording gate
+
+- [ ] Total duration is 3:45 or shorter.
+- [ ] Live URL appears in the first 30 seconds.
+- [ ] Gemini 3.5 Flash, Google ADK, and actual action appear on screen or aloud.
+- [ ] Signed Jira action and reversal form one truthful sequence.
+- [ ] Google Cloud proof appears before 3:16.
+- [ ] No credentials, tokens, private records, or raw prompts appear.
+- [ ] Captions are accurate and English.
+- [ ] Final upload is public, not private or unlisted.

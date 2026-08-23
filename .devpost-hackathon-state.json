@@ -1,0 +1,51 @@
+{
+  "plugin": "devpost-hackathon",
+  "version": 2,
+  "hackathon": {
+    "slug": "allthingsagentichackathon",
+    "name": "All Things Agentic Hackathon",
+    "url": "https://allthingsagentichackathon.devpost.com/",
+    "selected": true,
+    "source": "known"
+  },
+  "participant": {
+    "name": "Mike Yerke",
+    "display_name": "Mike"
+  },
+  "project": {
+    "name": "Driftline",
+    "summary": "An evidence-bound Taskmaster agent that turns monitored promise changes into reversible owner action.",
+    "ai_usage": "Gemini 3.5 Flash through Vertex AI and Google ADK performs bounded evidence interpretation, impact analysis, and decision drafting.",
+    "codex_usage": "Codex was used to scope, implement, test, harden, deploy, verify, and package the project against the official rubric."
+  },
+  "current_stage": "review-hackathon-rules",
+  "completed_stages": [
+    "resources",
+    "build-scope",
+    "build-prd",
+    "build-spec",
+    "build-checklist",
+    "build-project",
+    "prepare-submission"
+  ],
+  "rules_acknowledged": false,
+  "learning": {
+    "status": "active",
+    "current_step": "finalize",
+    "completed_steps": [
+      "onboard",
+      "scope",
+      "prd",
+      "spec",
+      "checklist",
+      "build"
+    ],
+    "plan_file": "docs/hackathon-build/scope.md",
+    "checklist_file": "docs/hackathon-build/checklist.md"
+  },
+  "submission": {
+    "draft_file": "devpost-submission.md",
+    "status": "draft-complete"
+  },
+  "next_command": "review-hackathon-rules"
+}

@@ -524,7 +524,7 @@ Every connector returns an explicit per-system status (`created`, `reused`,
 frontend/        React + Vite operational console
 backend/         FastAPI, Google ADK agent, and workflow engine
 docs/            architecture, contest rules, inventory, and visual concepts
-submission/      Devpost copy and four-minute demo script
+submission/      Devpost copy, 3:45 demo script, build story, and upload assets
 ~~~
 
 ## Run locally
@@ -727,7 +727,10 @@ their cadence deadlines.
 - Live demo: https://driftline-xvxczqg62a-uc.a.run.app/
 - GitHub: https://github.com/mikeyerke/driftline
 - Demo video: held while the product is being pressure-tested; do not submit this draft yet
-- Architecture: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
+- Form-ready submission packet: https://github.com/mikeyerke/driftline/blob/main/devpost-submission.md
+- Architecture upload: https://github.com/mikeyerke/driftline/blob/main/submission/assets/driftline-architecture.png
+- Technical architecture: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
+- Hackathon build story: https://github.com/mikeyerke/driftline/blob/main/submission/BUILD_STORY.md
 - Judge scorecard: https://github.com/mikeyerke/driftline/blob/main/docs/JUDGE_SCORECARD.md
 - Verified rules: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
 - Cloud inventory: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
