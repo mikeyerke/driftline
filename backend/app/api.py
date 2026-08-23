@@ -2346,8 +2346,12 @@ def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
     """
     readiness = salesforce_readiness()
     connection, _binding, connected = _salesforce_connection_metadata(tenant_id)
-    if not connected:
-        persisted_health = str(connection.get("health_status", "")).casefold()
+    persisted_health = str(connection.get("health_status", "")).casefold()
+    # Once an explicit probe has established that Salesforce rejected the
+    # refresh token, do not retry the dead credential from every downstream
+    # context read. Keep the connection metadata visible for repair, fail
+    # closed for CRM context, and make reauthorization the only recovery path.
+    if not connected or persisted_health == "reauthorization_required":
         has_connection = bool(connection)
         repair_status = (
             "reauthorization_required"

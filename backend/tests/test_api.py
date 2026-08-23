@@ -1514,6 +1514,42 @@ def test_salesforce_context_exposes_repair_state_without_attaching_crm(monkeypat
     assert "instance_url" not in str(payload)
 
 
+def test_salesforce_context_does_not_retry_expired_token_after_reauth_marker(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
+    monkeypatch.setattr(
+        api,
+        "salesforce_readiness",
+        lambda: {"status": "oauth_ready", "mode": "awaiting_authorization"},
+    )
+    monkeypatch.setattr(
+        api,
+        "_salesforce_connection_metadata",
+        lambda _tenant: (
+            {
+                "status": "connected_read_only",
+                "instance_url": "https://acme.my.salesforce.com",
+                "health_status": "reauthorization_required",
+                "health_reason": "refresh_token_rejected",
+            },
+            {"status": "active"},
+            True,
+        ),
+    )
+
+    def fail_if_refresh_attempted(*_args, **_kwargs):
+        raise AssertionError("expired Salesforce credential must not be retried")
+
+    monkeypatch.setattr(api, "refresh_salesforce_token", fail_if_refresh_attempted)
+
+    payload = api._salesforce_context_info("salesforce-acme")
+
+    assert payload["status"] == "reauthorization_required"
+    assert payload["external_read"] is False
+    assert payload["authorization_required"] is True
+    assert payload["reason"] == "refresh_token_rejected"
+    assert "instance_url" not in str(payload)
+
+
 def test_connector_context_preserves_salesforce_external_read_boundary(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
     monkeypatch.setattr(
