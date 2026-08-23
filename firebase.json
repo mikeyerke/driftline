@@ -1,0 +1,20 @@
+{
+  "hosting": {
+    "site": "driftline-ops",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "driftline",
+          "region": "us-central1"
+        }
+      }
+    ]
+  }
+}

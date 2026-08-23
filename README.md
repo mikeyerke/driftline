@@ -49,7 +49,7 @@ scheduler then owns recurring observations and retry behavior. Local and public
 synthetic demo modes stay metadata-only for deterministic evaluation.
 
 The authenticated console uses the same production monitor lane for a registered
-URL: after onboarding, selecting that source and pressing **Run live agent** queues a
+URL: after onboarding, selecting that source and pressing **Run scan** queues a
 tenant-bound `monitor` job rather than the synthetic fixture lane. A registered
 source therefore follows the real fetch, append-only baseline, ADK analysis, and
 approval path from the product UI; pinned fixtures remain available separately
@@ -524,7 +524,7 @@ Every connector returns an explicit per-system status (`created`, `reused`,
 frontend/        React + Vite operational console
 backend/         FastAPI, Google ADK agent, and workflow engine
 docs/            architecture, contest rules, inventory, and visual concepts
-submission/      Devpost copy, 3:45 demo script, build story, and upload assets
+submission/      Devpost copy and four-minute demo script
 ~~~
 
 ## Run locally
@@ -725,12 +725,10 @@ their cadence deadlines.
 ## Public links
 
 - Live demo: https://driftline-ops.web.app/
+- Cloud Run origin (health/fallback): https://driftline-xvxczqg62a-uc.a.run.app/
 - GitHub: https://github.com/mikeyerke/driftline
 - Demo video: held while the product is being pressure-tested; do not submit this draft yet
-- Form-ready submission packet: https://github.com/mikeyerke/driftline/blob/main/devpost-submission.md
-- Architecture upload: https://github.com/mikeyerke/driftline/blob/main/submission/assets/driftline-architecture.png
-- Technical architecture: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
-- Hackathon build story: https://github.com/mikeyerke/driftline/blob/main/submission/BUILD_STORY.md
+- Architecture: https://github.com/mikeyerke/driftline/blob/main/docs/architecture.md
 - Judge scorecard: https://github.com/mikeyerke/driftline/blob/main/docs/JUDGE_SCORECARD.md
 - Verified rules: https://github.com/mikeyerke/driftline/blob/main/docs/hackathon-rules.md
 - Cloud inventory: https://github.com/mikeyerke/driftline/blob/main/docs/RESOURCE_INVENTORY.md
@@ -744,9 +742,9 @@ their cadence deadlines.
 ~~~bash
 BASE=https://driftline-ops.web.app
 curl -fsS "$BASE/health"
-./scripts/verify_live_agent.sh
-./scripts/verify_public_approval_undo.sh
-./scripts/verify_production.sh
+DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_live_agent.sh
+DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_public_approval_undo.sh
+DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_production.sh
 # Real tenant-scoped Jira adapter proof (external write; final state is reversed)
 DRIFTLINE_JIRA_LIVE_WRITE=1 ./scripts/verify_jira_roundtrip.sh
 ~~~
