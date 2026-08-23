@@ -24,31 +24,31 @@ the current serving-state authority:
 
 The active project was rechecked as `driftline-hackathon-2026` before the
 latest runtime hardening release. Commit
-`7e8beee7d8baa6e1e474259c5cad91b044b0ffad` passed the full local gate (328
+`fcdbcf6a343561d972a6325a1492f413db6e9fd9` passed the full local gate (330
 backend tests, Ruff, frontend production build, frontend contract checks, and
-frozen dependency audit) and GitHub Actions run `32647754617`. Cloud Build
-`bb8a9463-ee35-4afe-b8fc-288dbc60d22c` deployed Cloud Run revision
-`driftline-00278-hm4` at 100% traffic with image digest
-`sha256:facd1001530a6a14f024f86fb1df3ea4a562c617f236d223775a27db3e593260`.
+frozen dependency audit) and GitHub Actions run `32648932816`. Cloud Build
+`2fb60d0e-f5d6-4b6e-9db2-56039b6dfb2b` deployed Cloud Run revision
+`driftline-00280-n9n` at 100% traffic with image digest
+`sha256:fb766792df380c1f0856194152d13dcbf66b321e3acbaaba27ae3535d162fa5`.
 `/health` reports that exact release SHA and build ID.
 
 Fresh live proof on this exact revision (rerun 2026-08-23):
 
-- `scripts/verify_live_agent.sh` passed with job `job-ea6762b091c8`, workflow
-  `6e517e28-3722-43df-8072-3ab9b8844735`, `needs_approval`, `public_source`,
+- `scripts/verify_live_agent.sh` passed with job `job-1500a00c58f2`, workflow
+  `d981335f-2b7c-48c9-b04f-be1678388b43`, `needs_approval`, `public_source`,
   Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
   audit events, two decision options, and trace evaluation
-  `eval-7b877a9bca3e` at 100% / stable.
+  `eval-036b8255d1b9` at 100% / stable.
 - `scripts/verify_public_approval_undo.sh` passed with job
-  `job-67ea6d1b0593`, workflow `52640fdc-1a4b-41bc-a377-3a91eab1a38b`:
-  the packet persisted, owner action `item-50c7ceba49e4` completed then
+  `job-18db4090cf1f`, workflow `1a4dd9a5-faa6-4fe0-bff9-a3b97e08b6c7`:
+  the packet persisted, owner action `item-b1cd1f57394f` completed then
   reversed, and
   `external_write=false` / `external_systems_changed=false` remained
   explicit.
 - `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
   Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
   headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
-  the current-revision trace-to-eval record is `eval-7b877a9bca3e` (stable),
+  the current-revision trace-to-eval record is `eval-036b8255d1b9` (stable),
   current-revision Cloud Run errors were `0`, and the latest Scheduler attempt
   was `2026-08-23T15:00:33.563833Z`.
 

@@ -18,29 +18,29 @@
 ### Current exact proof — 2026-08-23
 
 The current serving release is
-`7e8beee7d8baa6e1e474259c5cad91b044b0ffad` on Cloud Run revision
-`driftline-00278-hm4`, built by Cloud Build
-`bb8a9463-ee35-4afe-b8fc-288dbc60d22c` with image digest
-`sha256:facd1001530a6a14f024f86fb1df3ea4a562c617f236d223775a27db3e593260`.
+`fcdbcf6a343561d972a6325a1492f413db6e9fd9` on Cloud Run revision
+`driftline-00280-n9n`, built by Cloud Build
+`2fb60d0e-f5d6-4b6e-9db2-56039b6dfb2b` with image digest
+`sha256:fb766792df380c1f0856194152d13dcbf66b321e3acbaaba27ae3535d162fa5`.
 It serves 100% of traffic in the isolated `driftline-hackathon-2026` project.
-GitHub Actions run `32647754617`; the full local gate passed with 328 backend
+GitHub Actions run `32648932816`; the full local gate passed with 330 backend
 tests, Ruff, frontend production build, frontend contract checks, and frozen
 dependency audit.
 
 Fresh live proof on that exact revision (rerun 2026-08-23):
 
-- ADK/Gemini execution: job `job-ea6762b091c8`, workflow
-  `6e517e28-3722-43df-8072-3ab9b8844735`, `needs_approval`,
+- ADK/Gemini execution: job `job-1500a00c58f2`, workflow
+  `d981335f-2b7c-48c9-b04f-be1678388b43`, `needs_approval`,
   `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
-  two decision options, and trace evaluation `eval-7b877a9bca3e` at 100% /
+  two decision options, and trace evaluation `eval-036b8255d1b9` at 100% /
   stable.
-- Approval/undo: job `job-67ea6d1b0593` persisted a packet, completed owner
-  action `item-50c7ceba49e4`, and reversed it; `external_write=false` and
+- Approval/undo: job `job-18db4090cf1f` persisted a packet, completed owner
+  action `item-b1cd1f57394f`, and reversed it; `external_write=false` and
   `external_systems_changed=false` remained explicit.
 - Production verification passed for Firestore, Cloud Tasks, Scheduler,
   uptime, alerting, IAM, Artifact Registry retention, security headers, OIDC
   tenant boundaries, and zero current-revision Cloud Run errors. The current
-  revision's trace-to-eval record is `eval-7b877a9bca3e` (stable), and the
+  revision's trace-to-eval record is `eval-036b8255d1b9` (stable), and the
   latest Scheduler attempt was `2026-08-23T15:00:33.563833Z`.
 
 This hardening release stops Salesforce context reads from retrying a refresh
