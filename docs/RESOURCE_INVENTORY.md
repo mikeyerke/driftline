@@ -20,7 +20,60 @@ digest. The current exact proof is recorded immediately below. An earlier
 release-proof snapshot is retained after it as historical evidence; it is not
 the current serving-state authority:
 
-### Current exact proof — 2026-08-23
+### Current exact proof — 2026-08-23 (latest release)
+
+The active project was rechecked as `driftline-hackathon-2026` before release.
+Commit `c3f16cf3d2765f787cb245f5123dcee4e2c38e73` passed the full local gate,
+GitHub Actions run `32609226525`, Cloud Build release smoke, and the live
+production verifiers. Cloud Run revision `driftline-00271-8vk` serves 100%
+traffic with image digest
+`sha256:205531846adbe53df8e40288504b8e5fe9c647bd56475e9b10eb6fcf421c994d`.
+Cloud Build `75d20c28-4620-4633-b896-bba1b2c66822` built and deployed the
+image; `/health` reports the exact same release SHA and build ID.
+
+Fresh live proof on this revision:
+
+- `scripts/verify_live_agent.sh` passed with job `job-acf236441f56`, workflow
+  `61271451-309b-4e1e-acea-61f79f7ea964`, `needs_approval`, `public_source`,
+  Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
+  audit events, two decision options, and trace evaluation
+  `eval-1afb92d1b3cb` at 100% / stable.
+- `scripts/verify_public_approval_undo.sh` passed against the same durable
+  workflow: the packet persisted, one owner action completed then reversed,
+  and `external_write=false` / `external_systems_changed=false` remained
+  explicit.
+- `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
+  Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
+  headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
+- The isolated `driftline-monitor` Scheduler job was manually triggered at
+  `2026-08-23T01:03:57.392365Z`; Cloud Logging recorded HTTP 200 on
+  `/api/scheduler/tick` at revision `driftline-00271-8vk`.
+
+The latest public value proof contains 12 bounded source observations and 9
+tenantless evaluation workflows, with five historical owner-action closures
+and current completion at 0% after intentional undo. Customer time saved,
+revenue/win-rate lift, retention impact, and willingness-to-pay remain
+explicitly unmeasured. Public monitoring remains bounded to five pinned
+fixtures plus exact operator-registered URLs capped at 25 per tenant; it is
+not universal crawling.
+
+Salesforce remains evidence-gated: anonymous readiness is
+`oauth_ready` / `awaiting_authorization`; signed tenant `driftline-demo` is
+`reauthorization_required` because Salesforce rejected its stored refresh
+token. No aggregate CRM read or object total is claimed. Fresh owner consent
+must succeed for all three allowlisted COUNT queries before Salesforce context
+can enter a workflow.
+
+The utility release keeps paused tenant sources visible in signed operational
+summaries and distinguishes synthetic fixture coverage from operator
+attention. The authenticated browser scan on this release reached the
+deterministic approval gate with Jira/Confluence/Slack/GitHub aggregate
+context, no raw records, no CRM totals, and no external write. The logged-out
+browser remained packet-safe and had no horizontal overflow; browser
+diagnostics showed only an unrelated Grammarly extension warning and no
+Driftline application error.
+
+### Historical exact proof — 2026-08-23 (previous release)
 
 The active project was rechecked as `driftline-hackathon-2026` before the
 runtime-code proof. Commit `be870345482a4f3050404d465ea9e42d6c05bc3f` passed

@@ -13,6 +13,43 @@
 - Pending-approval frame: [`live-pending-approval-2026-08-20.jpg`](assets/live-pending-approval-2026-08-20.jpg)
 - Completed frame: [`live-completed-2026-08-20.jpg`](assets/live-completed-2026-08-20.jpg)
 
+## Latest verified release
+
+The serving release is `c3f16cf3d2765f787cb245f5123dcee4e2c38e73` on Cloud Run
+revision `driftline-00271-8vk`, built by Cloud Build
+`75d20c28-4620-4633-b896-bba1b2c66822` with image digest
+`sha256:205531846adbe53df8e40288504b8e5fe9c647bd56475e9b10eb6fcf421c994d`.
+The revision serves 100% of traffic in the isolated
+`driftline-hackathon-2026` project. GitHub Actions run `32609226525` and the
+full local gate passed before deployment.
+
+Fresh live proof on that exact revision:
+
+- ADK/Gemini execution: job `job-acf236441f56`, workflow
+  `61271451-309b-4e1e-acea-61f79f7ea964`, `needs_approval`,
+  `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
+  two decision options, and trace evaluation `eval-1afb92d1b3cb` at 100% safety,
+  100% usefulness, and 100% overall / stable.
+- Approval/undo: the same durable workflow persisted a packet, completed one
+  owner action, and reversed it; `external_write=false` and
+  `external_systems_changed=false` remained explicit.
+- Scheduler: `driftline-monitor` was manually triggered at
+  `2026-08-23T01:03:57.392365Z`; Cloud Logging recorded HTTP 200 for
+  `/api/scheduler/tick` on `driftline-00271-8vk`.
+- Utility visibility: signed operational summaries retain paused sources and
+  separate synthetic-only fixtures from sources that need attention. The
+  signed browser scan reached the deterministic approval gate with aggregate
+  Jira/Confluence/Slack/GitHub context and no CRM totals or external write.
+
+These are deployment and evaluation records, not customer outcomes. Salesforce
+aggregate read is not verified: the signed tenant is
+`reauthorization_required` after Salesforce rejected its stored refresh token,
+so no Salesforce object total is claimed. No real customer pilot has yet
+produced before/after time-saved, revenue, retention, or willingness-to-pay
+evidence. Monitoring is intentionally bounded to five pinned fixtures plus
+exact operator-registered URLs capped at 25 per tenant; it is not universal
+competitor crawling.
+
 ## Category
 
 **Taskmaster.** Driftline turns a monitored change into a coordinated,
