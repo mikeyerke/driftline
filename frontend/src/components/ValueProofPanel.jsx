@@ -69,6 +69,7 @@ export default function ValueProofPanel({ operatorSession }) {
               <div><dt>Sources due for a check</dt><dd>{metric(observed.sources_due)}</dd></div>
               <div><dt>Paused sources</dt><dd>{metric(observed.sources_paused)}</dd></div>
               <div><dt>Stale / failed sources</dt><dd>{metric((observed.sources_stale || 0) + (observed.sources_failed || 0))}</dd></div>
+              <div><dt>Synthetic fixture sources</dt><dd>{metric(observed.sources_synthetic_only)}</dd></div>
               <div><dt>Owner action completion (current)</dt><dd>{observed.action_item_completion_rate === null || observed.action_item_completion_rate === undefined ? "—" : `${Math.round(observed.action_item_completion_rate * 100)}%`}</dd></div>
               <div><dt>Owner actions completed (audit)</dt><dd>{metric(observed.action_items_completed_historically)}</dd></div>
               <div><dt>Historical closure rate</dt><dd>{observed.action_item_completion_rate_historically === null || observed.action_item_completion_rate_historically === undefined ? "—" : `${Math.round(observed.action_item_completion_rate_historically * 100)}%`}</dd></div>
