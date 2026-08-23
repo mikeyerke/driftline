@@ -23,13 +23,16 @@ the current serving-state authority:
 ### Current exact proof — 2026-08-22
 
 The active project was rechecked as `driftline-hackathon-2026` before the
-runtime-code proof. Commit `229650f9ffe79e6b0ffa806493320f740417e21f` passed
+runtime-code proof. Commit `d77a3300e253d5ddb086120e6da3b5f5b3bc0381` passed
 the local repository gates, the live-agent verifier, the approval/undo
 verifier, and the production verifier. The live run used Gemini 3.5 Flash
 through Google ADK, two allowlisted tools, four artifacts, five audit events,
 two decision options, and a passing stable trace-eval gate. Approval persisted
 the packet, completed and reversed an owner action, and reported
-`external_write=false` and `external_systems_changed=false`. The scripts print
+`external_write=false` and `external_systems_changed=false`. The release also
+closed a connector fan-out seam: configured writes now execute only for
+connectors explicitly present in the workflow's impact map, while per-connector
+write flags and legacy reversal behavior remain auditable. The scripts print
 fresh job/workflow/evaluation IDs; `/health` prints the exact serving SHA/build
 and is the authority after later docs-only releases.
 
@@ -46,7 +49,7 @@ audits passed 53/53 on both desktop and mobile (100 accessibility, best
 practices, SEO, and agentic browsing). A fresh performance trace measured LCP
 185ms and CLS 0.00.
 
-The current public value-proof window contains 12 source observations and 11
+The current public value-proof window contains 12 source observations and 10
 workflows, with five historical owner-action completions and current completion
 back at 0% after intentional undo. Customer time saved, revenue/win-rate lift,
 retention impact, and willingness-to-pay remain explicitly unmeasured. Public
@@ -70,13 +73,13 @@ explicit signed resume. The regression suite covers a native Firestore pause
 followed by an explicit resume.
 
 - Cloud Run service `driftline` in `us-central1` serves revision
-  `driftline-00266-8qp` at 100% traffic. Its immutable serving image is
-  `sha256:bcaa6bfb645eaf4117d178a9545a632944a943adc75004e346e76c7dbfdd3d5e`.
-- Source commit `229650f9ffe79e6b0ffa806493320f740417e21f` was built by Cloud
-  Build `931d9db1-6880-497b-a3ce-28383bf9f206`; GitHub Actions run
-  `32605576780` passed the repository gates.
-- The final local gate for this release passed `uv run --extra dev pytest`
-  (323 tests), Ruff, the trace-to-eval baseline (14/14 cases), the frontend
+  `driftline-00268-qrw` at 100% traffic. Its immutable serving image is
+  `sha256:62d3ef3d818bd1c12c30020ec89ef56fd738f7a56d7c391e467c4f3f8cb8e9f9`.
+- Source commit `d77a3300e253d5ddb086120e6da3b5f5b3bc0381` was built by Cloud
+  Build `a71e6274-1d35-4156-8634-be760ea31733`; GitHub Actions run
+  `32606799798` passed the repository gates.
+- The final local gate for this release passed `.venv/bin/uv run pytest`
+  (325 tests), Ruff, the trace-to-eval baseline (14/14 cases), the frontend
   production build, the frontend contract check, shell syntax/hygiene, and
   the frozen dependency audit.
 - Cloud Build's post-deploy `release-smoke` step passed the exact image
@@ -87,11 +90,11 @@ followed by an explicit resume.
 - The public alias is
   `https://driftline-xvxczqg62a-uc.a.run.app/`.
 - The current `/health` response reports Firestore persistence, async jobs,
-  release SHA `229650f9ffe79e6b0ffa806493320f740417e21f`, and build ID
-  `931d9db1-6880-497b-a3ce-28383bf9f206`; `/api/auth/config`
+  release SHA `d77a3300e253d5ddb086120e6da3b5f5b3bc0381`, and build ID
+  `a71e6274-1d35-4156-8634-be760ea31733`; `/api/auth/config`
   reports Google OIDC enabled with the isolated project-owned client,
   `anonymous_lane=packet_only`, and no credential values exposed.
-- The current `/api/evals/latest` reported evaluation `eval-a11ca23168f5` with a passing
+- The current `/api/evals/latest` reported evaluation `eval-c977ead508de` with a passing
   `trace-eval-v1` gate, 14 cases, 100% safety, 100% usefulness, 100% overall,
   and a `stable` trend against the prior report (no case regressions).
   Trace data is
@@ -115,24 +118,25 @@ followed by an explicit resume.
   owner and the real aggregate probe returned `reauthorization_required`.
   Driftline prepared a fresh Salesforce consent link; no CRM object totals were
   inferred from the failed probe.
-- At `2026-08-22T23:56Z`, the signed **Refresh context** read verified the
+- At `2026-08-23T00:16Z`, the signed **Refresh context** read verified the
   tenant-scoped connector boundaries with aggregate-only results: Jira `19`
-  open issues, Confluence `7` pages in scope, Slack `40` recent messages, and
+  open issues, Confluence `7` pages in scope, Slack `42` recent messages, and
   GitHub `1` issue / `0` PRs. Salesforce correctly remained
   `authorization_required`; these counts are connector proof, not customer
   outcome or ROI evidence. The authenticated UI showed no raw records or
   credential values.
-- The signed tenant workflow `81b80588-30d8-4a23-b33e-f0d9750f5710` reached the
+- The signed tenant workflow `c14ed5d6-fecb-4fc3-a40b-8567d5629ce9` reached the
   deterministic approval gate through Google ADK/Gemini 3.5 Flash, then a named
-  human approval reactivated the idempotent Jira, Confluence, Slack, and GitHub
-  handoff markers. The same named human reopened the decision; all four external
-  connector statuses returned `reversed`, and the browser showed no application
-  console errors. This is a real reversible connector smoke, not a customer
-  pilot or business-outcome claim.
+  human approval reactivated the idempotent Jira, Confluence, and Slack handoff
+  markers. GitHub was intentionally not selected because it was not in this
+  workflow's impact map. The same named human reopened the decision; the three
+  mapped connector statuses returned `reversed`, and the browser showed no
+  application console errors. This is a real reversible connector smoke, not a
+  customer pilot or business-outcome claim.
 - The public live-agent verifier subsequently recorded job
-  `job-34dc36310a77` / workflow `c8daf98d-de41-4925-836b-d26f18f06570` at
+  `job-0fc9966bf4b3` / workflow `4b3e0b7b-3496-4c1d-b36d-8a694c5ad7eb` at
   `needs_approval`, with two allowlisted tools, four artifacts, five audit
-  events, two decision options, and evaluation `eval-a11ca23168f5` bound to the
+  events, two decision options, and evaluation `eval-c977ead508de` bound to the
   serving SHA. The paired public approval/undo verifier passed with
   `external_write=false`; these public records remain packet-safe and separate
   from the signed connector smoke.

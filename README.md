@@ -465,7 +465,9 @@ reversible: it keeps the issue, removes only the Driftline active label, adds
 `driftline-reversed`, and appends an audit comment. Confluence, Slack, and
 GitHub use the same real adapter boundary, with Secret Manager-or-environment
 credential resolution, HTTPS and scope validation, marker-based idempotency, and
-reversible markers. GitHub is authenticated for the isolated `mikeyerke/driftline`
+reversible markers. A configured connector is not a blanket write permission:
+approval fans out only to systems explicitly present in the workflow impact map,
+and each connector records its own write flag. GitHub is authenticated for the isolated `mikeyerke/driftline`
 repository and was directly verified by creating and reversing issue #1. Slack is
 authenticated for the isolated free `Driftline` workspace and `#new-channel`; the
 bot has only `channels:history` and `chat:write` and is added only to that channel.
@@ -677,14 +679,17 @@ Scheduler sends an OIDC-authenticated HTTP 200 request to
 The verifier scripts emit fresh job, workflow, evaluation, SHA, and build IDs
 on every run; `/health` and `./scripts/verify_production.sh` are the current
 serving-state authority rather than copied identifiers. The latest runtime
-code proof (commit `be08c711e4ddb321650867cb33e2125e06c46cd0`) persisted the
-packet, approved and completed one owner action, then reversed the operational
-output with `external_write=false` and `external_systems_changed=false`. The
-bounded value proof at that point reported 12 source observations, 11
-workflows, five historical owner-action completions, and current completion
-intentionally `0%` after undo. These are deployment records, not customer ROI
-claims. After **Reopen decision**, the console keeps the reversed owner-action
-queue visible with an explicit append-only history explanation.
+code proof (commit `d77a3300e253d5ddb086120e6da3b5f5b3bc0381`, revision
+`driftline-00268-qrw`) persisted the packet, approved and completed one owner
+action, then reversed the operational output with `external_write=false` and
+`external_systems_changed=false`. The same signed tenant smoke executed only
+the Jira, Confluence, and Slack destinations explicitly mapped for that
+workflow; GitHub was not silently fanned out. The bounded value proof at that
+point reported 12 source observations, 10 workflows, five historical
+owner-action completions, and current completion intentionally `0%` after undo.
+These are deployment records, not customer ROI claims. After **Reopen decision**,
+the console keeps the reversed owner-action queue visible with an explicit
+append-only history explanation.
 `scripts/verify_production.sh` also passed with zero
 recent Cloud Run errors. Artifact Registry retains the
 newest ten images and the serving digest; older unreferenced builds were

@@ -186,10 +186,10 @@ claimed until fresh consent succeeds.
   not customer outcome claims. The logged-out browser now keeps the reversed
   owner-action queue visible after undo, showing four `Reversed` rows and an
   explicit append-only history explanation.
-- The final public evaluation window contains 12 bounded workflows and 12
-  source observations, with 7 historical owner-action closures, approval
-  latency p50/p90 of 22.3s/132.9s, and owner-action cycle p50/p90 of
-  2.8s/18.8s. This is Driftline operational telemetry only; current completion
+- The current public evaluation window contains 10 bounded workflows and 12
+  source observations, with 5 historical owner-action closures, approval
+  latency p50/p90 of 23.9s/50.9s, and owner-action cycle p50/p90 of
+  3.0s/3.2s. This is Driftline operational telemetry only; current completion
   is 0% after the intentional undo and no customer ROI or revenue claim is
   inferred.
 - A current-revision logged-out browser check also switched from a completed
@@ -229,16 +229,18 @@ claimed until fresh consent succeeds.
   the console has no application messages. Below-fold ledger, monitor,
   multimodal, memory, value-proof, run-history, and telemetry reads load when
   their panels approach the viewport.
-- Signed connector context proof: the authenticated tenant read returned `18`
-  open Jira issues, `7` Confluence pages, `38` recent Slack messages, and `0`
-  GitHub issues / PRs. Salesforce remained explicitly
-  `reauthorization_required` after a rejected refresh token; no CRM totals or
-  customer outcomes are claimed.
-- Signed tenant workflow proof: the authenticated console ran the pinned
-  `competitor/pricing` fixture through Firestore + Cloud Tasks + Google ADK;
-  job `job-a33d07ac658c` / workflow
-  `75da1f00-e657-4ba3-bba6-80c298b747be` reached `needs_approval` with Gemini
-  3.5 Flash. Approval was not clicked and no external write was attempted.
+- Signed connector context proof: the authenticated tenant read returned `19`
+  open Jira issues, `7` Confluence pages, `42` recent Slack messages, and `1`
+  GitHub issue / `0` PRs. Salesforce remained explicitly authorization-gated
+  after a rejected refresh token; no CRM totals or customer outcomes are
+  claimed.
+- Signed tenant workflow proof: workflow
+  `c14ed5d6-fecb-4fc3-a40b-8567d5629ce9` ran the pinned
+  `competitor/pricing` fixture through Firestore + Cloud Tasks + Google ADK.
+  Approval reactivated only the Jira, Confluence, and Slack destinations shown
+  in the impact map; GitHub was not silently fanned out. Reopening the decision
+  reversed all three mapped connector markers. This is a reversible connector
+  smoke, not customer-pilot evidence.
 
 ## Four-minute demo plan
 
