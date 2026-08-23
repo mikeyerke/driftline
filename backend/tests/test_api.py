@@ -4098,6 +4098,8 @@ def test_identity_free_demo_mutations_are_rate_limited(monkeypatch) -> None:
 
     assert first.status_code == 200
     assert second.status_code == 429
+    assert second.json()["detail"] == "Demo workflow rate limit reached; retry later."
+    assert second.headers["retry-after"] == str(api.DEMO_WINDOW_SECONDS)
     with api._demo_mutation_lock:
         api._demo_mutation_times.clear()
 

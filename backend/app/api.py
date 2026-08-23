@@ -797,13 +797,25 @@ def _reserve_agent_call(tenant_id: str | None = None) -> bool:
         return True
 
 
-def _agent_rate_limit_error(detail: str) -> HTTPException:
-    """Return a bounded, machine-readable recovery signal for agent work."""
+def _quota_rate_limit_error(detail: str, window_seconds: int) -> HTTPException:
+    """Return a bounded, machine-readable recovery signal for quota work."""
     return HTTPException(
         status_code=429,
         detail=detail,
-        headers={"Retry-After": str(max(1, AGENT_WINDOW_SECONDS))},
+        headers={"Retry-After": str(max(1, int(window_seconds)))},
     )
+
+
+def _agent_rate_limit_error(detail: str) -> HTTPException:
+    return _quota_rate_limit_error(detail, AGENT_WINDOW_SECONDS)
+
+
+def _demo_mutation_rate_limit_error(detail: str) -> HTTPException:
+    return _quota_rate_limit_error(detail, DEMO_WINDOW_SECONDS)
+
+
+def _connector_rate_limit_error(detail: str) -> HTTPException:
+    return _quota_rate_limit_error(detail, CONNECTOR_WINDOW_SECONDS)
 
 
 def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
@@ -2751,10 +2763,7 @@ def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
         request.tenant_id,
     )
     if not _reserve_connector_call(identity["tenant_id"]):
-        raise HTTPException(
-            status_code=429,
-            detail="Connector read quota reached; retry later.",
-        )
+        raise _connector_rate_limit_error("Connector read quota reached; retry later.")
     tenant_id = identity["tenant_id"]
     connection, _binding, connected = _salesforce_connection_metadata(tenant_id)
     if (
@@ -3334,10 +3343,7 @@ def get_connector_context_summary(request: ConnectorContextRequest) -> dict[str,
         request.tenant_id,
     )
     if not _reserve_connector_call(identity["tenant_id"]):
-        raise HTTPException(
-            status_code=429,
-            detail="Connector read quota reached; retry later.",
-        )
+        raise _connector_rate_limit_error("Connector read quota reached; retry later.")
     summaries = _connector_context_info(identity["tenant_id"])
     return {
         "status": "ok",
@@ -4633,10 +4639,7 @@ def get_connector_binding_health(
         tenant_id,
     )
     if not _reserve_connector_call(identity["tenant_id"]):
-        raise HTTPException(
-            status_code=429,
-            detail="Connector read quota reached; retry later.",
-        )
+        raise _connector_rate_limit_error("Connector read quota reached; retry later.")
     bound = {
         str(binding.get("connector")): binding
         for binding in list_connector_bindings(identity["tenant_id"])
@@ -5481,9 +5484,8 @@ def get_workflow_scenarios(
 def start_demo(source_id: str = "public/pricing") -> dict:
     """Legacy deterministic fixture endpoint retained for reproducible tests."""
     if not _reserve_demo_mutation():
-        raise HTTPException(
-            status_code=429,
-            detail="Demo workflow rate limit reached; retry later.",
+        raise _demo_mutation_rate_limit_error(
+            "Demo workflow rate limit reached; retry later."
         )
     definition = source_definition(source_id)
     if definition is None:
@@ -6123,9 +6125,8 @@ def _authorize_action_request(
     if not _action_request_is_idempotent(
         state, item, operation, cleaned_actor, request
     ) and not _reserve_demo_mutation(identity.get("tenant_id")):
-        raise HTTPException(
-            status_code=429,
-            detail="Action mutation rate limit reached for this tenant; retry later.",
+        raise _demo_mutation_rate_limit_error(
+            "Action mutation rate limit reached for this tenant; retry later."
         )
     return identity
 
@@ -6373,9 +6374,8 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
     )
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
-        raise HTTPException(
-            status_code=429,
-            detail="Workflow mutation rate limit reached for this tenant; retry later.",
+        raise _demo_mutation_rate_limit_error(
+            "Workflow mutation rate limit reached for this tenant; retry later."
         )
     try:
 
@@ -6479,9 +6479,8 @@ def dismiss(workflow_id: str, request: DismissRequest) -> dict:
     )
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
-        raise HTTPException(
-            status_code=429,
-            detail="Workflow mutation rate limit reached for this tenant; retry later.",
+        raise _demo_mutation_rate_limit_error(
+            "Workflow mutation rate limit reached for this tenant; retry later."
         )
     try:
 
@@ -6516,9 +6515,8 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
     )
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
-        raise HTTPException(
-            status_code=429,
-            detail="Workflow mutation rate limit reached for this tenant; retry later.",
+        raise _demo_mutation_rate_limit_error(
+            "Workflow mutation rate limit reached for this tenant; retry later."
         )
     try:
 
