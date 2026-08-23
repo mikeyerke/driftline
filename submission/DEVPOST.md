@@ -40,6 +40,10 @@ Fresh live proof on that exact revision:
   separate synthetic-only fixtures from sources that need attention. The
   signed browser scan reached the deterministic approval gate with aggregate
   Jira/Confluence/Slack/GitHub context and no CRM totals or external write.
+- Operator lifecycle: the signed browser completed `Check now` on the public
+  pricing source, then paused and resumed the registered README source. The
+  UI showed the explicit pause reason, `Scheduler skips this source`, and the
+  restored healthy state after resume; no third-party system was written.
 
 These are deployment and evaluation records, not customer outcomes. Salesforce
 aggregate read is not verified: the signed tenant is

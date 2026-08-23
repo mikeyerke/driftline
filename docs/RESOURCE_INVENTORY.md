@@ -73,6 +73,14 @@ browser remained packet-safe and had no horizontal overflow; browser
 diagnostics showed only an unrelated Grammarly extension warning and no
 Driftline application error.
 
+The same signed browser session then exercised the operator utility loop: a
+`Check now` run completed against the public pricing source and appended a
+no-material-change observation; the registered Driftline README source was
+paused with an explicit reason, visibly marked `Monitoring paused` with
+`Scheduler skips this source`, and resumed. The resumed source returned to
+its prior healthy state after the ledger refresh. No third-party system was
+written during this lifecycle check.
+
 ### Historical exact proof — 2026-08-23 (previous release)
 
 The active project was rechecked as `driftline-hackathon-2026` before the
