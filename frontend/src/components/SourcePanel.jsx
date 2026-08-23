@@ -4,7 +4,7 @@ import { getSourceHistory, registerSource, updateSourceLifecycle } from "../api"
 import MultimodalEvidencePanel from "./MultimodalEvidencePanel";
 import useNearViewport from "../hooks/useNearViewport";
 
-export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = false, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered, onLifecycleChanged, onRunSource, onVisible }) {
+export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = false, sources = [], sourceHealth = [], sourceHealthState = "loading", selectedSource, onSourceChange, operatorSession, onRegistered, onLifecycleChanged, onRunSource, onVisible, historyRefreshKey = 0, monitorOutcome = null }) {
   const [panelRef, nearViewport] = useNearViewport();
   const visibleNotifiedRef = useRef(false);
   const isPublic = dataMode === "public_source";
@@ -34,6 +34,11 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
       : isPublic
         ? "Public pinned snapshot"
         : "Awaiting capture";
+  const monitorOutcomeLabel = monitorOutcome === "unchanged"
+    ? "Comparison recorded · no material change"
+    : monitorOutcome === "baseline_established"
+      ? "Baseline recorded · awaiting next comparison"
+      : null;
 
   useEffect(() => {
     if (!nearViewport) return undefined;
@@ -42,7 +47,7 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
       .then((payload) => active && setHistory(payload.observations || []))
       .catch(() => active && setHistory([]));
     return () => { active = false; };
-  }, [selectedSource, evidence?.source_id, evidence?.retrieved_at, nearViewport]);
+  }, [selectedSource, evidence?.source_id, evidence?.retrieved_at, nearViewport, historyRefreshKey]);
 
   useEffect(() => {
     if (nearViewport && !visibleNotifiedRef.current) {
@@ -106,7 +111,7 @@ export default function SourcePanel({ evidence, dataMode, hasLiveWorkflow = fals
       </header>
       <div className="source-grid">
         <div className="source-identity"><span className="source-icon"><Globe2 size={20} /></span><div><strong>{evidence?.source_name || "Public pricing snapshot"}</strong><small>{evidence?.source_id || "public/pricing"}</small></div></div>
-        <div><span className="source-label"><ShieldCheck size={14} />Evidence status</span><strong>{hasLiveWorkflow ? "Hash-bound and verified" : isDeterministicFixture ? "Deterministic fixture · scan not run" : "Awaiting first capture"}</strong></div>
+        <div><span className="source-label"><ShieldCheck size={14} />Evidence status</span><strong>{hasLiveWorkflow ? "Hash-bound and verified" : monitorOutcomeLabel || (isDeterministicFixture ? "Deterministic fixture · scan not run" : "Awaiting first capture")}</strong></div>
         <div><span className="source-label"><Hash size={14} />{hasLiveWorkflow || !isDeterministicFixture ? "Snapshot hash" : "Fixture hash"}</span><code>{evidence?.snapshot_hash || evidence?.evidence_hash || "Not captured yet"}</code></div>
         <div><span className="source-label">Retrieved</span><strong>{evidence?.retrieved_at ? new Date(evidence.retrieved_at).toLocaleString() : "Run the scan to capture"}</strong></div>
       </div>

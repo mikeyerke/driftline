@@ -71,6 +71,7 @@ export default function App() {
   const [sources, setSources] = useState([]);
   const [sourceHealth, setSourceHealth] = useState([]);
   const [sourceHealthState, setSourceHealthState] = useState("loading");
+  const [sourceHistoryRefreshKey, setSourceHistoryRefreshKey] = useState(0);
   const [selectedSource, setSelectedSource] = useState("competitor/pricing");
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
   const modalRef = useRef(null);
@@ -347,6 +348,10 @@ export default function App() {
               ? "Monitor complete · no material change; prior baseline retained"
               : "Monitor complete · baseline established; awaiting next observation",
           );
+          // A no-op/baseline monitor has no workflow evidence to change the
+          // SourcePanel dependency graph. Explicitly invalidate its history
+          // read so the operator can see the durable comparison immediately.
+          setSourceHistoryRefreshKey((value) => value + 1);
           await Promise.all([
             refreshHistory(scanEpoch),
             refreshSourceHealth(scanEpoch),
@@ -359,6 +364,7 @@ export default function App() {
           const recommendedOption = current.workflow.agent_trace?.decision_copilot?.options?.find((option) => option.option_id === current.workflow.agent_trace?.decision_copilot?.recommendation_id);
           setArtifactDecisions(current.workflow.approval?.artifact_decisions || recommendedOption?.artifact_decisions || defaultDecisionsFor(current.workflow));
           setScanMessage("Scan complete · evidence verified · approval gate active");
+          setSourceHistoryRefreshKey((value) => value + 1);
           await Promise.all([
             refreshHistory(scanEpoch),
             refreshSourceHealth(scanEpoch),
@@ -596,7 +602,7 @@ export default function App() {
             <WorkflowTimeline state={workflowState} />
           </section>
 
-          <SourcePanel evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onRunSource={runSourceNow} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} onLifecycleChanged={() => { getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
+          <SourcePanel historyRefreshKey={sourceHistoryRefreshKey} monitorOutcome={job?.run_mode === "monitor" && job?.source_id === selectedSource ? job?.source_status : null} evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onRunSource={runSourceNow} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); setSourceHistoryRefreshKey((value) => value + 1); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} onLifecycleChanged={() => { getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel operatorSession={operatorSession} />
           <TraceEvalPanel workflowId={workflowId} />
           <ValueProofPanel operatorSession={operatorSession} />
