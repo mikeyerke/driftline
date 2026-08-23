@@ -31,7 +31,7 @@ tenant and its configured connectors.
 | Interactive impact map | **Live verified** | Source, offering, impact, work-surface, and handoff node traversal | Evidence hash is inherited by every node |
 | Jira context read | **Externally verified** | Isolated `KAN` project; aggregate open-work read succeeds | Fixed project scope; no user-supplied JQL |
 | Jira create/reuse/reverse adapter | **Externally verified** | 2026-08-23: `KAN-20` created, idempotently reactivated, then reversed | Uses tenant Secret Manager binding; undo keeps the issue and changes only Driftline-owned labels/comment |
-| Hosted signed Jira HTTP round trip | **Historical live proof; rerun pending** | Prior OIDC canaries are archived in `RESOURCE_INVENTORY.md` | Current public lane intentionally reports `external_write=false` |
+| Hosted signed Jira HTTP round trip | **Live verified** | 2026-08-23 signed Google OIDC browser run: workflow `a9bcf39c-c0ef-420c-8d66-964e35a9b93a`, job `job-d622d771fb7a`; approval HTTP 200 reactivated `KAN-19`, signed undo HTTP 200 reversed it | One tenant-scoped Task marker; anonymous/public lane remains packet-safe and reports `external_write=false` |
 | Salesforce aggregate read | **Implemented, not verified** | OAuth/health lane returns reauthorization state | No object totals are claimed |
 | Confluence / Slack / GitHub | **Adapters implemented; not current core path** | Connector contracts and historical proof exist | Keep out of the main claim unless rerun on the current candidate |
 | Pilot measurement instrumentation | **Implemented and tested** | Paired baseline/Driftline validation and idempotent retries | Operator-reported until reconciled to evidence |
@@ -57,6 +57,9 @@ The following are real and directly testable today:
 - the deployed ADK/Gemini workflow;
 - evidence hashes, deterministic policy checks, and durable audit records;
 - a real bounded Jira adapter using the tenant-scoped Secret Manager credential;
+- a hosted signed-OIDC operator run that reactivated one Driftline-owned Jira
+  marker and then reversed it, with Cloud Run logs showing the tenant-secret
+  impersonation path and HTTP 200 responses for both approval and undo;
 - Jira marker idempotency and reversible labels/comments;
 - production health, persistence, queues, scheduler, and release gates.
 
@@ -70,9 +73,9 @@ The following are deliberately not claimed:
 
 ## Definition of done for the remaining work
 
-1. One current-candidate hosted signed Jira create/reuse/reverse proof, or an
-   explicit decision to ship the documented adapter proof without making it part
-   of the public smoke.
+1. One current-candidate hosted signed Jira create/reuse/reverse proof —
+   **complete** for the isolated `driftline-demo` tenant. The current proof is
+   preserved in `docs/INTERNAL_PILOT_2026-08-23.md` and the resource inventory.
 2. One small, real operator pilot with aggregate before/after measurements.
 3. One release candidate with a single SHA, complete automated gates, live
    browser proof, and no stale claims in README/Devpost.

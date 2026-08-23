@@ -64,9 +64,32 @@ DRIFTLINE_JIRA_LIVE_WRITE=1 ./scripts/verify_jira_roundtrip.sh
 
 The current public judge lane intentionally cannot invoke Jira and reports
 `external_write=false`. This record is an adapter-level external proof, not a
-claim that the anonymous console can write Jira. A fresh signed hosted HTTP
-round trip on the current candidate remains a separate verification gate; the
-historical hosted OIDC proof is retained in `docs/RESOURCE_INVENTORY.md`.
+claim that the anonymous console can write Jira.
+
+## Fresh hosted signed-OIDC Jira HTTP proof — 2026-08-23
+
+The production Cloud Run service was exercised from the authenticated browser
+operator lane after Google OIDC sign-in as `mikeyerke@gmail.com`, tenant
+`driftline-demo`. The run used the same evidence-bound pricing change and the
+tenant-scoped Secret Manager credential broker; no credential value entered the
+browser, repository, or logs.
+
+- Job `job-d622d771fb7a` completed a live ADK/Gemini workflow;
+  workflow `a9bcf39c-c0ef-420c-8d66-964e35a9b93a` reached the deterministic
+  approval gate.
+- The signed approval request returned HTTP 200 and the UI recorded
+  `Jira handoff: Previously reversed issue reactivated`, marker `KAN-19`.
+- The signed **Reopen decision** request returned HTTP 200. The UI recorded
+  `Jira: reversed`, the owner actions became `Reversed`, and the final status
+  was `Decision reopened · no external systems were changed`.
+- Cloud Run request logs show HTTP 200 for both
+  `/api/workflows/a9bcf39c-c0ef-420c-8d66-964e35a9b93a/approve` and `/undo`,
+  plus the isolated tenant Secret Manager impersonation identity. No unrelated
+  Jira work was deleted or modified.
+
+This is current-candidate hosted proof of one scoped reversible Jira action. It
+does not turn the anonymous public lane into an external writer, and it does
+not prove a customer business outcome.
 
 ## Measurements and limits
 
@@ -83,5 +106,8 @@ historical hosted OIDC proof is retained in `docs/RESOURCE_INVENTORY.md`.
 | Willingness to pay | `not_measured` | No customer interview or purchase evidence |
 
 The next evidence step is a real operator pilot with a dated before/after
-baseline, a bounded change set, and aggregate signed measurements. Until that
-exists, deployment telemetry and trace scores remain engineering evidence only.
+baseline, a bounded change set, and aggregate signed measurements. The hosted
+Jira proof above is not that pilot: no external customer or independent
+operator baseline has yet supplied paired timing or outcome evidence. Until
+that exists, deployment telemetry and trace scores remain engineering evidence
+only.

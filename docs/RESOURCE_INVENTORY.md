@@ -47,6 +47,13 @@ Fresh live proof on this exact revision (rerun 2026-08-23):
   the packet persisted, owner action `item-09261c13ac90` completed then
   reversed, and `external_write=false` /
   `external_systems_changed=false` remained explicit.
+- Fresh hosted signed-OIDC Jira proof (2026-08-23) ran from the authenticated
+  browser operator lane as `mikeyerke@gmail.com` in tenant `driftline-demo`.
+  Job `job-d622d771fb7a` / workflow `a9bcf39c-c0ef-420c-8d66-964e35a9b93a`
+  returned HTTP 200 for both approval and undo. Approval reactivated the
+  Driftline-owned marker `KAN-19`; the signed undo reversed the marker and the
+  UI ended at `Decision reopened · no external systems were changed`.
+  Cloud Run logs show the tenant-scoped Secret Manager impersonation path.
 - `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
   Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
   headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
