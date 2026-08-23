@@ -23,49 +23,48 @@ the current serving-state authority:
 ### Current exact proof — 2026-08-23 (latest release)
 
 The active project was rechecked as `driftline-hackathon-2026` before the
-latest runtime hardening release. Commit
-`05422dfc0b0e54487872befebfacd548c312fda3` passed 331 backend tests, Ruff,
+latest runtime release. Commit
+`84b5a12b8bcbba9bc10888a8cadb2836e0ddba70` passed 335 backend tests, Ruff,
 the frontend production build, the frontend contract checks, and the local
 trace-to-eval gate (14/14, safety/usefulness/overall 100%). The optional
 dependency audit was not run on the laptop because `uv` is unavailable; it is
-not represented as a passing check here. GitHub Actions run `32650587605`
-passed its repository verification. Cloud Build
-`7d6bd60f-c16f-43b9-a8e2-3ebe073aea33` deployed Cloud Run revision
-`driftline-00281-mh2` at 100% traffic with image digest
-`sha256:15277d5288abec4bfe6140e1cd1a1b247c520c055ecface81090d61a2715bda8`.
-`/health` reports the exact release SHA and build ID.
+not represented as a passing check here. Cloud Build
+`744dad9a-5245-46fa-ac8f-738c1861b52e` deployed Cloud Run revision
+`driftline-00282-kfb` at 100% traffic. `/health` reports the exact release SHA
+and build ID. GitHub Actions run `32651710617` passed repository verification
+for this commit.
 
 Fresh live proof on this exact revision (rerun 2026-08-23):
 
-- `scripts/verify_live_agent.sh` passed with job `job-301fc2e65cd3`, workflow
-  `cb0bd5bb-a867-43dd-9ff0-74ce16e4f324`, `needs_approval`, `public_source`,
+- `scripts/verify_live_agent.sh` passed with job `job-308a9aeb76b1`, workflow
+  `bd4de954-b3a0-4f4a-bee6-f003fec6029e`, `needs_approval`, `public_source`,
   Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
   audit events, two decision options, and trace evaluation
-  `eval-0757dfba317a` at 100% / stable.
+  `eval-5b18966e3236` at 100% / stable.
 - `scripts/verify_public_approval_undo.sh` passed with job
-  `job-2c3f266ef6e3`, workflow `8bd3025d-b816-409e-af9a-1d9945695b4a`:
-  the packet persisted, owner action `item-2241193bfad8` completed then
+  `job-ff76d470b8f2`, workflow `045653bf-e2e1-423d-8838-bc96a30c3622`:
+  the packet persisted, owner action `item-497a50fecf14` completed then
   reversed, and `external_write=false` /
   `external_systems_changed=false` remained explicit.
 - `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
   Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
   headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
-  The current-revision trace-to-eval record is `eval-0757dfba317a` (stable),
-  current-revision Cloud Run errors were `0`, and the latest Scheduler attempt
-  was `2026-08-23T16:00:41.530441Z`.
+  The current-revision trace-to-eval record is `eval-5b18966e3236` (stable),
+  and current-revision Cloud Run errors were `0`.
 - Post-deploy browser QA reached `Scan complete · evidence verified · approval
-  gate active` on the public lane with no Driftline console errors. Desktop
-  and 390px mobile checks showed no horizontal overflow; the mobile shell kept
-  the navigation, Run scan control, release proof, and approval path usable.
+  gate active` on the public lane with no Driftline console errors and no
+  desktop horizontal overflow. The new signed pilot measurement path is
+  locally covered and now exposes aggregate owner-ready, closure, and
+  reversal deltas without changing the public lane.
 
-This hardening release makes source-fetch outages a durable, truthful monitor
-outcome instead of a misleading generic no-change or timeout. Operators see
-that no workflow was created, can retry immediately, and can inspect source
-health while the bounded Scheduler retries. API reads now have a bounded
-30-second timeout with safe retry behavior. The Salesforce consent handoff no
-longer loses its provider URL to an early focus refresh; the signed tenant UI
-now exposes a working **Continue to Salesforce consent** link. The public
-evaluation lane remains packet-safe and writes no third-party systems.
+This release adds evidence-safe pilot utility: minutes are explicit totals and
+per-change deltas, zero baselines are rejected, operational measures require
+paired baseline/Driftline counts bounded by the change set, and negative deltas
+are labeled `time added`. Source-fetch outages remain a durable, truthful
+monitor outcome with immediate retry and source-health inspection; API reads
+have bounded timeout/retry behavior; and the Salesforce consent handoff keeps
+its provider URL until the operator leaves for consent. The public evaluation
+lane remains packet-safe and writes no third-party systems.
 
 The limits below remain intentional and evidence-gated: Salesforce aggregate
 read is not verified (`external_read=false`, `aggregate_read_verified=false`);
