@@ -382,17 +382,35 @@ def list_job_failures(
     return failures[:bounded_limit]
 
 
-def persist_outcome_measurement(payload: dict[str, Any]) -> None:
-    """Persist an aggregate operator-reported outcome without raw customer data."""
+def persist_outcome_measurement(payload: dict[str, Any]) -> bool:
+    """Persist an aggregate outcome idempotently without raw customer data.
+
+    Returns ``False`` when the exact measurement already exists. A reused
+    evidence reference with different values is treated as a conflict rather
+    than silently overwriting or double-counting a pilot result.
+    """
     if not _enabled():
-        return
+        return True
     stored = dict(payload)
     stored["expires_at"] = _retention_expiry(
         str(payload.get("tenant_id", "")) or None
     )
-    _client().collection(OUTCOMES_COLLECTION).document(
+    document = _client().collection(OUTCOMES_COLLECTION).document(
         str(payload["measurement_id"])
-    ).create(stored)
+    )
+    try:
+        document.create(stored)
+    except AlreadyExists:
+        existing_snapshot = document.get()
+        existing_payload = existing_snapshot.to_dict() if existing_snapshot.exists else None
+        comparable = {
+            key: value for key, value in (existing_payload or {}).items() if key != "expires_at"
+        }
+        incoming = {key: value for key, value in stored.items() if key != "expires_at"}
+        if comparable != incoming:
+            raise ValueError("outcome_measurement_conflict")
+        return False
+    return True
 
 
 def list_outcome_measurements(limit: int = 50) -> list[dict[str, Any]]:

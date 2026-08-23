@@ -813,6 +813,61 @@ def test_outcome_measurement_records_direction_and_operational_counts(monkeypatc
     assert captured["driftline_actions_completed_within_7d"] == 1
 
 
+def test_outcome_measurement_retry_is_idempotent(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *args, **kwargs: {"tenant_id": "pilot-tenant", "identity": "signed_operator"},
+    )
+    monkeypatch.setattr(api, "persist_outcome_measurement", lambda payload: False)
+    response = client.post(
+        "/api/ops/outcomes",
+        json={
+            "operator": "Pilot owner",
+            "tenant_id": "pilot-tenant",
+            "source_type": "pilot_log",
+            "cohort_label": "pilot-a",
+            "changes_observed": 1,
+            "baseline_minutes": 60,
+            "driftline_minutes": 20,
+            "evidence_ref": "artifact://pilot-a",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "already_recorded"
+    assert response.json()["measurement"]["measurement_id"].startswith("measurement-")
+
+
+def test_outcome_measurement_changed_retry_is_a_conflict(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *args, **kwargs: {"tenant_id": "pilot-tenant", "identity": "signed_operator"},
+    )
+    monkeypatch.setattr(
+        api,
+        "persist_outcome_measurement",
+        lambda payload: (_ for _ in ()).throw(ValueError("outcome_measurement_conflict")),
+    )
+    response = client.post(
+        "/api/ops/outcomes",
+        json={
+            "operator": "Pilot owner",
+            "tenant_id": "pilot-tenant",
+            "source_type": "pilot_log",
+            "cohort_label": "pilot-a",
+            "changes_observed": 1,
+            "baseline_minutes": 60,
+            "driftline_minutes": 20,
+            "evidence_ref": "artifact://pilot-a",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "outcome_measurement_conflict_for_evidence_ref"
+
+
 def test_outcome_measurement_rejects_operational_count_above_change_set(monkeypatch) -> None:
     monkeypatch.setattr(
         api,

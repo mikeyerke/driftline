@@ -5199,7 +5199,12 @@ def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, 
             },
         )
     time_delta = round(request.baseline_minutes - request.driftline_minutes, 2)
-    measurement_id = f"measurement-{uuid4().hex[:16]}"
+    # The tenant/cohort/evidence tuple is the idempotency key. A network retry
+    # of the same reconciled artifact must not create a second aggregate row.
+    measurement_key = hashlib.sha256(
+        f"{approval_identity['tenant_id']}:{request.cohort_label}:{request.evidence_ref}".encode()
+    ).hexdigest()[:24]
+    measurement_id = f"measurement-{measurement_key}"
     payload = {
         "measurement_id": measurement_id,
         "tenant_id": approval_identity["tenant_id"],
@@ -5223,14 +5228,21 @@ def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, 
         "captured_at": utc_now(),
     }
     try:
-        persist_outcome_measurement(payload)
+        persisted = persist_outcome_measurement(payload)
+    except ValueError as exc:
+        if str(exc) == "outcome_measurement_conflict":
+            raise HTTPException(
+                status_code=409,
+                detail="outcome_measurement_conflict_for_evidence_ref",
+            ) from exc
+        raise
     except Exception as exc:  # pragma: no cover - Firestore-only failure path.
         logger.exception("Outcome measurement persistence failed")
         raise HTTPException(
             status_code=503, detail="Outcome ledger unavailable"
         ) from exc
     return {
-        "status": "recorded",
+        "status": "recorded" if persisted is not False else "already_recorded",
         "measurement": payload,
         "disclosure": "This is operator-reported aggregate evidence, not an independently verified customer claim.",
     }

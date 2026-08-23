@@ -46,7 +46,9 @@ public console exposes only the redacted outcome ledger through
 `GET /api/ops/outcomes`. Tenant owners can use the signed
 `GET /api/ops/pilot-report` endpoint to compute before/after totals, per-change
 time direction, operational rates, and percentage-point deltas for one cohort
-without returning evidence references or other tenant records.
+without returning evidence references or other tenant records. Retries are
+idempotent on the tenant/cohort/evidence tuple; changed values for that tuple
+fail closed as a conflict.
 
 ## Open proof gaps
 
