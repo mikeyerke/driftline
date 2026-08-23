@@ -1514,7 +1514,9 @@ def test_salesforce_context_exposes_repair_state_without_attaching_crm(monkeypat
     assert "instance_url" not in str(payload)
 
 
-def test_salesforce_context_does_not_retry_expired_token_after_reauth_marker(monkeypatch) -> None:
+def test_salesforce_context_does_not_retry_expired_token_after_reauth_marker(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("DRIFTLINE_SALESFORCE_ENABLED", "true")
     monkeypatch.setattr(
         api,

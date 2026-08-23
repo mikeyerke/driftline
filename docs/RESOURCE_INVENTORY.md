@@ -32,23 +32,25 @@ frozen dependency audit) and GitHub Actions run `32646428785`. Cloud Build
 `sha256:7d64754a1dd27a98f9e9286102560355dbe9e02695f1a40fafef27617a4fa0d7`.
 `/health` reports that exact release SHA and build ID.
 
-Fresh live proof on this exact revision:
+Fresh live proof on this exact revision (rerun 2026-08-23):
 
-- `scripts/verify_live_agent.sh` passed with job `job-048b0b4b64c1`, workflow
-  `628f54c4-e663-427f-b4c2-a5b246ed4c57`, `needs_approval`, `public_source`,
+- `scripts/verify_live_agent.sh` passed with job `job-4c1020718392`, workflow
+  `8cdcdabf-954f-4af9-8d9e-3a0ce5e63731`, `needs_approval`, `public_source`,
   Google ADK, Gemini 3.5 Flash, two allowlisted tools, four artifacts, five
   audit events, two decision options, and trace evaluation
-  `eval-b4e22563fa6b` at 100% / stable.
+  `eval-4ef9e9424cac` at 100% / stable.
 - `scripts/verify_public_approval_undo.sh` passed with job
-  `job-73d58fc3cf55`, workflow `cd225763-b64a-4a9b-b942-c3d9d6bf2983`:
-  the packet persisted, one owner action completed then reversed, and
+  `job-e632996e351d`, workflow `79d37bc3-0a3d-4fa6-81d4-0956868dbdfd`:
+  the packet persisted, owner action `item-e57eb01b54ac` completed then
+  reversed, and
   `external_write=false` / `external_systems_changed=false` remained
   explicit.
 - `scripts/verify_production.sh` passed with Firestore, Cloud Tasks,
   Scheduler, uptime, alerting, IAM, Artifact Registry retention, security
   headers, OIDC tenant boundaries, and zero current-revision Cloud Run errors.
-  A fresh manual Scheduler run at `2026-08-23T14:28:49.209402Z` returned HTTP
-  200 on `/api/scheduler/tick` at revision `driftline-00277-mrw`.
+  the current-revision trace-to-eval record is `eval-9190838e7dc9` (stable),
+  current-revision Cloud Run errors were `0`, and the latest Scheduler attempt
+  was `2026-08-23T15:00:33.563833Z`.
 
 This hardening release also stops Salesforce context reads from retrying a
 refresh token after an explicit `reauthorization_required` health marker. The

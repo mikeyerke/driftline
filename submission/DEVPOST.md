@@ -27,20 +27,21 @@ GitHub Actions run `32646428785`; the full local gate passed with 328 backend
 tests, Ruff, frontend production build, frontend contract checks, and frozen
 dependency audit.
 
-Fresh live proof on that exact revision:
+Fresh live proof on that exact revision (rerun 2026-08-23):
 
-- ADK/Gemini execution: job `job-048b0b4b64c1`, workflow
-  `628f54c4-e663-427f-b4c2-a5b246ed4c57`, `needs_approval`,
+- ADK/Gemini execution: job `job-4c1020718392`, workflow
+  `8cdcdabf-954f-4af9-8d9e-3a0ce5e63731`, `needs_approval`,
   `gemini-3.5-flash`, two allowlisted tools, four artifacts, five audit events,
-  two decision options, and trace evaluation `eval-b4e22563fa6b` at 100% /
+  two decision options, and trace evaluation `eval-4ef9e9424cac` at 100% /
   stable.
-- Approval/undo: job `job-73d58fc3cf55` persisted a packet, completed one
-  owner action, and reversed it; `external_write=false` and
+- Approval/undo: job `job-e632996e351d` persisted a packet, completed owner
+  action `item-e57eb01b54ac`, and reversed it; `external_write=false` and
   `external_systems_changed=false` remained explicit.
 - Production verification passed for Firestore, Cloud Tasks, Scheduler,
   uptime, alerting, IAM, Artifact Registry retention, security headers, OIDC
-  tenant boundaries, and zero current-revision Cloud Run errors. A fresh
-  Scheduler run returned HTTP 200 on `/api/scheduler/tick` at this revision.
+  tenant boundaries, and zero current-revision Cloud Run errors. The current
+  revision's trace-to-eval record is `eval-9190838e7dc9` (stable), and the
+  latest Scheduler attempt was `2026-08-23T15:00:33.563833Z`.
 
 This hardening release stops Salesforce context reads from retrying a refresh
 token after an explicit `reauthorization_required` marker. The metadata remains
