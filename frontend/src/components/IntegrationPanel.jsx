@@ -24,10 +24,12 @@ function aggregateLabel(system, data = {}) {
 
 function contextStatusLabel(data = {}, binding, healthy) {
   if (healthy) return "Read verified";
+  if (data.status === "reauthorization_required") return "Reauthorization required";
+  if (data.status === "setup_incomplete") return "Setup incomplete";
   if (data.authorization_required) return "Authorization required";
   if (data.status === "not_configured") return "Not configured";
   if (data.status === "failed") return "Read failed";
-  return data.status || binding?.status || "Attention";
+  return data.status?.replaceAll("_", " ") || binding?.status || "Attention";
 }
 
 export default function IntegrationPanel({ targets = [], approved, dismissed, actionRecord, operatorSession }) {

@@ -790,7 +790,10 @@ def test_salesforce_defaults_to_read_only_prepared_contract(monkeypatch) -> None
     result = salesforce_readiness()
     assert result["status"] == "not_configured"
     assert result["mode"] == "prepared_only"
+    assert result["external_read"] is False
     assert result["external_write"] is False
+    assert result["aggregate_read_verified"] is False
+    assert result["aggregate_read_status"] == "not_run"
 
 
 def test_salesforce_config_rejects_non_salesforce_hosts() -> None:

@@ -132,7 +132,11 @@ def salesforce_readiness() -> dict[str, object]:
         return {
             "status": "not_configured",
             "mode": "prepared_only",
+            "external_read": False,
             "external_write": False,
+            "aggregate_read_verified": False,
+            "aggregate_read_status": "not_run",
+            "credential_values_exposed": False,
             "scope": "read_only_context",
             "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
         }
@@ -150,7 +154,11 @@ def salesforce_readiness() -> dict[str, object]:
         return {
             "status": "oauth_ready",
             "mode": "awaiting_authorization",
+            "external_read": False,
             "external_write": False,
+            "aggregate_read_verified": False,
+            "aggregate_read_status": "not_run",
+            "credential_values_exposed": False,
             "scope": "read_only_context",
             "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
         }
@@ -160,7 +168,11 @@ def salesforce_readiness() -> dict[str, object]:
         return {
             "status": "invalid_config",
             "mode": "prepared_only",
+            "external_read": False,
             "external_write": False,
+            "aggregate_read_verified": False,
+            "aggregate_read_status": "not_run",
+            "credential_values_exposed": False,
             "scope": "read_only_context",
             "reason": str(exc),
         }
@@ -168,7 +180,11 @@ def salesforce_readiness() -> dict[str, object]:
         return {
             "status": "oauth_not_configured",
             "mode": "prepared_only",
+            "external_read": False,
             "external_write": False,
+            "aggregate_read_verified": False,
+            "aggregate_read_status": "not_run",
+            "credential_values_exposed": False,
             "scope": "read_only_context",
             "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
             "reason": "Salesforce OAuth client and redirect URI are required",
@@ -176,7 +192,11 @@ def salesforce_readiness() -> dict[str, object]:
     return {
         "status": "configured_read_only" if config.token else "oauth_ready",
         "mode": "prepared_only",
+        "external_read": False,
         "external_write": False,
+        "aggregate_read_verified": False,
+        "aggregate_read_status": "not_run",
+        "credential_values_exposed": False,
         "scope": "read_only_context",
         "api_version": config.api_version,
         "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],

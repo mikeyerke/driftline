@@ -117,7 +117,10 @@ printf '%s\n' "${ops_summary}" | jq -e \
    .approval_security.tenant_auth.configured == true and
    .approval_security.tenant_auth.durable_memberships == true and
    .approval_security.tenant_auth.static_operator_allowlist == false and
-   .crm.salesforce.external_write == false' >/dev/null
+   .crm.salesforce.external_read == false and
+   (.crm.salesforce.aggregate_read_verified // false) == false and
+   .crm.salesforce.external_write == false and
+   .crm.salesforce.credential_values_exposed == false' >/dev/null
 printf 'Agent configuration: Gemini 3.5 Flash, Firestore, five bounded source monitors, OIDC tenant boundary\n'
 
 value_proof="$(curl --fail --silent --show-error --max-time 20 "${public_url}/api/ops/value-proof")"

@@ -473,6 +473,10 @@ def test_monitor_registry_and_ops_summary_are_safe_for_operator_console() -> Non
     assert set(ops_payload["connectors"]) == {"jira", "confluence", "slack", "github"}
     assert "guardrails" in ops_payload
     assert ops_payload["crm"]["salesforce"]["mode"] == "prepared_only"
+    assert ops_payload["crm"]["salesforce"]["external_read"] is False
+    assert ops_payload["crm"]["salesforce"]["aggregate_read_verified"] is False
+    assert ops_payload["crm"]["salesforce"]["aggregate_read_status"] == "not_run"
+    assert ops_payload["crm"]["salesforce"]["credential_values_exposed"] is False
     assert ops_payload["approval_security"]["external_writes_require_signed"] is True
     assert ops_payload["approval_security"]["credential_model"]["tenant_bound"] is True
     assert ops_payload["guardrails"]["tenant_policy"] is None
