@@ -76,7 +76,7 @@ from .credential_broker import (
 from .decision_copilot import validate_approval_choice
 from .materiality import build_change_card, normalize_internal_context
 from .memory import build_memory_summary
-from .models import ActionItemStatus, JobState, WorkflowState, utc_now
+from .models import ActionItemStatus, JobState, WorkflowState, WorkflowStatus, utc_now
 from .multimodal import (
     MultimodalUnavailable,
     analyze_visual_evidence,
@@ -1542,6 +1542,22 @@ def _transition_workflow(
                 workflow_store.restore(previous)
             raise PolicyViolation("Workflow changed concurrently; retry the decision")
         return result
+
+
+def _commit_workflow_transition(
+    state: WorkflowState,
+    expected_status: str,
+    fallback: WorkflowState,
+) -> WorkflowState:
+    """Finish a durable operation without ever publishing stale local truth."""
+    if compare_and_set_workflow(state, expected_status):
+        workflow_store.restore(state)
+        return state
+    durable = load_workflow(state.workflow_id)
+    workflow_store.restore(durable if durable is not None else fallback)
+    raise PolicyViolation(
+        "Workflow operation changed concurrently; durable state was reloaded"
+    )
 
 
 def _recover_orphaned_workflow(job: JobState) -> WorkflowState | None:
@@ -6591,6 +6607,10 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             )
             if state.approval is not None:
                 state.approval["approval_identity"] = approval_identity
+            # Claim the whole side-effect operation durably before any
+            # connector or artifact write. Undo and reapproval reject this
+            # intermediate state across Cloud Run instances.
+            state.status = WorkflowStatus.APPROVAL_EXECUTING
             return state
 
         state = _transition_workflow(
@@ -6598,6 +6618,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             "needs_approval",
             apply,
         )
+        executing_state = copy.deepcopy(state)
         if state.action_record is not None:
             # Connector credentials are selected from the approved tenant, not
             # from deployment-wide environment variables. Keeping this opaque
@@ -6639,8 +6660,12 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         # unavailable. Always commit the post-handoff action record; otherwise
         # a signed external write could be real while Firestore still shows the
         # pre-connector packet-only state.
-        compare_and_set_workflow(state, "complete")
-        workflow_store.restore(state)
+        state.status = WorkflowStatus.COMPLETE
+        state = _commit_workflow_transition(
+            state,
+            WorkflowStatus.APPROVAL_EXECUTING.value,
+            executing_state,
+        )
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:
@@ -6713,6 +6738,9 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
                 )
             state = workflow_store.undo(current.workflow_id, request.actor)
             state.events[-1]["approval_identity"] = approval_identity
+            # Claim reversal before touching any external system. A concurrent
+            # approval sees this durable state and fails closed.
+            state.status = WorkflowStatus.REVERSAL_EXECUTING
             return state
 
         state = _transition_workflow(
@@ -6720,6 +6748,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
             "complete",
             apply,
         )
+        executing_state = copy.deepcopy(state)
         connector_info = _connector_handoff_info(state, approval_identity, reverse=True)
         state.action_record = {
             **(state.action_record or {}),
@@ -6748,8 +6777,12 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         }
         # Persist the connector reversal and its truthful external-write flags
         # even when optional artifact storage is disabled or unavailable.
-        compare_and_set_workflow(state, "needs_approval")
-        workflow_store.restore(state)
+        state.status = WorkflowStatus.NEEDS_APPROVAL
+        state = _commit_workflow_transition(
+            state,
+            WorkflowStatus.REVERSAL_EXECUTING.value,
+            executing_state,
+        )
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:

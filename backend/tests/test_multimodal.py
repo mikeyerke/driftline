@@ -67,6 +67,22 @@ def test_demo_fetch_failure_is_labeled_synthetic(monkeypatch) -> None:
     assert evidence.after.mime_type == "image/svg+xml"
 
 
+def test_asset_byte_route_fetches_only_requested_side(monkeypatch) -> None:
+    requested_urls: list[str] = []
+
+    def fetch(request, timeout):
+        requested_urls.append(request.full_url)
+        return _Response(b"before-image")
+
+    monkeypatch.setattr(multimodal, "urlopen", fetch)
+
+    asset = multimodal.visual_asset_bytes("promise-card", "before", mode="live")
+
+    assert asset.side == "before"
+    assert len(requested_urls) == 1
+    assert requested_urls[0].endswith("change-operations-primary.jpg")
+
+
 def test_vision_output_must_copy_combined_evidence_hash() -> None:
     payload = {
         "evidence_hash": "a" * 64,

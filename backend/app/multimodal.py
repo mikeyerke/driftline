@@ -235,12 +235,23 @@ def get_visual_evidence(asset_id: str, mode: str = "live") -> VisualEvidence:
 
 
 def visual_asset_bytes(asset_id: str, side: str, mode: str = "live") -> VisualAsset:
-    evidence = get_visual_evidence(asset_id, mode)
-    if side == "before":
-        return evidence.before
-    if side == "after":
-        return evidence.after
-    raise MultimodalUnavailable("visual_side_not_allowlisted")
+    """Fetch only the requested allowlisted side.
+
+    The metadata route deliberately fetches both sides to bind their combined
+    evidence hash. The byte route must not repeat that work when the browser
+    requests one image, which bounds anonymous outbound bandwidth per call.
+    """
+    if side not in {"before", "after"}:
+        raise MultimodalUnavailable("visual_side_not_allowlisted")
+    definition = VISUAL_DEFINITIONS.get(asset_id)
+    if definition is None:
+        raise MultimodalUnavailable("visual_asset_not_allowlisted")
+    try:
+        return _fetch_asset(definition, side)
+    except MultimodalUnavailable:
+        if mode != "demo":
+            raise
+        return _synthetic_asset(asset_id, side)
 
 
 def _parse_model_json(raw: str) -> dict[str, Any]:

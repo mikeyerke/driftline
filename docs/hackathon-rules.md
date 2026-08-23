@@ -1,7 +1,8 @@
 # Google All Things Agentic — verified submission requirements
 
-Checked against the official Devpost overview, rules, judging criteria, and
-key-date endpoints on August 21, 2026. The canonical sources are:
+Checked against the official Devpost overview, rules, judging criteria,
+announcements, submission form, and key-date endpoints on August 23, 2026. The
+canonical sources are:
 
 - [Contest overview](https://allthingsagentichackathon.devpost.com/)
 - [Official rules](https://allthingsagentichackathon.devpost.com/rules)
@@ -17,6 +18,10 @@ key-date endpoints on August 21, 2026. The canonical sources are:
   2026 at 11:45 PM Pacific (October 2, 2026 06:45 UTC).
 - Winners are expected on or around October 8, 2026 at 10:00 AM Pacific
   (5:00 PM UTC).
+- Devpost's structured key-date feed currently lists September 24 at 5:00 PM
+  Pacific as the judging end, while the official rules text lists October 1 at
+  11:45 PM Pacific. This does not change the entry deadline; the rules page and
+  live Devpost website control if the dates continue to differ.
 - Entrants must be above the age of majority in their jurisdiction and must
   not be located in Italy, Quebec, Crimea, Cuba, Iran, Syria, North Korea,
   Sudan, Belarus, or Russia, or otherwise be excluded by export controls,
@@ -38,13 +43,13 @@ The model reference lists Gemini 3.5 Flash on the `global` and `us` Vertex AI
 endpoints. Driftline keeps Cloud Run and Firestore in `us-central1` but sends
 the model client to the `global` location.
 
-The Devpost submission must include a hosted project URL, English description,
-public or judge-accessible repository, reproducible README.md, architecture
-diagram, and a demonstration video. The video must show the problem, value,
-working application, and proof that the backend runs on Google Cloud. It must
-be no longer than four minutes; if longer, only the first four minutes are
-evaluated. The video must be publicly visible on YouTube or Vimeo, so Driftline
-will use a public link rather than an unlisted upload.
+The Devpost form requires an English description, public or judge-accessible
+repository, reproducible README.md, architecture diagram, and a demonstration
+video; a hosted project URL is strongly encouraged and Driftline provides one.
+The video must show the problem, value, working application, and proof that the
+backend runs on Google Cloud. It should be about four minutes; if longer, only
+the first four minutes are evaluated. Driftline will use a public YouTube or
+Vimeo link so judge access is not dependent on account permissions.
 
 The optional content bonus includes public build content that explicitly says
 it was created for this hackathon, a separate social post using the required

@@ -135,9 +135,10 @@ architecture close. Suggested stills are documented in
 
 ## Truthful proof and disclosure
 
-The live release serves repository-head Git SHA
-`63d96995808c8b1a891abd16682d645db19986fb` from Cloud Build
-`92a1fcac-7d63-4c73-8306-0dcbe18c2466`. In the signed operator lane, a hosted
+The live release currently reports repository-head Git SHA
+`e38facc43745eab267eacd2da4aa28914dff383b` from Cloud Build
+`96dbf2d7-7ee3-490a-a854-bef5c9615efc` through `/health` (verified August 23,
+2026). In the signed operator lane, a hosted
 Gemini/ADK workflow reached approval, reactivated Jira marker `KAN-19`, and then
 reversed only Driftline-owned state; both operations returned HTTP 200. This is
 engineering proof from an isolated project, not customer outcome or ROI proof.

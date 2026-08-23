@@ -41,17 +41,20 @@ The persisted trace shows the model and only the two allowlisted tools.”
 High-risk work stops in deterministic policy. The ADK agent has no approval
 tool, and approval fails if the evidence hash or allowlisted action changes.”
 
-## 1:55–2:38 — Wow moment: real signed action and reversal
+## 1:55–2:38 — Wow moment: persisted action and reversal
 
-**Screen:** Cut to the already authenticated operator lane without showing the
-login flow. Approve the Jira handoff. Show the returned Jira marker and activity
-event, then click **Reopen decision** and show the reversed action status.
+**Screen:** In the same continuous browser take, approve the recommended plan.
+Show the Firestore action, persisted Cloud Storage packet, owner action queue,
+audit IDs, and both external-write flags. Click **Reopen decision** and show the
+persisted reversal marker. If a pre-authenticated operator tab is available,
+show the Jira marker and its scoped reversal only after this public proof; the
+public path remains sufficient and reproducible without credentials.
 
-**Narration:** “In the signed tenant lane, approval uses a tenant-scoped Secret
-Manager credential to create or reactivate one Jira marker. The same evidence
-and idempotency key prevent duplicates. Reopen decision reverses only
-Driftline-owned labels and comments. It never deletes unrelated Jira work, and
-the reversal remains in the append-only audit ledger.”
+**Narration:** “Approval is an action, not a chat response. Driftline persists
+the evidence-linked packet, creates accountable owner work, and records the
+operation in Firestore and Cloud Storage. Reopen decision writes a scoped
+reversal marker. In a signed tenant, the same policy boundary can create or
+reactivate one idempotent Jira marker and reverse only Driftline-owned state.”
 
 ## 2:38–3:16 — Visible Google Cloud proof
 
@@ -77,7 +80,8 @@ where judgment matters, and reversible when the decision changes.”
 - [ ] Total duration is 3:45 or shorter.
 - [ ] Live URL appears in the first 30 seconds.
 - [ ] Gemini 3.5 Flash, Google ADK, and actual action appear on screen or aloud.
-- [ ] Signed Jira action and reversal form one truthful sequence.
+- [ ] Public persisted action and reversal form one continuous truthful
+      sequence; signed Jira proof is included only if safely pre-authenticated.
 - [ ] Google Cloud proof appears before 3:16.
 - [ ] No credentials, tokens, private records, or raw prompts appear.
 - [ ] Captions are accurate and English.

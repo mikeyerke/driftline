@@ -3572,6 +3572,62 @@ def test_demo_approval_and_undo_round_trip() -> None:
     assert undone.json()["action_record"]["jira_status"] == "prepared_only"
 
 
+def test_approval_claim_blocks_concurrent_undo(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda _tenant_id=None: True)
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    original = api._connector_handoff_info
+
+    def inspect_claim(state, identity, *, reverse=False):
+        assert state.status.value == "approval_executing"
+        raced = client.post(
+            f"/api/workflows/{workflow_id}/undo",
+            json={"actor": "Second operator"},
+        )
+        assert raced.status_code == 409
+        return original(state, identity, reverse=reverse)
+
+    monkeypatch.setattr(api, "_connector_handoff_info", inspect_claim)
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Demo operator"},
+    )
+
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "complete"
+
+
+def test_reversal_claim_blocks_concurrent_reapproval(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda _tenant_id=None: True)
+    started = client.post("/api/workflows/demo")
+    workflow_id = started.json()["workflow_id"]
+    approved = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={"approver": "Demo operator"},
+    )
+    assert approved.status_code == 200
+    original = api._connector_handoff_info
+
+    def inspect_claim(state, identity, *, reverse=False):
+        assert reverse is True
+        assert state.status.value == "reversal_executing"
+        raced = client.post(
+            f"/api/workflows/{workflow_id}/approve",
+            json={"approver": "Second operator"},
+        )
+        assert raced.status_code == 409
+        return original(state, identity, reverse=reverse)
+
+    monkeypatch.setattr(api, "_connector_handoff_info", inspect_claim)
+    undone = client.post(
+        f"/api/workflows/{workflow_id}/undo",
+        json={"actor": "Demo operator"},
+    )
+
+    assert undone.status_code == 200
+    assert undone.json()["status"] == "needs_approval"
+
+
 def test_value_proof_counts_reopened_workflows_after_undo() -> None:
     before = client.get("/api/ops/value-proof").json()["observed"]
     started = client.post("/api/workflows/demo")

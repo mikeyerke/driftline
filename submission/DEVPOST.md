@@ -45,11 +45,11 @@ journey without granting anonymous visitors access to an external system.
 
 ## Proof of action
 
-The live release serves repository-head Git SHA
-`63d96995808c8b1a891abd16682d645db19986fb` from Cloud Build
-`92a1fcac-7d63-4c73-8306-0dcbe18c2466`. The application code is unchanged
-from candidate `ddf5a5b`; subsequent commits preserve release and signed-action
-proof.
+The live release currently reports repository-head Git SHA
+`e38facc43745eab267eacd2da4aa28914dff383b` from Cloud Build
+`96dbf2d7-7ee3-490a-a854-bef5c9615efc` through `/health` (verified August 23,
+2026). Historical release and signed-action proof remains recorded in the
+resource inventory.
 
 In the signed operator lane, a live Gemini/ADK job reached the deterministic
 approval gate and approval reactivated Jira marker `KAN-19`. The same hosted
