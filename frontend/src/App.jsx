@@ -76,6 +76,7 @@ export default function App() {
   const [sourceHistoryRefreshKey, setSourceHistoryRefreshKey] = useState(0);
   const [selectedSource, setSelectedSource] = useState("competitor/pricing");
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
+  const [controlPlaneOpen, setControlPlaneOpen] = useState(() => Boolean(getOperatorSession().identityToken));
   const [judgeMode, setJudgeMode] = useState(true);
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
@@ -204,6 +205,7 @@ export default function App() {
 
   const selectNav = (label) => {
     setSelectedNav(label);
+    setControlPlaneOpen(true);
     const targetId = `${label.toLowerCase()}-section`;
     navScrollTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     navScrollTimersRef.current = [];
@@ -574,6 +576,7 @@ export default function App() {
   };
 
   const focusSection = (sectionId) => {
+    setControlPlaneOpen(true);
     window.requestAnimationFrame(() => {
       document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -603,7 +606,7 @@ export default function App() {
       <Sidebar selected={selectedNav} onSelect={selectNav} />
       <main id="main-content">
         <header className="topbar">
-          <h1>Product decision control room</h1>
+          <h1>Product decisions</h1>
           <div className="topbar-actions">
             <OperatorAccess />
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : scanMessage}</span>}
@@ -613,9 +616,10 @@ export default function App() {
         </header>
 
         <div className="content">
-        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>Live production proof</strong><span>{operatorSession.identityToken ? `Signed tenant lane · ${operatorSession.tenantId} · human-gated connector execution` : "Public judge lane · real ADK + Gemini workflow · no external writes"}</span></div><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live agent workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Safe to evaluate")}</span><ReleaseProof /></div>
+        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>Driftline demo</strong><span>{operatorSession.identityToken ? `Signed tenant lane · ${operatorSession.tenantId} · human-gated connector execution` : "Public demo · real ADK + Gemini workflow · no external writes"}</span></div><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live agent workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Safe to evaluate")}</span><ReleaseProof /></div>
           <DecisionRoom />
-          <div className="legacy-workflow-divider"><span>Additional control-plane proof</span><strong>Promise drift workflow</strong><p>Inspect the original evidence-to-action lane, connectors, durable operations, and rollback below.</p></div>
+          <details className="legacy-workflow-details" open={controlPlaneOpen} onToggle={(event) => setControlPlaneOpen(event.currentTarget.open)}>
+            <summary className="legacy-workflow-summary"><span>More detail</span><strong>Supporting workflow</strong><p>Evidence, actions, integrations, and history.</p><b>{controlPlaneOpen ? "Hide" : "Open"}</b></summary>
           <section id="overview-section" className="overview-section">
             <p className="product-orientation">{approved ? "The source change is verified, the human decision is recorded, and every owner action remains traceable and reversible." : "A public promise changed. Driftline verifies the evidence, maps every affected owner, and stops at a human decision."}</p>
             <UtilityNextStep workflow={workflowState} job={job} scanning={scanning} sourcePaused={selectedSourcePaused} onRunScan={() => runScan()} onNavigate={focusSection} />
@@ -662,7 +666,6 @@ export default function App() {
             <ChangeTimeline state={workflowState} />
             <WorkflowTimeline state={workflowState} />
           </section>
-
           <SourcePanel historyRefreshKey={sourceHistoryRefreshKey} monitorOutcome={job?.run_mode === "monitor" && job?.source_id === selectedSource ? job?.source_status : null} evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onRunSource={runSourceNow} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); setSourceHistoryRefreshKey((value) => value + 1); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} onLifecycleChanged={() => { getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel operatorSession={operatorSession} />
           <TraceEvalPanel workflowId={workflowId} />
@@ -673,6 +676,7 @@ export default function App() {
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
           <TrustPanel actionRecord={actionRecord} />
+          </details>
           <footer className="demo-footer"><span>ⓘ Synthetic replay remains available when the public source cannot be fetched.</span><span>Approval gating is deterministic; the public evaluation lane is packet-safe and configured writes require signed operator approval.</span><span className="legal-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></span></footer>
         </div>
       </main>

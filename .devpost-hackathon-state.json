@@ -28,7 +28,7 @@
     "build-project",
     "prepare-submission"
   ],
-  "rules_acknowledged": false,
+  "rules_acknowledged": true,
   "learning": {
     "status": "active",
     "current_step": "finalize",

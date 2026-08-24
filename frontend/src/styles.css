@@ -229,9 +229,14 @@ main { min-width: 0; overflow-x: clip; }
 .decision-room-promise > div { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 6px; }
 .decision-room-promise > div span { padding: 5px 8px; border: 1px solid rgba(255, 255, 255, .2); border-radius: 999px; color: #e8f2ff; background: rgba(255, 255, 255, .08); font-size: 10px; font-weight: 700; }
 .decision-room-error { display: flex; align-items: center; gap: 7px; margin: 14px 0 0; color: #a6242a; font-size: 14px; }
-.legacy-workflow-divider { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; align-items: baseline; margin: 27px 0 15px; padding-top: 18px; border-top: 1px solid var(--line); }
-.legacy-workflow-divider span { color: #6b7890; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.legacy-workflow-divider strong { font-size: 17px; }.legacy-workflow-divider p { grid-column: 2; margin: 0; color: var(--muted); font-size: 12px; }
+.legacy-workflow-details { margin: 27px 0 0; border-top: 1px solid var(--line); }
+.legacy-workflow-summary { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 14px; align-items: baseline; padding: 18px 0 15px; cursor: pointer; list-style: none; }
+.legacy-workflow-summary::-webkit-details-marker { display: none; }
+.legacy-workflow-summary::before { content: "+"; grid-row: span 2; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--blue); font-size: 15px; line-height: 1; }
+.legacy-workflow-details[open] .legacy-workflow-summary::before { content: "−"; }
+.legacy-workflow-summary span { color: #6b7890; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.legacy-workflow-summary strong { font-size: 17px; }.legacy-workflow-summary p { grid-column: 2; margin: 0; color: var(--muted); font-size: 12px; }.legacy-workflow-summary b { grid-column: 3; grid-row: 1 / span 2; align-self: center; color: var(--blue); font-size: 11px; }
+.legacy-workflow-details > .overview-section { padding-bottom: 10px; }
 
 .decision-room { padding-bottom: 22px; background: #fff; }
 .decision-room-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 25px 28px 20px; background: linear-gradient(110deg, #f5f9ff, #fff); }
@@ -268,7 +273,7 @@ main { min-width: 0; overflow-x: clip; }
   .decision-at-risk, .counterfactual-detail { grid-template-columns: 1fr; }.decision-at-risk, .decision-room-section, .decision-approval-gate { margin-left: 18px; margin-right: 18px; }
   .decision-evidence-grid, .counterfactual-tabs, .experiment-contract dl, .learning-proof-grid { grid-template-columns: 1fr; }.decision-evidence-item, .counterfactual-tab, .experiment-contract dl div, .learning-proof-grid > div { border-right: 0; border-bottom: 1px solid var(--line); }.decision-evidence-item:last-child, .counterfactual-tab:last-child, .experiment-contract dl div:last-child, .learning-proof-grid > div:last-child { border-bottom: 0; }
   .council-position summary { grid-template-columns: 76px 65px minmax(0, 1fr); }.council-position > div { padding-left: 0; }
-  .legacy-workflow-divider { grid-template-columns: 1fr; }.legacy-workflow-divider p { grid-column: 1; }
+  .legacy-workflow-summary { grid-template-columns: auto 1fr auto; gap: 2px 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .decision-room *, .decision-room-hero * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
