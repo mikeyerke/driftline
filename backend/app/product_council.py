@@ -54,9 +54,8 @@ def _agent(role: CouncilRole) -> Agent:
         model=MODEL_NAME,
         mode="task",
         tools=[],
+        output_schema=CouncilPosition,
         generate_content_config=GenerateContentConfig(
-            response_mime_type="application/json",
-            response_json_schema=CouncilPosition.model_json_schema(),
             max_output_tokens=900,
             thinking_config=ThinkingConfig(thinking_level="LOW"),
         ),
@@ -130,13 +129,20 @@ async def _run_json(agent: Agent, prompt: str) -> str:
     runner = Runner(agent=agent, app_name=APP_NAME, session_service=sessions)
     message = types.Content(role="user", parts=[types.Part(text=prompt)])
     final_text = ""
+    task_output: object | None = None
     async for event in runner.run_async(
         user_id="decision-twin", session_id=session.id, new_message=message
     ):
+        if event.output is not None:
+            task_output = event.output
         if event.is_final_response() and event.content and event.content.parts:
             final_text = "".join(
                 part.text or "" for part in event.content.parts if part.text
             )
+    if task_output is not None:
+        if isinstance(task_output, str):
+            return task_output
+        return json.dumps(task_output, sort_keys=True, separators=(",", ":"))
     if not final_text.strip():
         raise ProductCouncilUnavailable(f"{agent.name} returned no structured result")
     return final_text
@@ -170,9 +176,8 @@ def _synthesis_agent() -> Agent:
         model=MODEL_NAME,
         mode="task",
         tools=[],
+        output_schema=CouncilDraft,
         generate_content_config=GenerateContentConfig(
-            response_mime_type="application/json",
-            response_json_schema=CouncilDraft.model_json_schema(),
             max_output_tokens=800,
             thinking_config=ThinkingConfig(thinking_level="LOW"),
         ),
@@ -237,4 +242,3 @@ async def run_live_product_council(case: DecisionCase) -> CouncilSynthesis:
     checked.council = council
     validate_council(checked)
     return council
-
