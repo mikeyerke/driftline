@@ -2,23 +2,28 @@
 
 ## Claim under test
 
-For a verified promise change, Driftline helps a product-marketing or revenue-enablement operator produce a more complete, evidence-linked, owner-ready response faster than their current manual workflow—without removing human control.
+For a consequential product decision, Driftline helps a PM produce a more
+complete, evidence-linked, falsifiable decision faster than their current
+workflow—without hiding dissent or removing human control.
 
 This study is designed to generate decision-grade evidence, not flattering quotes. Do not report results until real participants complete the tasks.
 
 ## Participants
 
-- Recruit 6–8 people who currently own product marketing, competitive intelligence, enablement, deal-desk, or revenue operations work.
+- Recruit 6–8 people who currently own product, growth, product operations, or
+  product-marketing decisions.
 - Exclude Driftline builders and anyone who has rehearsed the demo.
 - Assign anonymous IDs (`P01`, `P02`, …). Do not store names, emails, company names, customer data, or raw source documents in the results file.
 - Counterbalance order: odd participant IDs do Manual → Driftline; even IDs do Driftline → Manual.
 
-## Two matched tasks
+## Two matched decision tasks
 
 Use the repository's synthetic fixtures only.
 
-1. Own-pricing change: unlimited audit-log retention becomes 365 days.
-2. Competitor-pricing change: a public competitor changes packaging or price.
+1. Onboarding redesign: small-team activation improves while enterprise
+   activation falls and permission setup becomes confusing.
+2. Packaging change: self-serve conversion improves while sales-assisted deal
+   quality and support load move in the wrong direction.
 
 The participant receives the before/after evidence and must decide what should happen next. In the manual condition, provide a blank document. In the Driftline condition, use Judge Mode from a fresh run.
 
@@ -26,11 +31,11 @@ The participant receives the before/after evidence and must decide what should h
 
 Award one point for each observable element:
 
-1. Cites the exact source change.
-2. Identifies at least three affected downstream surfaces.
-3. Names an owner for every proposed action.
-4. Separates immediate packet work from owner review or queued follow-up.
-5. Includes an approval/audit/rollback path.
+1. Cites the exact evidence and identifies a material contradiction.
+2. Compares at least three plausible options rather than defending only one.
+3. Preserves a meaningful dissenting view or unresolved unknown.
+4. Defines a measurable success threshold, guardrail, and stop condition.
+5. Names the human owner and explains what outcome would reopen the decision.
 
 Stop the timer when the participant says the response is ready for another owner to execute. Do not coach toward the rubric.
 
@@ -48,6 +53,7 @@ Use these neutral prompts only:
 - “What, if anything, would another owner still need?”
 - “What evidence would make you trust or reject this recommendation?”
 - “Where did you hesitate?”
+- “What would cause you to reverse or reopen this decision?”
 - “Would this earn a place in your weekly workflow? Why or why not?”
 
 ## Measures and win thresholds
@@ -55,7 +61,7 @@ Use these neutral prompts only:
 Primary thresholds, chosen before data collection:
 
 - Median task time improves by at least 30%.
-- Median artifact/owner coverage improves by at least 1 point on the 0–5 rubric.
+- Median decision-quality coverage improves by at least 1 point on the 0–5 rubric.
 - At least 5 of 6 participants say they would use it weekly or for material changes.
 - No participant believes the agent can approve itself or silently change a customer-facing system.
 
@@ -63,7 +69,8 @@ Secondary evidence:
 
 - Confidence delta on a 1–5 scale.
 - Number of moderator hints (target: zero).
-- Recovery comprehension: participant can explain what “reconcile same operation” does.
+- Learning-loop comprehension: participant can explain why a measured outcome
+  reopens the same case generation instead of creating an unrelated decision.
 - One concise quote may be used only with explicit participant permission.
 
 ## Data capture

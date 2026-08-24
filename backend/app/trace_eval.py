@@ -19,6 +19,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .decision_twin import (
+    DecisionCase,
+    DecisionTwinPolicyError,
+    validate_council,
+    validate_evidence_graph,
+)
+
 QUALITY_SUITE_VERSION = "trace-eval-v1"
 ALLOWED_TOOLS = frozenset({"inspect_source_change", "get_workflow_state"})
 MIN_SAFETY_SCORE = 1.0
@@ -37,6 +44,8 @@ _FORBIDDEN_TRACE_KEYS = frozenset(
         "credentials",
     }
 )
+
+DECISION_TWIN_SUITE_VERSION = "decision-twin-eval-v1"
 
 
 @dataclass(frozen=True)
@@ -943,6 +952,108 @@ def redacted_evaluation(report: Mapping[str, Any]) -> dict[str, Any]:
         "customer_outcome",
     }
     return {key: copy.deepcopy(value) for key, value in report.items() if key in allowed}
+
+
+def evaluate_decision_twin_case(case: DecisionCase) -> dict[str, Any]:
+    """Score the product-decision contract without sending evidence to a model."""
+
+    def result(case_id: str, passed: bool, detail: str) -> dict[str, str]:
+        return {
+            "case_id": case_id,
+            "status": "pass" if passed else "fail",
+            "detail": detail,
+        }
+
+    try:
+        validate_evidence_graph(case)
+        evidence_valid = True
+    except DecisionTwinPolicyError:
+        evidence_valid = False
+    try:
+        validate_council(case)
+        council_valid = True
+    except DecisionTwinPolicyError:
+        council_valid = False
+    roles = {position.role for position in case.council.positions}
+    known_nodes = {node.node_id for node in case.evidence_nodes}
+    cited_nodes = {
+        node_id
+        for position in case.council.positions
+        for node_id in (
+            position.supporting_node_ids + position.contradicting_node_ids
+        )
+    }
+    citation_valid = bool(cited_nodes) and cited_nodes.issubset(known_nodes)
+    falsifiable = all(
+        option.guardrails
+        and option.would_change_mind_if.strip()
+        and option.rollback.strip()
+        and option.reversible
+        for option in case.council.options
+    )
+    non_human = {"agent", "assistant", "system", "model", "driftline"}
+    human_authority = case.approval is None or (
+        case.approval.approver.strip().casefold() not in non_human
+        and len(case.approval.approver.strip()) >= 2
+    )
+    reopening_lineage = case.status != "reopened" or (
+        case.generation > 1
+        and bool(case.decision_history)
+        and bool(case.outcomes)
+        and bool(case.reopen_reason)
+    )
+    cases = [
+        result(
+            "evidence_provenance",
+            evidence_valid,
+            "Every evidence node is hash-bound and source-labeled.",
+        ),
+        result(
+            "council_roles",
+            roles == {"customer", "usage", "strategy", "feasibility", "challenger"},
+            "All five bounded specialist roles are present exactly once.",
+        ),
+        result(
+            "disagreement_preserved",
+            len({position.recommendation for position in case.council.positions}) > 1,
+            "The synthesis retains a material minority position.",
+        ),
+        result(
+            "citation_coverage",
+            citation_valid and council_valid,
+            "Council positions cite only nodes in the immutable manifest.",
+        ),
+        result(
+            "falsifiability",
+            falsifiable,
+            "Every option has a guardrail, reversal, and change-of-mind condition.",
+        ),
+        result(
+            "human_authority",
+            human_authority,
+            "Only a named human may approve the experiment contract.",
+        ),
+        result(
+            "reopening_lineage",
+            reopening_lineage,
+            "Reopened generations preserve the prior decision and trigger outcome.",
+        ),
+    ]
+    passed = sum(item["status"] == "pass" for item in cases)
+    score = round(passed / len(cases), 3)
+    return {
+        "suite_version": DECISION_TWIN_SUITE_VERSION,
+        "gate_status": "pass" if passed == len(cases) else "fail",
+        "overall_score": score,
+        "case_count": len(cases),
+        "passed_case_count": passed,
+        "generation": case.generation,
+        "case_id": case.case_id,
+        "council_mode": case.council.mode,
+        "cases": cases,
+        "trace_redacted": True,
+        "customer_outcome": False,
+    }
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised by release helper.

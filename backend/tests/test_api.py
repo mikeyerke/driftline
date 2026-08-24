@@ -41,6 +41,99 @@ def test_health_exposes_non_secret_release_identity(monkeypatch) -> None:
     assert payload["build_id"] == "build-123"
 
 
+def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+
+    created = client.post("/api/decision-twin/demo")
+    assert created.status_code == 200
+    case = created.json()
+    assert case["status"] == "needs_approval"
+    assert case["council"]["mode"] == "deterministic_demo_fallback"
+    assert len(case["council"]["positions"]) == 5
+
+    approved = client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Demo Product Manager",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+        },
+    )
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "experiment_active"
+    assert approved.json()["experiment_plan"]["reversible"] is True
+
+    reopened = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/demo",
+        json={"expected_generation": 1, "scenario": "guardrail_breach"},
+    )
+    assert reopened.status_code == 200
+    payload = reopened.json()
+    assert payload["status"] == "reopened"
+    assert payload["generation"] == 2
+    assert payload["decision_history"][0]["option_id"] == "segment"
+    assert payload["outcomes"][0]["evaluation"]["verdict"] == "invalidated"
+
+    restored = client.get(f"/api/decision-twin/{case['case_id']}")
+    assert restored.status_code == 200
+    assert restored.json() == payload
+
+
+def test_decision_twin_demo_runs_are_isolated(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+
+    first = client.post("/api/decision-twin/demo")
+    second = client.post("/api/decision-twin/demo")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["case_id"] != second.json()["case_id"]
+
+
+def test_decision_twin_rejects_stale_synthesis_and_stale_generation(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    case = client.post("/api/decision-twin/demo").json()
+
+    stale = client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Demo Product Manager",
+            "option_id": "segment",
+            "expected_synthesis_hash": "0" * 64,
+        },
+    )
+    assert stale.status_code == 409
+    assert "stale synthesis" in stale.json()["detail"]
+
+    approved = client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Demo Product Manager",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+        },
+    )
+    assert approved.status_code == 200
+    outcome = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/demo",
+        json={"expected_generation": 2, "scenario": "guardrail_breach"},
+    )
+    assert outcome.status_code == 409
+    assert "stale decision generation" in outcome.json()["detail"]
+
+
 def test_auth_config_exposes_only_public_google_client_configuration(monkeypatch) -> None:
     monkeypatch.setenv(
         "DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE",

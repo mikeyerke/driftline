@@ -8,6 +8,14 @@ The generated Cloud Run URL remains an operational health/fallback origin.
 
 ```mermaid
 flowchart TD
+    BQ[(BigQuery aggregate product metrics)] --> EG[Provenance-preserving evidence graph]
+    CE[Bounded customer, strategy, and delivery evidence] --> EG
+    EG --> PC[Google ADK Product Council: 5 independent roles]
+    PC --> CF[Ship / rollback / segment / defer counterfactuals]
+    CF --> HA{Named human experiment approval}
+    HA --> LR[Measured learning receipt]
+    LR -->|threshold missed or guardrail breached| EG
+    LR -->|validated| DH[(Decision history)]
     S[Allowlisted public snapshot or synthetic replay] --> A[Google ADK coordinator]
     A --> M[ADK structured impact analyst]
     Q[/api/jobs/demo] --> TQ[Cloud Tasks queue]
@@ -30,7 +38,19 @@ flowchart TD
     X --> SL[Slack notification]
     X --> GH[GitHub draft PR]
     F --> U[React operations console]
+    EG --> U
 ```
+
+Decision Twin is a bounded learning loop, not an autonomous roadmap manager.
+Its live council gives five ADK agents independent evidence projections and no
+approval or connector-write tool. A single synthesis turn must preserve dissent
+and citations. BigQuery is an optional aggregate-evidence seam: metric and
+segment names are server allowlisted, date and segment values are parameterized,
+every query is dry-run checked, billed bytes are capped, and cohorts below the
+privacy floor are rejected. Firestore stores the case, approval, outcome, and
+generation lineage with compare-and-set transitions. The deterministic
+evaluator checks provenance, role coverage, disagreement, citations,
+falsifiability, human authority, and outcome-driven reopening.
 
 Gemini 3.5 Flash supplies the live ADK turns through Vertex AI. Google ADK owns
 the coordinator and its two allowlisted inspect/state tools, then runs a

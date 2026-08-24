@@ -179,6 +179,36 @@ export function getHealth() {
   return request("/health");
 }
 
+export function startDecisionTwin() {
+  return request("/api/decision-twin/demo", { method: "POST" });
+}
+
+export function getDecisionTwin(caseId) {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}`);
+}
+
+export function getDecisionTwinEvaluation(caseId) {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}/evaluation`);
+}
+
+export function approveDecisionTwin(caseId, optionId, synthesisHash, approver = "Demo Product Manager") {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}/approve`, {
+    method: "POST",
+    body: JSON.stringify({
+      approver,
+      option_id: optionId,
+      expected_synthesis_hash: synthesisHash,
+    }),
+  });
+}
+
+export function recordDecisionTwinOutcome(caseId, generation, scenario = "guardrail_breach") {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}/outcomes/demo`, {
+    method: "POST",
+    body: JSON.stringify({ expected_generation: generation, scenario }),
+  });
+}
+
 export function getAvailableTenants(identityToken) {
   return request("/api/tenants/available", {
     authenticated: Boolean(identityToken),

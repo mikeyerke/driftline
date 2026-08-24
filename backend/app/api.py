@@ -74,6 +74,13 @@ from .credential_broker import (
     resolve_tenant_credential,
 )
 from .decision_copilot import validate_approval_choice
+from .decision_twin import (
+    DecisionTwinPolicyError,
+    approve_decision_case,
+    attach_aggregate_metrics,
+    build_demo_decision_case,
+    record_outcome,
+)
 from .materiality import build_change_card, normalize_internal_context
 from .memory import build_memory_summary
 from .models import ActionItemStatus, JobState, WorkflowState, WorkflowStatus, utc_now
@@ -85,6 +92,7 @@ from .multimodal import (
 )
 from .persistence import (
     claim_job,
+    compare_and_set_decision_case,
     compare_and_set_workflow,
     consume_salesforce_oauth_state,
     delete_salesforce_connection,
@@ -102,6 +110,7 @@ from .persistence import (
     load_connector_binding,
     load_connector_profile,
     load_credential_enrollment,
+    load_decision_case,
     load_job,
     load_latest_evaluation,
     load_salesforce_connection,
@@ -112,6 +121,7 @@ from .persistence import (
     persist_connector_binding,
     persist_connector_profile,
     persist_credential_enrollment,
+    persist_decision_case,
     persist_evaluation,
     persist_job,
     persist_job_failure,
@@ -128,8 +138,11 @@ from .persistence import (
     reserve_tenant_rate_limit,
     update_jobs_for_workflow,
 )
+from .product_analytics import AnalyticsPolicyError, query_aggregate_metric
+from .product_council import ProductCouncilUnavailable, run_live_product_council
 from .trace_eval import (
     build_quality_fixture,
+    evaluate_decision_twin_case,
     run_quality_gate,
 )
 
@@ -328,6 +341,19 @@ class UndoRequest(BaseModel):
 
 class ReconcileRequest(UndoRequest):
     """Named-human recovery request for a durably interrupted operation."""
+
+
+class DecisionTwinApprovalRequest(BaseModel):
+    approver: str = Field(min_length=2, max_length=120)
+    option_id: Literal["ship", "rollback", "segment", "defer"]
+    expected_synthesis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class DecisionTwinOutcomeRequest(BaseModel):
+    expected_generation: int = Field(ge=1, le=20)
+    scenario: Literal["guardrail_breach", "successful_recovery"] = (
+        "guardrail_breach"
+    )
 
 
 class DismissRequest(BaseModel):
@@ -808,6 +834,11 @@ def _reserve_agent_call(tenant_id: str | None = None) -> bool:
         times.append(now)
         _record_tenant_usage(tenant_id, "agent_calls")
         return True
+
+
+def _reserve_product_council_calls() -> bool:
+    """Reserve the exact five specialist turns and one synthesis turn."""
+    return all(_reserve_agent_call() for _call in range(6))
 
 
 def _quota_rate_limit_error(detail: str, window_seconds: int) -> HTTPException:
@@ -5870,6 +5901,172 @@ def get_workflow_scenarios(
         state.evidence.evidence_hash if state.evidence else None,
         state.integration_targets,
     )
+
+
+@app.post("/api/decision-twin/demo")
+async def start_decision_twin_demo() -> dict:
+    """Create the pinned PM decision case and optionally run the live ADK council."""
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin demo rate limit reached; retry later."
+        )
+    # Each anonymous run receives an opaque id. A shared deterministic id would
+    # let one judge session reset or mutate another session's approval.
+    case = build_demo_decision_case(
+        case_id=f"decision-onboarding-{secrets.token_hex(12)}"
+    )
+    if os.getenv("DECISION_TWIN_BIGQUERY_ENABLED", "false").casefold() == "true":
+        try:
+            case = attach_aggregate_metrics(
+                case,
+                [
+                    query_aggregate_metric("activation_rate", "small_workspaces"),
+                    query_aggregate_metric("activation_rate", "enterprise_workspaces"),
+                ],
+            )
+        except AnalyticsPolicyError:
+            case.events.append(
+                {
+                    "event_id": "bigquery-aggregate-unavailable",
+                    "action": "bigquery_aggregate_reader",
+                    "outcome": "pinned_aggregate_fixture_retained",
+                    "generation": case.generation,
+                }
+            )
+    if os.getenv("DECISION_TWIN_LIVE_COUNCIL", "false").casefold() == "true":
+        if not _reserve_product_council_calls():
+            case.events.append(
+                {
+                    "event_id": "product-council-quota-bounded",
+                    "action": "google_adk_product_council",
+                    "outcome": "deterministic_demo_fallback",
+                    "generation": case.generation,
+                    "reason": "public_model_call_quota",
+                }
+            )
+        else:
+            try:
+                case.council = await run_live_product_council(case)
+                case.events[-1]["execution_mode"] = "google_adk"
+                case.events[-1]["model"] = os.getenv(
+                    "MODEL_NAME", "gemini-3.5-flash"
+                )
+            except ProductCouncilUnavailable as exc:
+            # The public judge flow remains reproducible, but the response and
+            # audit event must never mislabel a fallback as a live model run.
+                case.events.append(
+                    {
+                        "event_id": "product-council-live-unavailable",
+                        "action": "google_adk_product_council",
+                        "outcome": "deterministic_demo_fallback",
+                        "generation": case.generation,
+                        "reason": str(exc)[:240],
+                    }
+                )
+    persist_decision_case(case)
+    return case.model_dump(mode="json")
+
+
+@app.get("/api/decision-twin/{case_id}")
+def get_decision_twin(case_id: str) -> dict:
+    case = load_decision_case(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    if case.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    return case.model_dump(mode="json")
+
+
+@app.get("/api/decision-twin/{case_id}/evaluation")
+def get_decision_twin_evaluation(case_id: str) -> dict:
+    case = load_decision_case(case_id)
+    if case is None or case.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    return evaluate_decision_twin_case(case)
+
+
+@app.post("/api/decision-twin/{case_id}/approve")
+def approve_decision_twin(
+    case_id: str, request: DecisionTwinApprovalRequest
+) -> dict:
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin approval rate limit reached; retry later."
+        )
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    previous_status = current.status
+    previous_generation = current.generation
+    try:
+        approved = approve_decision_case(
+            current,
+            option_id=request.option_id,
+            approver=request.approver,
+            expected_synthesis_hash=request.expected_synthesis_hash,
+        )
+    except DecisionTwinPolicyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    committed = compare_and_set_decision_case(
+        approved,
+        expected_generation=previous_generation,
+        expected_statuses={previous_status},
+    )
+    if not committed:
+        raise HTTPException(
+            status_code=409,
+            detail="Decision changed before approval; reload the current generation.",
+        )
+    return approved.model_dump(mode="json")
+
+
+@app.post("/api/decision-twin/{case_id}/outcomes/demo")
+def record_decision_twin_demo_outcome(
+    case_id: str, request: DecisionTwinOutcomeRequest
+) -> dict:
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin outcome rate limit reached; retry later."
+        )
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    observation_id = f"outcome-{request.scenario}"
+    if any(item.observation_id == observation_id for item in current.outcomes):
+        return current.model_dump(mode="json")
+    value = -0.14 if request.scenario == "guardrail_breach" else -0.02
+    observation = {
+        "observation_id": observation_id,
+        "metric_id": "enterprise_activation_rate",
+        "segment": "enterprise_workspaces",
+        "value": value,
+        "baseline": 0.0,
+        "unit": "relative_change",
+        "observed_at": "2026-08-30T18:00:00+00:00",
+        "source_label": "BigQuery aggregate outcome fixture",
+        "content_hash": hashlib.sha256(
+            f"{observation_id}:{value}".encode()
+        ).hexdigest(),
+    }
+    try:
+        updated = record_outcome(
+            current,
+            observation,
+            expected_generation=request.expected_generation,
+        )
+    except DecisionTwinPolicyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    committed = compare_and_set_decision_case(
+        updated,
+        expected_generation=current.generation,
+        expected_statuses={current.status},
+    )
+    if not committed:
+        raise HTTPException(
+            status_code=409,
+            detail="Decision changed before the outcome was recorded; reload it.",
+        )
+    return updated.model_dump(mode="json")
 
 
 @app.post("/api/workflows/demo")

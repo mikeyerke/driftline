@@ -1,100 +1,93 @@
-# Driftline proof-of-action demo — 3:45 target
+# Driftline Decision Twin demo — 3:48 target
 
-The official limit is four minutes. Record at 1080p, narrate briskly, and upload
-the final cut publicly to YouTube or Vimeo. Show real application behavior and
-visible Google Cloud proof; no slide-only substitute.
+The official limit is four minutes. Record one continuous 1080p product take
+with a visible deployed URL and finish with Google Cloud proof. Do not claim a
+customer study, BigQuery deployment, or live council unless each is verifiable
+on the serving SHA.
 
-## 0:00–0:18 — Hook
+## 0:00–0:20 — The product decision bottleneck
 
-**Screen:** Deployed Driftline URL with the competitor pricing diff in view.
+**Screen:** Decision Room hero and the pinned onboarding decision.
 
-**Narration:** “A competitor changes one pricing sentence. The alert is easy.
-Finding every stale promise, assigning the right owner, and proving what a human
-approved is the real work. Driftline turns that change into reversible action.”
+**Narration:** “PMs do not lack opinions. They lack a defensible way to combine
+contradictory evidence, commit to a test, and learn without losing the original
+reasoning. Driftline is a Decision Twin: an evidence-to-outcome control room.”
 
-## 0:18–0:48 — Enter Judge Mode and trigger Taskmaster
+## 0:20–0:52 — Evidence with provenance
 
-**Screen:** Show `driftline-ops.web.app`, turn **Judge Mode** on, select
-**Competitor pricing snapshot**, and click **Run live agent**. Keep the
-packet-safe label and four-step Evidence → Decision → Action → Proof path visible.
+**Screen:** Start the council. Open the evidence graph and move through usage,
+customer, strategy, and feasibility nodes.
 
-**Narration:** “This is the live Cloud Run application. Run live agent creates a
-durable Cloud Tasks job. Google ADK and Gemini 3.5 Flash inspect an allowlisted
-source while Firestore stores the job, workflow, and audit state. The browser
-does not hold the model request open.”
+**Narration:** “Small teams activate faster after the redesign, while enterprise
+activation falls and permission setup becomes confusing. Every claim keeps its
+source, metric, segment, observation window, and confidence. Aggregate product
+metrics can come through a parameterized, dry-run-checked, bytes-capped BigQuery
+adapter; the fixture remains explicitly labeled when live data is unavailable.”
 
-## 0:48–1:25 — Prove evidence became work
+## 0:52–1:28 — Independent ADK council and visible dissent
 
-**Screen:** Open evidence, show the full SHA-256 hash, then trace the impact map
-from source to offering to four work surfaces. Open one artifact detail.
+**Screen:** Show the five council positions and pause on the challenger dissent.
 
-**Narration:** “Driftline binds the exact before and after bytes to an evidence
-hash. Gemini maps the change into a comparison map, battlecard, deal-desk rule,
-and executive brief. Every action has an owner, risk, citation, and rollback.
-The persisted trace shows the model and only the two allowlisted tools.”
+**Narration:** “Five independent Google ADK agents inspect bounded projections:
+customer, usage, strategy, feasibility, and challenger. They cannot approve or
+write anywhere. A single synthesis turn preserves citations and disagreement
+instead of averaging it away. Here the council rejects a universal rollout.”
 
-## 1:25–1:55 — Show the autonomy boundary
+## 1:28–2:02 — Counterfactual decision quality
 
-**Screen:** Decision Copilot options and **Human approval required**.
+**Screen:** Compare ship, rollback, segment, and defer. Switch tabs and show
+expected upside, downside, reversibility, unknowns, and cited evidence.
 
-**Narration:** “The model can interpret and recommend, but it cannot authorize.
-High-risk work stops in deterministic policy. The ADK agent has no approval
-tool, and approval fails if the evidence hash or allowlisted action changes.”
+**Narration:** “Driftline makes the alternatives concrete before anyone commits.
+Shipping protects momentum but risks enterprise conversion. Rolling back loses
+small-team gains. Deferring buys information but misses the launch window. A
+segmented rollout preserves upside and contains the observed failure mode.”
 
-## 1:55–2:40 — Wow moment: durable operation, action receipt, reversal
+## 2:02–2:40 — Human authority becomes an experiment
 
-**Screen:** In the same continuous browser take, approve the recommended plan.
-Show the operation ID, Firestore action, persisted Cloud Storage packet, owner
-action queue, audit IDs, and both external-write flags. Pause on the four-part
-proof receipt. Click **Reopen decision** and show the
-persisted reversal marker. If a pre-authenticated operator tab is available,
-show the Jira marker and its scoped reversal only after this public proof; the
-public path remains sufficient and reproducible without credentials.
+**Screen:** Approve the segmented option and show the experiment receipt.
 
-**Narration:** “Approval is an action, not a chat response. Before any side
-effect, Driftline durably claims one operation ID and blocks conflicting
-decisions. It persists
-the evidence-linked packet, creates accountable owner work, and records the
-operation in Firestore and Cloud Storage. Reopen decision writes a scoped
-reversal marker. In a signed tenant, the same policy boundary can create or
-reactivate one idempotent Jira marker and reverse only Driftline-owned state.”
+**Narration:** “The model recommends; a named human authorizes. Approval freezes
+a falsifiable experiment: target segment, success metric, enterprise guardrail,
+stop condition, owner, and review date. Driftline rejects stale generations and
+conflicting approvals with compare-and-set persistence.”
 
-## 2:40–3:18 — Visible Google Cloud proof
+## 2:40–3:15 — The wow moment: outcome reopens the same decision
 
-**Screen:** Show `/health`, `/api/ops/summary`, one Firestore workflow/audit
-record, and Cloud Run revision/log view. Never show tokens or secret values.
+**Screen:** Apply the measured demo outcome. Show the learning receipt and the
+new case generation with prior lineage retained.
 
-**Narration:** “This is the serving Git SHA and Cloud Build ID. Cloud Run hosts
-the API and console, Cloud Tasks dispatches work, Firestore restores state,
-Scheduler drives monitoring, and the latest trace gate passes fourteen of
-fourteen safety and usefulness checks.”
+**Narration:** “A decision is not done when a ticket moves. The measured outcome
+is evaluated against the thresholds committed at approval. If a guardrail
+breaks, Driftline writes a learning receipt and reopens the same decision as a
+new generation. The evidence, dissent, approval, and result remain linked, so
+the organization compounds judgment instead of repeating debate.”
 
-## 3:18–3:48 — Close
+## 3:15–3:38 — Google architecture and bounded cost
 
-**Screen:** Architecture image followed by project name, live URL, repository,
-and Taskmaster.
+**Screen:** Architecture view, evaluation score, then Cloud Run/Firestore/
+BigQuery proof for the exact serving SHA.
 
-**Narration:** “Driftline is not another alert and not another chat window. It
-is an evidence-bound Taskmaster agent: autonomous where policy allows, human
-where judgment matters, and reversible when the decision changes.”
+**Narration:** “Cloud Run hosts the control room. Firestore stores cases and
+lineage. Google ADK and Gemini power the bounded council. BigQuery supplies
+privacy-thresholded aggregates. A deterministic seven-check evaluator tests
+provenance, role independence, disagreement, citations, falsifiability, human
+authority, and reopening. Cloud Run scales to zero and one instance, model
+calls are quota-bound, and every query has a billed-bytes ceiling.”
 
-## Optional recovery insert (replace 12 seconds of Cloud proof, never stage as a production outage)
+## 3:38–3:48 — Close
 
-Use a local test build with the deterministic failure fixture. Show
-`reconciliation_required`, the unchanged operation ID, and **Reconcile same
-operation** completing attempt two. Label this clearly as a simulated recovery
-test. Do not imply a real provider outage occurred.
+**Screen:** Decision Room hero with the learning receipt visible.
 
-## Recording gate
+**Narration:** “Driftline turns product judgment from a meeting artifact into a
+measurable, auditable learning loop: evidence, dissent, decision, outcome.”
 
-- [ ] Total duration is 3:50 or shorter, leaving 10 seconds below the rule limit.
-- [ ] Live URL appears in the first 30 seconds.
-- [ ] Gemini 3.5 Flash, Google ADK, and actual action appear on screen or aloud.
-- [ ] Public persisted action and reversal form one continuous truthful
-      sequence; signed Jira proof is included only if safely pre-authenticated.
-- [ ] Google Cloud proof appears before 3:16.
-- [ ] No credentials, tokens, private records, or raw prompts appear.
-- [ ] Captions are accurate and English.
-- [ ] Final upload is public, not private or unlisted.
-- [ ] The operation ID is readable before and after action/recovery.
-- [ ] No cut hides the human approval click or changes the external-write lane.
+## Recording gates
+
+- Serving `/health` SHA equals the release commit.
+- `./scripts/verify_decision_twin.sh` passes against the public URL.
+- Live council proof shows `google_adk` and `gemini-3.5-flash`; otherwise narrate
+  the visible deterministic fallback honestly.
+- BigQuery is provisioned and the production result reports its aggregate
+  source before claiming it in narration.
+- No invented user, ROI, retention, or revenue result appears on screen.

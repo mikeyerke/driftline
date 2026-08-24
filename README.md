@@ -29,6 +29,26 @@ reports. The console shows the latest score, one-step regression delta, and a
 bounded oldest-to-newest trajectory from `GET /api/evals/history`; these are
 evaluation metrics, not customer ROI or willingness-to-pay claims.
 
+## Decision Twin: evidence to outcome
+
+The release candidate adds a focused product-management decision loop above the
+existing change-to-action workflow. A pinned onboarding case combines bounded
+product analytics, customer evidence, strategy constraints, and delivery risk
+into a provenance-preserving evidence graph. Five independent Google ADK
+specialists take customer, usage, strategy, feasibility, and challenger
+positions before one bounded synthesis compares four counterfactuals: ship,
+rollback, segment, or defer. The model recommends; a named human alone approves
+a falsifiable experiment with success, guardrail, and stop conditions.
+
+The loop does not end at approval. A measured aggregate outcome is evaluated
+against the precommitted thresholds, produces a learning receipt, and can
+reopen the same decision as the next generation while preserving its lineage.
+The public fixture is deterministic and explicitly labeled; live council mode
+uses Gemini 3.5 Flash through Google ADK, and the optional BigQuery adapter reads
+only allowlisted aggregate metrics through parameterized, dry-run-checked,
+bytes-capped queries. See the [judge scorecard](submission/JUDGE_SCORECARD.md)
+and [Decision Twin implementation plan](docs/superpowers/plans/2026-08-23-decision-twin-implementation.md).
+
 The default demonstration models a competitor price change from $49 to $59 per
 seat per month, then traces the impact into a comparison map, pricing
 battlecard, deal-desk guidance, and executive brief. The console can also run

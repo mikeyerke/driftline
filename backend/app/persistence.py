@@ -12,6 +12,7 @@ from uuid import uuid4
 from google.api_core.exceptions import AlreadyExists, InvalidArgument
 from google.cloud import firestore
 
+from .decision_twin import DecisionCase
 from .models import (
     ArtifactImpact,
     JobState,
@@ -38,6 +39,7 @@ TENANT_USAGE_COLLECTION = "driftline_tenant_usage"
 TENANT_RATE_LIMITS_COLLECTION = "driftline_tenant_rate_limits"
 TENANT_CONNECTOR_PROFILES_COLLECTION = "driftline_tenant_connector_profiles"
 CREDENTIAL_ACCESS_COLLECTION = "driftline_credential_access_events"
+DECISION_CASES_COLLECTION = "driftline_decision_cases"
 TENANT_CREDENTIALS_SUBCOLLECTION = "credentials"
 TENANT_CREDENTIAL_ENROLLMENTS_SUBCOLLECTION = "credential_enrollments"
 TENANT_POLICY_DEFAULTS: dict[str, int] = {
@@ -57,6 +59,7 @@ _job_failures_memory: dict[str, dict[str, Any]] = {}
 _evaluations_memory: dict[str, dict[str, Any]] = {}
 _credential_access_memory: list[dict[str, Any]] = []
 _credential_enrollments_memory: dict[tuple[str, str, str], dict[str, Any]] = {}
+_decision_cases_memory: dict[str, dict[str, Any]] = {}
 _tenant_provision_lock = Lock()
 
 
@@ -226,6 +229,72 @@ def load_workflow(workflow_id: str) -> WorkflowState | None:
     if not snapshot.exists:
         return None
     return _state_from_dict(snapshot.to_dict() or {})
+
+
+def persist_decision_case(case: DecisionCase) -> None:
+    """Persist a complete Decision Twin generation without raw credentials."""
+    payload = case.model_dump(mode="json")
+    if not _enabled():
+        _decision_cases_memory[case.case_id] = payload
+        return
+    payload["expires_at"] = _retention_expiry(case.tenant_id)
+    document = _client().collection(DECISION_CASES_COLLECTION).document(case.case_id)
+    document.set(payload)
+    _create_audit_events(document.collection("audit_events"), case.events)
+
+
+def load_decision_case(case_id: str) -> DecisionCase | None:
+    if not _enabled():
+        payload = _decision_cases_memory.get(case_id)
+        return DecisionCase.model_validate(payload) if payload else None
+    snapshot = _client().collection(DECISION_CASES_COLLECTION).document(case_id).get()
+    if not snapshot.exists:
+        return None
+    payload = snapshot.to_dict() or {}
+    payload.pop("expires_at", None)
+    return DecisionCase.model_validate(payload)
+
+
+def compare_and_set_decision_case(
+    case: DecisionCase,
+    *,
+    expected_generation: int,
+    expected_statuses: set[str],
+) -> bool:
+    """Commit one decision transition only from the reviewed generation/state."""
+    payload = case.model_dump(mode="json")
+    if not _enabled():
+        current = _decision_cases_memory.get(case.case_id)
+        if current is None:
+            return False
+        if int(current.get("generation", 0)) != expected_generation:
+            return False
+        if str(current.get("status")) not in expected_statuses:
+            return False
+        _decision_cases_memory[case.case_id] = payload
+        return True
+
+    client = _client()
+    document = client.collection(DECISION_CASES_COLLECTION).document(case.case_id)
+    payload["expires_at"] = _retention_expiry(case.tenant_id)
+
+    @firestore.transactional
+    def transition(tx: Any) -> bool:
+        snapshot = document.get(transaction=tx)
+        if not snapshot.exists:
+            return False
+        current = snapshot.to_dict() or {}
+        if int(current.get("generation", 0)) != expected_generation:
+            return False
+        if str(current.get("status")) not in expected_statuses:
+            return False
+        tx.set(document, payload)
+        return True
+
+    committed = transition(client.transaction())
+    if committed:
+        _create_audit_events(document.collection("audit_events"), case.events)
+    return committed
 
 
 def list_workflows(limit: int = 50) -> list[WorkflowState]:

@@ -12,12 +12,13 @@ fi
 
 gcloud billing budgets update "${BUDGET_ID}" \
   --billing-account="${BILLING_ACCOUNT}" \
+  --budget-amount=300USD \
   --clear-threshold-rules \
-  --add-threshold-rule=percent=0.1 \
+  --add-threshold-rule=percent=0.083333 \
   --add-threshold-rule=percent=0.25 \
   --add-threshold-rule=percent=0.5 \
   --add-threshold-rule=percent=0.75 \
-  --add-threshold-rule=percent=0.9 \
+  --add-threshold-rule=percent=0.95 \
   --add-threshold-rule=percent=1.0 \
   --quiet
 

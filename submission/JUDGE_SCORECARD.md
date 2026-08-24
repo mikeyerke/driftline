@@ -1,133 +1,105 @@
 # Driftline judge scorecard
 
-This is the shortest path from the official judging rubric to reproducible
-proof in the deployed product. It is intentionally evidence-led: public demo
-activity is labeled as evaluation telemetry, and no customer ROI is claimed.
+This is the shortest rubric-aligned review path for the Decision Twin release
+candidate. The current public runtime still serves `e38facc`; run every hosted
+gate again after deploying the candidate. Evaluation fixtures are labeled and
+no customer ROI is claimed.
 
 Official brief: [All Things Agentic Hackathon](https://allthingsagentichackathon.devpost.com/)
 
-Current release proof (2026-08-22): the runtime-code proof passed fresh
-live-agent and approval/undo checks through Google ADK + Gemini 3.5 Flash.
-Read the exact serving SHA/build and fresh run IDs from `/health` and the
-repository scripts; see [`docs/RESOURCE_INVENTORY.md`](../docs/RESOURCE_INVENTORY.md)
-for the explicit Salesforce, pilot, and bounded-monitoring limitations. Re-run
-the repository scripts before submission.
+## 40% — Innovation and PM utility
 
-## 40% — Innovation & operational utility
+**Core problem:** PMs make consequential decisions from contradictory usage,
+customer, strategy, and delivery evidence. The rationale fragments across
+meetings and documents; success criteria are rarely frozen; measured outcomes
+do not reliably update the original decision.
 
-**Problem:** Product Marketing and RevOps receive market and promise changes,
-but the expensive work is deciding whether a change matters, finding every
-affected promise, assigning owners, and proving the work closed.
+**What is different:** Driftline turns decision debt into a closed learning
+loop. A provenance-preserving evidence graph feeds five independent specialist
+positions. The product keeps dissent visible, compares four concrete
+counterfactuals, converts a named human choice into a falsifiable experiment,
+then evaluates the outcome and reopens the same case generation when evidence
+invalidates the plan. It is not a generic chat assistant, summary, or autonomous
+roadmap manager.
 
-**What is different:** Driftline turns one verified source transition into a
-Change Card: materiality and decision window, affected offering, role-specific
-work packets, evidence citations, owner deadlines, reversible action identity,
-and an append-only closure trail. It is a change-to-action operator, not an
-alert feed or chat summary.
+**Judge proof:**
 
-**Live proof:**
+1. Open the Decision Room and run the pinned onboarding case.
+2. Inspect usage, customer, strategy, and feasibility evidence with provenance.
+3. Show the customer, usage, strategy, feasibility, and challenger council
+   positions; pause on explicit dissent and citations.
+4. Compare ship, rollback, segment, and defer across upside, downside,
+   reversibility, unknowns, and supporting evidence.
+5. Approve the segmented experiment as a named human; inspect its success,
+   guardrail, stop, owner, and review conditions.
+6. Apply the measured demo outcome; show the learning receipt and the same case
+   reopened with a new generation and preserved lineage.
 
-1. Open the [deployed console](https://driftline-ops.web.app/).
-2. Leave **Judge Mode** on, select `Competitor pricing snapshot`, and click
-   **Run live agent**.
-3. Watch the agent trace move from durable queue to Google ADK tools and the
-   structured Gemini impact pass.
-4. Open the source evidence and follow the graph to the comparison map,
-   pricing battlecard, deal-desk guidance, and executive brief.
-5. Approve the recommended or narrower plan, inspect the operation ID and
-   four-part proof receipt, claim/complete an owner action, then **Reopen
-   decision**. The output and reversal remain in the audit trail.
-
-The public lane creates a real private Cloud Storage change packet and
-Firestore workflow, but never writes a customer's systems. The signed tenant
-lane is the only lane allowed to call configured connectors.
-
-## 30% — Architectural discipline & Google stack
-
-The deployed path is:
+## 30% — Architectural discipline and Google stack
 
 ```text
-allowlisted snapshot → Cloud Tasks → Cloud Run worker
-  → Google ADK + Gemini 3.5 Flash
-  → deterministic materiality/policy gate
-  → Firestore workflow + audit + source ledger
-  → versioned Cloud Storage output / scoped connector handoff
+bounded evidence + BigQuery aggregates
+  → five independent Google ADK / Gemini specialists
+  → one bounded synthesis preserving citations and dissent
+  → deterministic counterfactual and policy validation
+  → named-human experiment approval
+  → Firestore case, approval, outcome, and generation lineage
+  → deterministic seven-check evaluation
+  → measured outcome reopens or closes the decision
 ```
 
-The model receives only bounded, quoted source evidence and two allowlisted
-read/state tools. It cannot approve itself, widen permissions, or call undo.
-Cloud Tasks is at-least-once with durable deduplication; connector actions use
-tenant-bound Secret Manager bindings, operation scopes, marker idempotency, and
-reversal markers. Side effects are claimed before execution; ambiguous outcomes
-block conflicting work and reconcile the same operation ID. Firestore and Cloud Storage are in the isolated
-`driftline-hackathon-2026` project.
+- Google ADK agents receive separate, minimal evidence projections and have no
+  approval or connector-write tool.
+- Gemini output uses strict schemas; invalid live output fails into an explicitly
+  labeled deterministic demo fallback rather than masquerading as live AI.
+- BigQuery accepts only server-allowlisted metrics and segments. Values are
+  parameterized, every query dry-runs first, cohorts below 25 are rejected, and
+  billed bytes are capped at 50 MB in the deployment configuration.
+- Firestore compare-and-set transitions reject stale generations and conflicting
+  approvals. Outcomes preserve prior decisions instead of overwriting history.
+- Cost boundaries include Cloud Run min 0/max 1, six reserved model calls per
+  council, BigQuery bytes caps, bounded retries, and budget alerts at $25, $75,
+  $150, $225, $285, and $300. Budget alerts do not falsely claim to hard-cap
+  Google Cloud spend.
 
-## 30% — Demo & production readiness
+## 30% — Demo and production readiness
 
-Run the exact release checks from the repository root:
+Local release gate:
 
 ```bash
-BASE=https://driftline-ops.web.app
-curl -fsS "$BASE/health"
+cd backend && .venv/bin/ruff check app tests && .venv/bin/pytest -q
+cd ../frontend && npm run build
+cd .. && ./scripts/verify_frontend_contract.sh
+for script in scripts/*.sh; do bash -n "$script"; done
+git diff --check
+```
+
+After an authenticated Google operator provisions and deploys the exact PR SHA:
+
+```bash
+./scripts/update_budget_guardrail.sh
+./scripts/provision_decision_twin_bigquery.sh
+./scripts/deploy.sh
+BASE=https://driftline-ops.web.app ./scripts/verify_decision_twin.sh
 ./scripts/verify_live_agent.sh
 ./scripts/verify_public_approval_undo.sh
 ./scripts/verify_production.sh
 ./scripts/verify_trace_eval.sh
 ```
 
-Run `verify_live_agent.sh` before `verify_production.sh`; the latter rejects a
-trace evaluation that is not bound to the current serving SHA.
-
-The scripts fail closed unless the public service is healthy, the active Cloud
-Run deployment is in the isolated project, the live job reaches
-`needs_approval`, the response proves `gemini-3.5-flash` and `google_adk`, the
-two allowlisted tools are present, both the impact analyst and decision
-copilot are genuine structured Gemini turns with a passing red-team review,
-and the evidence-bound artifacts and audit events are persisted. The live
-verifier retries the explicitly permitted
-anonymous deterministic fallback for up to three bounded runs, but still
-fails unless a genuine Gemini structured turn is proven. The full local gate
-is:
-
-```bash
-.venv/bin/pytest -q
-.venv/bin/ruff check backend
-npm run build --prefix frontend
-./scripts/verify_dependencies.sh  # requires uv and pip-audit
-git diff --check
-```
-
-The frozen backend resolution is also checked with `pip-audit` after exporting
-`backend/uv.lock`; the current repository audit returned **No known
-vulnerabilities found**.
-
-The packet-safety verifier is separate from the Gemini proof so the two claims
-remain auditable: it creates a fresh public workflow, approves a bounded
-evidence packet, asserts `storage_status=persisted` with both external-write
-flags false, then reopens the decision and asserts a persisted reversal marker.
-It never needs a connector credential or performs a third-party write.
-
-The trace-to-eval verifier is the release-quality companion: it applies fourteen
-independent checks to the fresh bounded agent trace, requires 100% critical
-safety, at least 75% usefulness, at least 90% overall, and fails on a score
-regression against the prior persisted report. The report is append-only,
-redacted, and explicitly marked as evaluation telemetry rather than customer
-outcomes. See [`docs/TRACE_EVAL.md`](../docs/TRACE_EVAL.md) for the case
-contract and API surfaces.
-
-The current release evidence is recorded in
-[`docs/RESOURCE_INVENTORY.md`](../docs/RESOURCE_INVENTORY.md), including the
-source commit, Cloud Build ID, Cloud Run revision, public job ID, and exact
-fixture URLs. The architecture diagram is in
-[`docs/architecture.md`](../docs/architecture.md).
+The Decision Twin verifier fails unless production proves live Google ADK mode,
+BigQuery aggregate evidence, a named-human approval, outcome-driven reopening,
+preserved lineage, and a 100% seven-check evaluation. Existing checks still
+protect the evidence-bound change-to-action workflow and reversible packet lane.
 
 ## Honest limits
 
-- The anonymous demo monitors five pinned fixtures; it is not arbitrary web
-  crawling.
-- Salesforce is a read-only OAuth lane awaiting a real tenant's consent.
-- Public connector cards are packet-safe; configured external writes require
-  signed tenant approval.
-- Hours saved, revenue lift, retention impact, willingness-to-pay, and a
-  customer pilot are not measured. The Value proof panel reports deployment
-  observations separately from those outcomes.
+- The showcased onboarding case and measured outcome are deterministic fixtures,
+  not customer research or commercial traction.
+- BigQuery provisioning and the new Cloud Run candidate require an authenticated
+  Google Cloud operator; committed infrastructure is not deployment proof.
+- The current public URL does not yet serve Decision Twin.
+- A real 6–8 PM usability study, willingness-to-pay signal, and outcome pilot
+  remain human dependencies and must be completed before making market claims.
+- No feature can guarantee a hackathon win. The strongest defensible claim is a
+  technically bounded, unusually complete evidence-to-outcome learning loop.

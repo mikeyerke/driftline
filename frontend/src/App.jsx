@@ -28,6 +28,7 @@ import TraceEvalPanel from "./components/TraceEvalPanel";
 import ReleaseProof from "./components/ReleaseProof";
 import UtilityNextStep from "./components/UtilityNextStep";
 import JudgeJourney from "./components/JudgeJourney";
+import DecisionRoom from "./components/DecisionRoom";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -595,7 +596,7 @@ export default function App() {
       <Sidebar selected={selectedNav} onSelect={selectNav} />
       <main id="main-content">
         <header className="topbar">
-          <h1>Promise change control room</h1>
+          <h1>Product decision control room</h1>
           <div className="topbar-actions">
             <OperatorAccess />
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : liveWorkflow ? "Ready for decision" : "Status updated"}</span>}
@@ -605,6 +606,8 @@ export default function App() {
 
         <div className="content">
         <div className="workspace-banner"><div className="workspace-banner-copy"><strong>Live production proof</strong><span>{operatorSession.identityToken ? `Signed tenant lane · ${operatorSession.tenantId} · human-gated connector execution` : "Public judge lane · real ADK + Gemini workflow · no external writes"}</span></div><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live agent workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Safe to evaluate")}</span><ReleaseProof /></div>
+          <DecisionRoom />
+          <div className="legacy-workflow-divider"><span>Additional control-plane proof</span><strong>Promise drift workflow</strong><p>Inspect the original evidence-to-action lane, connectors, durable operations, and rollback below.</p></div>
           <section id="overview-section" className="overview-section">
             <p className="product-orientation">{approved ? "The source change is verified, the human decision is recorded, and every owner action remains traceable and reversible." : "A public promise changed. Driftline verifies the evidence, maps every affected owner, and stops at a human decision."}</p>
             <UtilityNextStep workflow={workflowState} job={job} scanning={scanning} sourcePaused={selectedSourcePaused} onRunScan={() => runScan()} onNavigate={focusSection} />

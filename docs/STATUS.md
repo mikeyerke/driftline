@@ -8,10 +8,10 @@ Updated: 2026-08-23 (America/Chicago)
 
 ## Product contract
 
-Driftline turns an allowlisted market or product change into an evidence-bound
-work package:
+Driftline turns bounded evidence into an evidence-bound work package and closes
+the product-decision learning loop:
 
-`source change -> evidence/hash -> impact map -> owner work -> human approval -> reversible action -> audit`
+`evidence -> independent council -> counterfactuals -> human experiment -> measured outcome -> reopen or close`
 
 ## Public access
 
@@ -46,21 +46,23 @@ tenant and its configured connectors.
 | Confluence / Slack / GitHub | **Adapters implemented; not current core path** | Connector contracts and historical proof exist | Keep out of the main claim unless rerun on the current candidate |
 | Pilot measurement instrumentation | **Implemented and tested** | Paired baseline/Driftline validation and idempotent retries | Operator-reported until reconciled to evidence |
 | Customer ROI / time saved / revenue / retention / WTP | **Not measured** | No customer pilot exists | Do not present deployment telemetry as customer outcomes |
+| Decision Twin evidence/council/counterfactual loop | **Implemented and locally verified; not deployed** | Deterministic case, five ADK roles, human approval, outcome evaluation, and seven-check evaluator | Current public URL still serves `e38facc` |
+| BigQuery aggregate evidence adapter | **Implemented; not provisioned** | Allowlisted parameterized query, dry run, privacy floor, and bytes cap; provisioning SQL/script committed | Requires authenticated `gcloud` execution in the isolated project |
 
 ## Current release custody
 
-- Repository: `main` (documentation-only commits after the runtime candidate);
-  working tree is clean and matches `origin/main`. Verify the exact current
-  source SHA from the repository before a future code release.
+- Repository candidate: branch `codex/decision-twin-20260823`, based on the
+  existing PR branch. It is a release candidate until CI, review, and deployment
+  complete; it is not the serving source.
 - Serving runtime: `e38facc43745eab267eacd2da4aa28914dff383b`.
 - Cloud Run revision: `driftline-00286-plm` (same immutable image; CORS allowlist now includes the Firebase facade).
 - Cloud Build: `96dbf2d7-7ee3-490a-a854-bef5c9615efc`.
 - Image digest: `sha256:19980ec57ed89d34f62474ef5b043fd9ce47f0e815650d09b04152fa3e6114f4`.
 
-The serving candidate is `e38facc`; the later `00286` promotion changed only
+The serving candidate remains `e38facc`; the later `00286` promotion changed only
 the runtime CORS allowlist so browser actions from the Firebase facade are
-accepted. Repository changes after the candidate are documentation/config
-only; no unverified application code was introduced.
+accepted. Decision Twin application changes exist only in the new PR candidate
+and are not claimed as deployed.
 
 ## What “real” means here
 
@@ -89,7 +91,9 @@ The following are deliberately not claimed:
    **complete** for the isolated `driftline-demo` tenant. The current proof is
    preserved in `docs/INTERNAL_PILOT_2026-08-23.md` and the resource inventory.
 2. One small, real operator pilot with aggregate before/after measurements.
-3. One release candidate with a single SHA, complete automated gates, live
+3. Pass the full local and CI gates, provision the bytes-capped BigQuery table,
+   deploy one immutable Decision Twin SHA, and run `verify_decision_twin.sh`.
+4. One release candidate with a single SHA, complete automated gates, live
    browser proof, and no stale claims in README/Devpost.
-4. Freeze scope, record the demo, and submit. No additional connector or UI
+5. Freeze scope, record the demo, and submit. No additional connector or UI
    feature work after these gates unless a gate fails.
