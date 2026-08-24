@@ -13,7 +13,7 @@ import secrets
 from collections import deque
 from collections.abc import Callable
 from contextvars import ContextVar
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from statistics import median
 from threading import Lock
@@ -1460,7 +1460,8 @@ def _claim_side_effect_operation(
     approval_identity: dict[str, str],
 ) -> None:
     """Attach a credential-free durable claim before any side effect begins."""
-    now = utc_now()
+    now_value = datetime.now(UTC)
+    now = now_value.isoformat()
     state.operation = {
         "operation_id": f"op-{uuid4().hex}",
         "kind": kind,
@@ -1473,7 +1474,70 @@ def _claim_side_effect_operation(
         "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
         "started_at": now,
         "last_attempt_at": now,
+        "lease_expires_at": (
+            now_value + timedelta(seconds=_operation_lease_seconds())
+        ).isoformat(),
     }
+
+
+def _operation_lease_seconds() -> int:
+    """Keep the claim exclusive beyond the Cloud Run request timeout."""
+    try:
+        configured = int(os.getenv("DRIFTLINE_OPERATION_LEASE_SECONDS", "360"))
+    except ValueError:
+        configured = 360
+    return max(330, min(configured, 900))
+
+
+def _operation_lease_expired(
+    operation: dict[str, object], *, now: datetime | None = None
+) -> bool:
+    """Fail closed unless a durable claim carries a valid, elapsed lease."""
+    raw_expiry = operation.get("lease_expires_at")
+    if not raw_expiry:
+        return False
+    try:
+        expiry = datetime.fromisoformat(str(raw_expiry))
+    except ValueError:
+        return False
+    if expiry.tzinfo is None:
+        return False
+    return expiry <= (now or datetime.now(UTC))
+
+
+def _expire_stale_operation_claim(state: WorkflowState) -> WorkflowState:
+    """Turn a hard-crash orphan into the ordinary exclusive recovery lane."""
+    if state.status not in {
+        WorkflowStatus.APPROVAL_EXECUTING,
+        WorkflowStatus.REVERSAL_EXECUTING,
+    }:
+        raise PolicyViolation("Workflow operation is not awaiting lease recovery")
+    if not _operation_lease_expired(state.operation or {}):
+        raise PolicyViolation("Workflow operation is still active; retry after its lease")
+    state.operation = {
+        **state.operation,
+        "status": "reconciliation_required",
+        "last_error_code": "operation_lease_expired",
+        "last_failed_at": utc_now(),
+    }
+    state.action_record = {
+        **(state.action_record or {}),
+        "reconciliation_required": True,
+        "operation_id": state.operation.get("operation_id"),
+    }
+    state.status = WorkflowStatus.RECONCILIATION_REQUIRED
+    state.events.append(
+        {
+            "event_id": f"evt-{uuid4().hex[:12]}",
+            "timestamp": utc_now(),
+            "action": "operation_reconciler",
+            "outcome": "expired_claim_recovered",
+            "stage": state.stage.value,
+            "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
+            "operation_id": state.operation.get("operation_id"),
+        }
+    )
+    return state
 
 
 def _execute_claimed_side_effects(
@@ -6911,6 +6975,22 @@ def reconcile(workflow_id: str, request: ReconcileRequest) -> dict:
             "Workflow mutation rate limit reached for this tenant; retry later."
         )
     try:
+        current = _resolve_workflow(workflow_id)
+        if current.status in {
+            WorkflowStatus.APPROVAL_EXECUTING,
+            WorkflowStatus.REVERSAL_EXECUTING,
+        }:
+            # A process may terminate after the durable claim but before the
+            # exception handler can mark reconciliation_required. First move
+            # only an expired claim into that exclusive state; a second CAS
+            # below then ensures exactly one recovery attempt can execute.
+            _transition_workflow(
+                workflow_id,
+                current.status.value,
+                _expire_stale_operation_claim,
+            )
+        elif current.status != WorkflowStatus.RECONCILIATION_REQUIRED:
+            raise PolicyViolation("Workflow has no recoverable operation")
 
         def claim(current: WorkflowState) -> WorkflowState:
             operation = current.operation or {}
@@ -6930,6 +7010,10 @@ def reconcile(workflow_id: str, request: ReconcileRequest) -> dict:
                 "status": "executing",
                 "attempts": int(operation.get("attempts", 1)) + 1,
                 "last_attempt_at": utc_now(),
+                "lease_expires_at": (
+                    datetime.now(UTC)
+                    + timedelta(seconds=_operation_lease_seconds())
+                ).isoformat(),
                 "reconciled_by": request.actor,
             }
             current.status = (

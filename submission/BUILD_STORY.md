@@ -46,7 +46,9 @@ conflicting decisions fail closed, and an interrupted attempt moves to
 `reconciliation_required`. A named human retries the same operation ID and
 generation; idempotent adapters and artifact keys converge on one durable
 outcome instead of manufacturing a second action. Configured-write recovery
-still requires signed tenant authority.
+still requires signed tenant authority. A bounded lease also covers hard
+process termination: an unexpired claim cannot be stolen, and an expired claim
+must first win a separate Firestore CAS into the recovery lane.
 
 The public judge lane creates only Driftline-owned packets. External writes are
 reserved for a signed tenant lane. In the isolated Jira proof, an approved

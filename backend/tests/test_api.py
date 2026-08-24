@@ -3677,6 +3677,51 @@ def test_interrupted_approval_is_durable_and_reconciles_same_operation(
     assert recovered["action_record"]["reconciliation_required"] is False
 
 
+def test_hard_crash_claim_requires_expired_lease_then_reconciles_same_operation(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda _tenant_id=None: True)
+    workflow_id = client.post("/api/workflows/demo").json()["workflow_id"]
+    original = api.persist_action_artifact
+
+    def terminate_after_claim(_state, *, kind):
+        raise SystemExit(f"simulated hard termination during {kind}")
+
+    monkeypatch.setattr(api, "persist_action_artifact", terminate_after_claim)
+    with pytest.raises(SystemExit, match="simulated hard termination"):
+        api.approve(workflow_id, api.ApprovalRequest(approver="Demo operator"))
+
+    orphaned = api._resolve_workflow(workflow_id)
+    assert orphaned.status == api.WorkflowStatus.APPROVAL_EXECUTING
+    operation_id = orphaned.operation["operation_id"]
+    assert orphaned.operation["lease_expires_at"]
+
+    active_retry = client.post(
+        f"/api/workflows/{workflow_id}/reconcile",
+        json={"actor": "Demo operator"},
+    )
+    assert active_retry.status_code == 409
+    assert "still active" in active_retry.json()["detail"]
+
+    monkeypatch.setattr(api, "persist_action_artifact", original)
+    monkeypatch.setattr(api, "_operation_lease_expired", lambda _operation: True)
+    recovered = client.post(
+        f"/api/workflows/{workflow_id}/reconcile",
+        json={"actor": "Demo operator"},
+    )
+
+    assert recovered.status_code == 200
+    payload = recovered.json()
+    assert payload["status"] == "complete"
+    assert payload["operation"]["operation_id"] == operation_id
+    assert payload["operation"]["attempts"] == 2
+    assert payload["operation"]["status"] == "completed"
+    assert any(
+        event.get("outcome") == "expired_claim_recovered"
+        for event in payload["events"]
+    )
+
+
 def test_interrupted_reversal_reconciles_back_to_human_gate(monkeypatch) -> None:
     monkeypatch.setattr(api, "_reserve_demo_mutation", lambda _tenant_id=None: True)
     workflow_id = client.post("/api/workflows/demo").json()["workflow_id"]

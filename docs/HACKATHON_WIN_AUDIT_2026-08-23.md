@@ -71,6 +71,9 @@ Winning proof:
   recovery reuse one credential-free operation ID and generation.
 - Ambiguous failures enter `reconciliation_required`; conflicting decisions
   fail closed; configured recovery requires signed tenant authority.
+- Hard process termination is covered by a bounded operation lease: an active
+  request remains exclusive, while an expired claim is moved through a separate
+  CAS into the same-ID reconciliation lane before any retry can execute.
 - Idempotent Jira/artifact behavior, bounded agent tools, no approval tool, and
   redacted trace evaluation make failure and authority boundaries explicit.
 

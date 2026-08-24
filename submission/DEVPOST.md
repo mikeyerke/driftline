@@ -44,7 +44,9 @@ Driftline is an evidence-bound change-to-action agent:
 6. Approval creates evidence-linked owner work. In the authenticated tenant
    lane, Driftline can create or reactivate one least-privilege Jira marker.
 7. Before side effects begin, Driftline claims one durable operation. An
-   interrupted result blocks conflicting decisions and reconciles the same ID.
+   interrupted result blocks conflicting decisions and reconciles the same ID;
+   an expired lease also recovers a hard process termination through a separate
+   Firestore compare-and-set before retrying.
 8. Repeating the same action reuses the marker instead of duplicating work.
 9. **Reopen decision** reverses only Driftline-owned Jira state and appends the
    reversal to the audit ledger.
