@@ -823,6 +823,87 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .source-history-status.changed { color: var(--orange) !important; }
 .salesforce-action-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .salesforce-health.warning strong { color: var(--orange); }
+
+/* PMM/RevOps front door: keep the first decision legible and move release
+   diagnostics behind an intentional disclosure. The supporting workflow
+   remains available below for evidence, approval, and durable receipts. */
+.technical-proof-details { min-width: 0; margin-left: auto; }
+.legacy-workflow-summary > span { color: #526078; }
+.technical-proof-details summary { display: inline-flex; align-items: center; min-height: 30px; padding: 0 10px; border: 1px solid #bcd2fb; border-radius: 999px; color: var(--blue); background: #fff; cursor: pointer; font-size: 11px; font-weight: 700; list-style: none; }
+.technical-proof-details summary::-webkit-details-marker { display: none; }
+.technical-proof-details summary::after { content: "+"; margin-left: 6px; font-size: 14px; line-height: 1; }
+.technical-proof-details[open] summary::after { content: "−"; }
+.technical-proof-details summary:focus-visible, .decision-why summary:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offset: 2px; }
+.technical-proof-details .release-proof { display: flex; align-items: center; gap: 9px; min-width: min(620px, 70vw); margin: 8px 0 0; padding: 8px 0 0; border-top: 1px solid #cfe0ff; border-left: 0; }
+.decision-room-hero h2, .decision-room-header h2, .decision-room-recommendation h3 { text-wrap: balance; }
+.decision-room-hero-copy > p, .decision-room-header p, .decision-room-recommendation p, .decision-why-body p { text-wrap: pretty; }
+.decision-room-promise { gap: 10px; }
+.decision-room-promise-label { color: #a9d1ff !important; font-size: 10px !important; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.decision-room-promise > p { margin: 0; color: #d6e5ff; font-size: 14px; line-height: 1.5; }
+.decision-room-steps { display: grid; gap: 10px; margin: 6px 0 0; padding: 0; list-style: none; }
+.decision-room-steps li { display: grid; grid-template-columns: 25px minmax(0, 1fr); gap: 8px; align-items: start; }
+.decision-room-steps li > b { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid rgba(255, 255, 255, .32); border-radius: 50%; color: #fff; background: rgba(255, 255, 255, .1); font-size: 11px; }
+.decision-room-steps li > span { display: grid; gap: 2px; }
+.decision-room-steps strong { color: #fff; font-size: 12px; line-height: 1.3; }
+.decision-room-steps small { color: #d6e5ff; font-size: 11px; line-height: 1.35; }
+.decision-room-safety { margin-top: 5px; color: #a9d1ff !important; font-size: 10px !important; }
+.decision-room-status { display: flex; align-items: center; gap: 7px; margin: 12px 0 0; color: var(--blue) !important; font-size: 13px !important; }
+.decision-room-brief { padding-bottom: 0; }
+.decision-room-brief .decision-room-header { align-items: center; }
+.decision-room-brief-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 15px; margin: 0 28px; padding: 20px 0; border-top: 1px solid var(--line); }
+.decision-room-recommendation { min-width: 0; padding: 17px; border: 1px solid #b9dfc9; border-radius: 7px; background: #f4fcf7; }
+.decision-room-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.decision-room-card-heading b { padding: 4px 7px; border: 1px solid #eed28d; border-radius: 999px; color: #8a6200; background: #fffaf0; font-size: 9px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.decision-room-card-heading b.complete { border-color: #b9dfc9; color: var(--green); background: #fff; }
+.decision-room-recommendation h3 { margin: 10px 0 7px; color: var(--ink); font-size: 20px; line-height: 1.2; }
+.decision-room-recommendation p { margin: 0; color: #486255; font-size: 14px; line-height: 1.5; }
+.decision-room-meta { display: flex; flex-wrap: wrap; gap: 7px 16px; margin-top: 16px; color: #486255; font-size: 11px; }
+.decision-room-meta span { display: inline-flex; align-items: baseline; gap: 4px; }
+.decision-room-meta strong { color: var(--ink); font-size: 13px; }
+.decision-room-why { min-width: 0; padding: 3px 0; }
+.decision-why { border: 1px solid var(--line); border-radius: 7px; background: #fff; }
+.decision-why summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 0 14px; color: var(--ink); cursor: pointer; font-size: 13px; font-weight: 700; list-style: none; }
+.decision-why summary::-webkit-details-marker { display: none; }
+.decision-why summary::after { content: "+"; color: var(--blue); font-size: 18px; font-weight: 400; }
+.decision-why[open] summary::after { content: "−"; }
+.decision-why-body { padding: 0 14px 14px; border-top: 1px solid var(--line); }
+.decision-why-body p { margin: 11px 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.decision-why-body ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.decision-why-body li { display: grid; gap: 2px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.decision-why-body li strong { color: var(--ink); font-size: 11px; }
+.decision-why-body li span { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.decision-why-body small { display: block; margin-top: 11px; color: var(--blue); font-size: 11px; font-weight: 700; }
+.decision-room-next { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; margin: 0 28px 24px; padding: 13px 15px; border: 1px solid #c7d9fa; border-radius: 7px; background: var(--blue-soft); color: var(--blue); }
+.decision-room-next.complete { border-color: #b9dfc9; background: #f4fcf7; color: var(--green); }
+.decision-room-next.dismissed { border-color: #eed28d; background: #fffaf0; color: #8a6200; }
+.decision-room-next > div { min-width: 0; display: grid; gap: 2px; }
+.decision-room-next strong { color: var(--ink); font-size: 12px; line-height: 1.35; }
+.decision-room-next span { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.decision-room-next button { white-space: nowrap; }
+
+@media (max-width: 720px) {
+  .workspace-banner { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .workspace-banner-copy { width: auto; min-width: 0; }
+  .banner-status { margin-left: 0; justify-self: end; }
+  .technical-proof-details { grid-column: 1 / -1; width: 100%; margin-left: 0; }
+  .technical-proof-details summary { width: 100%; justify-content: center; }
+  .technical-proof-details .release-proof { min-width: 0; width: 100%; }
+  .decision-room-brief-grid { grid-template-columns: 1fr; margin-left: 18px; margin-right: 18px; }
+  .decision-room-next { grid-template-columns: auto minmax(0, 1fr); margin-left: 18px; margin-right: 18px; }
+  .decision-room-next button { grid-column: 2; justify-self: start; }
+}
+
+@media (max-width: 560px) {
+  .workspace-banner { flex-direction: initial; }
+  .workspace-banner-copy { width: auto; }
+  .technical-proof-details .release-proof { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .decision-room-hero h2 { font-size: 31px; line-height: 1.06; }
+  .decision-room-hero-copy, .decision-room-promise { padding: 25px 20px; }
+  .decision-room-header { align-items: stretch !important; }
+  .decision-room-header .secondary { align-self: flex-start; }
+  .decision-room-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .decision-room-next { align-items: start; }
+}
 .salesforce-read-proof { display: grid; gap: 3px; margin-top: 10px; padding: 9px 10px; border: 1px solid #f0dfb8; border-radius: 4px; background: #fffaf0; color: #8b6500; font-size: 10px; line-height: 1.35; }
 .salesforce-read-proof.verified { border-color: #b9e3ce; background: #f4fcf7; color: var(--green); }
 .salesforce-read-proof span { color: var(--muted); }

@@ -10,7 +10,7 @@ const steps = [
   {
     id: "approvals-section",
     label: "Human decision",
-    detail: "Choose a bounded response",
+    detail: "Choose a safe response",
     Icon: ShieldCheck,
   },
   {
@@ -37,7 +37,7 @@ export default function JudgeJourney({ workflow, scanning, judgeMode, onToggleJu
   return (
     <section className={`judge-mode-shell${judgeMode ? " active" : ""}`} aria-label="Judge mode">
       <header className="judge-mode-header">
-        <div><Sparkles size={15} /><span><strong>Judge Mode</strong><small>One guided path from evidence to durable proof</small></span></div>
+        <div><Sparkles size={15} /><span><strong>Guided review</strong><small>One path from evidence to durable proof</small></span></div>
         <button className={judgeMode ? "judge-mode-toggle active" : "judge-mode-toggle"} type="button" aria-pressed={judgeMode} onClick={onToggleJudgeMode}>{judgeMode ? "Guided · on" : "Guided · off"}</button>
       </header>
       <nav className="judge-journey" aria-label="Driftline workflow">

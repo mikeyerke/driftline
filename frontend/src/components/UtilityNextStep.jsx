@@ -60,8 +60,8 @@ export default function UtilityNextStep({ workflow, job, scanning, sourcePaused,
     return (
       <section className={`utility-next-step ready${scanning ? " scanning" : ""}`} aria-label="Next best action">
         <span className="utility-next-step-icon"><Play size={16} /></span>
-        <div><strong>{scanning ? "Gemini + ADK are tracing the change" : "Turn this source change into owner-ready work"}</strong><p>{scanning ? "Verifying the evidence and mapping every affected surface. No action can bypass the human gate." : "Watch Gemini + ADK verify the evidence, map downstream work, and stop at a human decision."}</p></div>
-        <button className="primary compact" type="button" onClick={onRunScan} disabled={scanning || sourcePaused} title={sourcePaused ? "Resume this source before scanning" : undefined}>{scanning ? "Agent running…" : sourcePaused ? "Source paused" : "Run live agent"}<ArrowRight size={14} /></button>
+        <div><strong>{scanning ? "Checking the change" : "Prepare owner-ready work"}</strong><p>{scanning ? "Verifying the evidence and mapping every affected surface. Nothing changes without your approval." : "Verify the source, map downstream work, and stop at a human decision."}</p></div>
+        <button className="primary compact" type="button" onClick={onRunScan} disabled={scanning || sourcePaused} title={sourcePaused ? "Resume this source before scanning" : undefined}>{scanning ? "Reviewing…" : sourcePaused ? "Source paused" : "Review this change"}<ArrowRight size={14} /></button>
       </section>
     );
   }

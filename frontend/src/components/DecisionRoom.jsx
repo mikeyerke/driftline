@@ -1,76 +1,110 @@
-import { ArrowRight, BrainCircuit, CheckCircle2, CircleAlert, LoaderCircle, Play, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
-import { approveDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinOutcome, startDecisionTwin } from "../api";
-import CounterfactualCompare from "./CounterfactualCompare";
-import EvidenceCouncil from "./EvidenceCouncil";
-import LearningReceipt from "./LearningReceipt";
+import { ArrowRight, CheckCircle2, CircleAlert, LoaderCircle, Play, Sparkles } from "lucide-react";
 
-const stages = ["Evidence", "Perspectives", "Choose", "Learn"];
+function uniqueOwners(workflow) {
+  const owners = [
+    ...(workflow?.action_items || []).map((item) => item.owner),
+    ...(workflow?.impacts || []).map((item) => item.owner),
+  ];
+  return [...new Set(owners.filter(Boolean))];
+}
 
-export default function DecisionRoom() {
-  const [decisionCase, setDecisionCase] = useState(null);
-  const [selectedId, setSelectedId] = useState("segment");
-  const [evaluation, setEvaluation] = useState(null);
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
+function recommendationFor(copilot) {
+  return copilot?.options?.find((option) => option.option_id === copilot?.recommendation_id)
+    || copilot?.options?.[0]
+    || null;
+}
 
-  useEffect(() => {
-    if (!decisionCase?.case_id) return;
-    getDecisionTwinEvaluation(decisionCase.case_id).then(setEvaluation).catch(() => setEvaluation(null));
-  }, [decisionCase]);
+function statusCopy(status) {
+  if (status === "needs_approval") return { label: "Waiting for your approval", action: "Review owner work" };
+  if (status === "complete") return { label: "Plan recorded", action: "View owner work" };
+  if (status === "dismissed") return { label: "Signal dismissed", action: "View evidence" };
+  return { label: "Review ready", action: "Open owner work" };
+}
 
-  const runCouncil = async () => {
-    setBusy("council"); setError("");
-    try {
-      const next = await startDecisionTwin();
-      setDecisionCase(next);
-      setSelectedId(next.council.recommendation);
-    } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
-  };
+export default function DecisionRoom({ workflowState, job, scanning, scanMessage, scanFailed, scenarioTitle = "A competitor changed its pricing.", scenarioLabel = "competitor pricing", onRunReview, onOpenWorkflow }) {
+  const workflow = workflowState || job?.workflow || null;
+  const copilot = workflow?.agent_trace?.decision_copilot;
+  const recommendation = recommendationFor(copilot);
+  const owners = uniqueOwners(workflow);
+  const actionCount = workflow?.action_items?.length || workflow?.impacts?.length || copilot?.artifact_count || 0;
+  const status = statusCopy(workflow?.status);
+  const explanation = copilot?.executive_summary
+    || copilot?.summary
+    || workflow?.agent_trace?.structured_analysis?.summary
+    || "Review the affected work surfaces before updating the public response.";
+  const optionList = copilot?.options?.slice(0, 3) || [];
 
-  const approve = async () => {
-    setBusy("approval"); setError("");
-    try {
-      setDecisionCase(await approveDecisionTwin(
-        decisionCase.case_id,
-        selectedId,
-        decisionCase.council.synthesis_hash,
-        decisionCase.generation,
-      ));
-    } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
-  };
+  if (!workflow) {
+    return (
+      <section className="decision-room-hero" aria-labelledby="decision-room-hero-title">
+        <div className="decision-room-hero-copy">
+          <span className="decision-room-kicker"><Sparkles size={14} />Product Marketing + RevOps</span>
+          <h2 id="decision-room-hero-title">{scenarioTitle}</h2>
+          <p>Driftline verifies the change, shows which work needs updating, and prepares a reversible plan for the people who own it.</p>
+          <div className="decision-room-hero-actions">
+            <button className="primary decision-room-run" type="button" onClick={onRunReview} disabled={scanning}>
+              {scanning ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}
+              {scanning ? "Reviewing this change…" : "Review this change"}
+            </button>
+            <span>Example source · {scenarioLabel} · human approval</span>
+          </div>
+          {scanning && <p className="decision-room-status" role="status" aria-live="polite">Checking the source and mapping affected work…</p>}
+          {scanFailed && scanMessage && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{scanMessage}</p>}
+        </div>
+        <div className="decision-room-promise">
+          <span className="decision-room-promise-label">The PMM/RevOps loop</span>
+          <strong>From signal to owner work</strong>
+          <p>One verified change, one clear plan, and one human decision.</p>
+          <ol className="decision-room-steps">
+            <li><b>1</b><span><strong>Verify the change</strong><small>Use the cited source evidence.</small></span></li>
+            <li><b>2</b><span><strong>Map affected work</strong><small>See owners and surfaces at risk.</small></span></li>
+            <li><b>3</b><span><strong>Approve or dismiss</strong><small>Keep every output reversible.</small></span></li>
+          </ol>
+          <small className="decision-room-safety">Public example · no external writes</small>
+        </div>
+      </section>
+    );
+  }
 
-  const observeOutcome = async () => {
-    setBusy("outcome"); setError("");
-    try {
-      setDecisionCase(await recordDecisionTwinOutcome(decisionCase.case_id, decisionCase.generation));
-    } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
-  };
-
-  const activeStage = !decisionCase ? 0 : decisionCase.status === "needs_approval" || decisionCase.status === "reopened" ? 2 : 3;
-
-  if (!decisionCase) return (
-    <section className="decision-room-hero" aria-labelledby="decision-room-hero-title">
-      <div className="decision-room-hero-copy"><span className="decision-room-kicker"><Sparkles size={14} />Decision Twin</span><h2 id="decision-room-hero-title">Know when a product decision stopped being true.</h2><p>Driftline brings customer, usage, support, screenshot, and roadmap evidence into one decision. You choose what to do; a later result can reopen the call.</p><div className="decision-room-hero-actions"><button className="primary decision-room-run" type="button" onClick={runCouncil} disabled={Boolean(busy)}>{busy ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}{busy ? "Running the council…" : "Run the council"}</button><span>One case · five perspectives · your decision</span></div>{error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}</div>
-      <div className="decision-room-promise"><BrainCircuit size={28} /><strong>A decision that can learn</strong><span>See the evidence, compare the perspectives, choose a plan, and check what happened.</span><div><span>Gemini + Google ADK</span><span>Google Cloud</span><span>Human approval</span></div></div>
-    </section>
-  );
-
-  const waitingForDecision = ["needs_approval", "reopened"].includes(decisionCase.status);
-  const selectedOption = decisionCase.council.options.find((option) => option.option_id === selectedId);
   return (
-    <section className="decision-room" aria-labelledby="decision-room-title">
+    <section className="decision-room decision-room-brief" aria-labelledby="decision-room-title">
       <header className="decision-room-header">
-        <div><span className="decision-room-kicker"><Sparkles size={14} />Decision Twin · round {decisionCase.generation}</span><h2 id="decision-room-title">{decisionCase.title}</h2><p>{decisionCase.question}</p></div>
-        <button className="secondary compact" type="button" onClick={runCouncil} disabled={Boolean(busy)}>Start over</button>
+        <div>
+          <span className="decision-room-kicker"><Sparkles size={14} />Recommended response</span>
+          <h2 id="decision-room-title">{workflow.title || "Competitor pricing changed"}</h2>
+          <p>One verified change, one owner plan, and one clear approval.</p>
+        </div>
+        <button className="secondary compact" type="button" onClick={onOpenWorkflow}>{status.action}<ArrowRight size={14} /></button>
       </header>
-      <nav className="decision-room-stages" aria-label="Decision Twin progress">{stages.map((stage, index) => <span className={index < activeStage ? "complete" : index === activeStage ? "current" : ""} key={stage}>{index < activeStage ? <CheckCircle2 size={15} /> : <b>{index + 1}</b>}{stage}{index < stages.length - 1 && <ArrowRight size={14} />}</span>)}</nav>
-      <section className="decision-at-risk"><div><span>Decision at risk</span><strong>{decisionCase.current_commitment}</strong></div><p>{decisionCase.urgency}</p></section>
-      <EvidenceCouncil decisionCase={decisionCase} />
-      <CounterfactualCompare options={decisionCase.council.options} recommendedId={decisionCase.council.recommendation} selectedId={selectedId} onSelect={setSelectedId} />
-      {waitingForDecision && <section className="decision-approval-gate"><div><span className="decision-room-kicker">Your decision</span><h3>{decisionCase.status === "reopened" ? "New evidence needs a call" : "Choose a plan"}</h3><p>The AI can recommend and challenge. You decide, and nothing changes until you approve.</p></div><button className="primary" type="button" onClick={approve} disabled={Boolean(busy)}>{busy === "approval" ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />}{busy === "approval" ? "Saving your choice…" : `Approve: ${selectedOption?.title || "selected plan"}`}</button></section>}
-      {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} onOutcome={observeOutcome} />}
-      {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
+      <div className="decision-room-brief-grid">
+        <section className="decision-room-recommendation" aria-labelledby="recommendation-title">
+          <div className="decision-room-card-heading"><span>What Driftline recommends</span><b className={workflow.status === "complete" ? "complete" : ""}>{status.label}</b></div>
+          <h3 id="recommendation-title">{recommendation?.title || "Review the owner plan"}</h3>
+          <p>{recommendation?.summary || explanation}</p>
+          <div className="decision-room-meta" aria-label="Plan summary">
+            <span><strong>{actionCount}</strong> {actionCount === 1 ? "work surface" : "work surfaces"}</span>
+            <span><strong>{owners.length || "—"}</strong> {owners.length === 1 ? "owner" : "owners"}</span>
+            <span><strong>Human</strong> approval</span>
+          </div>
+        </section>
+        <aside className="decision-room-why" aria-label="Recommendation explanation">
+          <details className="decision-why">
+            <summary>Why this recommendation</summary>
+            <div className="decision-why-body">
+              <p>{copilot?.rationale || explanation}</p>
+              {optionList.length > 0 && <ul>
+                {optionList.map((option) => <li key={option.option_id || option.title}><strong>{option.title}</strong><span>{option.summary || option.rationale || "Evidence-cited response plan"}</span></li>)}
+              </ul>}
+              <small>The AI can recommend; you decide.</small>
+            </div>
+          </details>
+        </aside>
+      </div>
+      <div className={`decision-room-next ${workflow.status === "complete" ? "complete" : workflow.status === "dismissed" ? "dismissed" : ""}`}>
+        <CheckCircle2 size={18} />
+        <div><strong>{workflow.status === "complete" ? "The owner plan is recorded and reversible." : workflow.status === "dismissed" ? "The signal is dismissed with an audit trail." : "Your approval creates owner-ready work."}</strong><span>{workflow.status === "complete" ? "Open the supporting workflow to see the receipt and owner queue." : "Open the supporting workflow to inspect evidence, owners, and the approval gate."}</span></div>
+        <button className={workflow.status === "complete" ? "secondary compact" : "primary compact"} type="button" onClick={onOpenWorkflow}>{workflow.status === "complete" ? "View the result" : "Open owner work"}<ArrowRight size={14} /></button>
+      </div>
     </section>
   );
 }

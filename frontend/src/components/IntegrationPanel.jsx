@@ -76,10 +76,10 @@ export default function IntegrationPanel({ targets = [], approved, dismissed, ac
   return (
     <section className="panel integration-panel" aria-labelledby="integration-title">
       <header className="panel-header">
-        <div><h2 id="integration-title">PMM handoff destinations</h2><span className="live-label">Approval-gated</span></div>
+        <div><h2 id="integration-title">Where the work goes</h2><span className="live-label">Approval required</span></div>
         <span className="muted">No silent writes</span>
       </header>
-      <p className="integration-intro">Driftline turns the impact map into target-specific packets. The live public lane is packet-safe: it never mutates an external system. A separately authenticated tenant operator can enable a configured connector and execute only the signed, scoped handoff.</p>
+      <p className="integration-intro">After approval, Driftline prepares a packet for Jira, Confluence, Slack, or GitHub. Signed workspaces can run configured handoffs; the public example stays preview-only.</p>
       {operatorSession?.identityToken && <div className="connector-context" aria-labelledby="connector-context-title">
         <div className="connector-context-heading">
           <div><strong id="connector-context-title"><ShieldCheck size={14} />Internal context (read-only)</strong><small>Request-scoped aggregate counts · raw records and credentials stay out of the console</small></div>

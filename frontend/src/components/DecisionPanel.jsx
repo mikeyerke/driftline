@@ -139,7 +139,7 @@ export default function DecisionPanel({ status, operation, approved, dismissed, 
       {customRouting && <label className="override-reason"><span>Why change the recommended artifact routing?</span><textarea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} maxLength={240} rows={2} /></label>}
       <div className="decision-action-dock">
         <div className="approval-scope"><strong>Human decision · reversible</strong><span>{outcomeSummary}</span><small>{customRouting ? "Custom routing selected · policy boundaries still apply." : "Creates owner-ready work only after your approval."}</small></div>
-        <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || copilotUnavailable || (copilot && !selectedOption) || (customRouting && overrideReason.trim().length < 3)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : copilotUnavailable ? "Rerun scan for Gemini review" : "Approve action plan"}</button>
+        <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || copilotUnavailable || (copilot && !selectedOption) || (customRouting && overrideReason.trim().length < 3)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : copilotUnavailable ? "Rerun scan for Gemini review" : "Approve owner plan"}</button>
         <div className="decision-secondary-actions">
           <button className="secondary" onClick={onEvidence}><FileText size={17} />Open evidence</button>
           <button className="text-button" onClick={() => {
@@ -147,7 +147,7 @@ export default function DecisionPanel({ status, operation, approved, dismissed, 
             if (reason?.trim()) onDismiss?.(reason.trim());
           }} disabled={!isLive || busy}><Ban size={17} />Dismiss signal</button>
         </div>
-        <p className="decision-note">The agent cannot approve itself. Any created output stays evidence-linked and reversible.</p>
+        <p className="decision-note">The AI can recommend, but you approve before anything is created. Every output stays evidence-linked and reversible.</p>
       </div>
       {copilotUnavailable && <p className="decision-note decision-warning">Gemini decision analysis was unavailable for this tenant run. Approval is disabled until a new scan produces a reviewed option.</p>}
       {!isLive && <p className="decision-note decision-warning">Run the live agent to create a Firestore workflow before deciding.</p>}

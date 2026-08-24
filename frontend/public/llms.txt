@@ -1,0 +1,17 @@
+# Driftline
+
+> Driftline helps Product Marketing and RevOps turn verified promise changes into owner-ready, reversible work.
+
+## Product
+
+Driftline reads a registered source, cites the observed change, maps affected work surfaces and owners, and pauses for human approval. Public examples are preview-only and do not write to external systems.
+
+## Evidence and safety
+
+Every recommendation stays linked to its source evidence. Approval is explicit, outputs are reversible, and technical release proof is available in the product's Technical proof disclosure.
+
+## Links
+
+- [Driftline product](https://driftline-ops.web.app/)
+- [Privacy](https://driftline-ops.web.app/privacy.html)
+- [Terms](https://driftline-ops.web.app/terms.html)
