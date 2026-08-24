@@ -12,7 +12,7 @@ fi
 
 gcloud billing budgets update "${BUDGET_ID}" \
   --billing-account="${BILLING_ACCOUNT}" \
-  --display-name="Driftline $300 Guardrail" \
+  --display-name='Driftline $300 Guardrail' \
   --budget-amount=300USD \
   --clear-threshold-rules \
   --add-threshold-rule=percent=0.083333 \
