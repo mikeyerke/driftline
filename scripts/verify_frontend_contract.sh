@@ -114,4 +114,15 @@ if { command -v rg >/dev/null 2>&1 \
   exit 1
 fi
 
+# Approval is a compare-and-set transition. The public Decision Twin must send
+# the generation displayed in the room, or the API correctly rejects the
+# action as an incomplete/stale approval instead of recording the decision.
+if { command -v rg >/dev/null 2>&1 \
+      && ! rg -q 'decisionCase\.council\.synthesis_hash,\s*decisionCase\.generation' frontend/src/components/DecisionRoom.jsx; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && ! grep -Eq 'decisionCase\.council\.synthesis_hash,[[:space:]]*decisionCase\.generation' frontend/src/components/DecisionRoom.jsx; }; then
+  printf 'Decision Twin approval contract is incomplete: current generation is not sent with the synthesis hash.\n' >&2
+  exit 1
+fi
+
 printf 'Frontend literal ID contract: PASS\n'

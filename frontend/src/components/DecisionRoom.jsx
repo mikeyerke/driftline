@@ -33,7 +33,7 @@ export default function DecisionRoom() {
   const approve = async () => {
     setBusy("approval"); setError("");
     try {
-      setDecisionCase(await approveDecisionTwin(decisionCase.case_id, selectedId, decisionCase.council.synthesis_hash));
+      setDecisionCase(await approveDecisionTwin(decisionCase.case_id, selectedId, decisionCase.council.synthesis_hash, decisionCase.generation));
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
   };
 
