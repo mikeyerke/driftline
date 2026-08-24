@@ -31,7 +31,7 @@ evaluation metrics, not customer ROI or willingness-to-pay claims.
 
 ## Decision Twin: evidence to outcome
 
-The release candidate adds a focused product-management decision loop above the
+The production release adds a focused product-management decision loop above the
 existing change-to-action workflow. A pinned onboarding case combines bounded
 product analytics, customer evidence, strategy constraints, and delivery risk
 into a provenance-preserving evidence graph. Five independent Google ADK
@@ -48,6 +48,15 @@ uses Gemini 3.5 Flash through Google ADK, and the optional BigQuery adapter read
 only allowlisted aggregate metrics through parameterized, dry-run-checked,
 bytes-capped queries. See the [judge scorecard](submission/JUDGE_SCORECARD.md)
 and [Decision Twin implementation plan](docs/superpowers/plans/2026-08-23-decision-twin-implementation.md).
+
+The current production proof is release
+`1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`, Cloud Run revision
+`driftline-00291-v89`, and Cloud Build
+`154547e7-36ae-4eb2-a79a-35064e293191`. The live Decision Twin verifier proved
+five evidence-grounded ADK roles with preserved `ship`/`segment`/`defer`
+disagreement, a privacy-thresholded BigQuery attachment, named-human approval,
+measured outcome, and generation-2 reopening with prior approval and experiment
+lineage intact.
 
 The default demonstration models a competitor price change from $49 to $59 per
 seat per month, then traces the impact into a comparison map, pricing

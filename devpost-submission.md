@@ -9,7 +9,7 @@ the rendered Devpost project and explicitly confirms the final action.
 | Devpost field | Exact answer |
 | --- | --- |
 | Project name | Driftline |
-| Tagline | Evidence-bound change becomes reversible owner action. |
+| Tagline | Contradictory evidence becomes a reversible experiment—and the outcome can reopen the decision. |
 | Submitter type | Individual |
 | Country | United States |
 | Category | Taskmaster |
@@ -19,7 +19,7 @@ the rendered Devpost project and explicitly confirms the final action.
 | Hosted application | https://driftline-ops.web.app/ |
 | Reproducible testing | Yes |
 | Google agent framework | Google Agent Development Kit (ADK) |
-| Google Cloud services | Cloud Run; Firestore |
+| Google Cloud services | Cloud Run; Firestore; BigQuery |
 | Additional Google Cloud services described in entry | Vertex AI; Cloud Tasks; Cloud Scheduler; Cloud Storage; Secret Manager; Cloud Build; Artifact Registry |
 | Model | Gemini 3.5 Flash via Vertex AI |
 | Architecture upload | `submission/assets/driftline-architecture.png` |
@@ -30,26 +30,26 @@ the rendered Devpost project and explicitly confirms the final action.
 
 ## Short description
 
-Driftline turns a monitored public-source change into evidence-linked,
-human-governed owner action. Google ADK and Gemini 3.5 Flash interpret an
-immutable before/after diff, map affected work, and draft cited decision
-options. Deterministic policy—not the model—controls authorization. The public
-lane proves the complete evidence, approval, packet, audit, and reversal loop;
-the signed tenant lane additionally proves one least-privilege, idempotent, and
-reversible Jira action.
+Driftline is a Decision Twin for consequential product calls. Five independent
+Google ADK specialists use Gemini 3.5 Flash to evaluate bounded usage,
+customer, strategy, and feasibility evidence, preserve dissent, and compare
+ship, rollback, segment, or defer. A named human alone approves a falsifiable
+experiment. BigQuery supplies privacy-thresholded aggregates, Firestore keeps
+the decision lineage, and a measured outcome can reopen the same case without
+erasing the original reasoning.
 
 ## Judge scan — the first 45 seconds
 
-1. Open the hosted application; **Judge Mode** is on by default.
-2. Click **Run live agent** and follow Evidence → Human decision → Reversible
-   action → Proof.
-3. At the human gate, verify that Gemini recommends but cannot approve.
-4. Approve once and inspect the operation ID, evidence-bound action, packet,
-   external-write truth, and rollback path in one receipt.
+1. Open the hosted Decision Room and start the pinned onboarding council.
+2. Inspect the evidence graph and five cited council positions; pause on the
+   strategy and challenger dissent.
+3. Compare ship, rollback, segment, and defer, then approve one falsifiable
+   experiment as a named human.
+4. Apply the measured outcome and watch the same case reopen as generation 2
+   with its prior approval and experiment lineage intact.
 
-The differentiator is not another summary. Driftline converts one verified
-change into accountable work while making the authority boundary and durable
-side-effect lifecycle inspectable.
+The differentiator is not another summary. Driftline makes disagreement,
+authority, falsifiability, and outcome learning inspectable in one live loop.
 
 ## Full submission description
 
@@ -149,10 +149,17 @@ architecture close. Suggested stills are documented in
 
 ## Truthful proof and disclosure
 
-The historical release proof recorded for this draft reported serving Git SHA
-`e38facc43745eab267eacd2da4aa28914dff383b` from Cloud Build
-`96dbf2d7-7ee3-490a-a854-bef5c9615efc` through `/health` (verified August 23,
-2026). In the signed operator lane, a hosted
+The current live release serves Git SHA
+`1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6` on Cloud Run revision
+`driftline-00291-v89` from Cloud Build
+`154547e7-36ae-4eb2-a79a-35064e293191`, with the same SHA exposed through
+`/health` and immutable image digest
+`sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`
+(verified August 24, 2026). The live Decision Twin proof preserved five cited
+ADK roles and `ship`/`segment`/`defer` disagreement, attached real BigQuery
+aggregate evidence, required named-human approval, evaluated an outcome, and
+reopened generation 2 with prior approval/experiment lineage intact. In the
+signed operator lane, a hosted
 Gemini/ADK workflow reached approval, reactivated Jira marker `KAN-19`, and then
 reversed only Driftline-owned state; both operations returned HTTP 200. This is
 engineering proof from an isolated project, not customer outcome or ROI proof.

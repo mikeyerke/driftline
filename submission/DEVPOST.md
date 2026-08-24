@@ -1,8 +1,7 @@
 # Driftline
 
-**Tagline:** When a public promise changes, Driftline turns the evidence into
-reversible owner action—autonomous where policy allows, human where judgment
-matters.
+**Tagline:** Contradictory evidence becomes a reversible experiment—and the
+outcome can reopen the decision.
 
 - Category: **Taskmaster**
 - Live application: https://driftline-ops.web.app/
@@ -12,26 +11,39 @@ matters.
 
 ## Judge this in 45 seconds
 
-Open the live application with **Judge Mode** on, click **Run live agent**, and
-follow the four visible stages: Evidence → Human decision → Reversible action →
-Proof. Gemini recommends but cannot approve. One human click creates a durable
-operation ID and a receipt showing the Firestore action, artifact persistence,
-external-write truth, and rollback path.
+Open the Decision Room and start the pinned onboarding council. Inspect the
+evidence graph and five cited specialist positions, pause on strategy and
+challenger dissent, compare ship/rollback/segment/defer, and approve one
+falsifiable experiment as a named human. Apply the measured outcome: the same
+case reopens as generation 2 while retaining the complete original approval and
+experiment plan.
 
 ## Inspiration
 
-A competitor changes one pricing sentence. The alert is easy. The hard part is
-finding every comparison, battlecard, deal-desk rule, and executive brief that
-now carries a stale promise; deciding what can change safely; assigning the
-right owner; and proving what the human actually approved.
-
-Product Marketing and RevOps teams do not need another feed or chat window.
-They need the change to become accountable work without giving a model the
-authority to rewrite consequential business promises on its own.
+PMs do not lack opinions. They lack a defensible way to combine contradictory
+usage, customer, strategy, and delivery evidence; freeze what would prove a
+choice right or wrong; and carry the measured result back into the original
+decision. Driftline turns that decision debt into an inspectable learning loop
+without giving a model approval authority.
 
 ## What it does
 
-Driftline is an evidence-bound change-to-action agent:
+Driftline is an evidence-bound Decision Twin built on a durable
+change-to-action agent:
+
+1. It combines bounded customer, usage, strategy, and feasibility evidence in
+   a provenance-preserving graph. Live product metrics come from a
+   sample-weighted, privacy-thresholded, billed-bytes-capped BigQuery adapter.
+2. Five independent Google ADK specialists use Gemini 3.5 Flash to produce
+   cited positions; a sixth synthesis turn must retain visible disagreement.
+3. The product compares ship, rollback, segment, and defer with option-specific
+   metrics, guardrails, stop conditions, rollbacks, and owner actions.
+4. A named human alone approves, and Firestore binds the approval to the exact
+   evidence, synthesis hash, and decision generation.
+5. A measured outcome produces a learning receipt and either closes the case
+   or reopens the next generation with complete prior lineage.
+
+The underlying operational foundation remains independently useful:
 
 1. It monitors a bounded registry of approved public sources.
 2. A material transition creates an immutable before/after snapshot, SHA-256
@@ -57,11 +69,20 @@ journey without granting anonymous visitors access to an external system.
 
 ## Proof of action
 
-The historical live release proof recorded for this draft reported serving Git SHA
-`e38facc43745eab267eacd2da4aa28914dff383b` from Cloud Build
-`96dbf2d7-7ee3-490a-a854-bef5c9615efc` through `/health` (verified August 23,
-2026). Historical release and signed-action proof remains recorded in the
-resource inventory.
+The current live release serves Git SHA
+`1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6` on Cloud Run revision
+`driftline-00291-v89` from Cloud Build
+`154547e7-36ae-4eb2-a79a-35064e293191`. `/health`, the Cloud Run revision, and
+Artifact Registry all resolve to immutable digest
+`sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`
+(verified August 24, 2026).
+
+The live Decision Twin proof ran five real Google ADK specialists with cited
+customer, usage, strategy, feasibility, and challenger positions. It preserved
+`ship`/`segment`/`defer` disagreement, attached sample-weighted BigQuery
+aggregate evidence, stopped for named-human approval, evaluated a measured
+outcome, and reopened the same case as generation 2 with its complete prior
+approval and experiment plan retained.
 
 In the signed operator lane, a live Gemini/ADK job reached the deterministic
 approval gate and approval reactivated Jira marker `KAN-19`. The same hosted
@@ -147,7 +168,7 @@ proof, both using the same workflow and deterministic policy contracts.
 - Durable Cloud Tasks/Firestore execution that survives browser reloads
 - Real source, trace, impact, policy, approval, artifact, and reversal records
 - One hosted signed Jira create/reactivate/reverse round trip
-- 337 local backend tests, Ruff, frontend build, and 14/14 trace evaluation
+- 386 local backend tests, Ruff, frontend build, and 14/14 trace evaluation
   cases passing at the final packaging checkpoint
 - Public release metadata exposing the exact serving SHA and Cloud Build ID
 - No embedded credentials found in the repository

@@ -1,7 +1,11 @@
 # Driftline Decision Twin demo — 3:48 target
 
-The official limit is four minutes. Record one continuous 1080p product take
-with a visible deployed URL and finish with Google Cloud proof. Do not claim a
+The official limit is four minutes. The organizer's August 24 checklist permits
+cuts to remove setup, loading, and dead air, while the judging criterion asks
+for a live, unedited proof of action. Keep the core council → human approval →
+measured outcome → generation-2 reopen sequence continuous and visibly tied to
+one case ID; edit only outside that proof sequence. Use 1080p, show the deployed
+URL in the first 10–15 seconds, and finish with Google Cloud proof. Do not claim a
 customer study, BigQuery deployment, or live council unless each is verifiable
 on the serving SHA.
 
@@ -91,3 +95,8 @@ measurable, auditable learning loop: evidence, dissent, decision, outcome.”
 - BigQuery is provisioned and the production result reports its aggregate
   source before claiming it in narration.
 - No invented user, ROI, retention, or revenue result appears on screen.
+- Public YouTube/Vimeo result is under four minutes, English or English-
+  subtitled, and visibly shows the working agent plus Google Cloud backend.
+- Submission form names Google ADK and the August 18 implementation start and
+  preserves the pre-existing ideation/source-package disclosure.
+- No cut occurs inside the approval → outcome → reopen proof sequence.

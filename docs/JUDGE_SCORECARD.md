@@ -1,217 +1,163 @@
 # Driftline judge scorecard
 
-This is a claim-to-evidence map for the Google All Things Agentic judging
-criteria. It describes the current serving release, not an aspirational SaaS
-roadmap.
+Fresh official-source audit: August 24, 2026. The Devpost website and official
+rules prevail over this working scorecard.
 
-The exact serving release is verified at read time by
-`./scripts/verify_production.sh` and the public `/health` contract; this
-scorecard intentionally does not hardcode a revision ID that can go stale
-after a later commit. Use the live check after every release. The
-submission-facing scorecard is
-kept in sync at [`submission/JUDGE_SCORECARD.md`](../submission/JUDGE_SCORECARD.md).
+## Exact live release
 
-## Current exact proof — 2026-08-22
+- Git SHA: `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`
+- Cloud Run revision: `driftline-00291-v89`, 100% traffic
+- Cloud Build: `154547e7-36ae-4eb2-a79a-35064e293191`
+- Image digest:
+  `sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`
+- Public URL: https://driftline-ops.web.app/
+- PR #16: open and unmerged
+- GitHub Actions `32757068133`: backend, frontend, standalone image, and
+  repository hygiene passed
+- Local: 386 backend tests, Ruff, frontend build/contract, dependency audit,
+  shell/diff hygiene, and 14/14 trace evaluation passed
 
-The runtime-code proof reached `needs_approval` through Google ADK + Gemini 3.5
-Flash, then approval and undo persisted and reversed a packet with no external
-write. The exact serving SHA/build and fresh proof IDs are emitted by
-`/health` and the repository scripts; browser checks and
-Salesforce/customer-outcome boundaries are recorded in
-[`RESOURCE_INVENTORY.md`](RESOURCE_INVENTORY.md). Run the scripts below after
-each release rather than trusting a copied identifier.
+## 40% — Innovation and operational utility
 
-## Innovation and operational utility — 40%
+### Judge thesis
 
-### The judge should see
+PMs make consequential decisions from contradictory usage, customer, strategy,
+and feasibility evidence. Driftline turns that fragmented judgment into one
+inspectable learning loop:
 
-- One competitor pricing sentence becomes four named downstream surfaces:
-  comparison map, pricing battlecard, deal-desk guidance, and executive brief.
-- The workflow runs asynchronously through Cloud Tasks rather than waiting in
-  a chat turn.
-- Gemini produces an evidence-bound impact analysis and two decision options
-  with citations, tradeoffs, and rollback.
-- Deterministic policy stops high-risk work at a human gate. Approval creates a
-  packet and owner work; undo appends a reversal marker.
-- The append-only ledger and change memory show that a change is remembered,
-  not merely alerted once.
+`evidence → dissent → counterfactuals → human experiment → outcome → reopen`
 
-### Live evidence
+This is stronger than a generic agent demo because the memorable action is not
+text generation. The product changes the state of the decision when measured
+evidence violates the plan, while preserving why the earlier decision was made.
 
-- The trace-to-eval gate (`scripts/verify_trace_eval.sh`) scores fourteen
-  independent safety/usefulness cases. Critical safety must be 100%,
-  usefulness at least 75%, overall at least 90%, and any regression against a
-  prior report fails closed. The deployed live-agent verifier applies the same
-  suite to a fresh Google ADK/Gemini trace and persists only a redacted report
-  in `driftline_trace_evaluations`; the production verifier reads the latest
-  report at verification time and currently confirms stability with 100%
-  safety, 100% usefulness, 100% overall, and no case regressions. The exact
-  evaluation ID is emitted by the verifier rather than hardcoded here. These
-  are evaluation telemetry, not customer outcomes.
+### Live proof
 
-- Logged-out desktop and 390x844 mobile browser QA showed the interactive
-  impact map before and after a scan: source -> offering -> impact area -> work
-  surface -> handoff stages, directional node focus, readable sibling dimming,
-  bounded inspector, and worklist handoff; mobile `scrollWidth` stayed equal to
-  the viewport width.
-- The current 500px logged-out browser check exercised all six sidebar actions
-  after deferred panels mounted: each target landed below the sticky header,
-  `settings-section` and `deployment-section` were each unique, and no console
-  messages were emitted.
-- A fresh logged-out browser check jumped directly to the bottom after load;
-  Trace-to-eval, Value proof, and Change memory all hydrated instead of
-  remaining behind an in-view placeholder. Desktop and 500px mobile widths had
-  no horizontal overflow.
-- `scripts/verify_live_agent.sh`: fresh job `job-17f83337c4b8`, workflow
-  `0ac5d4f9-71cb-47ff-8c64-821e1f9ad71f`, five audit events, four artifacts,
-  two decision options, a passing trace evaluation, and `needs_approval`.
-- `scripts/verify_public_approval_undo.sh`: fresh job `job-8f08d64a2939`,
-  workflow `a5ef3d5e-01d6-4a53-80ff-e81b0d2492b1` persisted, approved one
-  owner action, recorded its completion, and then reversed it with
-  `external_write=false` and `external_systems_changed=false`. The verifier
-  fails closed unless the
-  approval journey carries structured Gemini impact / Decision Copilot
-  options, passes deterministic policy review, and matches evidence hashes.
-  The resulting bounded value proof retains two historical owner completions
-  and 3.7s owner-action cycle samples even though current completion returns
-  to zero after intentional undo; this is operational evidence, not a
-  customer-outcome claim. The logged-out browser also keeps the reversed
-  owner-action queue visible after **Reopen decision**, with four `Reversed`
-  rows and a clear append-only history explanation.
-- The current public evaluation window reports 12 bounded workflows and 12
-  source observations, with 7 historical owner-action closures, approval
-  latency p50/p90 of 22.3s/132.9s, and owner-action cycle p50/p90 of
-  2.8s/18.8s. These are isolated Driftline operational records; current
-  completion is 0% after intentional undo, and none of these values is a
-  customer time-saved, revenue, retention, or willingness-to-pay claim.
-- A logged-out browser check on the current release changed the selector from
-  a completed `competitor/offerings` workflow to `competitor/blog`. The old
-  workflow and approval state disappeared immediately, the blog-specific
-  preview appeared, and approval remained disabled until a fresh scan. This
-  protects judges and operators from cross-scenario stale state.
-- Durable run recovery: a fresh public reload exposed **Open run** on a
-  workflow-linked history row; opening it restored evidence, approval state,
-  and artifact decisions without starting another scan or emitting console
-  errors.
-- Source operations: the signed console now exposes **Check now** on each
-  source-health card, with paused sources disabled and anonymous judging kept
-  free of the operator mutation control.
-- The authenticated operator session preserves its Google token and tenant
-  membership list when changing the selected tenant, keeping every subsequent
-  request signed and tenant-scoped.
-- A manual run of the isolated `driftline-monitor` Scheduler job produced an
-  OIDC-authenticated HTTP 200 `/api/scheduler/tick` request on the serving
-  revision; healthy sources were correctly deferred until their cadence due
-  time rather than spending another model call.
-- An earlier direct Scheduler run at `2026-08-22T02:32:43Z` returned an
-  OIDC-authenticated HTTP 200 on the then-serving `driftline-00162-nvm`; the registry then
-  reported all five bounded sources healthy with zero stale or failed entries.
-  Sources not due at that moment were deferred by cadence as designed.
-- The latest production verifier found no `Detected filter using positional
-  arguments` warning after the Firestore `FieldFilter` cleanup; the only
-  recent warning was the known ADK response-part diagnostic, with zero
-  application errors.
-- The same deployed agent handled three additional bounded source families:
-  competitor offerings (`job-82ac284398b6`, workflow
-  `a1190503-0c2f-4182-83c9-22e4879fc6e1`), competitor narrative/blog
-  (`job-b8a7d0ebcf6d`, workflow `7a63eea4-7dec-4626-8b2b-1834a4542716`), and
-  own terms (`job-ee66d880b4eb`, workflow
-  `d5f75932-3a41-48a8-8765-d629abae9441`). Each reached `needs_approval` with
-  Gemini structured analysis, four mapped impacts, and five audit events.
-- Operator source onboarding is bounded to 25 enabled custom sources per
-  tenant, with updates allowed for existing IDs at the limit and fail-closed
-  persistence errors. This is independently tested from the deployment-wide
-  25-source scheduler cap, preventing one tenant from consuming the whole
-  registry.
+Case `decision-onboarding-ca91c815d6629f4d5ff5acbd` proved:
 
-## Architectural discipline and technology — 30%
+- a provenance-preserving evidence graph with a live
+  `bigquery-aggregate-attached` event and minimum cohort 84;
+- five distinct cited specialist positions: customer, usage, strategy,
+  feasibility, and challenger;
+- visible disagreement across `ship`, `segment`, and `defer`;
+- four counterfactuals with option-specific metrics, success/stop conditions,
+  rollbacks, and owner actions;
+- a named-human approval at an actual UTC timestamp;
+- a measured guardrail outcome;
+- generation-2 reopening with the complete generation-1 approval, experiment
+  plan, trigger observation, and reopen reason retained.
 
-### The judge should see
+### Honest limit
 
-- Gemini 3.5 Flash is used through Vertex AI and Google ADK, not mentioned only
-  in documentation. The persisted trace records both allowlisted tool calls.
-- Firestore restores durable workflow, source-history, tenant, and audit state.
-- Cloud Tasks provides OIDC-authenticated asynchronous dispatch and bounded
-  retries; Cloud Scheduler drives the bounded monitor cycle.
-- The model cannot approve itself. Pydantic schema validation, evidence hashes,
-  artifact allowlists, deterministic policy, idempotency, and reversal state
-  sit outside model output.
-- Public and signed tenant lanes are separate. Tenant connector credentials
-  resolve through tenant-specific Secret Manager namespaces and are not sent to
-  the browser or logs.
-- Signed tenant `live`, `tenant_demo`, and `monitor` runs can attach a second,
-  normalized aggregate connector read to the Change Card. Only fixed scopes,
-  bounded counts, and allowlisted Salesforce object metadata survive; an
-  `internal_context_reader` audit event records the attachment. Both the
-  impact analyst and Decision Copilot receive a guarded aggregate-only prompt
-  projection, while the redacted trace records only context provenance. The
-  anonymous judge lane never calls this seam.
-- Cloud Run is isolated to `driftline-hackathon-2026`, scale-to-zero, and
-  max-one instance; the runtime has no project-level Secret Manager access.
+The onboarding case and outcome are bounded demo evidence. No customer time
+saved, revenue, retention, willingness-to-pay, or PM adoption result has been
+measured. The pre-registered 6–8 participant study remains open.
 
-### Live evidence
+## 30% — Architectural discipline and tech stack
 
-- `scripts/verify_production.sh`: Firestore, Tasks, Scheduler, uptime, alerting,
-  IAM, Artifact Registry retention, zero recent Cloud Run errors, OIDC tenant
-  membership, and the no-project-wide-secret-reader boundary all pass.
-- Cloud Build's post-deploy smoke gate compares the serving revision digest
-  with the exact Artifact Registry image tag and verifies the public health
-  SHA/build contract before declaring the build successful.
-- Latest recorded immutable image digest snapshot:
-  `sha256:2a9b6ce237a1b5f9ee6bc3c9436b2a2b23a112f28c5fb8d3db6e501976951d1b`.
-- Public `/health` reports the same full release SHA as the source commit and
-  the Cloud Build ID, making the serving revision independently traceable.
-- Signed isolated connector probes are documented in
-  [`RESOURCE_INVENTORY.md`](RESOURCE_INVENTORY.md); the anonymous lane remains
-  packet-only by design. Salesforce has a durable read-only OAuth callback
-  record, but the last direct health probe returned `invalid_grant`, so no CRM
-  object totals are claimed until the owner completes fresh consent.
-- The authenticated tenant **Refresh context** read verified aggregate-only
-  Jira, Confluence, Slack, and GitHub reads (`18` / `7` / `38` / `0` issues and
-  PRs respectively) while keeping Salesforce explicitly authorization-gated.
-- A signed tenant scan then persisted job `job-a33d07ac658c` / workflow
-  `75da1f00-e657-4ba3-bba6-80c298b747be` at `needs_approval` through Google ADK
-  + Gemini 3.5 Flash; no connector write was attempted.
+### Live architecture proof
 
-## Demo and production readiness — 30%
+- Gemini 3.5 Flash runs through Vertex AI and Google ADK.
+- Five task-mode specialists plus one synthesis turn have no mutation tools.
+  Strict schemas, evidence-only citations, role mandates, and disagreement
+  validation fail closed into an honestly labeled deterministic fallback.
+- BigQuery reads only allowlisted aggregate metrics and segments. Queries are
+  parameterized, sample-weighted, dry-run checked, capped at 50 MB billed
+  bytes, and reject cohorts below the privacy floor.
+- Firestore compare-and-set transitions bind approvals to synthesis hash and
+  generation, preserve lineage, and reject stale/conflicting decisions.
+- Connector side effects are durably claimed before execution. Any selected
+  connector failure requires reconciliation; completed connector results are
+  reused so retries do not duplicate confirmed writes.
+- Google OIDC-backed audit attribution uses the verified operator email, not an
+  independently supplied display name.
+- Cloud Run uses min scale zero and max scale one; public council quotas reserve
+  all six model slots atomically.
 
-### The judge should see
+### Security and failure evidence
 
-- The public URL loads without credentials and labels synthetic data.
-- The live scan shows the source diff, hash, model/tool trace, impact map,
-  Decision Copilot, human gate, approval packet, audit timeline, and undo.
-- The lower panels load their bounded reads on approach, keeping first paint
-  small while preserving inspectability.
-- The repository contains the architecture diagram, setup/deploy commands,
-  rules record, verification scripts, and resource inventory.
+Codex Security diff scan `80f0982d-2b2e-4efb-b974-d88ec45233ab` reviewed all
+14 changed security surfaces. It found two medium integrity issues—unbound OIDC
+audit attribution and first-attempt connector false completion. Both were fixed
+and regression-tested before the 386-test full pass.
 
-### Live evidence
+`verify_production.sh` independently proved the serving SHA/build/digest,
+Firestore, Cloud Tasks, Scheduler, uptime check, alert policy, runtime IAM,
+security headers, bounded value windows, and zero current-revision Cloud Run
+errors.
 
-- 291 backend tests, Ruff, frontend production build, standalone image build,
-  and repository hygiene pass in GitHub Actions run `32572937856`; the frozen
-  dependency export separately passes `pip-audit` with no known vulnerabilities.
-- Desktop and mobile Lighthouse navigation both score 100 for accessibility,
-  best practices, SEO, and agentic browsing (53/53 checks, zero failures).
-- At 390×844, body and document widths equal the viewport and the browser has no
-  application console messages.
-- Public `/health` returns Firestore persistence and async-jobs status with
-  `Cache-Control: no-store`.
+## 30% — Demo and production readiness
 
-## Claims deliberately not made
+### Production gates
 
-- No customer revenue lift, time saved, retention impact, or willingness-to-pay
-  is claimed; the value panel is deployment telemetry, not ROI.
-- No arbitrary competitor crawl is claimed; the public lane uses five pinned
-  fixtures and bounded operator-registered URLs.
-- No Salesforce object read is claimed; the read-only OAuth lane requires fresh
-  tenant consent after the stored refresh token returned `invalid_grant`.
-- No anonymous third-party write is claimed; connector writes require a signed
-  operator and remain isolated from judge traffic.
-- No Fortified Enterprise Fleet or Startup Excellence eligibility is claimed.
+- `verify_decision_twin.sh`: PASS — real `google_adk`, live BigQuery, human
+  approval, outcome, complete lineage, generation 2.
+- `verify_live_agent.sh`: PASS — job `job-e253f458c786`, workflow
+  `6a507a68-0a14-498e-a368-332ff5aef4ff`, two allowlisted tools, four
+  artifacts, passing eval `eval-b00a339dfd10`.
+- `verify_public_approval_undo.sh`: PASS — job `job-0f7c269392a3`, workflow
+  `ef53b1b0-8483-4114-acde-4424bf2c1ce7`, owner action completed then
+  reversed, no external system changed.
+- `verify_production.sh`: PASS — exact release identity, 100% traffic,
+  max-one instance, zero recent errors.
+- `verify_trace_eval.sh`: PASS — 14/14, safety/usefulness/overall all 1.0.
 
-## Suggested demo order
+### Official video gate
 
-Run live agent → evidence diff → Gemini/ADK trace → impact map → artifact details →
-Decision Copilot → approve → packet/audit → undo → append-only history and
-multimodal evidence → Cloud Run proof. Keep the video public and under four
-minutes when it is finally uploaded.
+The video must be public on YouTube or Vimeo, under four minutes, English or
+English-subtitled, show the working agent, and visibly prove the backend runs on
+Google Cloud. The August 24 organizer checklist recommends trimming load time
+and using jump cuts; the judging criterion asks for a live, unedited proof of
+action. Safest execution: edit intros/waits, but keep one continuous visible
+council → approval → outcome → reopen sequence tied to the same case.
+
+The final video, screenshots, and rendered Devpost form are not complete and
+must not be claimed as complete.
+
+## Requirement checklist
+
+| Official requirement | Evidence | Status |
+| --- | --- | --- |
+| New autonomous agent beyond chat | Async ADK/Cloud workflow plus evidence-to-outcome state change | Proven |
+| Gemini 3.5+ | Gemini 3.5 Flash via Vertex AI | Proven live |
+| Google framework | Google ADK | Proven live |
+| Google Cloud infrastructure | Cloud Run, Firestore, BigQuery, Tasks, Scheduler, Build, Artifact Registry, Storage, Secret Manager | Proven live |
+| One category | Taskmaster | Prepared; entrant must select |
+| Hosted URL | Public Firebase facade to Cloud Run | Proven live |
+| Repository and spin-up instructions | Public repo and README | Proven |
+| Architecture diagram | Submission PNG/SVG assets | Prepared; final upload QA open |
+| Public demo under four minutes | Script/runbook/captions | Unproven until recorded and uploaded |
+| SDK and start date answers | Google ADK; implementation repo began August 18 | Prepared; entrant must enter |
+| Originality/third-party disclosure | Earlier ideation/source package and dependencies disclosed | Prepared; entrant must confirm |
+| PM validation | Study kit and fail-closed summarizer | Unproven; no sessions |
+| Registration/rules agreement/submission | None performed | Intentionally open |
+
+## Brutal win assessment
+
+- Innovation/utility today: 34/40. The loop is memorable and technically real;
+  missing independent PM evidence caps the value claim.
+- Architecture today: 29/30. This is the strongest lane: bounded authority,
+  cost/privacy controls, crash recovery, exact release provenance, and real
+  Google services.
+- Demo/readiness today: 23/30 before the final video and screenshots; 28–30 is
+  attainable with a fast, legible, truthful recording.
+- Overall current evidence: roughly 86/100. With a strong final video and honest
+  PM validation, 93–97 is defensible. Winning remains uncertain because judge
+  preference and competing entries are unknowable.
+
+## Ranked remaining work
+
+1. Run 6–8 genuine PM sessions; publish only anonymized aggregates that pass the
+   pre-registered human-control and data-quality gates.
+2. Record the under-four-minute public demo from this verified release. Show the
+   working product in the first 10–15 seconds and keep the core proof continuous.
+3. Capture final screenshots and confirm architecture/text remain legible.
+4. Fill the Devpost form with category, Google SDK, August 18 start date,
+   disclosure, repo, hosted URL, architecture, and video.
+5. Read and explicitly accept the official rules, register, then separately
+   authorize final submission.
+6. After submission, freeze the submitted repo/video/links until winners are
+   announced. Optional public content/social bonuses require separate approval.
+
+No registration, submission, email, social post, or public bonus content is
+authorized by this scorecard.

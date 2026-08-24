@@ -1,7 +1,8 @@
 # Google All Things Agentic — verified submission requirements
 
-Checked against the official Devpost overview, rules, judging criteria,
-announcements, submission form, and key-date endpoints on August 23, 2026. The
+Checked against the official Devpost rules, judging criteria, prizes,
+submission requirements, key-date feed, and all seven organizer announcements
+on August 24, 2026. The
 canonical sources are:
 
 - [Contest overview](https://allthingsagentichackathon.devpost.com/)
@@ -50,6 +51,12 @@ The video must show the problem, value, working application, and proof that the
 backend runs on Google Cloud. It should be about four minutes; if longer, only
 the first four minutes are evaluated. Driftline will use a public YouTube or
 Vimeo link so judge access is not dependent on account permissions.
+
+The August 24 organizer checklist additionally requires the submission to name
+the Google SDK/framework used and the project start date, disclose pre-existing
+and third-party code, and leave the repository, video, and linked materials
+unchanged after the deadline until winners are announced. Those are explicit
+final-form and post-deadline freeze gates for Driftline.
 
 The optional content bonus includes public build content that explicitly says
 it was created for this hackathon, a separate social post using the required
@@ -106,13 +113,23 @@ Taskmaster rubric asks for autonomous execution beyond chat and background
 workflow completion, with a distinctive “Bring Your Own Friction” problem. The
 architecture rubric looks for modular agents, tools, state, and Google
 technology used substantively. The demo rubric asks for an unedited “Proof of
-Action,” Google Cloud deployment proof, and reproducible documentation.
+Action,” Google Cloud deployment proof, and reproducible documentation. The
+August 24 organizer announcement separately recommends removing load time and
+using jump cuts. Driftline's conservative interpretation is to edit setup,
+waiting, and narration for pace while keeping the core live decision → approval
+→ measured outcome → reopen sequence continuous and free of cuts that could
+imply an action occurred when it did not.
 
 ## Current submission gates
 
 - Final submission deadline: **August 31, 2026 at 5:00 PM Pacific**.
 - The demo video must be publicly viewable on YouTube or Vimeo and no longer
   than four minutes; only the first four minutes are evaluated.
+- The final form must identify Google ADK, the August 18 implementation start,
+  and the disclosed pre-existing ideation/source package.
+- After the deadline, freeze the submitted repository, video, and linked
+  materials until winners are announced; continue any work only in a separate
+  copy that cannot change the submitted evidence.
 - The hosted project must be free and accessible to judges through judging,
   and the README must include setup instructions and an architecture diagram.
 - Driftline will not submit until its live URL, repository, video, claims, and
