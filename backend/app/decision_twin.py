@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -586,7 +586,10 @@ def _named_human(approver: str) -> str:
 
 
 def _experiment_plan(
-    option: CounterfactualOption, evidence_nodes: list[EvidenceNode]
+    option: CounterfactualOption,
+    evidence_nodes: list[EvidenceNode],
+    *,
+    approved_at: datetime,
 ) -> ExperimentPlan:
     metric_node = next(
         (node for node in evidence_nodes if node.node_id == "metric-activation-split"),
@@ -693,7 +696,7 @@ def _experiment_plan(
         stop_conditions=contract["stops"],
         stop_operator=contract["stop_operator"],
         stop_threshold=contract["stop_threshold"],
-        review_at="2026-08-30T18:00:00+00:00",
+        review_at=(approved_at + timedelta(days=7)).isoformat(),
         owner_actions=contract["actions"],
         rollback=option.rollback,
     )
@@ -721,13 +724,18 @@ def approve_decision_case(
     except StopIteration as exc:
         raise DecisionTwinPolicyError("Approval references an unknown option") from exc
     approved = deepcopy(case)
+    approved_at = datetime.now(UTC)
     approved.approval = ApprovalRecord(
         approver=_named_human(approver),
         option_id=option_id,
         synthesis_hash=case.council.synthesis_hash,
-        approved_at=datetime.now(UTC).isoformat(),
+        approved_at=approved_at.isoformat(),
     )
-    approved.experiment_plan = _experiment_plan(option, case.evidence_nodes)
+    approved.experiment_plan = _experiment_plan(
+        option,
+        case.evidence_nodes,
+        approved_at=approved_at,
+    )
     approved.status = "experiment_active"
     approved.reopen_reason = None
     approved.events.append(

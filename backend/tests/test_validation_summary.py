@@ -49,6 +49,34 @@ def test_validation_summary_treats_partial_rows_as_incomplete() -> None:
     assert "incomplete" in summarize(rows)
 
 
+def test_validation_summary_does_not_ignore_partial_row_after_minimum_sample() -> None:
+    rows = [
+        {
+            "participant_id": f"P{index:02d}",
+            "baseline_seconds": "600",
+            "driftline_seconds": "300",
+            "baseline_coverage_0_5": "3",
+            "driftline_coverage_0_5": "5",
+            "baseline_confidence_1_5": "3",
+            "driftline_confidence_1_5": "4",
+            "would_use_weekly": "yes",
+            "recovery_understood": "yes",
+            "human_control_understood": "yes",
+            "moderator_hints": "0",
+            "condition_order": _condition_order(index),
+            "protocol_deviation": "false",
+        }
+        for index in range(1, 7)
+    ]
+    rows.append({"participant_id": "P07", "condition_order": "manual_first"})
+
+    report = summarize(rows)
+
+    assert "incomplete" in report
+    assert "partial" in report
+    assert "thresholds met" not in report
+
+
 def test_validation_summary_rejects_duplicates_and_out_of_range_values() -> None:
     base = {
         "participant_id": "P01",

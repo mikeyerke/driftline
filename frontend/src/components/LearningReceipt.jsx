@@ -8,7 +8,10 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, onOutc
   const active = decisionCase.status === "experiment_active";
   const reopened = decisionCase.status === "reopened";
   const plan = decisionCase.experiment_plan;
-  const latestOutcome = decisionCase.outcomes.at(-1);
+  const currentGenerationPrefix = `outcome-g${decisionCase.generation}-`;
+  const currentOutcome = decisionCase.outcomes
+    .filter((outcome) => outcome.observation_id.startsWith(currentGenerationPrefix))
+    .at(-1);
   return (
     <section className={`decision-room-section learning-receipt${reopened ? " reopened" : ""}`} aria-labelledby="learning-receipt-title" aria-live="polite">
       <header className="decision-room-section-header">
@@ -24,9 +27,9 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, onOutc
         <div><Database size={17} /><span><strong>Decision state</strong><small>Firestore-ready generation {decisionCase.generation}</small></span></div>
         <div><Activity size={17} /><span><strong>Evidence manifest</strong><small>{shortHash(decisionCase.council.evidence_manifest_hash)}</small></span></div>
         <div><CheckCircle2 size={17} /><span><strong>Council synthesis</strong><small>{shortHash(decisionCase.council.synthesis_hash)}</small></span></div>
-        <div>{latestOutcome ? <History size={17} /> : <RotateCcw size={17} />}<span><strong>{latestOutcome ? "Outcome observed" : "Rollback path"}</strong><small>{latestOutcome?.evaluation?.verdict || (plan?.reversible ? "Available" : "Prepared")}</small></span></div>
+        <div>{currentOutcome ? <History size={17} /> : <RotateCcw size={17} />}<span><strong>{currentOutcome ? "Outcome observed" : "Rollback path"}</strong><small>{currentOutcome?.evaluation?.verdict || (plan?.reversible ? "Available" : "Prepared")}</small></span></div>
       </div>
-      <details className="decision-proof-details"><summary>Inspect IDs and policy lineage</summary><dl><div><dt>Case</dt><dd>{decisionCase.case_id}</dd></div><div><dt>Evidence</dt><dd>{decisionCase.council.evidence_manifest_hash}</dd></div><div><dt>Synthesis</dt><dd>{decisionCase.council.synthesis_hash}</dd></div>{latestOutcome && <div><dt>Outcome</dt><dd>{latestOutcome.observation_id} · {latestOutcome.content_hash}</dd></div>}</dl></details>
+      <details className="decision-proof-details"><summary>Inspect IDs and policy lineage</summary><dl><div><dt>Case</dt><dd>{decisionCase.case_id}</dd></div><div><dt>Evidence</dt><dd>{decisionCase.council.evidence_manifest_hash}</dd></div><div><dt>Synthesis</dt><dd>{decisionCase.council.synthesis_hash}</dd></div>{currentOutcome && <div><dt>Outcome</dt><dd>{currentOutcome.observation_id} · {currentOutcome.content_hash}</dd></div>}</dl></details>
       {active && <button className="primary decision-outcome-button" type="button" onClick={onOutcome} disabled={busy}><Activity size={17} />{busy ? "Evaluating outcome…" : "Advance to measured outcome"}</button>}
       {active && <p className="fixture-disclosure">Runs a pinned aggregate measurement fixture for the judge demo; it is not presented as customer validation.</p>}
     </section>

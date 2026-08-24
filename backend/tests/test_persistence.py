@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -7,8 +8,141 @@ from types import SimpleNamespace
 import pytest
 
 from app import persistence
+from app.decision_twin import approve_decision_case, build_demo_decision_case
 from app.models import JobState
 from app.trace_eval import build_quality_fixture, run_quality_gate
+
+
+def test_decision_case_memory_compare_and_set_is_atomic(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+
+    class SlowGetDict(dict):
+        def get(self, key, default=None):
+            value = super().get(key, default)
+            time.sleep(0.02)
+            return value
+
+    store = SlowGetDict()
+    monkeypatch.setattr(persistence, "_decision_cases_memory", store)
+    case = build_demo_decision_case(case_id="decision-atomic-cas")
+    persistence.persist_decision_case(case)
+    targets = [
+        approve_decision_case(
+            case,
+            option_id=option_id,
+            approver="Concurrency Tester",
+            expected_synthesis_hash=case.council.synthesis_hash,
+            expected_generation=1,
+        )
+        for option_id in ("ship", "rollback")
+    ]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(
+            executor.map(
+                lambda target: persistence.compare_and_set_decision_case(
+                    target,
+                    expected_generation=1,
+                    expected_statuses={"needs_approval"},
+                ),
+                targets,
+            )
+        )
+
+    assert sorted(results) == [False, True]
+    stored = persistence.load_decision_case(case.case_id)
+    assert stored is not None
+    assert stored.status == "experiment_active"
+    assert stored.approval.option_id in {"ship", "rollback"}
+
+
+def test_decision_case_firestore_audit_failure_rolls_back_parent(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+    case = build_demo_decision_case(case_id="decision-atomic-audit")
+    approved = approve_decision_case(
+        case,
+        option_id="segment",
+        approver="Audit Tester",
+        expected_synthesis_hash=case.council.synthesis_hash,
+        expected_generation=1,
+    )
+    documents = {
+        (persistence.DECISION_CASES_COLLECTION, case.case_id): case.model_dump(
+            mode="json"
+        )
+    }
+
+    class FakeSnapshot:
+        def __init__(self, payload):
+            self.exists = payload is not None
+            self._payload = payload
+
+        def to_dict(self):
+            return dict(self._payload) if self._payload is not None else None
+
+    class FakeDocument:
+        def __init__(self, path):
+            self.path = path
+
+        def get(self, transaction=None):
+            return FakeSnapshot(documents.get(self.path))
+
+        def collection(self, name):
+            return FakeCollection((*self.path, name))
+
+    class FakeCollection:
+        def __init__(self, path):
+            self.path = path
+
+        def document(self, document_id):
+            return FakeDocument((*self.path, document_id))
+
+    class FakeTransaction:
+        def __init__(self):
+            self.pending = []
+
+        def set(self, reference, payload):
+            self.pending.append(("set", reference, dict(payload)))
+
+        def create(self, reference, payload):
+            self.pending.append(("create", reference, dict(payload)))
+
+        def run(self, callback):
+            result = callback(self)
+            if any(action == "create" for action, _, _ in self.pending):
+                raise RuntimeError("audit-store-unavailable")
+            for _, reference, payload in self.pending:
+                documents[reference.path] = payload
+            return result
+
+    class FakeClient:
+        def collection(self, name):
+            return FakeCollection((name,))
+
+        @staticmethod
+        def transaction():
+            return FakeTransaction()
+
+    monkeypatch.setattr(persistence, "_client", lambda: FakeClient())
+    monkeypatch.setattr(
+        persistence.firestore,
+        "transactional",
+        lambda callback: lambda transaction: transaction.run(callback),
+    )
+    monkeypatch.setattr(
+        persistence, "_retention_expiry", lambda _tenant_id: "expiry"
+    )
+
+    with pytest.raises(RuntimeError, match="audit-store-unavailable"):
+        persistence.compare_and_set_decision_case(
+            approved,
+            expected_generation=1,
+            expected_statuses={"needs_approval"},
+        )
+
+    assert documents[(persistence.DECISION_CASES_COLLECTION, case.case_id)][
+        "status"
+    ] == "needs_approval"
 
 
 def test_tenant_bootstrap_is_atomic_in_memory(monkeypatch) -> None:

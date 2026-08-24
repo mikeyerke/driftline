@@ -98,4 +98,20 @@ if { command -v rg >/dev/null 2>&1 \
   exit 1
 fi
 
+# Decision Twin retains prior outcomes as history after reopening. The learning
+# receipt must select only an observation whose generation-bound ID matches the
+# current case generation, or a generation-1 result can look current after a
+# generation-2 approval.
+if { command -v rg >/dev/null 2>&1 \
+      && { ! rg -q 'outcome-g\$\{decisionCase\.generation\}-' frontend/src/components/LearningReceipt.jsx \
+        || ! rg -q 'observation_id\.startsWith\(currentGenerationPrefix\)' frontend/src/components/LearningReceipt.jsx \
+        || rg -q 'decisionCase\.outcomes\.at\(-1\)' frontend/src/components/LearningReceipt.jsx; }; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && { ! grep -Fq 'outcome-g${decisionCase.generation}-' frontend/src/components/LearningReceipt.jsx \
+        || ! grep -Eq 'observation_id\.startsWith\(currentGenerationPrefix\)' frontend/src/components/LearningReceipt.jsx \
+        || grep -Eq 'decisionCase\.outcomes\.at\(-1\)' frontend/src/components/LearningReceipt.jsx; }; }; then
+  printf 'Decision Twin receipt is not generation-scoped: a prior outcome could appear current.\n' >&2
+  exit 1
+fi
+
 printf 'Frontend literal ID contract: PASS\n'

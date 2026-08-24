@@ -66,11 +66,23 @@ def _validate_condition_order(row: dict[str, str]) -> None:
 
 
 def summarize(rows: list[dict[str, str]]) -> str:
+    nonempty = [
+        row for row in rows if any((value or "").strip() for value in row.values())
+    ]
     complete = [
         row
-        for row in rows
+        for row in nonempty
         if all(row.get(field, "").strip() for field in REQUIRED_FIELDS)
     ]
+    partial_count = len(nonempty) - len(complete)
+    if partial_count:
+        row_label = "row" if partial_count == 1 else "rows"
+        return (
+            "# Driftline validation summary\n\n"
+            f"Status: **incomplete** ({len(complete)}/6 minimum participants; "
+            f"{partial_count} partially completed participant {row_label}).\n\n"
+            "No win claim should be published yet.\n"
+        )
     if len(complete) < 6:
         return (
             "# Driftline validation summary\n\n"

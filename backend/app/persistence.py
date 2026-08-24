@@ -61,6 +61,7 @@ _credential_access_memory: list[dict[str, Any]] = []
 _credential_enrollments_memory: dict[tuple[str, str, str], dict[str, Any]] = {}
 _decision_cases_memory: dict[str, dict[str, Any]] = {}
 _tenant_provision_lock = Lock()
+_decision_cases_lock = Lock()
 
 
 def _enabled() -> bool:
@@ -176,6 +177,29 @@ def _create_audit_events(
                 )
 
 
+def _stage_audit_events(
+    transaction: Any,
+    audit_collection: Any,
+    events: Iterable[dict[str, Any]],
+) -> None:
+    """Validate and stage append-only audit creates in one transaction."""
+    pending: list[tuple[Any, dict[str, Any]]] = []
+    for index, event in enumerate(events):
+        event_id = event.get("event_id") or f"event-{index:04d}"
+        payload = dict(event)
+        reference = audit_collection.document(event_id)
+        snapshot = reference.get(transaction=transaction)
+        if snapshot.exists:
+            if (snapshot.to_dict() or {}) != payload:
+                raise RuntimeError(
+                    f"Audit event {event_id} already exists with different content"
+                )
+            continue
+        pending.append((reference, payload))
+    for reference, payload in pending:
+        transaction.create(reference, payload)
+
+
 def compare_and_set_workflow(state: WorkflowState, expected_status: str) -> bool:
     """Persist a workflow transition only if its durable status is unchanged.
 
@@ -235,18 +259,28 @@ def persist_decision_case(case: DecisionCase) -> None:
     """Persist a complete Decision Twin generation without raw credentials."""
     payload = case.model_dump(mode="json")
     if not _enabled():
-        _decision_cases_memory[case.case_id] = payload
+        with _decision_cases_lock:
+            _decision_cases_memory[case.case_id] = payload
         return
     payload["expires_at"] = _retention_expiry(case.tenant_id)
-    document = _client().collection(DECISION_CASES_COLLECTION).document(case.case_id)
-    document.set(payload)
-    _create_audit_events(document.collection("audit_events"), case.events)
+    client = _client()
+    document = client.collection(DECISION_CASES_COLLECTION).document(case.case_id)
+
+    @firestore.transactional
+    def persist(transaction: Any) -> None:
+        _stage_audit_events(
+            transaction, document.collection("audit_events"), case.events
+        )
+        transaction.set(document, payload)
+
+    persist(client.transaction())
 
 
 def load_decision_case(case_id: str) -> DecisionCase | None:
     if not _enabled():
-        payload = _decision_cases_memory.get(case_id)
-        return DecisionCase.model_validate(payload) if payload else None
+        with _decision_cases_lock:
+            payload = _decision_cases_memory.get(case_id)
+            return DecisionCase.model_validate(payload) if payload else None
     snapshot = _client().collection(DECISION_CASES_COLLECTION).document(case_id).get()
     if not snapshot.exists:
         return None
@@ -264,15 +298,16 @@ def compare_and_set_decision_case(
     """Commit one decision transition only from the reviewed generation/state."""
     payload = case.model_dump(mode="json")
     if not _enabled():
-        current = _decision_cases_memory.get(case.case_id)
-        if current is None:
-            return False
-        if int(current.get("generation", 0)) != expected_generation:
-            return False
-        if str(current.get("status")) not in expected_statuses:
-            return False
-        _decision_cases_memory[case.case_id] = payload
-        return True
+        with _decision_cases_lock:
+            current = _decision_cases_memory.get(case.case_id)
+            if current is None:
+                return False
+            if int(current.get("generation", 0)) != expected_generation:
+                return False
+            if str(current.get("status")) not in expected_statuses:
+                return False
+            _decision_cases_memory[case.case_id] = payload
+            return True
 
     client = _client()
     document = client.collection(DECISION_CASES_COLLECTION).document(case.case_id)
@@ -288,12 +323,11 @@ def compare_and_set_decision_case(
             return False
         if str(current.get("status")) not in expected_statuses:
             return False
+        _stage_audit_events(tx, document.collection("audit_events"), case.events)
         tx.set(document, payload)
         return True
 
     committed = transition(client.transaction())
-    if committed:
-        _create_audit_events(document.collection("audit_events"), case.events)
     return committed
 
 

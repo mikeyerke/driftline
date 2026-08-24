@@ -50,7 +50,7 @@ over this helper.
 | Human authority | Named-human approval; stale generation and hash protection | Proven |
 | Reversible experiment | Option-specific contract and outcome-driven reopen | Proven |
 | Complete lineage | Generation-1 approval, plan, trigger, and reason survive generation 2 | Proven |
-| CI/reproducibility | 386 tests; GitHub run `32757068133` all four jobs green | Proven |
+| CI/reproducibility | Full backend suite; GitHub run `32757068133` all four jobs green | Proven baseline |
 | Security diff | 14 surfaces reviewed; two medium findings fixed and tested | Proven |
 | Customer/PM utility | Study kit only; no genuine participant data | Unproven |
 | Customer ROI/WTP | No measurements | Unproven |

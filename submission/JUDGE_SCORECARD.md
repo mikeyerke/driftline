@@ -14,7 +14,7 @@ rules prevail over this working scorecard.
 - PR #16: open and unmerged
 - GitHub Actions `32757068133`: backend, frontend, standalone image, and
   repository hygiene passed
-- Local: 386 backend tests, Ruff, frontend build/contract, dependency audit,
+- Local: full backend suite, Ruff, frontend build/contract, dependency audit,
   shell/diff hygiene, and 14/14 trace evaluation passed
 
 Final submission metadata must use `/health` and
@@ -83,7 +83,7 @@ measured. The pre-registered 6–8 participant study remains open.
 Codex Security diff scan `80f0982d-2b2e-4efb-b974-d88ec45233ab` reviewed all
 14 changed security surfaces. It found two medium integrity issues—unbound OIDC
 audit attribution and first-attempt connector false completion. Both were fixed
-and regression-tested before the 386-test full pass.
+and regression-tested before the full backend pass.
 
 `verify_production.sh` independently proved the serving SHA/build/digest,
 Firestore, Cloud Tasks, Scheduler, uptime check, alert policy, runtime IAM,

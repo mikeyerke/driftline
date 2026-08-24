@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -126,6 +126,11 @@ def test_approval_requires_current_synthesis_named_human_and_complete_plan() -> 
     assert approved.experiment_plan.stop_conditions
     assert approved.experiment_plan.rollback
     assert datetime.fromisoformat(approved.approval.approved_at) <= datetime.now(UTC)
+    assert (
+        datetime.fromisoformat(approved.experiment_plan.review_at)
+        - datetime.fromisoformat(approved.approval.approved_at)
+        == timedelta(days=7)
+    )
 
 
 def test_each_approval_option_builds_its_own_experiment_contract() -> None:
