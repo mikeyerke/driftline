@@ -450,6 +450,13 @@ export default function App() {
     try {
       const state = await undoWorkflow(workflowId);
       if (sessionEpochRef.current !== decisionEpoch) return;
+      const reversalChangedExternal = Boolean(
+        state.action_record?.external_systems_changed
+        || state.action_record?.external_write,
+      );
+      const reopenedMessage = reversalChangedExternal
+        ? "Decision reopened · scoped connector reversal recorded"
+        : "Decision reopened · no external systems were changed";
       setWorkflowState(state);
       setJob((current) => current ? {
         ...current,
@@ -457,11 +464,11 @@ export default function App() {
         workflow: state,
         public_summary: state.status === "reconciliation_required"
           ? "Reversal safely paused · same-operation recovery required"
-          : "Decision reopened · no external systems were changed",
+          : reopenedMessage,
       } : current);
       setScanMessage(state.status === "reconciliation_required"
         ? "Reversal safely paused · reconcile the claimed operation"
-        : "Decision reopened · no external systems were changed");
+        : reopenedMessage);
       refreshHistory();
     } catch (error) {
       if (sessionEpochRef.current !== decisionEpoch) return;
@@ -599,7 +606,8 @@ export default function App() {
           <h1>Product decision control room</h1>
           <div className="topbar-actions">
             <OperatorAccess />
-            {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : liveWorkflow ? "Ready for decision" : "Status updated"}</span>}
+            {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : scanMessage}</span>}
+            {["complete", "dismissed"].includes(workflowState?.status) && <button className="secondary compact" type="button" onClick={() => runScan()} disabled={scanning || selectedSourcePaused}>Run again</button>}
             <span className="lane-indicator"><ShieldCheck size={15} />{operatorSession.identityToken ? "Signed operator lane" : "Public judge lane"}</span>
           </div>
         </header>

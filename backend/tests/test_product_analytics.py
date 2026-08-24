@@ -86,6 +86,8 @@ def test_bigquery_adapter_dry_runs_caps_bytes_and_uses_parameters(monkeypatch) -
     assert calls[0][1].dry_run is True
     assert calls[1][1].maximum_bytes_billed == 50_000_000
     assert "enterprise_workspaces" not in calls[1][0]
+    assert "SUM(activation_relative_change * sample_size)" in calls[1][0]
+    assert "SUM(sample_size)" in calls[1][0]
     assert calls[1][1].query_parameters[0].name == "segment"
 
 

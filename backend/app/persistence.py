@@ -1086,23 +1086,29 @@ def reserve_tenant_rate_limit(
     window_seconds: int,
     *,
     now: float | None = None,
+    amount: int = 1,
 ) -> bool:
-    """Atomically reserve one tenant quota slot for a fixed time window.
+    """Atomically reserve one or more tenant quota slots for a fixed window.
 
     Firestore deployments use a transaction so multiple Cloud Run instances
     cannot race past the same tenant limit. Local runs retain a deterministic
     in-memory fallback for tests and development.
     """
-    if metric not in _USAGE_METRICS or limit <= 0 or window_seconds <= 0:
+    if (
+        metric not in _USAGE_METRICS
+        or limit <= 0
+        or window_seconds <= 0
+        or amount <= 0
+    ):
         raise ValueError("rate_limit_arguments_invalid")
     timestamp = float(now if now is not None else time.time())
     window_start = int(timestamp // window_seconds) * window_seconds
     memory_key = (tenant_id, metric, window_start)
     if not _enabled():
         current = _tenant_rate_limit_memory.get(memory_key, 0)
-        if current >= limit:
+        if current + amount > limit:
             return False
-        _tenant_rate_limit_memory[memory_key] = current + 1
+        _tenant_rate_limit_memory[memory_key] = current + amount
         return True
 
     document = _client().collection(TENANT_RATE_LIMITS_COLLECTION).document(
@@ -1114,7 +1120,7 @@ def reserve_tenant_rate_limit(
     def reserve(transaction: firestore.Transaction) -> bool:
         snapshot = next(iter(transaction.get(document)))
         current = int((snapshot.to_dict() or {}).get("count", 0)) if snapshot.exists else 0
-        if current >= limit:
+        if current + amount > limit:
             return False
         expires_at = datetime.fromtimestamp(
             window_start + window_seconds, UTC
@@ -1125,7 +1131,7 @@ def reserve_tenant_rate_limit(
                 "tenant_id": tenant_id,
                 "metric": metric,
                 "window_start": window_start,
-                "count": current + 1,
+                "count": current + amount,
                 "limit": limit,
                 "expires_at": expires_at,
                 "updated_at": utc_now(),

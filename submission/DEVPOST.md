@@ -57,7 +57,7 @@ journey without granting anonymous visitors access to an external system.
 
 ## Proof of action
 
-The live release currently reports repository-head Git SHA
+The historical live release proof recorded for this draft reported serving Git SHA
 `e38facc43745eab267eacd2da4aa28914dff383b` from Cloud Build
 `96dbf2d7-7ee3-490a-a854-bef5c9615efc` through `/health` (verified August 23,
 2026). Historical release and signed-action proof remains recorded in the
@@ -65,8 +65,9 @@ resource inventory.
 
 In the signed operator lane, a live Gemini/ADK job reached the deterministic
 approval gate and approval reactivated Jira marker `KAN-19`. The same hosted
-workflow then reopened the decision and reversed only Driftline-owned labels
-and comments. Both HTTP operations returned 200, the tenant credential stayed
+workflow then reopened the decision, updated only Driftline-owned labels, and
+appended a named-human reversal comment; prior Jira comments were retained.
+Both HTTP operations returned 200, the tenant credential stayed
 in Secret Manager, and no unrelated Jira work was deleted or modified. The
 reproducible evidence is recorded in `docs/INTERNAL_PILOT_2026-08-23.md`.
 
@@ -104,9 +105,10 @@ generation. A named human can retry that operation; configured connector
 recovery still requires signed tenant authority.
 
 Source text is treated as untrusted evidence. Instruction-like content and
-control characters are removed from the model-visible projection while raw
-bytes remain unchanged for hashing and audit. Persisted traces exclude prompts,
-source bodies, and credentials.
+control characters are removed from the model-visible projection. Hashing and
+audit bind the bounded, decoded, whitespace-normalized source text rather than
+claiming byte-for-byte preservation of the HTTP response. Persisted traces
+exclude prompts, source bodies, and credentials.
 
 The anonymous and authenticated lanes are separate. Anonymous runs cannot write
 to Jira. Signed actions require Google OIDC identity, active tenant membership,

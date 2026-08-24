@@ -29,9 +29,10 @@ const steps = [
 
 export default function JudgeJourney({ workflow, scanning, judgeMode, onToggleJudgeMode, onNavigate }) {
   const hasEvidence = Boolean(workflow);
-  const resolved = ["complete", "dismissed"].includes(workflow?.status);
+  const resolved = workflow?.status === "complete";
+  const dismissed = workflow?.status === "dismissed";
   const operating = ["approval_executing", "reversal_executing", "reconciliation_required"].includes(workflow?.status);
-  const activeIndex = !hasEvidence ? 0 : resolved ? 3 : operating ? 2 : 1;
+  const activeIndex = !hasEvidence ? 0 : resolved ? 3 : 1;
 
   return (
     <section className={`judge-mode-shell${judgeMode ? " active" : ""}`} aria-label="Judge mode">
@@ -53,7 +54,7 @@ export default function JudgeJourney({ workflow, scanning, judgeMode, onToggleJu
               aria-current={current ? "step" : undefined}
             >
               <span className="judge-journey-icon">{complete ? <CheckCircle2 size={17} /> : <Icon size={17} />}</span>
-              <span><strong>{label}</strong><small>{current && scanning ? "Agent tracing the change…" : detail}</small></span>
+              <span><strong>{label}</strong><small>{current && scanning ? "Agent tracing the change…" : current && dismissed ? "Signal dismissed · no action created" : current && operating ? "Recover the claimed operation" : detail}</small></span>
             </button>
             {index < steps.length - 1 && <ArrowRight className="judge-journey-arrow" size={15} aria-hidden="true" />}
           </div>

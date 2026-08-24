@@ -149,7 +149,7 @@ architecture close. Suggested stills are documented in
 
 ## Truthful proof and disclosure
 
-The live release currently reports repository-head Git SHA
+The historical release proof recorded for this draft reported serving Git SHA
 `e38facc43745eab267eacd2da4aa28914dff383b` from Cloud Build
 `96dbf2d7-7ee3-490a-a854-bef5c9615efc` through `/health` (verified August 23,
 2026). In the signed operator lane, a hosted

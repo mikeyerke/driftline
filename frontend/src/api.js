@@ -40,6 +40,7 @@ function signedContext() {
 const RETRYABLE_READ_STATUSES = new Set([502, 503, 504]);
 const RETRYABLE_READ_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = 30000;
+const COUNCIL_TIMEOUT_MS = 180000;
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -64,7 +65,11 @@ function waitForRetry(attempt) {
 }
 
 async function request(path, options = {}) {
-  const { authenticated = false, ...fetchOptions } = options;
+  const {
+    authenticated = false,
+    timeoutMs = REQUEST_TIMEOUT_MS,
+    ...fetchOptions
+  } = options;
   const headers = new Headers({ "Content-Type": "application/json", ...(fetchOptions.headers || {}) });
   if (authenticated && operatorSession.identityToken) {
     headers.set("Authorization", `Bearer ${operatorSession.identityToken}`);
@@ -75,7 +80,11 @@ async function request(path, options = {}) {
   let lastError;
   for (let attempt = 0; attempt < (canRetry ? RETRYABLE_READ_ATTEMPTS : 1); attempt += 1) {
     try {
-      response = await fetchWithTimeout(`${API_BASE}${path}`, { ...fetchOptions, headers });
+      response = await fetchWithTimeout(
+        `${API_BASE}${path}`,
+        { ...fetchOptions, headers },
+        timeoutMs,
+      );
     } catch (error) {
       lastError = error;
       if (!canRetry || attempt === RETRYABLE_READ_ATTEMPTS - 1) throw error;
@@ -180,7 +189,10 @@ export function getHealth() {
 }
 
 export function startDecisionTwin() {
-  return request("/api/decision-twin/demo", { method: "POST" });
+  return request("/api/decision-twin/demo", {
+    method: "POST",
+    timeoutMs: COUNCIL_TIMEOUT_MS,
+  });
 }
 
 export function getDecisionTwin(caseId) {
@@ -191,13 +203,14 @@ export function getDecisionTwinEvaluation(caseId) {
   return request(`/api/decision-twin/${encodeURIComponent(caseId)}/evaluation`);
 }
 
-export function approveDecisionTwin(caseId, optionId, synthesisHash, approver = "Demo Product Manager") {
+export function approveDecisionTwin(caseId, optionId, synthesisHash, generation, approver = "Demo Product Manager") {
   return request(`/api/decision-twin/${encodeURIComponent(caseId)}/approve`, {
     method: "POST",
     body: JSON.stringify({
       approver,
       option_id: optionId,
       expected_synthesis_hash: synthesisHash,
+      expected_generation: generation,
     }),
   });
 }

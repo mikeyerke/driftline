@@ -71,6 +71,8 @@ Secondary evidence:
 - Number of moderator hints (target: zero).
 - Learning-loop comprehension: participant can explain why a measured outcome
   reopens the same case generation instead of creating an unrelated decision.
+- Human-control comprehension: participant can explain that the agent cannot
+  approve itself or silently change a customer-facing system.
 - One concise quote may be used only with explicit participant permission.
 
 ## Data capture

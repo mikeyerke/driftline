@@ -27,6 +27,9 @@ def test_validation_summary_calculates_preregistered_thresholds() -> None:
             "driftline_confidence_1_5": "4",
             "would_use_weekly": "yes",
             "recovery_understood": "yes",
+            "human_control_understood": "yes",
+            "moderator_hints": "0",
+            "condition_order": "manual_first",
             "protocol_deviation": "false",
         }
         for index in range(1, 7)
@@ -35,3 +38,52 @@ def test_validation_summary_calculates_preregistered_thresholds() -> None:
     assert "thresholds met" in report
     assert "50.0%" in report
     assert "+2.0 / 5" in report
+
+
+def test_validation_summary_treats_partial_rows_as_incomplete() -> None:
+    rows = [{"participant_id": f"P{index:02d}"} for index in range(1, 7)]
+    assert "incomplete" in summarize(rows)
+
+
+def test_validation_summary_rejects_duplicates_and_out_of_range_values() -> None:
+    base = {
+        "participant_id": "P01",
+        "condition_order": "manual_first",
+        "baseline_seconds": "600",
+        "driftline_seconds": "300",
+        "baseline_coverage_0_5": "3",
+        "driftline_coverage_0_5": "5",
+        "baseline_confidence_1_5": "3",
+        "driftline_confidence_1_5": "4",
+        "would_use_weekly": "yes",
+        "recovery_understood": "yes",
+        "human_control_understood": "yes",
+        "moderator_hints": "0",
+        "protocol_deviation": "false",
+    }
+    assert "invalid" in summarize([dict(base) for _ in range(6)])
+    rows = [dict(base, participant_id=f"P{index:02d}") for index in range(1, 7)]
+    rows[0]["driftline_coverage_0_5"] = "6"
+    assert "invalid" in summarize(rows)
+
+
+def test_validation_summary_requires_human_control_comprehension() -> None:
+    rows = [
+        {
+            "participant_id": f"P{index:02d}",
+            "condition_order": "manual_first",
+            "baseline_seconds": "600",
+            "driftline_seconds": "300",
+            "baseline_coverage_0_5": "3",
+            "driftline_coverage_0_5": "5",
+            "baseline_confidence_1_5": "3",
+            "driftline_confidence_1_5": "4",
+            "would_use_weekly": "yes",
+            "recovery_understood": "yes",
+            "human_control_understood": "no" if index == 1 else "yes",
+            "moderator_hints": "0",
+            "protocol_deviation": "false",
+        }
+        for index in range(1, 7)
+    ]
+    assert "thresholds not yet met" in summarize(rows)

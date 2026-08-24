@@ -347,6 +347,7 @@ class DecisionTwinApprovalRequest(BaseModel):
     approver: str = Field(min_length=2, max_length=120)
     option_id: Literal["ship", "rollback", "segment", "defer"]
     expected_synthesis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_generation: int = Field(ge=1, le=20)
 
 
 class DecisionTwinOutcomeRequest(BaseModel):
@@ -838,7 +839,17 @@ def _reserve_agent_call(tenant_id: str | None = None) -> bool:
 
 def _reserve_product_council_calls() -> bool:
     """Reserve the exact five specialist turns and one synthesis turn."""
-    return all(_reserve_agent_call() for _call in range(6))
+    required = 6
+    limit = _tenant_quota_limit(None, "agent_calls", PUBLIC_AGENT_MAX_CALLS)
+    now = monotonic()
+    cutoff = now - AGENT_WINDOW_SECONDS
+    with _agent_call_lock:
+        while _agent_call_times and _agent_call_times[0] <= cutoff:
+            _agent_call_times.popleft()
+        if len(_agent_call_times) + required > limit:
+            return False
+        _agent_call_times.extend([now] * required)
+        return True
 
 
 def _quota_rate_limit_error(detail: str, window_seconds: int) -> HTTPException:
@@ -1342,6 +1353,18 @@ def _verify_approval_mode(
     }
 
 
+def _audit_actor(actor: str, approval_identity: dict[str, str]) -> str:
+    """Bind OIDC audit attribution to the identity that signed the request."""
+    if approval_identity.get("identity") == "google_oidc_operator":
+        email = approval_identity.get("email", "").strip()
+        if not email:
+            raise HTTPException(
+                status_code=401, detail="Google operator identity is incomplete"
+            )
+        return email
+    return actor.strip()
+
+
 def _verify_platform_operator(identity_token: str | None) -> dict[str, str]:
     """Verify the separate platform-admin OIDC boundary for tenant bootstrap."""
     audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
@@ -1454,8 +1477,22 @@ def _connector_handoff_info(
     for name, execute, undo in _CONNECTOR_HANDOFFS:
         status_key = f"{name}_status"
         external_key = f"{name}_external_write"
+        prior_status = str(action.get(status_key, "")).casefold()
+        completed_statuses = (
+            {"reversed"} if reverse else {"created", "reused", "reactivated"}
+        )
+        if prior_status in completed_statuses:
+            result.update(
+                {
+                    key: value
+                    for key, value in action.items()
+                    if key.startswith(f"{name}_")
+                }
+            )
+            result[external_key] = bool(action.get(external_key, True))
+            result["external_write"] = True
+            continue
         if reverse:
-            prior_status = str(action.get(status_key, "")).casefold()
             should_run = bool(action.get(external_key)) or prior_status in {
                 "created",
                 "reused",
@@ -1585,6 +1622,11 @@ def _execute_claimed_side_effects(
         approval_identity,
         reverse=reverse,
     )
+    if any(
+        key.endswith("_status") and value == "failed"
+        for key, value in connector_info.items()
+    ):
+        raise ConnectorError("A selected connector remains unavailable")
     state.action_record = {
         **(state.action_record or {}),
         **connector_info,
@@ -5917,20 +5959,32 @@ async def start_decision_twin_demo() -> dict:
     )
     if os.getenv("DECISION_TWIN_BIGQUERY_ENABLED", "false").casefold() == "true":
         try:
+            small_metric, enterprise_metric = await asyncio.gather(
+                asyncio.to_thread(
+                    query_aggregate_metric, "activation_rate", "small_workspaces"
+                ),
+                asyncio.to_thread(
+                    query_aggregate_metric,
+                    "activation_rate",
+                    "enterprise_workspaces",
+                ),
+            )
             case = attach_aggregate_metrics(
                 case,
-                [
-                    query_aggregate_metric("activation_rate", "small_workspaces"),
-                    query_aggregate_metric("activation_rate", "enterprise_workspaces"),
-                ],
+                [small_metric, enterprise_metric],
             )
-        except AnalyticsPolicyError:
+        except Exception as exc:  # noqa: BLE001 - public demo retains a labelled fixture.
             case.events.append(
                 {
                     "event_id": "bigquery-aggregate-unavailable",
                     "action": "bigquery_aggregate_reader",
                     "outcome": "pinned_aggregate_fixture_retained",
                     "generation": case.generation,
+                    "reason": (
+                        "analytics_policy_rejected"
+                        if isinstance(exc, AnalyticsPolicyError)
+                        else "bigquery_runtime_unavailable"
+                    ),
                 }
             )
     if os.getenv("DECISION_TWIN_LIVE_COUNCIL", "false").casefold() == "true":
@@ -5947,8 +6001,15 @@ async def start_decision_twin_demo() -> dict:
         else:
             try:
                 case.council = await run_live_product_council(case)
-                case.events[-1]["execution_mode"] = "google_adk"
-                case.events[-1]["model"] = os.getenv(
+                council_event = next(
+                    event
+                    for event in case.events
+                    if event.get("event_id") == "product-council-complete"
+                )
+                council_event["action"] = "google_adk_product_council"
+                council_event["outcome"] = "disagreement_preserved"
+                council_event["execution_mode"] = "google_adk"
+                council_event["model"] = os.getenv(
                     "MODEL_NAME", "gemini-3.5-flash"
                 )
             except ProductCouncilUnavailable as exc:
@@ -6004,6 +6065,7 @@ def approve_decision_twin(
             option_id=request.option_id,
             approver=request.approver,
             expected_synthesis_hash=request.expected_synthesis_hash,
+            expected_generation=request.expected_generation,
         )
     except DecisionTwinPolicyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -6031,7 +6093,7 @@ def record_decision_twin_demo_outcome(
     current = load_decision_case(case_id)
     if current is None or current.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
-    observation_id = f"outcome-{request.scenario}"
+    observation_id = f"outcome-g{current.generation}-{request.scenario}"
     if any(item.observation_id == observation_id for item in current.outcomes):
         return current.model_dump(mode="json")
     value = -0.14 if request.scenario == "guardrail_breach" else -0.02
@@ -6961,6 +7023,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         request.identity_token,
         request.tenant_id,
     )
+    audit_actor = _audit_actor(request.approver, approval_identity)
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
         raise _demo_mutation_rate_limit_error(
@@ -6982,7 +7045,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
                 raise PolicyViolation(str(exc)) from exc
             state = workflow_store.approve(
                 current.workflow_id,
-                request.approver,
+                audit_actor,
                 request.decision,
                 request.artifact_decisions,
                 approval_metadata={
@@ -7005,7 +7068,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             _claim_side_effect_operation(
                 state,
                 kind="approval",
-                actor=request.approver,
+                actor=audit_actor,
                 approval_identity=approval_identity,
             )
             return state
@@ -7055,6 +7118,7 @@ def dismiss(workflow_id: str, request: DismissRequest) -> dict:
         request.identity_token,
         request.tenant_id,
     )
+    audit_actor = _audit_actor(request.actor, approval_identity)
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
         raise _demo_mutation_rate_limit_error(
@@ -7065,7 +7129,7 @@ def dismiss(workflow_id: str, request: DismissRequest) -> dict:
         def apply(current: WorkflowState) -> WorkflowState:
             state = workflow_store.dismiss(
                 current.workflow_id,
-                request.actor,
+                audit_actor,
                 request.reason,
             )
             if state.approval is not None:
@@ -7091,6 +7155,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         request.identity_token,
         request.tenant_id,
     )
+    audit_actor = _audit_actor(request.actor, approval_identity)
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
         raise _demo_mutation_rate_limit_error(
@@ -7107,7 +7172,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
                 raise PolicyViolation(
                     "Signed approval is required to reverse configured connector writes"
                 )
-            state = workflow_store.undo(current.workflow_id, request.actor)
+            state = workflow_store.undo(current.workflow_id, audit_actor)
             state.events[-1]["approval_identity"] = approval_identity
             # Claim reversal before touching any external system. A concurrent
             # approval sees this durable state and fails closed.
@@ -7115,7 +7180,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
             _claim_side_effect_operation(
                 state,
                 kind="reversal",
-                actor=request.actor,
+                actor=audit_actor,
                 approval_identity=approval_identity,
             )
             return state
@@ -7158,14 +7223,16 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
 @app.post("/api/workflows/{workflow_id}/reconcile")
 def reconcile(workflow_id: str, request: ReconcileRequest) -> dict:
     """Retry the same durable operation after an interrupted/ambiguous attempt."""
+    actor = _require_action_actor(request.actor)
     approval_identity = _verify_approval_mode(
         workflow_id,
-        request.actor,
+        actor,
         request.approval_mode,
         request.approval_token,
         request.identity_token,
         request.tenant_id,
     )
+    audit_actor = _audit_actor(actor, approval_identity)
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
         raise _demo_mutation_rate_limit_error(
@@ -7211,7 +7278,7 @@ def reconcile(workflow_id: str, request: ReconcileRequest) -> dict:
                     datetime.now(UTC)
                     + timedelta(seconds=_operation_lease_seconds())
                 ).isoformat(),
-                "reconciled_by": request.actor,
+                "reconciled_by": audit_actor,
             }
             current.status = (
                 WorkflowStatus.APPROVAL_EXECUTING

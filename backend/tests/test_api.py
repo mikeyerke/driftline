@@ -62,6 +62,7 @@ def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
             "approver": "Demo Product Manager",
             "option_id": "segment",
             "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
         },
     )
     assert approved.status_code == 200
@@ -98,6 +99,84 @@ def test_decision_twin_demo_runs_are_isolated(monkeypatch) -> None:
     assert first.json()["case_id"] != second.json()["case_id"]
 
 
+def test_decision_twin_fallback_event_is_never_labeled_google_adk(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+
+    case = client.post("/api/decision-twin/demo").json()
+    event = next(e for e in case["events"] if e["event_id"] == "product-council-complete")
+
+    assert event["action"] == "deterministic_product_council"
+    assert event["execution_mode"] == "deterministic_demo_fallback"
+
+
+def test_decision_twin_live_metadata_targets_council_event_and_bigquery_is_offloaded(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "true")
+    monkeypatch.setenv("DECISION_TWIN_BIGQUERY_ENABLED", "true")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    monkeypatch.setattr(api, "_reserve_product_council_calls", lambda: True)
+    persistence._decision_cases_memory.clear()
+    offloaded: list[str] = []
+
+    def metric(_metric_id, segment):
+        return SimpleNamespace(
+            metric_id="activation_rate",
+            segment=segment,
+            value=0.09 if segment == "small_workspaces" else -0.11,
+            sample_size=42,
+            observed_at="2026-08-23T18:00:00+00:00",
+        )
+
+    async def to_thread(function, *args):
+        offloaded.append(args[1])
+        return function(*args)
+
+    async def live_council(case):
+        council = case.council.model_copy(deep=True)
+        council.mode = "google_adk"
+        return council
+
+    monkeypatch.setattr(api, "query_aggregate_metric", metric)
+    monkeypatch.setattr(api.asyncio, "to_thread", to_thread)
+    monkeypatch.setattr(api, "run_live_product_council", live_council)
+
+    case = client.post("/api/decision-twin/demo").json()
+    events = {event["event_id"]: event for event in case["events"]}
+
+    assert sorted(offloaded) == ["enterprise_workspaces", "small_workspaces"]
+    assert events["bigquery-aggregate-attached"].get("execution_mode") is None
+    assert events["product-council-complete"]["execution_mode"] == "google_adk"
+    assert events["product-council-complete"]["model"] == "gemini-3.5-flash"
+
+
+def test_decision_twin_bigquery_runtime_failure_uses_labelled_fixture(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setenv("DECISION_TWIN_BIGQUERY_ENABLED", "true")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+
+    def unavailable(*_args):
+        raise RuntimeError("transport detail")
+
+    monkeypatch.setattr(api, "query_aggregate_metric", unavailable)
+    response = client.post("/api/decision-twin/demo")
+
+    assert response.status_code == 200
+    event = next(
+        e
+        for e in response.json()["events"]
+        if e["event_id"] == "bigquery-aggregate-unavailable"
+    )
+    assert event["reason"] == "bigquery_runtime_unavailable"
+    assert "transport detail" not in str(event)
+
+
 def test_decision_twin_rejects_stale_synthesis_and_stale_generation(
     monkeypatch,
 ) -> None:
@@ -112,6 +191,7 @@ def test_decision_twin_rejects_stale_synthesis_and_stale_generation(
             "approver": "Demo Product Manager",
             "option_id": "segment",
             "expected_synthesis_hash": "0" * 64,
+            "expected_generation": 1,
         },
     )
     assert stale.status_code == 409
@@ -123,6 +203,7 @@ def test_decision_twin_rejects_stale_synthesis_and_stale_generation(
             "approver": "Demo Product Manager",
             "option_id": "segment",
             "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
         },
     )
     assert approved.status_code == 200
@@ -3638,6 +3719,18 @@ def test_public_agent_quota_is_separate_from_signed_tenant_quota(monkeypatch) ->
     assert api._reserve_agent_call("tenant-a") is True
 
 
+def test_product_council_quota_reserves_all_six_slots_or_none(monkeypatch) -> None:
+    monkeypatch.setattr(api, "PUBLIC_AGENT_MAX_CALLS", 20)
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+        api._agent_call_times.extend([api.monotonic()] * 18)
+
+    assert api._reserve_product_council_calls() is False
+    assert len(api._agent_call_times) == 18
+    with api._agent_call_lock:
+        api._agent_call_times.clear()
+
+
 def test_demo_approval_and_undo_round_trip() -> None:
     started = client.post("/api/workflows/demo")
     assert started.status_code == 200
@@ -3872,6 +3965,116 @@ def test_configured_reconciliation_rejects_public_demo_identity(monkeypatch) -> 
 
     assert response.status_code == 409
     assert "Signed approval is required" in response.json()["detail"]
+
+
+def test_reconciliation_requires_named_human(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda _tenant_id=None: True)
+    state = api.workflow_store.start_demo()
+    state.status = api.WorkflowStatus.RECONCILIATION_REQUIRED
+    state.operation = {
+        "operation_id": "op-named-human",
+        "kind": "approval",
+        "status": "reconciliation_required",
+        "generation": 1,
+        "attempts": 1,
+        "scope": "public_demo",
+    }
+    api.workflow_store.restore(state)
+
+    response = client.post(
+        f"/api/workflows/{state.workflow_id}/reconcile",
+        json={"actor": "system"},
+    )
+
+    assert response.status_code == 400
+    assert "named human" in response.json()["detail"]
+
+
+def test_oidc_reconciliation_binds_audit_actor_to_verified_email(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda _tenant_id=None: True)
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *_args, **_kwargs: {
+            "mode": "signed",
+            "identity": "google_oidc_operator",
+            "scope": "configured",
+            "email": "real.operator@example.com",
+            "tenant_id": "driftline-demo",
+            "role": "operator",
+        },
+    )
+    monkeypatch.setattr(api, "_connector_handoff_info", lambda *_args, **_kwargs: {})
+    state = api.workflow_store.start_demo(tenant_id="driftline-demo")
+    state.status = api.WorkflowStatus.RECONCILIATION_REQUIRED
+    state.operation = {
+        "operation_id": "op-oidc-attribution",
+        "kind": "approval",
+        "status": "reconciliation_required",
+        "generation": 1,
+        "attempts": 1,
+        "scope": "configured",
+    }
+    api.workflow_store.restore(state)
+
+    response = client.post(
+        f"/api/workflows/{state.workflow_id}/reconcile",
+        json={
+            "actor": "Impersonated executive",
+            "approval_mode": "signed",
+            "identity_token": "verified-elsewhere",
+            "tenant_id": "driftline-demo",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["operation"]["reconciled_by"] == (
+        "real.operator@example.com"
+    )
+
+
+def test_first_attempt_connector_failure_requires_reconciliation(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda _tenant_id=None: True)
+    monkeypatch.setattr(
+        api,
+        "_verify_approval_mode",
+        lambda *_args, **_kwargs: {
+            "mode": "signed",
+            "identity": "google_oidc_operator",
+            "scope": "configured",
+            "email": "operator@example.com",
+            "tenant_id": "driftline-demo",
+            "role": "operator",
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "_connector_handoff_info",
+        lambda *_args, **_kwargs: {
+            "jira_status": "failed",
+            "jira_external_write": False,
+        },
+    )
+    workflow_id = api.workflow_store.start_demo(tenant_id="driftline-demo").workflow_id
+
+    response = client.post(
+        f"/api/workflows/{workflow_id}/approve",
+        json={
+            "approver": "Impersonated executive",
+            "approval_mode": "signed",
+            "identity_token": "verified-elsewhere",
+            "tenant_id": "driftline-demo",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "reconciliation_required"
+    assert payload["operation"]["status"] == "reconciliation_required"
+    assert payload["approval"]["approver"] == "operator@example.com"
+    assert not any(
+        event.get("outcome") == "operation_completed" for event in payload["events"]
+    )
 
 
 def test_value_proof_counts_reopened_workflows_after_undo() -> None:
@@ -4139,6 +4342,64 @@ def test_legacy_connector_write_is_still_reversed_when_target_is_not_mapped(monk
     assert result["github_status"] == "reversed"
     assert result["github_external_write"] is True
     assert result["external_write"] is True
+
+
+def test_reconciliation_reuses_confirmed_reversal_without_duplicate_write(
+    monkeypatch,
+) -> None:
+    def duplicate_reversal(_state):
+        raise AssertionError("confirmed reversal must not run twice")
+
+    monkeypatch.setattr(
+        api,
+        "_CONNECTOR_HANDOFFS",
+        (("jira", lambda _state: {}, duplicate_reversal),),
+    )
+    state = api.workflow_store.start_demo()
+    state.action_record = {
+        "jira_status": "reversed",
+        "jira_external_write": True,
+        "jira_issue_key": "KAN-19",
+    }
+
+    result = api._connector_handoff_info(
+        state,
+        {"scope": "configured", "tenant_id": "driftline-demo"},
+        reverse=True,
+    )
+
+    assert result["jira_status"] == "reversed"
+    assert result["jira_issue_key"] == "KAN-19"
+    assert result["external_write"] is True
+
+
+def test_reconciliation_keeps_outstanding_connector_failure_recoverable(
+    monkeypatch,
+) -> None:
+    state = api.workflow_store.start_demo()
+    state.operation = {"attempts": 2}
+    monkeypatch.setattr(
+        api,
+        "_connector_handoff_info",
+        lambda *_args, **_kwargs: {
+            "jira_status": "failed",
+            "jira_external_write": False,
+        },
+    )
+    monkeypatch.setattr(
+        api,
+        "persist_action_artifact",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("artifact must wait for connector recovery")
+        ),
+    )
+
+    with pytest.raises(api.ConnectorError, match="remains unavailable"):
+        api._execute_claimed_side_effects(
+            state,
+            {"scope": "configured", "tenant_id": "driftline-demo"},
+            reverse=False,
+        )
 
 
 def test_source_history_endpoint_is_explicitly_append_only() -> None:

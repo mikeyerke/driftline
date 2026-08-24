@@ -13,6 +13,7 @@ readonly task_queue="driftline-jobs"
 readonly uptime_id="driftline-health-Hmxqs16MUkY"
 readonly dashboard_id="9f00a615-b74c-4567-aae9-211cd66e97fc"
 readonly runtime_service_account="driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com"
+readonly expected_release_sha="${DRIFTLINE_EXPECTED_SHA:-$(git rev-parse HEAD)}"
 
 actual_project="$(gcloud config get-value project 2>/dev/null)"
 if [[ "${actual_project}" != "${expected_project}" ]]; then
@@ -30,6 +31,13 @@ read -r revision traffic < <(
 )
 [[ -n "${revision}" && "${traffic}" == "100" ]]
 printf 'Cloud Run: %s (%s%% traffic)\n' "${revision}" "${traffic}"
+
+revision_image="$(
+  gcloud run revisions describe "${revision}" \
+    --project="${expected_project}" --region="${region}" \
+    --format='value(spec.containers[0].image)'
+)"
+[[ "${revision_image}" =~ @sha256:[0-9a-f]{64}$ ]]
 
 artifact_cleanup_dry_run="$(
   gcloud artifacts repositories describe driftline \
@@ -50,6 +58,17 @@ printf 'Health: %s\n' "${health}"
 trace_eval="$(curl --fail --silent --show-error --max-time 20 \
   "${public_url}/api/evals/latest")"
 serving_release_sha="$(printf '%s' "${health}" | jq -er '.release_sha')"
+serving_build_id="$(printf '%s' "${health}" | jq -er '.build_id')"
+[[ "${serving_release_sha}" == "${expected_release_sha}" ]]
+artifact_image="$(
+  gcloud artifacts docker images describe \
+    "${region}-docker.pkg.dev/${expected_project}/driftline/driftline:${serving_build_id}" \
+    --project="${expected_project}" \
+    --format='value(image_summary.fully_qualified_digest)'
+)"
+[[ "${artifact_image}" == "${revision_image}" ]]
+printf 'Release identity: SHA %s, image %s\n' \
+  "${serving_release_sha}" "${revision_image##*@}"
 trace_release_sha="$(printf '%s' "${trace_eval}" | jq -er '.evaluation.release_sha // empty')"
 if [[ -z "${trace_release_sha}" || "${trace_release_sha}" != "${serving_release_sha}" ]]; then
   printf 'Trace-to-eval gate: FAIL (latest evaluation is not bound to serving SHA; run ./scripts/verify_live_agent.sh first)\n' >&2

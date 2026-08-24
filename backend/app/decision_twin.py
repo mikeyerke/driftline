@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -150,6 +151,10 @@ class DecisionHistoryRecord(BaseModel):
     approver: str
     synthesis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     outcome_verdict: str | None = None
+    approval: ApprovalRecord
+    experiment_plan: ExperimentPlan
+    trigger_observation: OutcomeObservation
+    reopen_reason: str = Field(min_length=1, max_length=280)
 
 
 class DecisionCase(BaseModel):
@@ -442,9 +447,10 @@ def build_demo_decision_case(
             },
             {
                 "event_id": "product-council-complete",
-                "action": "google_adk_product_council",
-                "outcome": "disagreement_preserved",
+                "action": "deterministic_product_council",
+                "outcome": "fallback_disagreement_fixture",
                 "generation": 1,
+                "execution_mode": "deterministic_demo_fallback",
             },
         ],
     )
@@ -473,7 +479,9 @@ def attach_aggregate_metrics(
     )
     node.value = float(enterprise.value)
     node.source_label = "BigQuery aggregate · privacy floor ≥25"
-    node.observed_at = str(enterprise.observed_at)
+    small_observed_at = str(small.observed_at)
+    enterprise_observed_at = str(enterprise.observed_at)
+    node.observed_at = min(small_observed_at, enterprise_observed_at)
     node.excerpt = (
         f"Small-workspace activation changed {float(small.value):+.0%}; "
         f"enterprise activation changed {float(enterprise.value):+.0%}."
@@ -485,7 +493,8 @@ def attach_aggregate_metrics(
             "small_n": int(small.sample_size),
             "enterprise": float(enterprise.value),
             "enterprise_n": int(enterprise.sample_size),
-            "observed_at": str(enterprise.observed_at),
+            "small_observed_at": small_observed_at,
+            "enterprise_observed_at": enterprise_observed_at,
         }
     )
     updated.council = _build_synthesis(updated.evidence_nodes)
@@ -566,31 +575,84 @@ def _named_human(approver: str) -> str:
 
 
 def _experiment_plan(option: CounterfactualOption) -> ExperimentPlan:
-    if option.option_id != "segment":
-        hypothesis = f"The {option.title.lower()} path produces the bounded expected outcome."
-        target = option.affected_segments[0]
-    else:
-        hypothesis = "A permission preview recovers enterprise activation while the redesigned flow preserves the small-team gain."
-        target = "enterprise_workspaces"
+    contracts = {
+        "ship": {
+            "hypothesis": "A global rollout preserves small-team gains without deepening the enterprise activation regression.",
+            "target": "all_workspaces",
+            "metric": "blended_activation_rate",
+            "success": "Small-team activation remains positive and enterprise activation does not decline beyond the launch guardrail.",
+            "stops": [
+                "Stop if enterprise activation declines another 3% relative to the observed baseline.",
+                "Stop if support volume for permissions increases during rollout.",
+            ],
+            "actions": [
+                "Create the all-workspace rollout allocation.",
+                "Instrument activation and permission-support volume by segment.",
+                "Keep the prior onboarding flow ready for immediate restoration.",
+                "Review both segment outcomes at the measurement deadline.",
+            ],
+        },
+        "rollback": {
+            "hypothesis": "Restoring the prior flow recovers enterprise activation without erasing the small-team learning.",
+            "target": "all_workspaces",
+            "metric": "blended_activation_rate",
+            "success": "Enterprise activation returns toward baseline while the redesign remains available for a bounded follow-up test.",
+            "stops": [
+                "Stop if small-workspace activation falls below its prior baseline.",
+                "Stop if the prior flow cannot be restored consistently across segments.",
+            ],
+            "actions": [
+                "Restore the prior onboarding flow for all workspaces.",
+                "Preserve the redesigned flow behind the existing segment gate.",
+                "Instrument activation by workspace segment.",
+                "Review the rollback outcome at the measurement deadline.",
+            ],
+        },
+        "segment": {
+            "hypothesis": "A permission preview recovers enterprise activation while the redesigned flow preserves the small-team gain.",
+            "target": "enterprise_workspaces",
+            "metric": "enterprise_activation_rate",
+            "success": "Recover at least half of the observed enterprise activation regression within the review window.",
+            "stops": [
+                "Stop if enterprise activation declines to 12% or more below baseline.",
+                "Stop if setup completion declines in either allocated segment.",
+            ],
+            "actions": [
+                "Create the enterprise-only experiment allocation.",
+                "Add permission-policy preview copy before role selection.",
+                "Instrument activation and setup completion by workspace segment.",
+                "Review the decision when the measurement window closes.",
+            ],
+        },
+        "defer": {
+            "hypothesis": "Additional enterprise evidence resolves the permission-step causal uncertainty before a rollout decision.",
+            "target": "enterprise_workspaces",
+            "metric": "qualified_enterprise_evidence_count",
+            "success": "Two additional independent enterprise sources support or reject the permission-step hypothesis within seven days.",
+            "stops": [
+                "Stop the deferral after seven days and return to the human decision gate.",
+                "Stop if enterprise activation deteriorates while evidence collection is pending.",
+            ],
+            "actions": [
+                "Schedule two additional enterprise evidence sessions.",
+                "Collect one fresh segmented activation observation.",
+                "Keep the current segment allocation unchanged.",
+                "Reopen the decision when the evidence deadline arrives.",
+            ],
+        },
+    }
+    contract = contracts[option.option_id]
     return ExperimentPlan(
         plan_id=f"experiment-{option.option_id}-onboarding",
         option_id=option.option_id,
-        hypothesis=hypothesis,
-        target_segment=target,
-        primary_metric="enterprise_activation_rate",
-        success_condition="Recover at least half of the observed enterprise activation regression within the review window.",
+        hypothesis=contract["hypothesis"],
+        target_segment=contract["target"],
+        primary_metric=contract["metric"],
+        success_condition=contract["success"],
         guardrails=option.guardrails,
-        stop_conditions=[
-            "Stop if enterprise activation declines more than 5% relative to baseline.",
-            "Stop if setup completion declines in either allocated segment.",
-        ],
+        stop_conditions=contract["stops"],
         review_at="2026-08-30T18:00:00+00:00",
-        owner_actions=[
-            "Create the enterprise-only experiment allocation.",
-            "Add permission-policy preview copy before role selection.",
-            "Instrument activation and setup completion by workspace segment.",
-            "Review the decision when the measurement window closes.",
-        ],
+        owner_actions=contract["actions"],
         rollback=option.rollback,
     )
 
@@ -601,10 +663,13 @@ def approve_decision_case(
     option_id: DecisionOptionId,
     approver: str,
     expected_synthesis_hash: str,
+    expected_generation: int,
 ) -> DecisionCase:
     validate_council(case)
     if case.status not in {"needs_approval", "reopened"}:
         raise DecisionTwinPolicyError("Decision case is not waiting for approval")
+    if expected_generation != case.generation:
+        raise DecisionTwinPolicyError("Approval references a stale decision generation")
     if expected_synthesis_hash != case.council.synthesis_hash:
         raise DecisionTwinPolicyError("Approval references a stale synthesis")
     try:
@@ -618,7 +683,7 @@ def approve_decision_case(
         approver=_named_human(approver),
         option_id=option_id,
         synthesis_hash=case.council.synthesis_hash,
-        approved_at="2026-08-23T18:05:00+00:00",
+        approved_at=datetime.now(UTC).isoformat(),
     )
     approved.experiment_plan = _experiment_plan(option)
     approved.status = "experiment_active"
@@ -658,7 +723,7 @@ def evaluate_outcome(
             reopen_required=False,
         )
     relative_change = outcome.value - outcome.baseline
-    if relative_change <= -0.05:
+    if relative_change <= -0.12:
         return OutcomeEvaluation(
             verdict="invalidated",
             reason="Enterprise activation crossed the approved stop guardrail.",
@@ -715,6 +780,10 @@ def record_outcome(
                 approver=recorded.approval.approver,
                 synthesis_hash=recorded.approval.synthesis_hash,
                 outcome_verdict=evaluation.verdict,
+                approval=recorded.approval.model_copy(deep=True),
+                experiment_plan=recorded.experiment_plan.model_copy(deep=True),
+                trigger_observation=outcome.model_copy(deep=True),
+                reopen_reason=evaluation.reason,
             )
         )
         recorded.generation += 1

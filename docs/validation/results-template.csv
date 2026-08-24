@@ -1,2 +1,2 @@
-participant_id,condition_order,baseline_seconds,driftline_seconds,baseline_coverage_0_5,driftline_coverage_0_5,baseline_confidence_1_5,driftline_confidence_1_5,would_use_weekly,recovery_understood,moderator_hints,protocol_deviation,approved_quote,notes
-P01,manual_first,,,,,,,,,,,false,
+participant_id,condition_order,baseline_seconds,driftline_seconds,baseline_coverage_0_5,driftline_coverage_0_5,baseline_confidence_1_5,driftline_confidence_1_5,would_use_weekly,recovery_understood,human_control_understood,moderator_hints,protocol_deviation,approved_quote,notes
+P01,manual_first,,,,,,,,,,,,false,

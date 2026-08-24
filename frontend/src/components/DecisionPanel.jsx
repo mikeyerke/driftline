@@ -8,9 +8,21 @@ export default function DecisionPanel({ status, operation, approved, dismissed, 
   const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
   const [selectedOptionId, setSelectedOptionId] = useState(copilot?.recommendation_id || "");
   const [overrideReason, setOverrideReason] = useState("Operator reviewed the evidence and chose a narrower artifact route.");
+  const [leaseExpired, setLeaseExpired] = useState(false);
   useEffect(() => {
     setSelectedOptionId(copilot?.recommendation_id || "");
   }, [copilot?.recommendation_id]);
+  useEffect(() => {
+    const expiry = Date.parse(operation?.lease_expires_at || "");
+    if (!Number.isFinite(expiry)) {
+      setLeaseExpired(false);
+      return undefined;
+    }
+    const update = () => setLeaseExpired(Date.now() >= expiry);
+    update();
+    const timer = globalThis.setInterval(update, 1000);
+    return () => globalThis.clearInterval(timer);
+  }, [operation?.lease_expires_at]);
   const selectedOption = copilot?.options?.find((option) => option.option_id === selectedOptionId);
   // A human can intentionally override one or more artifact routes after
   // selecting a copilot option. Keep the reviewed option id and mark the
@@ -81,6 +93,7 @@ export default function DecisionPanel({ status, operation, approved, dismissed, 
         <h2>{status === "reversal_executing" ? "Reopening safely" : "Recording the action"}</h2>
         <p className="decision-question">Driftline claimed one durable operation before touching any connector or artifact.</p>
         <div className="audit-id"><strong>Operation</strong><span>{operation?.operation_id || "Claiming…"}</span></div>
+        {leaseExpired && <button className="primary full" type="button" onClick={onReconcile} disabled={busy}><RefreshCw size={17} />{busy ? "Reconciling…" : "Recover expired operation"}</button>}
         <p className="decision-note">Conflicting decisions are blocked until this idempotent operation reaches a durable outcome.</p>
       </aside>
     );

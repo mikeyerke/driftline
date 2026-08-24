@@ -54,6 +54,7 @@ def test_live_fetch_failure_never_uses_synthetic_fallback(monkeypatch) -> None:
 
 
 def test_demo_fetch_failure_is_labeled_synthetic(monkeypatch) -> None:
+    multimodal._DEMO_EVIDENCE_CACHE.clear()
     monkeypatch.setattr(
         multimodal,
         "urlopen",
@@ -65,6 +66,27 @@ def test_demo_fetch_failure_is_labeled_synthetic(monkeypatch) -> None:
     assert evidence.data_mode == "synthetic_demo"
     assert evidence.before.source_url.startswith("synthetic://")
     assert evidence.after.mime_type == "image/svg+xml"
+
+
+def test_demo_byte_route_reuses_pair_wide_fallback(monkeypatch) -> None:
+    multimodal._DEMO_EVIDENCE_CACHE.clear()
+    calls = 0
+
+    def fetch(request, timeout):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("after unavailable")
+        return _Response(b"live-before")
+
+    monkeypatch.setattr(multimodal, "urlopen", fetch)
+    evidence = multimodal.get_visual_evidence("promise-card", mode="demo")
+    asset = multimodal.visual_asset_bytes("promise-card", "before", mode="demo")
+
+    assert evidence.data_mode == "synthetic_demo"
+    assert asset.snapshot_hash == evidence.before.snapshot_hash
+    assert asset.data_mode == "synthetic_demo"
+    assert calls == 2
 
 
 def test_asset_byte_route_fetches_only_requested_side(monkeypatch) -> None:
@@ -101,6 +123,7 @@ def test_vision_output_must_copy_combined_evidence_hash() -> None:
 
 
 def test_synthetic_analysis_does_not_call_gemini(monkeypatch) -> None:
+    multimodal._DEMO_EVIDENCE_CACHE.clear()
     monkeypatch.setattr(
         multimodal,
         "urlopen",

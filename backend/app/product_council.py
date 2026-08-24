@@ -34,6 +34,49 @@ COUNCIL_ROLES: tuple[CouncilRole, ...] = (
     "feasibility",
     "challenger",
 )
+ROLE_MANDATES: dict[CouncilRole, tuple[str, str]] = {
+    "customer": (
+        "protect_user_trust",
+        (
+            "Prioritize customer comprehension, access, support friction, and trust. "
+            "Resist shipping a broad change when cited customer evidence shows a "
+            "segment-specific harm."
+        ),
+    ),
+    "usage": (
+        "trust_segment_measurement",
+        (
+            "Prioritize measured segment outcomes, sample sufficiency, freshness, "
+            "and causal uncertainty. Prefer a bounded test when aggregate evidence "
+            "does not justify broad rollout."
+        ),
+    ),
+    "strategy": (
+        "honor_current_commitment",
+        (
+            "Make the strongest evidence-grounded case for honoring the current "
+            "commitment and strategic coherence, while naming any cited evidence "
+            "that makes that position untenable."
+        ),
+    ),
+    "feasibility": (
+        "prefer_safe_execution",
+        (
+            "Prioritize reversibility, implementation scope, operational "
+            "guardrails, and the safest executable option supported by the "
+            "supplied evidence."
+        ),
+    ),
+    "challenger": (
+        "seek_credible_minority_case",
+        (
+            "Stress-test the apparently strongest option. Seek the strongest "
+            "credible minority recommendation supported by supplied evidence "
+            "instead of echoing an obvious consensus; never invent evidence or "
+            "dissent."
+        ),
+    ),
+}
 
 
 class ProductCouncilUnavailable(RuntimeError):
@@ -97,9 +140,12 @@ def _bounded_manifest(case: DecisionCase) -> list[dict[str, object]]:
 def build_council_prompt(case: DecisionCase, role: CouncilRole) -> str:
     if role not in COUNCIL_ROLES:
         raise DecisionTwinPolicyError("Unknown product-council role")
+    evaluation_prior, decision_mandate = ROLE_MANDATES[role]
     return json.dumps(
         {
             "assigned_role": role,
+            "evaluation_prior": evaluation_prior,
+            "decision_mandate": decision_mandate,
             "decision_question": case.question,
             "current_commitment": case.current_commitment,
             "urgency": case.urgency,
@@ -195,7 +241,7 @@ def _hash(payload: object) -> str:
     return hashlib.sha256(encoded.encode()).hexdigest()
 
 
-async def run_live_product_council(case: DecisionCase) -> CouncilSynthesis:
+async def _run_live_product_council(case: DecisionCase) -> CouncilSynthesis:
     """Run five independent positions and one bounded synthesis turn."""
     agents = build_council_agents()
     positions = await asyncio.gather(
@@ -242,3 +288,15 @@ async def run_live_product_council(case: DecisionCase) -> CouncilSynthesis:
     checked.council = council
     validate_council(checked)
     return council
+
+
+async def run_live_product_council(case: DecisionCase) -> CouncilSynthesis:
+    """Run the live council and expose only a bounded availability failure."""
+    try:
+        return await _run_live_product_council(case)
+    except ProductCouncilUnavailable:
+        raise
+    except Exception as exc:
+        raise ProductCouncilUnavailable(
+            "Google ADK council runtime unavailable"
+        ) from exc

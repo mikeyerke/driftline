@@ -38,5 +38,6 @@
   server-side hackathon context even after resolving the official event. The
   exact project copy is preserved in `devpost-submission.md`; no incomplete or
   duplicate Devpost project was created.
-- The PR diff contains submission documentation and assets only; no runtime
-  application code changes are included.
+- The PR diff includes submission documentation and assets plus runtime Decision
+  Twin, recovery, and judge-journey changes; backend and frontend regression
+  gates are required before release.

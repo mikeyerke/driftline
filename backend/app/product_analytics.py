@@ -99,7 +99,10 @@ def query_aggregate_metric(
     column = _METRIC_COLUMNS[metric_id]
     sql = f"""
         SELECT
-          AVG({column}) AS metric_value,
+          SAFE_DIVIDE(
+            SUM({column} * sample_size),
+            SUM(sample_size)
+          ) AS metric_value,
           0.0 AS baseline_value,
           SUM(sample_size) AS sample_size,
           MAX(observed_at) AS observed_at
