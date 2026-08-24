@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -9,6 +10,17 @@ from app.product_analytics import (
     fixture_aggregate_metrics,
     query_aggregate_metric,
 )
+
+
+def test_bigquery_seed_merge_has_literal_target_partition_filter() -> None:
+    sql_path = Path(__file__).parents[2] / "infra" / "decision_twin_bigquery.sql"
+    sql = sql_path.read_text()
+
+    assert "require_partition_filter = TRUE" in sql
+    assert (
+        "target.observed_at >= TIMESTAMP '2026-08-23 00:00:00+00'" in sql
+    )
+    assert "target.observed_at < TIMESTAMP '2026-08-24 00:00:00+00'" in sql
 
 
 def test_fixture_metrics_are_bounded_aggregates_without_customer_rows() -> None:
@@ -93,4 +105,3 @@ def test_bigquery_adapter_fails_closed_when_dry_run_exceeds_cap(monkeypatch) -> 
             "enterprise_workspaces",
             client=ExpensiveClient(),
         )
-

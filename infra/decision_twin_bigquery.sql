@@ -32,7 +32,13 @@ USING (
          84,
          'pinned_aggregate_fixture'
 ) AS source
-ON target.observed_at = source.observed_at AND target.segment = source.segment
+ON target.observed_at = source.observed_at
+   AND target.segment = source.segment
+   -- BigQuery requires a literal target-partition predicate when
+   -- require_partition_filter is enabled; the source equality alone is not
+   -- accepted for partition elimination during MERGE planning.
+   AND target.observed_at >= TIMESTAMP '2026-08-23 00:00:00+00'
+   AND target.observed_at < TIMESTAMP '2026-08-24 00:00:00+00'
 WHEN MATCHED THEN UPDATE SET
   activation_relative_change = source.activation_relative_change,
   setup_completion_relative_change = source.setup_completion_relative_change,
