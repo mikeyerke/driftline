@@ -1,10 +1,12 @@
 # Driftline
 
-> Driftline helps Product Marketing and RevOps turn verified promise changes into owner-ready, reversible work.
+> Driftline helps product managers turn contradictory evidence into a reversible experiment, then reopen the decision when a guardrail breaks.
 
 ## Product
 
-Driftline reads a registered source, cites the observed change, maps affected work surfaces and owners, and pauses for human approval. Public examples are preview-only and do not write to external systems.
+Driftline's public Decision Twin connects customer, usage, support, interface, and commitment evidence; compares ship, rollback, segment, and defer; and pauses for named human approval. A measured aggregate outcome can reopen the same decision as a new generation while preserving its lineage.
+
+The adjacent Promise Drift workflow reads a registered source, cites the observed change, maps affected work surfaces and owners, and prepares reversible downstream work. Public examples are preview-only and do not write to external systems.
 
 ## Evidence and safety
 

@@ -1,15 +1,21 @@
 # Driftline
 
-Driftline is a change-to-action agent for Product Marketing and adjacent
-operators. It monitors explicitly allowlisted public signals — own pricing and
-terms plus competitor pricing, offerings, and product narratives — verifies a
-material change, maps the affected offering and downstream work surfaces, and
-pauses when a consequential human decision is required. The hosted service has
-two explicit lanes: the anonymous judge console is packet-safe, while the
-Google-OIDC tenant operator lane uses the same durable Firestore workflow to
-execute least-privilege, idempotent, reversible connector actions. This is a
-real deployed control plane with a deliberately safe public surface, not a
-claim that an unauthenticated visitor can mutate a customer's systems.
+Driftline is a Product Decision Control Plane for PMs. It detects when new
+customer, usage, support, interface, or market evidence invalidates a roadmap
+commitment; compares the smallest safe responses; records a named human
+decision; and reopens the same decision when a measured guardrail breaks. The
+public judge journey is a complete evidence-to-outcome loop, not a chat answer:
+the agent turns ambiguity into a reversible experiment and a durable learning
+receipt. The existing Promise Drift workflow remains as the adjacent
+Taskmaster proof for turning an external change into owner-ready downstream
+work.
+
+The hosted service has two explicit lanes: the anonymous judge console is
+packet-safe, while the Google-OIDC tenant operator lane uses the same durable
+Firestore workflow to execute least-privilege, idempotent, reversible connector
+actions. This is a real deployed control plane with a deliberately safe public
+surface, not a claim that an unauthenticated visitor can mutate a customer's
+systems.
 
 For the current truth about what is deployed, externally verified, and still
 unmeasured, start with [`docs/STATUS.md`](docs/STATUS.md). The concise release
@@ -61,12 +67,12 @@ The authoritative identity for any later release is read from `/health` and
 cross-checked against Cloud Run, Cloud Build, and Artifact Registry by
 `./scripts/verify_production.sh` rather than copied forward in prose.
 
-The default demonstration models a competitor price change from $49 to $59 per
-seat per month, then traces the impact into a comparison map, pricing
-battlecard, deal-desk guidance, and executive brief. The console can also run
-bounded scenarios for own pricing and terms, competitor capabilities, and
-competitor product blogs. Each scenario shows an offering impact graph, business
-domains, owners, work surfaces, and prepared handoffs. The deployed
+The adjacent Promise Drift demonstration models a competitor price change from
+$49 to $59 per seat per month, then traces the impact into a comparison map,
+pricing battlecard, deal-desk guidance, and executive brief. The console can
+also run bounded scenarios for own pricing and terms, competitor capabilities,
+and competitor product blogs. Each scenario shows an offering impact graph,
+business domains, owners, work surfaces, and prepared handoffs. The deployed
 source adapter fetches explicitly registered public snapshots. Judge fixtures
 remain pinned and deterministic; a signed operator can onboard additional
 exact HTTPS HTML/text/RSS URLs through `/api/operator/sources`, with redirects,
