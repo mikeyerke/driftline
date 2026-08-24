@@ -301,6 +301,11 @@ export default function App() {
 
   const runScan = async (sourceId = selectedSource, requestedRunMode = null) => {
     const scanEpoch = sessionEpochRef.current;
+    const selectedDefinition = sources.find((source) => source.source_id === sourceId);
+    const runMode = requestedRunMode
+      || (operatorSession.identityToken && selectedDefinition?.mode === "public_only"
+        ? "monitor"
+        : null);
     setScanMessage("");
     setScanning(true);
     setWorkflowState(null);
@@ -308,14 +313,9 @@ export default function App() {
     setJob(null);
     try {
       if (!apiEnabled) throw new Error("API disabled");
-      const selectedDefinition = sources.find((source) => source.source_id === sourceId);
       if (selectedDefinition?.enabled === false) {
         throw new Error("This source is paused; resume monitoring before scanning.");
       }
-      const runMode = requestedRunMode
-        || (operatorSession.identityToken && selectedDefinition?.mode === "public_only"
-          ? "monitor"
-          : null);
       const queued = await startDemoJob(sourceId, runMode);
       if (sessionEpochRef.current !== scanEpoch) return;
       setJob(queued);
