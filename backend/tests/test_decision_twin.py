@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 
+from app import product_council
 from app.decision_twin import (
+    CouncilPosition,
     DecisionTwinPolicyError,
     approve_decision_case,
     build_demo_decision_case,
@@ -195,7 +199,43 @@ def test_product_council_agents_have_only_adk_task_completion_tool() -> None:
         [tool.__class__.__name__ for tool in agent.tools] == ["FinishTaskTool"]
         for agent in agents.values()
     )
+    assert all(agent.mode == "task" for agent in agents.values())
+    assert all(agent.output_schema is CouncilPosition for agent in agents.values())
     assert all(agent.model == "gemini-3.5-flash" for agent in agents.values())
+
+
+@pytest.mark.asyncio
+async def test_run_json_reads_structured_task_output_from_terminal_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "role": "usage",
+        "recommendation": "segment",
+        "thesis": "Segment movement conflicts.",
+        "supporting_node_ids": ["metric-activation-split"],
+        "contradicting_node_ids": [],
+        "risks": ["Aggregate data is not causal."],
+        "would_change_mind_if": "The segment gap disappears.",
+    }
+
+    class FakeRunner:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        async def run_async(self, **_: object):
+            yield SimpleNamespace(
+                output=payload,
+                content=None,
+                is_final_response=lambda: False,
+            )
+
+    monkeypatch.setattr(product_council, "Runner", FakeRunner)
+
+    result = await product_council._run_json(
+        build_council_agents()["usage"], "{}"
+    )
+
+    assert json.loads(result) == payload
 
 
 def test_product_council_prompt_contains_bounded_projections_not_secrets() -> None:
