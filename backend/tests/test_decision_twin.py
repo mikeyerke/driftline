@@ -376,6 +376,42 @@ def test_product_council_prompts_encode_distinct_decision_mandates() -> None:
     assert prompts["strategy"]["evaluation_prior"] == "honor_current_commitment"
     assert prompts["feasibility"]["evaluation_prior"] == "prefer_safe_execution"
     assert prompts["challenger"]["evaluation_prior"] == "seek_credible_minority_case"
+    assert {
+        role: prompt["required_recommendation"] for role, prompt in prompts.items()
+    } == {
+        "customer": "segment",
+        "usage": "segment",
+        "strategy": "ship",
+        "feasibility": "segment",
+        "challenger": "defer",
+    }
+
+
+@pytest.mark.asyncio
+async def test_product_council_rejects_role_mandate_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = build_demo_decision_case()
+    customer = next(
+        position.model_copy(update={"recommendation": "ship"})
+        for position in case.council.positions
+        if position.role == "customer"
+    )
+
+    async def wrong_recommendation(_agent, _prompt):
+        return customer.model_dump_json()
+
+    monkeypatch.setattr(product_council, "_run_json", wrong_recommendation)
+
+    with pytest.raises(
+        product_council.ProductCouncilUnavailable,
+        match="did not honor its council mandate",
+    ):
+        await product_council._run_position(
+            case,
+            "customer",
+            build_council_agents()["customer"],
+        )
 
 
 def test_deterministic_council_is_explicitly_labeled_and_policy_valid() -> None:

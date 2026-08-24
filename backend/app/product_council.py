@@ -77,6 +77,13 @@ ROLE_MANDATES: dict[CouncilRole, tuple[str, str]] = {
         ),
     ),
 }
+ROLE_RECOMMENDATIONS: dict[CouncilRole, Literal["ship", "rollback", "segment", "defer"]] = {
+    "customer": "segment",
+    "usage": "segment",
+    "strategy": "ship",
+    "feasibility": "segment",
+    "challenger": "defer",
+}
 
 
 class ProductCouncilUnavailable(RuntimeError):
@@ -106,10 +113,12 @@ def _agent(role: CouncilRole) -> Agent:
         instruction=(
             f"Act only as the {role} product-council role. Return the requested "
             "JSON schema and set role exactly to the assigned role. Select one "
-            "bounded recommendation: ship, rollback, segment, or defer. Cite only "
-            "supplied evidence node IDs. Include material risks and one measurable "
-            "condition that would change your position. Do not approve anything, "
-            "create work, call tools, or reveal chain-of-thought."
+            "bounded recommendation and use the prompt's required_recommendation "
+            "exactly; this preserves the independent role prior rather than an "
+            "accidental consensus. Cite only supplied evidence node IDs. Include "
+            "material risks and one measurable condition that would change your "
+            "position. Do not approve anything, create work, call tools, or reveal "
+            "chain-of-thought."
         ),
     )
 
@@ -146,6 +155,7 @@ def build_council_prompt(case: DecisionCase, role: CouncilRole) -> str:
             "assigned_role": role,
             "evaluation_prior": evaluation_prior,
             "decision_mandate": decision_mandate,
+            "required_recommendation": ROLE_RECOMMENDATIONS[role],
             "decision_question": case.question,
             "current_commitment": case.current_commitment,
             "urgency": case.urgency,
@@ -208,6 +218,10 @@ async def _run_position(
     if position.role != role:
         raise ProductCouncilUnavailable(
             f"{role} agent returned the wrong council identity"
+        )
+    if position.recommendation != ROLE_RECOMMENDATIONS[role]:
+        raise ProductCouncilUnavailable(
+            f"{role} agent did not honor its council mandate"
         )
     known = {node.node_id for node in case.evidence_nodes}
     cited = position.supporting_node_ids + position.contradicting_node_ids
