@@ -49,7 +49,7 @@ only allowlisted aggregate metrics through parameterized, dry-run-checked,
 bytes-capped queries. See the [judge scorecard](submission/JUDGE_SCORECARD.md)
 and [Decision Twin implementation plan](docs/superpowers/plans/2026-08-23-decision-twin-implementation.md).
 
-The current production proof is release
+The August 24 verified baseline production proof is release
 `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`, Cloud Run revision
 `driftline-00291-v89`, and Cloud Build
 `154547e7-36ae-4eb2-a79a-35064e293191`. The live Decision Twin verifier proved
@@ -57,6 +57,9 @@ five evidence-grounded ADK roles with preserved `ship`/`segment`/`defer`
 disagreement, a privacy-thresholded BigQuery attachment, named-human approval,
 measured outcome, and generation-2 reopening with prior approval and experiment
 lineage intact.
+The authoritative identity for any later release is read from `/health` and
+cross-checked against Cloud Run, Cloud Build, and Artifact Registry by
+`./scripts/verify_production.sh` rather than copied forward in prose.
 
 The default demonstration models a competitor price change from $49 to $59 per
 seat per month, then traces the impact into a comparison map, pricing

@@ -3,7 +3,7 @@
 Fresh official-source audit: August 24, 2026. The Devpost website and official
 rules prevail over this working scorecard.
 
-## Exact live release
+## Verified baseline live release
 
 - Git SHA: `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`
 - Cloud Run revision: `driftline-00291-v89`, 100% traffic
@@ -16,6 +16,10 @@ rules prevail over this working scorecard.
   repository hygiene passed
 - Local: 386 backend tests, Ruff, frontend build/contract, dependency audit,
   shell/diff hygiene, and 14/14 trace evaluation passed
+
+Final submission metadata must use `/health` and
+`./scripts/verify_production.sh` to capture the exact final candidate identity;
+the values above are the last historical baseline, not a floating claim.
 
 ## 40% — Innovation and operational utility
 

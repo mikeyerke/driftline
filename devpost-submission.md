@@ -149,13 +149,15 @@ architecture close. Suggested stills are documented in
 
 ## Truthful proof and disclosure
 
-The current live release serves Git SHA
+The August 24 verified baseline release served Git SHA
 `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6` on Cloud Run revision
 `driftline-00291-v89` from Cloud Build
 `154547e7-36ae-4eb2-a79a-35064e293191`, with the same SHA exposed through
 `/health` and immutable image digest
 `sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`
-(verified August 24, 2026). The live Decision Twin proof preserved five cited
+(verified August 24, 2026). Final submission metadata must use the identity
+returned by `/health` and `./scripts/verify_production.sh` for the final
+candidate. The live Decision Twin proof preserved five cited
 ADK roles and `ship`/`segment`/`defer` disagreement, attached real BigQuery
 aggregate evidence, required named-human approval, evaluated an outcome, and
 reopened generation 2 with prior approval/experiment lineage intact. In the

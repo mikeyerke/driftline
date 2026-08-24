@@ -12,15 +12,16 @@ from app.product_analytics import (
 )
 
 
-def test_bigquery_seed_merge_has_literal_target_partition_filter() -> None:
+def test_bigquery_seed_refresh_is_current_bounded_and_non_accumulating() -> None:
     sql_path = Path(__file__).parents[2] / "infra" / "decision_twin_bigquery.sql"
     sql = sql_path.read_text()
 
     assert "require_partition_filter = TRUE" in sql
-    assert (
-        "target.observed_at >= TIMESTAMP '2026-08-23 00:00:00+00'" in sql
-    )
-    assert "target.observed_at < TIMESTAMP '2026-08-24 00:00:00+00'" in sql
+    assert "TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 45 DAY)" in sql
+    assert "TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)" in sql
+    assert sql.count("CURRENT_TIMESTAMP()") >= 4
+    assert "DELETE FROM" in sql
+    assert "source_mode = 'pinned_aggregate_fixture'" in sql
 
 
 def test_fixture_metrics_are_bounded_aggregates_without_customer_rows() -> None:

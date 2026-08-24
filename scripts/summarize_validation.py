@@ -6,9 +6,9 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+import re
 import statistics
 from pathlib import Path
-
 
 REQUIRED_FIELDS = {
     "participant_id",
@@ -25,6 +25,7 @@ REQUIRED_FIELDS = {
     "moderator_hints",
     "protocol_deviation",
 }
+PARTICIPANT_ID_PATTERN = re.compile(r"P(\d+)")
 
 
 def _number(
@@ -48,6 +49,22 @@ def _yes(row: dict[str, str], key: str) -> bool:
     return value in {"yes", "true", "1"}
 
 
+def _validate_condition_order(row: dict[str, str]) -> None:
+    participant_id = row.get("participant_id", "").strip()
+    match = PARTICIPANT_ID_PATTERN.fullmatch(participant_id)
+    if match is None or int(match.group(1)) < 1:
+        raise ValueError(
+            f"{participant_id or 'unknown'}: invalid participant_id for condition_order"
+        )
+    participant_number = int(match.group(1))
+    expected = "manual_first" if participant_number % 2 else "driftline_first"
+    actual = row.get("condition_order", "").strip()
+    if actual != expected:
+        raise ValueError(
+            f"{participant_id}: invalid condition_order (expected {expected})"
+        )
+
+
 def summarize(rows: list[dict[str, str]]) -> str:
     complete = [
         row
@@ -64,6 +81,8 @@ def summarize(rows: list[dict[str, str]]) -> str:
     if len(set(participant_ids)) != len(participant_ids):
         return "# Driftline validation summary\n\nStatus: **invalid** (participant IDs must be unique).\n\nNo win claim should be published.\n"
     try:
+        for row in complete:
+            _validate_condition_order(row)
         baseline_time = [
             _number(row, "baseline_seconds", minimum=0) for row in complete
         ]

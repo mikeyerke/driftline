@@ -17,6 +17,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 DecisionOptionId = Literal["ship", "rollback", "segment", "defer"]
+MAX_DECISION_GENERATION = 20
 CouncilRole = Literal[
     "customer", "usage", "strategy", "feasibility", "challenger"
 ]
@@ -112,8 +113,12 @@ class ExperimentPlan(BaseModel):
     target_segment: str = Field(min_length=1, max_length=100)
     primary_metric: str = Field(min_length=1, max_length=100)
     success_condition: str = Field(min_length=1, max_length=240)
+    success_operator: Literal["gte", "lte"]
+    success_threshold: float
     guardrails: list[str] = Field(min_length=1, max_length=4)
     stop_conditions: list[str] = Field(min_length=1, max_length=4)
+    stop_operator: Literal["gte", "lte"]
+    stop_threshold: float
     review_at: str = Field(min_length=1, max_length=50)
     owner_actions: list[str] = Field(min_length=1, max_length=6)
     rollback: str = Field(min_length=1, max_length=240)
@@ -146,7 +151,7 @@ class OutcomeObservation(BaseModel):
 class DecisionHistoryRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    generation: int = Field(ge=1)
+    generation: int = Field(ge=1, le=MAX_DECISION_GENERATION)
     option_id: DecisionOptionId
     approver: str
     synthesis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -164,7 +169,7 @@ class DecisionCase(BaseModel):
     tenant_id: str | None = None
     title: str
     question: str
-    generation: int = Field(default=1, ge=1)
+    generation: int = Field(default=1, ge=1, le=MAX_DECISION_GENERATION)
     status: Literal[
         "needs_approval",
         "experiment_active",
@@ -181,7 +186,7 @@ class DecisionCase(BaseModel):
     experiment_plan: ExperimentPlan | None = None
     outcomes: list[OutcomeObservation] = Field(default_factory=list, max_length=32)
     decision_history: list[DecisionHistoryRecord] = Field(
-        default_factory=list, max_length=16
+        default_factory=list, max_length=MAX_DECISION_GENERATION
     )
     reopen_reason: str | None = None
     events: list[dict[str, Any]] = Field(default_factory=list, max_length=64)
@@ -306,7 +311,7 @@ def _options() -> list[CounterfactualOption]:
             affected_segments=["small_workspaces", "enterprise_workspaces"],
             expected_outcome="Retain the observed small-team gain while testing the leading enterprise failure mode.",
             risks=["Two onboarding paths require temporary coordination"],
-            guardrails=["Enterprise activation may not decline more than 5% in the test"],
+            guardrails=["Enterprise activation may not cross the approved stop threshold"],
             would_change_mind_if="The permission preview fails to recover at least half the enterprise regression.",
             rollback="Return enterprise workspaces to the prior flow and remove the experiment allocation.",
             evidence_node_ids=common_evidence,
@@ -473,25 +478,31 @@ def attach_aggregate_metrics(
         raise DecisionTwinPolicyError("Decision Twin received an unexpected metric")
     small = by_segment["small_workspaces"]
     enterprise = by_segment["enterprise_workspaces"]
+    small_value = float(small.value)
+    enterprise_value = float(enterprise.value)
+    if not (small_value > 0.0 and enterprise_value < 0.0):
+        raise DecisionTwinPolicyError(
+            "Aggregate metrics do not support the pinned split-rollout scenario"
+        )
     updated = deepcopy(case)
     node = next(
         item for item in updated.evidence_nodes if item.node_id == "metric-activation-split"
     )
-    node.value = float(enterprise.value)
+    node.value = enterprise_value
     node.source_label = "BigQuery aggregate · privacy floor ≥25"
     small_observed_at = str(small.observed_at)
     enterprise_observed_at = str(enterprise.observed_at)
     node.observed_at = min(small_observed_at, enterprise_observed_at)
     node.excerpt = (
-        f"Small-workspace activation changed {float(small.value):+.0%}; "
-        f"enterprise activation changed {float(enterprise.value):+.0%}."
+        f"Small-workspace activation changed {small_value:+.0%}; "
+        f"enterprise activation changed {enterprise_value:+.0%}."
     )
     node.content_hash = _digest(
         {
             "metric_id": "activation_rate",
-            "small": float(small.value),
+            "small": small_value,
             "small_n": int(small.sample_size),
-            "enterprise": float(enterprise.value),
+            "enterprise": enterprise_value,
             "enterprise_n": int(enterprise.sample_size),
             "small_observed_at": small_observed_at,
             "enterprise_observed_at": enterprise_observed_at,
@@ -574,13 +585,24 @@ def _named_human(approver: str) -> str:
     return cleaned
 
 
-def _experiment_plan(option: CounterfactualOption) -> ExperimentPlan:
+def _experiment_plan(
+    option: CounterfactualOption, evidence_nodes: list[EvidenceNode]
+) -> ExperimentPlan:
+    metric_node = next(
+        (node for node in evidence_nodes if node.node_id == "metric-activation-split"),
+        None,
+    )
+    enterprise_change = (
+        float(metric_node.value)
+        if metric_node is not None and metric_node.value is not None
+        else -0.11
+    )
     contracts = {
         "ship": {
             "hypothesis": "A global rollout preserves small-team gains without deepening the enterprise activation regression.",
-            "target": "all_workspaces",
-            "metric": "blended_activation_rate",
-            "success": "Small-team activation remains positive and enterprise activation does not decline beyond the launch guardrail.",
+            "target": "enterprise_workspaces",
+            "metric": "enterprise_activation_rate",
+            "success": "Enterprise activation does not deepen beyond the attached pre-rollout aggregate.",
             "stops": [
                 "Stop if enterprise activation declines another 3% relative to the observed baseline.",
                 "Stop if support volume for permissions increases during rollout.",
@@ -591,12 +613,16 @@ def _experiment_plan(option: CounterfactualOption) -> ExperimentPlan:
                 "Keep the prior onboarding flow ready for immediate restoration.",
                 "Review both segment outcomes at the measurement deadline.",
             ],
+            "success_operator": "gte",
+            "success_threshold": enterprise_change,
+            "stop_operator": "lte",
+            "stop_threshold": enterprise_change - 0.03,
         },
         "rollback": {
             "hypothesis": "Restoring the prior flow recovers enterprise activation without erasing the small-team learning.",
-            "target": "all_workspaces",
-            "metric": "blended_activation_rate",
-            "success": "Enterprise activation returns toward baseline while the redesign remains available for a bounded follow-up test.",
+            "target": "small_workspaces",
+            "metric": "small_workspace_activation_rate",
+            "success": "Small-workspace activation remains at or above its prior baseline during rollback.",
             "stops": [
                 "Stop if small-workspace activation falls below its prior baseline.",
                 "Stop if the prior flow cannot be restored consistently across segments.",
@@ -607,6 +633,10 @@ def _experiment_plan(option: CounterfactualOption) -> ExperimentPlan:
                 "Instrument activation by workspace segment.",
                 "Review the rollback outcome at the measurement deadline.",
             ],
+            "success_operator": "gte",
+            "success_threshold": 0.0,
+            "stop_operator": "lte",
+            "stop_threshold": -0.01,
         },
         "segment": {
             "hypothesis": "A permission preview recovers enterprise activation while the redesigned flow preserves the small-team gain.",
@@ -614,7 +644,7 @@ def _experiment_plan(option: CounterfactualOption) -> ExperimentPlan:
             "metric": "enterprise_activation_rate",
             "success": "Recover at least half of the observed enterprise activation regression within the review window.",
             "stops": [
-                "Stop if enterprise activation declines to 12% or more below baseline.",
+                "Stop if enterprise activation declines another 1% beyond the attached aggregate.",
                 "Stop if setup completion declines in either allocated segment.",
             ],
             "actions": [
@@ -623,6 +653,10 @@ def _experiment_plan(option: CounterfactualOption) -> ExperimentPlan:
                 "Instrument activation and setup completion by workspace segment.",
                 "Review the decision when the measurement window closes.",
             ],
+            "success_operator": "gte",
+            "success_threshold": enterprise_change / 2,
+            "stop_operator": "lte",
+            "stop_threshold": enterprise_change - 0.01,
         },
         "defer": {
             "hypothesis": "Additional enterprise evidence resolves the permission-step causal uncertainty before a rollout decision.",
@@ -639,6 +673,10 @@ def _experiment_plan(option: CounterfactualOption) -> ExperimentPlan:
                 "Keep the current segment allocation unchanged.",
                 "Reopen the decision when the evidence deadline arrives.",
             ],
+            "success_operator": "gte",
+            "success_threshold": 2.0,
+            "stop_operator": "lte",
+            "stop_threshold": 0.0,
         },
     }
     contract = contracts[option.option_id]
@@ -649,8 +687,12 @@ def _experiment_plan(option: CounterfactualOption) -> ExperimentPlan:
         target_segment=contract["target"],
         primary_metric=contract["metric"],
         success_condition=contract["success"],
+        success_operator=contract["success_operator"],
+        success_threshold=contract["success_threshold"],
         guardrails=option.guardrails,
         stop_conditions=contract["stops"],
+        stop_operator=contract["stop_operator"],
+        stop_threshold=contract["stop_threshold"],
         review_at="2026-08-30T18:00:00+00:00",
         owner_actions=contract["actions"],
         rollback=option.rollback,
@@ -685,7 +727,7 @@ def approve_decision_case(
         synthesis_hash=case.council.synthesis_hash,
         approved_at=datetime.now(UTC).isoformat(),
     )
-    approved.experiment_plan = _experiment_plan(option)
+    approved.experiment_plan = _experiment_plan(option, case.evidence_nodes)
     approved.status = "experiment_active"
     approved.reopen_reason = None
     approved.events.append(
@@ -722,17 +764,28 @@ def evaluate_outcome(
             reason="Observation does not cover the approved target segment.",
             reopen_required=False,
         )
-    relative_change = outcome.value - outcome.baseline
-    if relative_change <= -0.12:
+    measured_change = outcome.value - outcome.baseline
+    plan = case.experiment_plan
+    stop_crossed = (
+        measured_change <= plan.stop_threshold
+        if plan.stop_operator == "lte"
+        else measured_change >= plan.stop_threshold
+    )
+    if stop_crossed:
         return OutcomeEvaluation(
             verdict="invalidated",
-            reason="Enterprise activation crossed the approved stop guardrail.",
+            reason=f"{plan.primary_metric} crossed the approved stop guardrail.",
             reopen_required=True,
         )
-    if relative_change >= -0.055:
+    success_reached = (
+        measured_change >= plan.success_threshold
+        if plan.success_operator == "gte"
+        else measured_change <= plan.success_threshold
+    )
+    if success_reached:
         return OutcomeEvaluation(
             verdict="validated",
-            reason="Enterprise activation recovered at least half of the observed regression.",
+            reason=f"{plan.primary_metric} met the approved success threshold.",
             reopen_required=False,
         )
     return OutcomeEvaluation(
@@ -757,6 +810,12 @@ def record_outcome(
     )
     if any(item.observation_id == outcome.observation_id for item in case.outcomes):
         return deepcopy(case)
+    if case.status == "validated":
+        raise DecisionTwinPolicyError(
+            "A validated decision generation does not accept new outcomes"
+        )
+    if case.status not in {"experiment_active", "inconclusive"}:
+        raise DecisionTwinPolicyError("Outcome requires an active experiment")
     recorded = deepcopy(case)
     evaluation = evaluate_outcome(recorded, outcome)
     outcome.evaluation = evaluation
@@ -771,6 +830,10 @@ def record_outcome(
         }
     )
     if evaluation.reopen_required:
+        if recorded.generation >= MAX_DECISION_GENERATION:
+            raise DecisionTwinPolicyError(
+                "Decision case reached the maximum generation"
+            )
         if recorded.approval is None:
             raise DecisionTwinPolicyError("Reopening requires a prior human decision")
         recorded.decision_history.append(

@@ -31,7 +31,7 @@ tenant and its configured connectors.
 
 | Capability | State | Evidence | Boundary |
 | --- | --- | --- | --- |
-| Cloud Run production service | **Deployed and live verified** | `driftline-00291-v89`, 100% traffic; `/health` returns full release SHA `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6` and build `154547e7-36ae-4eb2-a79a-35064e293191` | Isolated `driftline-hackathon-2026`; min 0/max 1 instance |
+| Cloud Run production service | **Deployed and live verified** | August 24 baseline: `driftline-00291-v89`, 100% traffic; `/health` returned full release SHA `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6` and build `154547e7-36ae-4eb2-a79a-35064e293191`; query `/health` for the current release | Isolated `driftline-hackathon-2026`; min 0/max 1 instance |
 | Firebase Hosting public facade | **Live verified** | `driftline-ops.web.app` rewrites to Cloud Run; `/health` and the browser console load over HTTPS | Firebase is linked to the same isolated project; Google Analytics disabled |
 | Firestore workflow/audit persistence | **Live verified** | Production verifier and live workflow records | 30-day default retention; tenant policy can narrow/extend within bounds |
 | Google ADK + Gemini | **Live verified** | Fresh facade proof: `job-e253f458c786`, `eval-b00a339dfd10`, 14/14 trace gate | Public runs are fixed, bounded scenarios |
@@ -49,15 +49,18 @@ tenant and its configured connectors.
 | Decision Twin evidence/council/counterfactual loop | **Deployed and live verified** | Case `decision-onboarding-ca91c815d6629f4d5ff5acbd`: real `google_adk`, five cited roles, `ship`/`segment`/`defer` disagreement, named-human approval, measured outcome, generation-2 reopen, full prior approval/experiment lineage | The showcased case and outcome are bounded demo evidence, not customer research |
 | BigQuery aggregate evidence adapter | **Provisioned and live verified** | `bigquery-aggregate-attached`, minimum cohort 84; sample-weighted, allowlisted, parameterized, dry-run checked, 50 MB billed-byte cap | Aggregate-only; privacy floor rejects cohorts below 25 |
 
-## Current release custody
+## Verified baseline release custody
 
 - Open PR branch: `codex/win-taskmaster-20260823`; PR #16 remains unmerged.
-- Serving runtime: `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`.
+- Baseline serving runtime: `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`.
 - Cloud Run revision: `driftline-00291-v89` at 100% traffic.
 - Cloud Build: `154547e7-36ae-4eb2-a79a-35064e293191`.
 - Image digest: `sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`.
 - GitHub Verify Driftline run `32757068133`: backend, frontend, standalone
   image, and repository hygiene all passed.
+- For the current candidate, take exact SHA, revision, build, and digest from
+  `/health` and `./scripts/verify_production.sh`; do not infer them from this
+  historical snapshot.
 
 ## What “real” means here
 

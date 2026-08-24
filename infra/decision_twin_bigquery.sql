@@ -16,32 +16,18 @@ OPTIONS (
   description = 'Aggregate-only Decision Twin demo metrics; no customer rows or identifiers.'
 );
 
-MERGE `{{PROJECT_ID}}.driftline_product.decision_twin_usage_daily` AS target
-USING (
-  SELECT TIMESTAMP '2026-08-23 18:00:00+00' AS observed_at,
-         'small_workspaces' AS segment,
-         0.09 AS activation_relative_change,
-         0.06 AS setup_completion_relative_change,
-         126 AS sample_size,
-         'pinned_aggregate_fixture' AS source_mode
-  UNION ALL
-  SELECT TIMESTAMP '2026-08-23 18:00:00+00',
-         'enterprise_workspaces',
-         -0.11,
-         -0.08,
-         84,
-         'pinned_aggregate_fixture'
-) AS source
-ON target.observed_at = source.observed_at
-   AND target.segment = source.segment
-   -- BigQuery requires a literal target-partition predicate when
-   -- require_partition_filter is enabled; the source equality alone is not
-   -- accepted for partition elimination during MERGE planning.
-   AND target.observed_at >= TIMESTAMP '2026-08-23 00:00:00+00'
-   AND target.observed_at < TIMESTAMP '2026-08-24 00:00:00+00'
-WHEN MATCHED THEN UPDATE SET
-  activation_relative_change = source.activation_relative_change,
-  setup_completion_relative_change = source.setup_completion_relative_change,
-  sample_size = source.sample_size,
-  source_mode = source.source_mode
-WHEN NOT MATCHED THEN INSERT ROW;
+-- Refresh only the bounded pinned-fixture partitions. This keeps demo metrics
+-- inside the reader's 30-day window without accumulating repeated sample sizes.
+DELETE FROM `{{PROJECT_ID}}.driftline_product.decision_twin_usage_daily`
+WHERE source_mode = 'pinned_aggregate_fixture'
+  AND observed_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 45 DAY)
+  AND observed_at < TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 1 DAY);
+
+INSERT INTO `{{PROJECT_ID}}.driftline_product.decision_twin_usage_daily`
+  (observed_at, segment, activation_relative_change,
+   setup_completion_relative_change, sample_size, source_mode)
+VALUES
+  (CURRENT_TIMESTAMP(), 'small_workspaces',
+   0.09, 0.06, 126, 'pinned_aggregate_fixture'),
+  (CURRENT_TIMESTAMP(), 'enterprise_workspaces',
+   -0.11, -0.08, 84, 'pinned_aggregate_fixture');

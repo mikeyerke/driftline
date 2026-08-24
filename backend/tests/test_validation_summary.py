@@ -9,6 +9,10 @@ SPEC.loader.exec_module(MODULE)
 summarize = MODULE.summarize
 
 
+def _condition_order(participant_number: int) -> str:
+    return "manual_first" if participant_number % 2 else "driftline_first"
+
+
 def test_validation_summary_refuses_to_claim_small_sample() -> None:
     report = summarize([{"participant_id": "P01"}])
     assert "incomplete" in report
@@ -29,7 +33,7 @@ def test_validation_summary_calculates_preregistered_thresholds() -> None:
             "recovery_understood": "yes",
             "human_control_understood": "yes",
             "moderator_hints": "0",
-            "condition_order": "manual_first",
+            "condition_order": _condition_order(index),
             "protocol_deviation": "false",
         }
         for index in range(1, 7)
@@ -71,7 +75,7 @@ def test_validation_summary_requires_human_control_comprehension() -> None:
     rows = [
         {
             "participant_id": f"P{index:02d}",
-            "condition_order": "manual_first",
+            "condition_order": _condition_order(index),
             "baseline_seconds": "600",
             "driftline_seconds": "300",
             "baseline_coverage_0_5": "3",
@@ -87,3 +91,59 @@ def test_validation_summary_requires_human_control_comprehension() -> None:
         for index in range(1, 7)
     ]
     assert "thresholds not yet met" in summarize(rows)
+
+
+def test_validation_summary_rejects_noncanonical_condition_order() -> None:
+    rows = [
+        {
+            "participant_id": f"P{index:02d}",
+            "condition_order": "alternating",
+            "baseline_seconds": "600",
+            "driftline_seconds": "300",
+            "baseline_coverage_0_5": "3",
+            "driftline_coverage_0_5": "5",
+            "baseline_confidence_1_5": "3",
+            "driftline_confidence_1_5": "4",
+            "would_use_weekly": "yes",
+            "recovery_understood": "yes",
+            "human_control_understood": "yes",
+            "moderator_hints": "0",
+            "protocol_deviation": "false",
+        }
+        for index in range(1, 7)
+    ]
+
+    report = summarize(rows)
+
+    assert "invalid" in report
+    assert "condition_order" in report
+    assert "thresholds met" not in report
+
+
+def test_validation_summary_rejects_order_mismatched_to_participant() -> None:
+    rows = [
+        {
+            "participant_id": f"P{index:02d}",
+            "condition_order": _condition_order(index),
+            "baseline_seconds": "600",
+            "driftline_seconds": "300",
+            "baseline_coverage_0_5": "3",
+            "driftline_coverage_0_5": "5",
+            "baseline_confidence_1_5": "3",
+            "driftline_confidence_1_5": "4",
+            "would_use_weekly": "yes",
+            "recovery_understood": "yes",
+            "human_control_understood": "yes",
+            "moderator_hints": "0",
+            "protocol_deviation": "false",
+        }
+        for index in range(1, 7)
+    ]
+    rows[0]["condition_order"] = "driftline_first"
+
+    report = summarize(rows)
+
+    assert "invalid" in report
+    assert "condition_order" in report
+    assert "P01" in report
+    assert "thresholds met" not in report

@@ -192,7 +192,9 @@ def test_invalidated_outcome_reopens_same_case_with_preserved_lineage() -> None:
     assert reopened.case_id == approved.case_id
     assert reopened.generation == 2
     assert reopened.status == "reopened"
-    assert reopened.reopen_reason == "Enterprise activation crossed the approved stop guardrail."
+    assert reopened.reopen_reason == (
+        "enterprise_activation_rate crossed the approved stop guardrail."
+    )
     assert reopened.decision_history[0].generation == 1
     assert reopened.decision_history[0].option_id == "segment"
     assert reopened.decision_history[0].approval == approved.approval
@@ -258,6 +260,119 @@ def test_outcome_thresholds_leave_a_reachable_inconclusive_range() -> None:
     assert evaluate_outcome(approved, observation).verdict == "inconclusive"
 
 
+@pytest.mark.parametrize(
+    ("option_id", "success_value", "breach_value"),
+    [
+        ("ship", -0.11, -0.15),
+        ("rollback", 0.01, -0.02),
+        ("segment", -0.05, -0.13),
+        ("defer", 2.0, 0.0),
+    ],
+)
+def test_outcomes_use_the_selected_options_machine_readable_contract(
+    option_id: str, success_value: float, breach_value: float
+) -> None:
+    case = build_demo_decision_case()
+    approved = approve_decision_case(
+        case,
+        option_id=option_id,
+        approver="Mike Yerke",
+        expected_synthesis_hash=case.council.synthesis_hash,
+        expected_generation=1,
+    )
+    plan = approved.experiment_plan
+    base = {
+        "metric_id": plan.primary_metric,
+        "segment": plan.target_segment,
+        "baseline": 0.0,
+        "unit": "count" if option_id == "defer" else "relative_change",
+        "observed_at": "2026-08-30T18:00:00+00:00",
+        "source_label": "Bounded outcome fixture",
+    }
+
+    assert evaluate_outcome(
+        approved,
+        {
+            **base,
+            "observation_id": f"{option_id}-success",
+            "value": success_value,
+            "content_hash": "d" * 64,
+        },
+    ).verdict == "validated"
+    assert evaluate_outcome(
+        approved,
+        {
+            **base,
+            "observation_id": f"{option_id}-breach",
+            "value": breach_value,
+            "content_hash": "e" * 64,
+        },
+    ).verdict == "invalidated"
+
+
+def test_validated_generation_rejects_a_distinct_later_outcome() -> None:
+    case = build_demo_decision_case()
+    approved = approve_decision_case(
+        case,
+        option_id="segment",
+        approver="Mike Yerke",
+        expected_synthesis_hash=case.council.synthesis_hash,
+        expected_generation=1,
+    )
+    first = {
+        "observation_id": "first-success",
+        "metric_id": "enterprise_activation_rate",
+        "segment": "enterprise_workspaces",
+        "value": -0.02,
+        "baseline": 0.0,
+        "unit": "relative_change",
+        "observed_at": "2026-08-30T18:00:00+00:00",
+        "source_label": "Bounded outcome fixture",
+        "content_hash": "f" * 64,
+    }
+    validated = record_outcome(approved, first, expected_generation=1)
+
+    with pytest.raises(DecisionTwinPolicyError, match="does not accept new outcomes"):
+        record_outcome(
+            validated,
+            {
+                **first,
+                "observation_id": "later-conflict",
+                "value": -0.14,
+                "content_hash": "1" * 64,
+            },
+            expected_generation=1,
+        )
+
+
+def test_generation_cap_prevents_history_overflow() -> None:
+    case = build_demo_decision_case()
+    case.generation = 20
+    approved = approve_decision_case(
+        case,
+        option_id="segment",
+        approver="Mike Yerke",
+        expected_synthesis_hash=case.council.synthesis_hash,
+        expected_generation=20,
+    )
+    with pytest.raises(DecisionTwinPolicyError, match="maximum generation"):
+        record_outcome(
+            approved,
+            {
+                "observation_id": "generation-cap-breach",
+                "metric_id": "enterprise_activation_rate",
+                "segment": "enterprise_workspaces",
+                "value": -0.14,
+                "baseline": 0.0,
+                "unit": "relative_change",
+                "observed_at": "2026-08-30T18:00:00+00:00",
+                "source_label": "Bounded outcome fixture",
+                "content_hash": "2" * 64,
+            },
+            expected_generation=20,
+        )
+
+
 def test_combined_metric_hash_and_freshness_bind_both_segment_timestamps() -> None:
     case = build_demo_decision_case()
     small = SimpleNamespace(
@@ -283,6 +398,60 @@ def test_combined_metric_hash_and_freshness_bind_both_segment_timestamps() -> No
     assert first_node.observed_at == "2026-08-22T18:00:00+00:00"
     assert first_node.content_hash != second_node.content_hash
     assert first.council.synthesis_hash != second.council.synthesis_hash
+
+
+def test_live_aggregates_must_support_the_split_rollout_scenario() -> None:
+    case = build_demo_decision_case()
+    metrics = [
+        SimpleNamespace(
+            metric_id="activation_rate",
+            segment="small_workspaces",
+            value=-0.01,
+            sample_size=42,
+            observed_at="2026-08-24T18:00:00+00:00",
+        ),
+        SimpleNamespace(
+            metric_id="activation_rate",
+            segment="enterprise_workspaces",
+            value=0.02,
+            sample_size=42,
+            observed_at="2026-08-24T18:00:00+00:00",
+        ),
+    ]
+
+    with pytest.raises(DecisionTwinPolicyError, match="do not support"):
+        attach_aggregate_metrics(case, metrics)
+
+
+def test_segment_contract_derives_thresholds_from_attached_aggregate() -> None:
+    case = build_demo_decision_case()
+    metrics = [
+        SimpleNamespace(
+            metric_id="activation_rate",
+            segment="small_workspaces",
+            value=0.04,
+            sample_size=42,
+            observed_at="2026-08-24T18:00:00+00:00",
+        ),
+        SimpleNamespace(
+            metric_id="activation_rate",
+            segment="enterprise_workspaces",
+            value=-0.20,
+            sample_size=42,
+            observed_at="2026-08-24T18:00:00+00:00",
+        ),
+    ]
+    attached = attach_aggregate_metrics(case, metrics)
+    approved = approve_decision_case(
+        attached,
+        option_id="segment",
+        approver="Mike Yerke",
+        expected_synthesis_hash=attached.council.synthesis_hash,
+        expected_generation=1,
+    )
+
+    assert approved.experiment_plan.success_threshold == pytest.approx(-0.10)
+    assert approved.experiment_plan.stop_threshold == pytest.approx(-0.21)
 
 
 def test_product_council_agents_have_only_adk_task_completion_tool() -> None:

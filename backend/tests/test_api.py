@@ -85,6 +85,45 @@ def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
     assert restored.json() == payload
 
 
+@pytest.mark.parametrize("option_id", ["ship", "rollback", "segment", "defer"])
+@pytest.mark.parametrize(
+    ("scenario", "expected_status"),
+    [("successful_recovery", "validated"), ("guardrail_breach", "reopened")],
+)
+def test_decision_twin_demo_outcomes_follow_active_plan(
+    monkeypatch, option_id: str, scenario: str, expected_status: str
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    case = client.post("/api/decision-twin/demo").json()
+    approved = client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Demo Product Manager",
+            "option_id": option_id,
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    ).json()
+
+    response = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/demo",
+        json={"expected_generation": 1, "scenario": scenario},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == expected_status
+    assert payload["outcomes"][0]["metric_id"] == (
+        approved["experiment_plan"]["primary_metric"]
+    )
+    assert payload["outcomes"][0]["segment"] == (
+        approved["experiment_plan"]["target_segment"]
+    )
+
+
 def test_decision_twin_demo_runs_are_isolated(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
@@ -4400,6 +4439,40 @@ def test_reconciliation_keeps_outstanding_connector_failure_recoverable(
             {"scope": "configured", "tenant_id": "driftline-demo"},
             reverse=False,
         )
+
+
+def test_partial_connector_results_survive_before_reconciliation(monkeypatch) -> None:
+    state = api.workflow_store.start_demo()
+    state.operation = {"attempts": 1}
+    state.action_record = {
+        "jira_status": "created",
+        "jira_external_write": True,
+    }
+    monkeypatch.setattr(
+        api,
+        "_connector_handoff_info",
+        lambda *_args, **_kwargs: {
+            "jira_status": "reversed",
+            "jira_external_write": True,
+            "jira_issue_key": "KAN-19",
+            "confluence_status": "failed",
+            "confluence_external_write": False,
+            "external_write": True,
+        },
+    )
+
+    with pytest.raises(api.ConnectorError, match="remains unavailable"):
+        api._execute_claimed_side_effects(
+            state,
+            {"scope": "configured", "tenant_id": "driftline-demo"},
+            reverse=True,
+        )
+
+    assert state.action_record["jira_status"] == "reversed"
+    assert state.action_record["jira_issue_key"] == "KAN-19"
+    assert state.action_record["jira_external_write"] is True
+    assert state.action_record["confluence_status"] == "failed"
+    assert state.action_record["external_systems_changed"] is True
 
 
 def test_source_history_endpoint_is_explicitly_append_only() -> None:

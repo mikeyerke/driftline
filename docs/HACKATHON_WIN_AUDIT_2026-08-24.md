@@ -40,7 +40,7 @@ over this helper.
 
 | Claim or requirement | Current evidence | Status |
 | --- | --- | --- |
-| Production identity | SHA `1b8a8bf...`, revision `driftline-00291-v89`, build `154547e7...`, digest `sha256:18d8...` | Proven |
+| Baseline production identity | August 24 snapshot: SHA `1b8a8bf...`, revision `driftline-00291-v89`, build `154547e7...`, digest `sha256:18d8...`; final identity comes from `/health` and the production verifier | Proven historical baseline |
 | Hosted judge URL | `https://driftline-ops.web.app/` | Proven |
 | Gemini 3.5 Flash | Live Vertex/ADK council and general agent verification | Proven |
 | Google ADK | Five specialists + synthesis; coordinator/tool trace | Proven |
@@ -88,4 +88,3 @@ safe recording contract is therefore:
 7. Freeze the submitted artifacts after the deadline.
 
 Nothing in this audit registers, submits, emails, posts, or accepts legal terms.
-

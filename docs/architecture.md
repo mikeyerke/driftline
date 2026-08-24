@@ -6,13 +6,14 @@ Hosting. Hosting applies a same-origin `**` rewrite to the isolated Cloud Run
 second backend, data store, identity boundary, or connector credential path.
 The generated Cloud Run URL remains an operational health/fallback origin.
 
-Current verified production identity (August 24, 2026): Git SHA
+Verified baseline production identity (August 24, 2026): Git SHA
 `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`, Cloud Run revision
 `driftline-00291-v89`, Cloud Build
 `154547e7-36ae-4eb2-a79a-35064e293191`, and immutable image digest
 `sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`.
 The service sends 100% of traffic to that revision with min scale zero and max
-scale one.
+For later releases, `/health` plus `./scripts/verify_production.sh` is the
+authoritative identity check; this snapshot remains historical evidence.
 
 ```mermaid
 flowchart TD

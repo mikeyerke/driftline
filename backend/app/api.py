@@ -1622,26 +1622,27 @@ def _execute_claimed_side_effects(
         approval_identity,
         reverse=reverse,
     )
+    external_systems_changed = any(
+        connector_info.get(f"{name}_external_write", False)
+        or connector_info.get("external_write", False)
+        for name, _, _ in _CONNECTOR_HANDOFFS
+    )
+    # Persist confirmed per-connector outcomes on the claimed state before a
+    # later connector failure enters reconciliation. The exception handler
+    # commits this mutated snapshot, so a retry can reuse completed writes
+    # instead of repeating them.
+    state.action_record = {
+        **(state.action_record or {}),
+        **connector_info,
+        "external_write_authorized": approval_identity.get("scope") == "configured",
+        "external_write": external_systems_changed,
+        "external_systems_changed": external_systems_changed,
+    }
     if any(
         key.endswith("_status") and value == "failed"
         for key, value in connector_info.items()
     ):
         raise ConnectorError("A selected connector remains unavailable")
-    state.action_record = {
-        **(state.action_record or {}),
-        **connector_info,
-        "external_write_authorized": approval_identity.get("scope") == "configured",
-        "external_write": any(
-            connector_info.get(f"{name}_external_write", False)
-            or connector_info.get("external_write", False)
-            for name, _, _ in _CONNECTOR_HANDOFFS
-        ),
-        "external_systems_changed": any(
-            connector_info.get(f"{name}_external_write", False)
-            or connector_info.get("external_write", False)
-            for name, _, _ in _CONNECTOR_HANDOFFS
-        ),
-    }
     artifact_kind = "rollback" if reverse else "active"
     storage_info = persist_action_artifact(state, kind=artifact_kind)
     operational_info = persist_operational_output(state, kind=artifact_kind)
@@ -6013,8 +6014,8 @@ async def start_decision_twin_demo() -> dict:
                     "MODEL_NAME", "gemini-3.5-flash"
                 )
             except ProductCouncilUnavailable as exc:
-            # The public judge flow remains reproducible, but the response and
-            # audit event must never mislabel a fallback as a live model run.
+                # The public judge flow remains reproducible, but the response
+                # and event never mislabel a fallback as a live model run.
                 case.events.append(
                     {
                         "event_id": "product-council-live-unavailable",
@@ -6096,18 +6097,28 @@ def record_decision_twin_demo_outcome(
     observation_id = f"outcome-g{current.generation}-{request.scenario}"
     if any(item.observation_id == observation_id for item in current.outcomes):
         return current.model_dump(mode="json")
-    value = -0.14 if request.scenario == "guardrail_breach" else -0.02
+    plan = current.experiment_plan
+    if plan is None:
+        raise HTTPException(status_code=409, detail="Outcome requires an active experiment")
+    if request.scenario == "guardrail_breach":
+        value = plan.stop_threshold
+    else:
+        value = plan.success_threshold
     observation = {
         "observation_id": observation_id,
-        "metric_id": "enterprise_activation_rate",
-        "segment": "enterprise_workspaces",
+        "metric_id": plan.primary_metric,
+        "segment": plan.target_segment,
         "value": value,
         "baseline": 0.0,
-        "unit": "relative_change",
+        "unit": (
+            "count"
+            if plan.primary_metric == "qualified_enterprise_evidence_count"
+            else "relative_change"
+        ),
         "observed_at": "2026-08-30T18:00:00+00:00",
         "source_label": "BigQuery aggregate outcome fixture",
         "content_hash": hashlib.sha256(
-            f"{observation_id}:{value}".encode()
+            f"{observation_id}:{plan.primary_metric}:{plan.target_segment}:{value}".encode()
         ).hexdigest(),
     }
     try:
