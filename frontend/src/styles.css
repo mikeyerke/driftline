@@ -1034,6 +1034,13 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-recommendation-proof { white-space: normal; }
 }
 
+@media (min-width: 721px) {
+  /* The proof disclosure is the banner's grid child; the nested proof strip
+     must not create an implicit third column or push the hero down. */
+  .technical-proof-details { grid-area: proof; width: 100%; margin-left: 0; }
+  .technical-proof-details .release-proof { width: 100%; min-width: 0; }
+}
+
 @media (max-width: 560px) {
   .decision-room-hero-copy { padding: 29px 20px; }
   .decision-room-hero h2 { font-size: 34px; }
