@@ -610,10 +610,10 @@ export default function App() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Skip to main content</a>
-      <Sidebar selected={selectedNav} onSelect={selectNav} />
+      <Sidebar selected={selectedNav} onSelect={selectNav} operatorSession={operatorSession} />
       <main id="main-content">
         <header className="topbar">
-          <h1>Product decisions</h1>
+          <h1>Decision Twin</h1>
           <div className="topbar-actions">
             <OperatorAccess />
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : scanMessage}</span>}
@@ -623,10 +623,10 @@ export default function App() {
         </header>
 
         <div className="content">
-        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>Decision Twin demo</strong><span>{operatorSession.identityToken ? `Signed workspace · ${operatorSession.tenantId} · approval-gated owner handoffs` : "Public PM decision loop · live ADK workflow · no external writes"}</span></div><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live agent workflow") : (operatorSession.identityToken ? "Ready" : "Example ready")}</span><details className="technical-proof-details"><summary>Technical proof</summary><ReleaseProof /></details></div>
+        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>PM decision review</strong><span>{operatorSession.identityToken ? `Signed workspace · ${operatorSession.tenantId} · approval-gated owner handoffs` : "One realistic rollout decision · no external writes before approval"}</span></div><span className="banner-status">{operatorSession.identityToken ? (liveWorkflow ? "Signed workflow" : "Signed lane") : "Ready to review"}</span><details className="technical-proof-details"><summary>For judges: architecture &amp; safety</summary><ReleaseProof compact /></details></div>
           <DecisionRoom workflowState={workflowState} job={job} scanning={scanning} scanMessage={scanMessage} scanFailed={scanFailed} scenarioTitle={decisionScenario.title} scenarioLabel={decisionScenario.label} onRunReview={() => runScan()} onOpenWorkflow={() => focusSection("overview-section")} />
           <details className="legacy-workflow-details" open={controlPlaneOpen} onToggle={(event) => setControlPlaneOpen(event.currentTarget.open)}>
-            <summary className="legacy-workflow-summary"><span>Owner work</span><strong>Evidence and handoffs</strong><p>See the source change, affected owners, approval, and reversible output.</p><b>{controlPlaneOpen ? "Hide" : "Open"}</b></summary>
+            <summary className="legacy-workflow-summary"><span>Secondary control plane</span><strong>Owner work and evidence trace</strong><p>Optional technical walkthrough for source snapshots, handoffs, and deployment proof.</p><b>{controlPlaneOpen ? "Hide" : "Open"}</b></summary>
           <section id="overview-section" className="overview-section">
             <p className="product-orientation">{approved ? "The source change is verified, the human decision is recorded, and every owner action remains traceable and reversible." : "A public promise changed. Driftline verifies the evidence, maps every affected owner, and stops at a human decision."}</p>
             <UtilityNextStep workflow={workflowState} job={job} scanning={scanning} sourcePaused={selectedSourcePaused} onRunScan={() => runScan()} onNavigate={focusSection} />

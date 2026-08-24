@@ -976,6 +976,72 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .legacy-workflow-details[open] > summary { margin-bottom: 3px; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
 .legacy-workflow-details[open] > summary .legacy-workflow-summary-action { color: var(--ink); background: var(--surface); }
 
+/* Final judge-surface polish: make the decision legible before the console
+   chrome, and keep deployment proof useful without making the public lane
+   look like a broken operator dashboard. */
+.topbar h1 { color: #071a42; }
+.workspace-banner { border-color: #c7d9fa; background: #f7faff; }
+.workspace-banner-copy > strong { color: #173466; font-size: 12px; }
+.workspace-banner-copy > span { color: #526a91; }
+.banner-status { color: #245cad; background: #fff; }
+.technical-proof-details summary { color: #245cad; }
+.release-proof-item.attention > svg { color: #b87900; }
+.release-proof-item.attention strong { color: #8a6200; }
+.release-proof.compact { gap: 14px; }
+
+.decision-room-hero { grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr); min-height: 370px; border-color: #c5d5eb; background: #fff; box-shadow: 0 14px 34px rgba(14, 45, 94, .07); }
+.decision-room-hero-copy { padding: 44px clamp(26px, 4.5vw, 58px); }
+.decision-room-hero h2 { max-width: 700px; margin: 0 0 16px; color: #071a42; font-size: clamp(32px, 4vw, 48px); line-height: 1.04; }
+.decision-room-hero-copy > p { max-width: 700px; color: #44536d; font-size: 16px; line-height: 1.58; }
+.decision-room-hero-actions { margin-top: 27px; }
+.decision-room-run, .decision-room-run:hover { min-height: 50px; padding: 0 24px; color: #fff; background: var(--blue); font-weight: 800; }
+.decision-room-run:hover { background: #004ec7; }
+.decision-room-run:disabled { color: #fff; background: #2c79e8; opacity: .86; }
+.decision-room-hero-actions > span { max-width: 235px; color: #60718b; line-height: 1.4; }
+.decision-room-promise.decision-room-risk-card { justify-content: flex-start; gap: 13px; padding: 31px; color: #173466; border-left: 1px solid #dbe5f3; background: #f5f9ff; }
+.decision-room-risk-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #315fae; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.decision-room-risk-heading span { display: inline-flex; align-items: center; gap: 7px; }
+.decision-room-risk-heading svg { color: var(--blue); }
+.decision-room-risk-heading strong { padding: 5px 8px; border: 1px solid #eed28d; border-radius: 999px; color: #8a6200; background: #fffaf0; font-size: 10px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.decision-room-risk-card h3 { margin: 15px 0 0; color: #071a42; font-size: 24px; letter-spacing: -.03em; }
+.decision-room-risk-card > p { margin: 0; color: #526a91; font-size: 14px; line-height: 1.55; }
+.decision-positive { color: var(--green); }
+.decision-negative { color: #b44c28; }
+.decision-room-risk-facts { display: grid; gap: 9px; margin: 7px 0 0; }
+.decision-room-risk-facts div { display: grid; gap: 2px; padding-top: 9px; border-top: 1px solid #d3e0f1; }
+.decision-room-risk-facts dt { color: #60718b; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.decision-room-risk-facts dd { margin: 0; color: #173466; font-size: 12px; line-height: 1.4; }
+.decision-room-safe-note { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 12px; border-top: 1px solid #d3e0f1; color: #315fae; font-size: 11px; font-weight: 700; }
+.decision-room-safe-note svg { color: var(--green); }
+
+.decision-recommendation-strip { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto; gap: 9px 18px; align-items: center; margin: 18px 28px 0; padding: 14px 16px; border: 1px solid #b9dfc9; border-radius: 7px; background: #f4fcf7; }
+.decision-recommendation-heading { display: flex; align-items: center; gap: 7px; color: var(--green); white-space: nowrap; }
+.decision-recommendation-heading span { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.decision-recommendation-heading strong { color: #173f2a; font-size: 14px; }
+.decision-recommendation-heading svg { flex: 0 0 auto; }
+.decision-recommendation-strip > p { margin: 0; color: #486255; font-size: 12px; line-height: 1.45; }
+.decision-recommendation-proof { color: #5f7a69; font-size: 10px; white-space: nowrap; }
+
+.legacy-workflow-details { margin-top: 30px; }
+.legacy-workflow-summary { padding-top: 20px; }
+.legacy-workflow-summary strong { color: #173466; }
+.legacy-workflow-summary p { max-width: 620px; }
+
+@media (max-width: 840px) {
+  .decision-room-hero { grid-template-columns: 1fr; }
+  .decision-room-promise.decision-room-risk-card { border-top: 1px solid #dbe5f3; border-left: 0; }
+  .decision-recommendation-strip { grid-template-columns: 1fr; gap: 8px; }
+  .decision-recommendation-proof { white-space: normal; }
+}
+
+@media (max-width: 560px) {
+  .decision-room-hero-copy { padding: 29px 20px; }
+  .decision-room-hero h2 { font-size: 34px; }
+  .decision-room-promise.decision-room-risk-card { padding: 24px 20px; }
+  .decision-room-risk-heading { align-items: flex-start; flex-direction: column; }
+  .decision-recommendation-strip { margin-left: 18px; margin-right: 18px; }
+}
+
 @media (max-width: 1100px) {
   .decision-room-promise { min-height: 0; }
   .decision-evidence-grid.priority { grid-template-columns: repeat(3, minmax(0, 1fr)); }

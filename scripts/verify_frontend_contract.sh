@@ -125,4 +125,31 @@ if { command -v rg >/dev/null 2>&1 \
   exit 1
 fi
 
+# The public judge lane is a PM decision review, not a generic operations
+# dashboard. Keep the first viewport anchored to the real decision and make
+# the technical proof an intentional secondary disclosure.
+check_frontend_literal() {
+  local literal="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -Fq -- "$literal" "$file"
+  else
+    grep -Fq -- "$literal" "$file"
+  fi
+}
+
+if ! check_frontend_literal 'Review the onboarding decision' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'decision-recommendation-strip' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'ReleaseProof compact' frontend/src/App.jsx \
+  || ! check_frontend_literal 'Trace refresh needed' frontend/src/components/ReleaseProof.jsx; then
+  printf 'Decision Twin judge-surface contract is incomplete: the PM-first decision or honest proof disclosure is missing.\n' >&2
+  exit 1
+fi
+
+if { command -v rg >/dev/null 2>&1 && rg -Fq -- 'Stale · rerun' frontend/src/components/ReleaseProof.jsx; } \
+  || { ! command -v rg >/dev/null 2>&1 && grep -Fq -- 'Stale · rerun' frontend/src/components/ReleaseProof.jsx; }; then
+  printf 'Release proof still exposes the stale operator label in the public lane.\n' >&2
+  exit 1
+fi
+
 printf 'Frontend literal ID contract: PASS\n'

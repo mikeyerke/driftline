@@ -26,6 +26,7 @@ export default function DecisionRoom() {
     try {
       const next = await startDecisionTwin();
       setDecisionCase(next);
+      setEvaluation(null);
       setSelectedId(next.council.recommendation);
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
   };
@@ -49,33 +50,34 @@ export default function DecisionRoom() {
   if (!decisionCase) return (
     <section className="decision-room-hero" aria-labelledby="decision-room-hero-title">
       <div className="decision-room-hero-copy">
-        <h2 id="decision-room-hero-title">Catch when new evidence invalidates a roadmap decision.</h2>
-        <p>Driftline connects customer signals, usage movement, support themes, and product commitments so a PM can choose the smallest safe response—and prove what happened next.</p>
+        <h2 id="decision-room-hero-title">Should the onboarding redesign ship to every workspace next week?</h2>
+        <p>Enterprise activation is down while the rollout commitment is seven days away. Driftline turns conflicting evidence into a reversible, measurable decision before anyone changes the plan.</p>
         <div className="decision-room-hero-actions">
-          <button className="primary decision-room-run" type="button" onClick={runCouncil} disabled={Boolean(busy)}>
+          <button className="primary decision-room-run" type="button" onClick={runCouncil} disabled={Boolean(busy)} aria-busy={busy === "council"}>
             {busy ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}
-            {busy ? "Reading the decision evidence…" : "Open the onboarding decision"}
+            {busy ? "Reading the decision evidence…" : "Review the onboarding decision"}
           </button>
-          <span>One decision · five bounded perspectives · human approval</span>
+          <span>5 evidence sources · 4 response options · human approval</span>
         </div>
         {busy === "council" && <p className="decision-room-status" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Checking evidence, disagreement, and reversible options.</p>}
         {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
       </div>
-      <div className="decision-room-promise">
-        <div className="decision-room-proof-title"><ShieldCheck size={22} /><strong>A PM decision loop, not another dashboard</strong></div>
-        <p>Detect drift, compare the counterfactuals, approve bounded owner work, and reopen the decision when a guardrail breaks.</p>
-        <ol className="decision-room-proof-steps">
-          <li><b>1</b><span><strong>Detect drift</strong><small>Evidence stops a stale commitment.</small></span></li>
-          <li><b>2</b><span><strong>Choose safely</strong><small>Options show risks, guardrails, and rollback.</small></span></li>
-          <li><b>3</b><span><strong>Learn</strong><small>Outcomes preserve the decision lineage.</small></span></li>
-        </ol>
-        <details className="decision-technical-proof"><summary>Google Cloud proof</summary><p>Gemini + Google ADK provide bounded council perspectives; Cloud Run, Firestore, and BigQuery preserve the production trail.</p></details>
+      <div className="decision-room-promise decision-room-risk-card">
+        <div className="decision-room-risk-heading"><span><ShieldCheck size={18} />Decision at risk</span><strong>7 days to rollout</strong></div>
+        <h3>Onboarding redesign</h3>
+        <p>Small-workspace activation improved <b className="decision-positive">+9%</b>, while enterprise activation fell <b className="decision-negative">-11%</b>.</p>
+        <dl className="decision-room-risk-facts">
+          <div><dt>Driftline finds</dt><dd>Segment conflict, not a global answer</dd></div>
+          <div><dt>PM receives</dt><dd>Recommendation, guardrail, and rollback</dd></div>
+        </dl>
+        <div className="decision-room-safe-note"><ShieldCheck size={15} />No external writes before approval</div>
       </div>
     </section>
   );
 
   const waitingForDecision = ["needs_approval", "reopened"].includes(decisionCase.status);
   const selectedOption = decisionCase.council.options.find((option) => option.option_id === selectedId);
+  const recommendedOption = decisionCase.council.options.find((option) => option.option_id === decisionCase.council.recommendation);
   const approvalLabel = selectedId === "segment" ? "Approve segmented experiment" : `Approve ${optionTitle(decisionCase.council.options, selectedId).toLowerCase()}`;
   return (
     <section className="decision-room" aria-labelledby="decision-room-title">
@@ -96,6 +98,11 @@ export default function DecisionRoom() {
         <div><span>Current commitment</span><strong>{decisionCase.current_commitment}</strong></div>
         <div><span>Why this needs a decision now</span><p>{decisionCase.urgency}</p></div>
       </section>
+      {recommendedOption && <section className="decision-recommendation-strip" aria-label="Council recommendation">
+        <div className="decision-recommendation-heading"><CheckCircle2 size={18} /><span>Council recommendation</span><strong>{recommendedOption.title}</strong></div>
+        <p>{decisionCase.council.executive_summary}</p>
+        <span className="decision-recommendation-proof">5 bounded perspectives · disagreement preserved</span>
+      </section>}
       <EvidenceCouncil decisionCase={decisionCase} />
       <CounterfactualCompare options={decisionCase.council.options} recommendedId={decisionCase.council.recommendation} selectedId={selectedId} onSelect={setSelectedId} />
       {waitingForDecision && <section className="decision-approval-gate">
