@@ -133,6 +133,11 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       "",
       "Evidence:",
       ...decisionCase.evidence_nodes.map((node) => `- ${node.title}: ${node.excerpt} (${node.source_label})`),
+      ...(decisionCase.events.some((event) => event.source_mode === "pm_provided_unverified") ? [
+        "",
+        "Evidence readiness: PM-provided and unverified",
+        "Next validation: quantify the segment split; corroborate the risk theme; verify owner feasibility.",
+      ] : []),
     ].join("\n");
     try {
       await navigator.clipboard.writeText(brief);

@@ -1103,6 +1103,24 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .decision-memory-proof dt { color: #7b6b9d; font-size: 8px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 .decision-memory-proof dd { margin: 0; color: #2a3150; font-size: 10px; line-height: 1.35; }
 
+.evidence-corroboration { margin: 0 18px 18px; border: 1px solid #d7c68d; border-radius: 7px; background: #fffdf6; }
+.evidence-corroboration > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 13px 14px; border-bottom: 1px solid #eadfbc; }
+.evidence-corroboration > header > div { display: flex; align-items: flex-start; gap: 9px; }
+.evidence-corroboration > header svg { flex: 0 0 auto; margin-top: 1px; color: #9a6a00; }
+.evidence-corroboration > header span { display: grid; gap: 3px; }
+.evidence-corroboration > header strong { color: #5b430c; font-size: 12px; }
+.evidence-corroboration > header small { color: #7a6841; font-size: 10px; line-height: 1.4; }
+.evidence-corroboration > header b { flex: 0 0 auto; padding: 4px 7px; border-radius: 999px; color: #7b5700; background: #f5e8ba; font-size: 9px; text-transform: uppercase; }
+.evidence-corroboration ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
+.evidence-corroboration li { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding: 13px 14px; border-left: 1px solid #eadfbc; }
+.evidence-corroboration li:first-child { border-left: 0; }
+.evidence-corroboration li > svg { flex: 0 0 auto; margin-top: 1px; color: #315fae; }
+.evidence-corroboration li > span { display: grid; gap: 3px; }
+.evidence-corroboration li strong { color: #173466; font-size: 11px; line-height: 1.35; }
+.evidence-corroboration li small { color: #6c6a5c; font-size: 9px; line-height: 1.4; }
+.evidence-corroboration > p { display: flex; align-items: center; gap: 6px; margin: 0; padding: 9px 14px; border-top: 1px solid #eadfbc; color: #6d5a2d; font-size: 9px; font-weight: 700; }
+.evidence-corroboration > p svg { flex: 0 0 auto; color: var(--green); }
+
 .legacy-workflow-details { margin-top: 30px; }
 .legacy-workflow-summary { padding-top: 20px; }
 .legacy-workflow-summary strong { color: #173466; }
@@ -1118,6 +1136,8 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-room-utility-steps article:first-child { border-top: 0; }
   .decision-room-deliverables { grid-template-columns: 1fr; gap: 13px; }
   .decision-room-demo-footer { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .evidence-corroboration ol { grid-template-columns: 1fr; }
+  .evidence-corroboration li, .evidence-corroboration li:first-child { border-top: 1px solid #eadfbc; border-left: 0; }
   .decision-recommendation-strip { grid-template-columns: 1fr; gap: 8px; }
   .decision-recommendation-proof { white-space: normal; }
   .decision-autonomy-proof > header { align-items: flex-start; flex-direction: column; gap: 4px; }

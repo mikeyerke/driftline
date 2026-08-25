@@ -1,4 +1,4 @@
-import { BarChart3, CalendarClock, Headphones, Image, MessageSquareQuote, ShieldQuestion } from "lucide-react";
+import { BarChart3, CalendarClock, CheckCircle2, Headphones, Image, MessageSquareQuote, SearchCheck, ShieldQuestion, Users } from "lucide-react";
 
 const evidenceIcons = {
   customer: MessageSquareQuote,
@@ -39,6 +39,18 @@ export default function EvidenceCouncil({ decisionCase }) {
       <div className="decision-evidence-grid priority">
         {primaryNodes.map((node) => <EvidenceCard node={node} key={node.node_id} />)}
       </div>
+      {isProvidedIntake && <section className="evidence-corroboration" aria-labelledby="evidence-corroboration-title">
+        <header>
+          <div><SearchCheck size={19} /><span><strong id="evidence-corroboration-title">Evidence readiness: 0 of 3 checks corroborated</strong><small>Driftline can structure the call now. These checks turn it into a defensible operating decision.</small></span></div>
+          <b>Next best evidence</b>
+        </header>
+        <ol>
+          <li><BarChart3 size={16} /><span><strong>Quantify the segment split</strong><small>Compare the primary outcome and one guardrail against baseline.</small></span></li>
+          <li><MessageSquareQuote size={16} /><span><strong>Corroborate the risk theme</strong><small>Confirm it across customer calls, support themes, or research notes.</small></span></li>
+          <li><Users size={16} /><span><strong>Verify owner feasibility</strong><small>Name the rollout owner, stop authority, and rollback window.</small></span></li>
+        </ol>
+        <p><CheckCircle2 size={14} />The recommendation stays provisional until connected evidence replaces the PM-provided inputs.</p>
+      </section>}
       <div className="council-conflict"><ShieldQuestion size={20} /><div><strong>The useful disagreement</strong><p>{council.decisive_conflict}</p></div></div>
       <details className="council-reasoning">
         <summary>Open full evidence and five council positions <span>{decisionCase.evidence_nodes.length} sources · {council.positions.length} perspectives</span></summary>

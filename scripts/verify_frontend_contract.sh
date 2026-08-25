@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! grep -Fq 'Evidence readiness: 0 of 3 checks corroborated' frontend/src/components/EvidenceCouncil.jsx \
+  || ! grep -Fq 'Next validation: quantify the segment split' frontend/src/components/DecisionRoom.jsx; then
+  printf 'PM intake corroboration contract is missing from the decision brief.\n' >&2
+  exit 1
+fi
+
 # Literal IDs in the React source become document anchors. Duplicate anchors
 # make the sidebar navigation and assistive-technology landmarks ambiguous.
 if command -v rg >/dev/null 2>&1; then
