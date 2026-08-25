@@ -29,17 +29,23 @@ approved_json="$(curl --fail --silent --show-error --max-time 30 \
 printf '%s' "${approved_json}" | python3 -c \
   'import json,sys; p=json.load(sys.stdin); assert p["status"]=="experiment_active"; assert p["experiment_plan"]["reversible"] is True'
 
-reopened_json="$(curl --fail --silent --show-error --max-time 30 \
-  -H 'Content-Type: application/json' -X POST \
-  --data '{"expected_generation":1,"scenario":"guardrail_breach"}' \
-  "${base_url}/api/decision-twin/${case_id}/outcomes/demo")"
+reopened_json=""
+for _attempt in $(seq 1 30); do
+  reopened_json="$(curl --fail --silent --show-error --max-time 30 \
+    "${base_url}/api/decision-twin/${case_id}")"
+  if printf '%s' "${reopened_json}" | python3 -c \
+    'import json,sys; raise SystemExit(0 if json.load(sys.stdin)["status"]=="reopened" else 1)'; then
+    break
+  fi
+  sleep 1
+done
 printf '%s' "${reopened_json}" | python3 -c \
-  'import json,sys; p=json.load(sys.stdin); h=p["decision_history"][0]; assert p["status"]=="reopened"; assert p["generation"]==2; assert h["generation"]==1; assert h["approval"]["approved_at"]; assert h["experiment_plan"]["reversible"] is True; assert h["trigger_observation"]["evaluation"]["verdict"]=="invalidated"; assert p["outcomes"][-1]["evaluation"]["verdict"]=="invalidated"'
+  'import json,sys; p=json.load(sys.stdin); h=p["decision_history"][0]; assert p["status"]=="reopened"; assert p["generation"]==2; assert h["generation"]==1; assert h["approval"]["approved_at"]; assert h["experiment_plan"]["reversible"] is True; assert h["trigger_observation"]["evaluation"]["verdict"]=="invalidated"; assert p["outcomes"][-1]["evaluation"]["verdict"]=="invalidated"; assert any(e.get("action")=="autonomous_experiment_monitor" for e in p["events"])'
 
 evaluation_json="$(curl --fail --silent --show-error --max-time 30 \
   "${base_url}/api/decision-twin/${case_id}/evaluation")"
 printf '%s' "${evaluation_json}" | python3 -c \
   'import json,sys; p=json.load(sys.stdin); assert p["gate_status"]=="pass"; assert p["overall_score"]==1.0'
 
-printf 'Decision Twin live verification: PASS (sha=%s, case=%s, generation=2, council=google_adk, analytics=bigquery)\n' \
+printf 'Decision Twin live verification: PASS (sha=%s, case=%s, generation=2, council=google_adk, analytics=bigquery, monitor=cloud_tasks)\n' \
   "${expected_sha}" "${case_id}"

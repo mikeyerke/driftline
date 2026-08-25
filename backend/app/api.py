@@ -1156,6 +1156,54 @@ def _enqueue_cloud_task(job: JobState) -> None:
         )
 
 
+def _enqueue_decision_twin_monitor(case_id: str, generation: int) -> None:
+    """Queue one idempotent post-approval Decision Twin measurement."""
+    if tasks_v2 is None:
+        raise RuntimeError("Cloud Tasks dependency is unavailable")
+    project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    location = os.getenv("DRIFTLINE_TASK_LOCATION", "us-central1")
+    queue = os.getenv("DRIFTLINE_TASK_QUEUE", "driftline-jobs")
+    target_url = os.getenv("DRIFTLINE_TASK_TARGET_URL")
+    service_account = os.getenv("DRIFTLINE_TASK_SERVICE_ACCOUNT")
+    if not project or not target_url or not service_account:
+        raise RuntimeError("Cloud Tasks configuration is incomplete")
+
+    client = tasks_v2.CloudTasksClient()
+    parent = client.queue_path(project, location, queue)
+    task_key = hashlib.sha256(f"{case_id}:{generation}".encode()).hexdigest()[:24]
+    task = tasks_v2.Task(
+        name=client.task_path(
+            project, location, queue, f"decision-monitor-{task_key}"
+        ),
+        http_request=tasks_v2.HttpRequest(
+            http_method=tasks_v2.HttpMethod.POST,
+            url=(
+                f"{target_url.rstrip('/')}/api/decision-twin/"
+                f"{case_id}/monitor/run"
+            ),
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(
+                {
+                    "expected_generation": generation,
+                    "scenario": "guardrail_breach",
+                }
+            ).encode("utf-8"),
+            oidc_token=tasks_v2.OidcToken(
+                service_account_email=service_account,
+                audience=target_url.rstrip("/"),
+            ),
+        ),
+    )
+    try:
+        client.create_task(parent=parent, task=task)
+    except TaskAlreadyExists:
+        logger.info(
+            "Decision monitor for %s generation %s already exists",
+            case_id,
+            generation,
+        )
+
+
 def _verify_task_request(request: Request) -> None:
     if not _tasks_enabled():
         return
@@ -6049,7 +6097,9 @@ def get_decision_twin_evaluation(case_id: str) -> dict:
 
 @app.post("/api/decision-twin/{case_id}/approve")
 def approve_decision_twin(
-    case_id: str, request: DecisionTwinApprovalRequest
+    case_id: str,
+    request: DecisionTwinApprovalRequest,
+    background_tasks: BackgroundTasks,
 ) -> dict:
     if not _reserve_demo_mutation():
         raise _demo_mutation_rate_limit_error(
@@ -6080,17 +6130,36 @@ def approve_decision_twin(
             status_code=409,
             detail="Decision changed before approval; reload the current generation.",
         )
+    autonomous_monitor = os.getenv("DECISION_TWIN_AUTONOMOUS_MONITOR")
+    if (
+        autonomous_monitor.casefold() == "true"
+        if autonomous_monitor is not None
+        else _tasks_enabled()
+    ):
+        try:
+            if _tasks_enabled():
+                _enqueue_decision_twin_monitor(approved.case_id, approved.generation)
+            else:
+                background_tasks.add_task(
+                    _record_decision_twin_demo_outcome,
+                    approved.case_id,
+                    DecisionTwinOutcomeRequest(
+                        expected_generation=approved.generation,
+                        scenario="guardrail_breach",
+                    ),
+                )
+        except Exception:
+            # Approval remains valid even if the monitor queue is temporarily
+            # unavailable. The UI keeps the explicit demo measurement fallback.
+            logger.exception(
+                "Unable to enqueue Decision Twin monitor for %s", approved.case_id
+            )
     return approved.model_dump(mode="json")
 
 
-@app.post("/api/decision-twin/{case_id}/outcomes/demo")
-def record_decision_twin_demo_outcome(
+def _record_decision_twin_demo_outcome(
     case_id: str, request: DecisionTwinOutcomeRequest
 ) -> dict:
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Decision Twin outcome rate limit reached; retry later."
-        )
     current = load_decision_case(case_id)
     if current is None or current.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
@@ -6129,6 +6198,15 @@ def record_decision_twin_demo_outcome(
         )
     except DecisionTwinPolicyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    updated.events.append(
+        {
+            "event_id": f"decision-monitor-observed-g{current.generation}",
+            "action": "autonomous_experiment_monitor",
+            "outcome": updated.outcomes[-1].evaluation.verdict,
+            "generation": current.generation,
+            "source": "bigquery_aggregate_fixture",
+        }
+    )
     committed = compare_and_set_decision_case(
         updated,
         expected_generation=current.generation,
@@ -6140,6 +6218,28 @@ def record_decision_twin_demo_outcome(
             detail="Decision changed before the outcome was recorded; reload it.",
         )
     return updated.model_dump(mode="json")
+
+
+@app.post("/api/decision-twin/{case_id}/outcomes/demo")
+def record_decision_twin_demo_outcome(
+    case_id: str, request: DecisionTwinOutcomeRequest
+) -> dict:
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin outcome rate limit reached; retry later."
+        )
+    return _record_decision_twin_demo_outcome(case_id, request)
+
+
+@app.post("/api/decision-twin/{case_id}/monitor/run")
+def run_decision_twin_monitor(
+    case_id: str,
+    monitor_request: DecisionTwinOutcomeRequest,
+    request: Request,
+) -> dict:
+    """Process a bounded measurement from an authenticated Cloud Task."""
+    _verify_task_request(request)
+    return _record_decision_twin_demo_outcome(case_id, monitor_request)
 
 
 @app.post("/api/workflows/demo")

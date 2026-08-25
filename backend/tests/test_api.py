@@ -85,6 +85,67 @@ def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
     assert restored.json() == payload
 
 
+def test_decision_twin_approval_enqueues_autonomous_monitor(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setenv("DRIFTLINE_TASKS_ENABLED", "true")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    queued: list[tuple[str, int]] = []
+    monkeypatch.setattr(
+        api,
+        "_enqueue_decision_twin_monitor",
+        lambda case_id, generation: queued.append((case_id, generation)),
+    )
+    persistence._decision_cases_memory.clear()
+
+    case = client.post("/api/decision-twin/demo").json()
+    approved = client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Demo Product Manager",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "experiment_active"
+    assert queued == [(case["case_id"], 1)]
+
+
+def test_decision_twin_monitor_records_autonomous_lineage(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setenv("DRIFTLINE_TASKS_ENABLED", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+
+    case = client.post("/api/decision-twin/demo").json()
+    client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Demo Product Manager",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    monitored = client.post(
+        f"/api/decision-twin/{case['case_id']}/monitor/run",
+        json={"expected_generation": 1, "scenario": "guardrail_breach"},
+    )
+
+    assert monitored.status_code == 200
+    payload = monitored.json()
+    assert payload["status"] == "reopened"
+    assert any(
+        event.get("action") == "autonomous_experiment_monitor"
+        and event.get("outcome") == "invalidated"
+        for event in payload["events"]
+    )
+
+
 @pytest.mark.parametrize("option_id", ["ship", "rollback", "segment", "defer"])
 @pytest.mark.parametrize(
     ("scenario", "expected_status"),

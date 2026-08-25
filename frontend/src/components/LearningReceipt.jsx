@@ -4,7 +4,7 @@ function shortHash(value) {
   return value ? `${value.slice(0, 12)}…` : "pending";
 }
 
-export default function LearningReceipt({ decisionCase, evaluation, busy, onOutcome }) {
+export default function LearningReceipt({ decisionCase, evaluation, busy, monitoring, onOutcome }) {
   const active = decisionCase.status === "experiment_active";
   const reopened = decisionCase.status === "reopened";
   const plan = decisionCase.experiment_plan;
@@ -34,8 +34,9 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, onOutc
         <div>{latestOutcome ? <History size={17} /> : <RotateCcw size={17} />}<span><strong>{latestOutcome ? "Outcome observed" : "Rollback path"}</strong><small>{latestOutcome?.evaluation?.verdict || (plan?.reversible ? "Available" : "Prepared")}</small></span></div>
       </div>
       <details className="decision-proof-details"><summary>Inspect IDs and policy lineage</summary><dl><div><dt>Case</dt><dd>{decisionCase.case_id}</dd></div><div><dt>Evidence</dt><dd>{decisionCase.council.evidence_manifest_hash}</dd></div><div><dt>Synthesis</dt><dd>{decisionCase.council.synthesis_hash}</dd></div>{latestOutcome && <div><dt>Outcome</dt><dd>{latestOutcome.observation_id} · {latestOutcome.content_hash}</dd></div>}</dl></details>
-      {active && <button className="primary decision-outcome-button" type="button" onClick={onOutcome} disabled={busy}><Activity size={17} />{busy ? "Evaluating outcome…" : "Advance to measured outcome"}</button>}
-      {active && <p className="fixture-disclosure">Runs a pinned aggregate measurement fixture for the judge demo; it is not presented as customer validation.</p>}
+      {active && monitoring && <div className="autonomous-monitor-status" role="status" aria-live="polite"><Activity size={18} /><span><strong>Autonomous monitor active</strong><small>Cloud Tasks is checking the approved guardrail. No second PM action is required.</small></span></div>}
+      {active && !monitoring && <button className="secondary decision-outcome-button" type="button" onClick={onOutcome} disabled={busy}><Activity size={17} />{busy ? "Evaluating outcome…" : "Run demo measurement fallback"}</button>}
+      {active && <p className="fixture-disclosure">The public judge lane automatically processes a pinned aggregate measurement fixture; it is not presented as customer validation.</p>}
     </section>
   );
 }

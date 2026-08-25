@@ -1,6 +1,6 @@
 import { ArrowRight, Bot, CheckCircle2, CircleAlert, ClipboardCheck, Database, FileCheck2, GitCompareArrows, LoaderCircle, Play, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
-import { approveDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinOutcome, startDecisionTwin } from "../api";
+import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinOutcome, startDecisionTwin } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
 import EvidenceCouncil from "./EvidenceCouncil";
 import LearningReceipt from "./LearningReceipt";
@@ -14,12 +14,45 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const [selectedId, setSelectedId] = useState("segment");
   const [evaluation, setEvaluation] = useState(null);
   const [busy, setBusy] = useState("");
+  const [monitoring, setMonitoring] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!decisionCase?.case_id) return;
     getDecisionTwinEvaluation(decisionCase.case_id).then(setEvaluation).catch(() => setEvaluation(null));
   }, [decisionCase]);
+
+  useEffect(() => {
+    if (decisionCase?.status !== "experiment_active") {
+      setMonitoring(false);
+      return undefined;
+    }
+    let cancelled = false;
+    let attempts = 0;
+    let timer;
+    setMonitoring(true);
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const latest = await getDecisionTwin(decisionCase.case_id);
+        if (cancelled) return;
+        if (latest.status !== "experiment_active") {
+          setDecisionCase(latest);
+          setMonitoring(false);
+          return;
+        }
+      } catch {
+        // A transient read does not cancel the durable Cloud Tasks monitor.
+      }
+      if (!cancelled && attempts < 20) timer = window.setTimeout(poll, 1000);
+      else if (!cancelled) setMonitoring(false);
+    };
+    timer = window.setTimeout(poll, 700);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [decisionCase?.case_id, decisionCase?.generation, decisionCase?.status]);
 
   const runCouncil = async () => {
     setBusy("council"); setError("");
@@ -182,7 +215,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           {busy === "approval" ? "Recording decision…" : approvalLabel}
         </button>
       </section>}
-      {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} onOutcome={observeOutcome} />}
+      {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} monitoring={monitoring} onOutcome={observeOutcome} />}
       {busy === "outcome" && <p className="decision-room-status decision-room-status-bottom" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Evaluating the guardrail and preserving the next generation.</p>}
       {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
       {selectedOption && waitingForDecision && <p className="decision-selection-note"><CheckCircle2 size={14} />Selected response: <strong>{selectedOption.title}</strong></p>}
