@@ -59,6 +59,10 @@ export default function DecisionRoom() {
           <strong>Should the onboarding redesign ship to every workspace next week?</strong>
           <small>Enterprise activation is down while the rollout commitment is seven days away.</small>
         </div>
+        <div className="decision-room-reusable-scope" aria-label="Reusable decision types">
+          <span>Same loop for</span>
+          <b>Rollouts</b><b>Launches</b><b>Pricing</b><b>Packaging</b>
+        </div>
         <div className="decision-room-hero-actions">
           <button className="primary decision-room-run" type="button" onClick={runCouncil} disabled={Boolean(busy)} aria-busy={busy === "council"}>
             {busy ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}
@@ -101,6 +105,18 @@ export default function DecisionRoom() {
           <b>3</b>
           <div><strong>Leave with a safer experiment</strong><span>Recommendation, guardrail, rollback path, and a receipt when reality changes.</span></div>
         </article>
+      </div>
+      <div className="decision-room-deliverables" aria-label="PM deliverables">
+        <div className="decision-room-deliverables-heading">
+          <span>What the PM leaves with</span>
+          <small>Shareable, measurable, and reversible—not a vague AI opinion.</small>
+        </div>
+        <ul>
+          <li><CheckCircle2 size={15} /><span><strong>Decision brief</strong><small>What changed and why now</small></span></li>
+          <li><CheckCircle2 size={15} /><span><strong>Chosen response</strong><small>Tradeoffs compared side by side</small></span></li>
+          <li><CheckCircle2 size={15} /><span><strong>Guardrail + rollback</strong><small>How to stop or reopen safely</small></span></li>
+          <li><CheckCircle2 size={15} /><span><strong>Learning receipt</strong><small>What reality proved afterward</small></span></li>
+        </ul>
       </div>
       <small className="decision-room-demo-disclosure">This public lane uses a pinned, redacted decision case. The approval, outcome, and reopen loop is the same workflow a signed workspace uses with bounded sources.</small>
     </section>

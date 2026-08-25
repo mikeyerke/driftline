@@ -141,6 +141,8 @@ check_frontend_literal() {
 if ! check_frontend_literal 'Catch when new evidence invalidates a roadmap decision.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'One decision loop, not another dashboard.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'What the PM leaves with' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Guardrail + rollback' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Review the onboarding decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'decision-recommendation-strip' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'ReleaseProof compact' frontend/src/App.jsx \
