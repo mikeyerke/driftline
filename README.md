@@ -620,6 +620,16 @@ gcloud config set project driftline-hackathon-2026
 ./scripts/deploy.sh
 ~~~
 
+For the final candidate, use the release wrapper instead of stopping after the
+build. It deploys one clean commit, refreshes the live ADK trace evaluation for
+that exact SHA, verifies the Decision Twin approval/outcome/reopen loop, and
+runs the production proof gate in the required order:
+
+~~~bash
+DRIFTLINE_BASE_URL=https://driftline-ops.web.app \
+  ./scripts/release_and_verify.sh
+~~~
+
 The root Dockerfile builds the React console and serves it from FastAPI. Cloud
 Run uses the dedicated runtime service account for Vertex AI and Firestore; no
 API key is embedded in the client. The production image installs the frozen
@@ -780,6 +790,7 @@ their cadence deadlines.
 ~~~bash
 BASE=https://driftline-ops.web.app
 curl -fsS "$BASE/health"
+DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_decision_twin.sh
 DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_live_agent.sh
 DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_public_approval_undo.sh
 DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_production.sh

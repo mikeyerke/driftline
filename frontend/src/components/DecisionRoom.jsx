@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, CircleAlert, ClipboardCheck, FileCheck2, LoaderCircle, Play, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle2, CircleAlert, ClipboardCheck, Database, FileCheck2, GitCompareArrows, LoaderCircle, Play, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { approveDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinOutcome, startDecisionTwin } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
@@ -129,6 +129,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const waitingForDecision = ["needs_approval", "reopened"].includes(decisionCase.status);
   const selectedOption = decisionCase.council.options.find((option) => option.option_id === selectedId);
   const recommendedOption = decisionCase.council.options.find((option) => option.option_id === decisionCase.council.recommendation);
+  const councilVotes = new Set(decisionCase.council.positions.map((position) => position.recommendation)).size;
   const approvalLabel = selectedId === "segment" ? "Approve segmented experiment" : `Approve ${optionTitle(decisionCase.council.options, selectedId).toLowerCase()}`;
   return (
     <section className="decision-room" aria-labelledby="decision-room-title">
@@ -151,9 +152,18 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       </section>
       {recommendedOption && <section className="decision-recommendation-strip" aria-label="Council recommendation">
         <div className="decision-recommendation-heading"><CheckCircle2 size={18} /><span>Council recommendation</span><strong>{recommendedOption.title}</strong></div>
-        <p>{decisionCase.council.executive_summary}</p>
+        <p>{recommendedOption.summary}</p>
         <span className="decision-recommendation-proof">5 bounded perspectives · disagreement preserved</span>
       </section>}
+      <section className="decision-autonomy-proof" aria-label="What Driftline completed autonomously">
+        <header><span>Completed before human approval</span><strong>Driftline did the evidence work—not just the writing.</strong></header>
+        <div>
+          <span><Database size={16} /><b>{decisionCase.evidence_nodes.length} cited signals</b><small>with source provenance</small></span>
+          <span><Bot size={16} /><b>{decisionCase.council.positions.length} independent agents</b><small>through Google ADK</small></span>
+          <span><GitCompareArrows size={16} /><b>{councilVotes} competing responses</b><small>dissent preserved</small></span>
+          <span><ShieldCheck size={16} /><b>1 reversible plan</b><small>gated by a human</small></span>
+        </div>
+      </section>
       <EvidenceCouncil decisionCase={decisionCase} />
       <CounterfactualCompare options={decisionCase.council.options} recommendedId={decisionCase.council.recommendation} selectedId={selectedId} onSelect={setSelectedId} />
       {waitingForDecision && <section className="decision-approval-gate">

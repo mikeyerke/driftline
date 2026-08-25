@@ -1,0 +1,49 @@
+{
+  "audit_id": "driftline-20260825-final-win",
+  "audited_production_sha": "5425010ea383cb4c904399652f9d0f8fa2195290",
+  "release_candidate": "working_tree_pending_commit",
+  "profiles": ["pre-launch", "production", "ai", "competitive"],
+  "depth": "forensic",
+  "findings": [
+    {
+      "id": "WIN-001",
+      "severity": "high",
+      "category": "demo-production-readiness",
+      "title": "Release-bound trace proof is stale after the current deploy sequence",
+      "evidence": "Live architecture disclosure showed evaluation SHA 3ec59940 while serving SHA was 5425010e.",
+      "resolution": "Added scripts/release_and_verify.sh to refresh live ADK trace proof before Decision Twin and production verification."
+    },
+    {
+      "id": "WIN-002",
+      "severity": "medium",
+      "category": "innovation-operational-utility",
+      "title": "Autonomous work was implied rather than summarized",
+      "evidence": "The recommendation strip led with dense model prose and did not enumerate agent-completed work.",
+      "resolution": "Added a factual pre-approval autonomy proof and replaced the long strip summary with the bounded option summary."
+    },
+    {
+      "id": "WIN-003",
+      "severity": "high",
+      "category": "submission",
+      "title": "Devpost registration and final submission are incomplete",
+      "evidence": "Authenticated Devpost registration list did not include All Things Agentic.",
+      "resolution": "Entrant action required; no registration or legal acceptance was performed by the audit."
+    },
+    {
+      "id": "WIN-004",
+      "severity": "high",
+      "category": "validation",
+      "title": "No genuine PM validation or customer outcome evidence",
+      "evidence": "Repository and live UI correctly label customer ROI and validation as not measured.",
+      "resolution": "Run honest PM sessions or retain not-measured language."
+    },
+    {
+      "id": "WIN-005",
+      "severity": "high",
+      "category": "demo-production-readiness",
+      "title": "Final public video is not uploaded",
+      "evidence": "Submission package contains a script and runbook but no final public video URL.",
+      "resolution": "Record, caption, upload, and QA the 3:48 final demo."
+    }
+  ]
+}

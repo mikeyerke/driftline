@@ -9,26 +9,25 @@ URL in the first 10–15 seconds, and finish with Google Cloud proof. Do not cla
 customer study, BigQuery deployment, or live council unless each is verifiable
 on the serving SHA.
 
-## 0:00–0:20 — The product decision bottleneck
+## 0:00–0:16 — The product decision bottleneck
 
 **Screen:** Decision Room hero and the pinned onboarding decision.
 
-**Narration:** “PMs do not lack opinions. They lack a defensible way to combine
-contradictory evidence, commit to a test, and learn without losing the original
-reasoning. Driftline is a Decision Twin: an evidence-to-outcome control room.”
+**Narration:** “A roadmap decision becomes dangerous when the evidence changes
+but the commitment does not. Driftline catches that drift, compares the safest
+responses, and keeps the outcome attached to the original decision.”
 
-## 0:20–0:52 — Evidence with provenance
+## 0:16–0:47 — Autonomous evidence work with provenance
 
 **Screen:** Start the council. Open the evidence graph and move through usage,
 customer, strategy, and feasibility nodes.
 
-**Narration:** “Small teams activate faster after the redesign, while enterprise
-activation falls and permission setup becomes confusing. Every claim keeps its
-source, metric, segment, observation window, and confidence. Aggregate product
-metrics can come through a parameterized, dry-run-checked, bytes-capped BigQuery
-adapter; the fixture remains explicitly labeled when live data is unavailable.”
+**Narration:** “Without a prompt loop, Driftline attaches five cited signals,
+including a live privacy-thresholded BigQuery aggregate. Small teams activate
+faster after the redesign, while enterprise activation falls and permission
+setup becomes confusing. Every claim keeps its source and segment.”
 
-## 0:52–1:28 — Independent ADK council and visible dissent
+## 0:47–1:20 — Independent ADK council and visible dissent
 
 **Screen:** Show the five council positions and pause on the challenger dissent.
 
@@ -37,7 +36,7 @@ customer, usage, strategy, feasibility, and challenger. They cannot approve or
 write anywhere. A single synthesis turn preserves citations and disagreement
 instead of averaging it away. Here the council rejects a universal rollout.”
 
-## 1:28–2:02 — Counterfactual decision quality
+## 1:20–1:52 — Counterfactual decision quality
 
 **Screen:** Compare ship, rollback, segment, and defer. Switch tabs and show
 expected upside, downside, reversibility, unknowns, and cited evidence.
@@ -47,7 +46,7 @@ Shipping protects momentum but risks enterprise conversion. Rolling back loses
 small-team gains. Deferring buys information but misses the launch window. A
 segmented rollout preserves upside and contains the observed failure mode.”
 
-## 2:02–2:40 — Human authority becomes an experiment
+## 1:52–2:28 — Human authority becomes an experiment
 
 **Screen:** Approve the segmented option and show the experiment receipt.
 
@@ -56,7 +55,7 @@ a falsifiable experiment: target segment, success metric, enterprise guardrail,
 stop condition, owner, and review date. Driftline rejects stale generations and
 conflicting approvals with compare-and-set persistence.”
 
-## 2:40–3:15 — The wow moment: outcome reopens the same decision
+## 2:28–3:05 — The wow moment: outcome reopens the same decision
 
 **Screen:** Apply the measured demo outcome. Show the learning receipt and the
 new case generation with prior lineage retained.
@@ -67,12 +66,12 @@ breaks, Driftline writes a learning receipt and reopens the same decision as a
 new generation. The evidence, dissent, approval, and result remain linked, so
 the organization compounds judgment instead of repeating debate.”
 
-## 3:15–3:38 — Google architecture and bounded cost
+## 3:05–3:38 — Google architecture and bounded cost
 
 **Screen:** Architecture view, evaluation score, then Cloud Run/Firestore/
 BigQuery proof for the exact serving SHA.
 
-**Narration:** “Cloud Run hosts the control room. Firestore stores cases and
+**Narration:** “This is the exact serving release. Cloud Run hosts the control room. Firestore stores cases and
 lineage. Google ADK and Gemini power the bounded council. BigQuery supplies
 privacy-thresholded aggregates. A deterministic seven-check evaluator tests
 provenance, role independence, disagreement, citations, falsifiability, human
@@ -89,7 +88,9 @@ measurable, auditable learning loop: evidence, dissent, decision, outcome.”
 ## Recording gates
 
 - Serving `/health` SHA equals the release commit.
-- `./scripts/verify_decision_twin.sh` passes against the public URL.
+- `./scripts/release_and_verify.sh` passes against the public URL. This refreshes
+  the release-bound live trace before checking the Decision Twin and production
+  proof surfaces, so the architecture disclosure must show a verified gate.
 - Live council proof shows `google_adk` and `gemini-3.5-flash`; otherwise narrate
   the visible deterministic fallback honestly.
 - BigQuery is provisioned and the production result reports its aggregate

@@ -146,6 +146,9 @@ if ! check_frontend_literal 'Catch when new evidence invalidates a roadmap decis
   || ! check_frontend_literal 'Open source-connected workspace flow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Review the onboarding decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'decision-recommendation-strip' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'What Driftline completed autonomously' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Completed before human approval' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'independent agents' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'ReleaseProof compact' frontend/src/App.jsx \
   || ! check_frontend_literal 'Trace refresh needed' frontend/src/components/ReleaseProof.jsx; then
   printf 'Decision Twin judge-surface contract is incomplete: the PM-first decision or honest proof disclosure is missing.\n' >&2

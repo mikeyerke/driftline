@@ -1049,13 +1049,24 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .decision-room-safe-note { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 12px; border-top: 1px solid #d3e0f1; color: #315fae; font-size: 11px; font-weight: 700; }
 .decision-room-safe-note svg { color: var(--green); }
 
-.decision-recommendation-strip { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto; gap: 9px 18px; align-items: center; margin: 18px 28px 0; padding: 14px 16px; border: 1px solid #b9dfc9; border-radius: 7px; background: #f4fcf7; }
+.decision-recommendation-strip { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto; gap: 9px 18px; align-items: center; margin: 18px 28px 0; padding: 14px 16px; border: 1px solid #b9dfc9; border-radius: 7px 7px 0 0; background: #f4fcf7; }
 .decision-recommendation-heading { display: flex; align-items: center; gap: 7px; color: var(--green); white-space: nowrap; }
 .decision-recommendation-heading span { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .decision-recommendation-heading strong { color: #173f2a; font-size: 14px; }
 .decision-recommendation-heading svg { flex: 0 0 auto; }
 .decision-recommendation-strip > p { margin: 0; color: #486255; font-size: 12px; line-height: 1.45; }
 .decision-recommendation-proof { color: #5f7a69; font-size: 10px; white-space: nowrap; }
+.decision-autonomy-proof { margin: 0 28px; padding: 14px 16px 15px; border: 1px solid #cbdcf2; border-top: 0; border-radius: 0 0 7px 7px; background: #f8fbff; }
+.decision-autonomy-proof > header { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
+.decision-autonomy-proof > header span { color: #315fae; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.decision-autonomy-proof > header strong { color: #173466; font-size: 11px; text-align: right; }
+.decision-autonomy-proof > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.decision-autonomy-proof > div > span { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 7px; min-width: 0; padding: 0 13px; border-left: 1px solid #d9e5f3; }
+.decision-autonomy-proof > div > span:first-child { padding-left: 0; border-left: 0; }
+.decision-autonomy-proof > div > span:last-child { padding-right: 0; }
+.decision-autonomy-proof svg { grid-row: 1 / 3; margin-top: 2px; color: #315fae; }
+.decision-autonomy-proof b { color: #173466; font-size: 11px; line-height: 1.3; }
+.decision-autonomy-proof small { color: #718097; font-size: 9px; line-height: 1.3; }
 
 .legacy-workflow-details { margin-top: 30px; }
 .legacy-workflow-summary { padding-top: 20px; }
@@ -1074,6 +1085,10 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-room-demo-footer { align-items: flex-start; flex-direction: column; gap: 10px; }
   .decision-recommendation-strip { grid-template-columns: 1fr; gap: 8px; }
   .decision-recommendation-proof { white-space: normal; }
+  .decision-autonomy-proof > header { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .decision-autonomy-proof > header strong { text-align: left; }
+  .decision-autonomy-proof > div { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 0; }
+  .decision-autonomy-proof > div > span:nth-child(3) { padding-left: 0; border-left: 0; }
 }
 
 @media (min-width: 721px) {
@@ -1091,6 +1106,10 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-room-promise.decision-room-risk-card { padding: 24px 20px; }
   .decision-room-risk-heading { align-items: flex-start; flex-direction: column; }
   .decision-recommendation-strip { margin-left: 18px; margin-right: 18px; }
+  .decision-autonomy-proof { margin-left: 18px; margin-right: 18px; }
+  .decision-autonomy-proof > div { grid-template-columns: 1fr; gap: 0; }
+  .decision-autonomy-proof > div > span, .decision-autonomy-proof > div > span:nth-child(3) { padding: 9px 0; border-top: 1px solid #d9e5f3; border-left: 0; }
+  .decision-autonomy-proof > div > span:first-child { padding-top: 0; border-top: 0; }
 }
 
 @media (max-width: 1100px) {
