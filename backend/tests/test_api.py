@@ -85,6 +85,55 @@ def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
     assert restored.json() == payload
 
 
+def test_decision_twin_intake_builds_an_honestly_labelled_pm_case(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+
+    response = client.post(
+        "/api/decision-twin/intake",
+        json={
+            "question": "Should we expand the beta to all mid-market accounts next month?",
+            "current_commitment": "Launch to every mid-market account on September 15.",
+            "urgency": "Sales committed the date and allocation is due this Friday.",
+            "positive_signal": "Beta users complete the core workflow faster than the control group.",
+            "risk_signal": "Admins report permission confusion and support volume is rising.",
+            "affected_segment": "mid-market admins",
+        },
+    )
+
+    assert response.status_code == 200
+    case = response.json()
+    assert case["case_id"].startswith("decision-intake-")
+    assert case["status"] == "needs_approval"
+    assert case["council"]["mode"] == "deterministic_demo_fallback"
+    assert {node["source_label"] for node in case["evidence_nodes"]} == {
+        "PM-provided context · unverified"
+    }
+    assert any(
+        event.get("source_mode") == "pm_provided_unverified"
+        for event in case["events"]
+    )
+    assert client.get(f"/api/decision-twin/{case['case_id']}").json() == case
+
+
+def test_decision_twin_intake_rejects_extra_or_underspecified_context(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    payload = {
+        "question": "Should we expand the beta to all mid-market accounts next month?",
+        "current_commitment": "Launch to every mid-market account on September 15.",
+        "urgency": "Sales committed the date and allocation is due this Friday.",
+        "positive_signal": "too short",
+        "risk_signal": "Admins report permission confusion and support volume is rising.",
+        "invented_connected_source": "salesforce",
+    }
+
+    response = client.post("/api/decision-twin/intake", json=payload)
+
+    assert response.status_code == 422
+
+
 def test_decision_twin_approval_enqueues_autonomous_monitor(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")

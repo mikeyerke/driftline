@@ -14,6 +14,7 @@ from app.decision_twin import (
     approve_decision_case,
     attach_aggregate_metrics,
     build_demo_decision_case,
+    build_intake_decision_case,
     evaluate_outcome,
     record_outcome,
     validate_council,
@@ -535,6 +536,57 @@ def test_product_council_prompt_contains_bounded_projections_not_secrets() -> No
     assert "challenger" in prompt
     assert "access_token" not in prompt
     assert "credential" not in prompt.casefold()
+
+
+def test_pm_intake_case_keeps_user_context_unverified_and_policy_bounded() -> None:
+    case = build_intake_decision_case(
+        case_id="decision-intake-test",
+        question="Should we expand the beta to all mid-market accounts next month?",
+        current_commitment="Launch to every mid-market account on September 15.",
+        urgency="Sales committed the date and allocation is due this Friday.",
+        positive_signal="Beta users complete the core workflow faster than the control group.",
+        risk_signal="Admins report permission confusion and support volume is rising.",
+        affected_segment="mid-market admins",
+    )
+
+    validate_evidence_graph(case)
+    validate_council(case)
+    assert case.council.recommendation == "segment"
+    assert {node.source_label for node in case.evidence_nodes} == {
+        "PM-provided context · unverified"
+    }
+    assert all(node.confidence == 0.6 for node in case.evidence_nodes)
+    assert any(event.get("source_mode") == "pm_provided_unverified" for event in case.events)
+    assert all(
+        citation in {node.node_id for node in case.evidence_nodes}
+        for position in case.council.positions
+        for citation in position.supporting_node_ids + position.contradicting_node_ids
+    )
+
+
+def test_pm_intake_approval_builds_a_generic_reversible_measurement_contract() -> None:
+    case = build_intake_decision_case(
+        case_id="decision-intake-approval",
+        question="Should we expand the beta to all mid-market accounts next month?",
+        current_commitment="Launch to every mid-market account on September 15.",
+        urgency="Sales committed the date and allocation is due this Friday.",
+        positive_signal="Beta users complete the core workflow faster than the control group.",
+        risk_signal="Admins report permission confusion and support volume is rising.",
+        affected_segment="mid-market admins",
+    )
+
+    approved = approve_decision_case(
+        case,
+        option_id="segment",
+        approver="Taylor PM",
+        expected_synthesis_hash=case.council.synthesis_hash,
+        expected_generation=1,
+    )
+
+    assert approved.experiment_plan is not None
+    assert approved.experiment_plan.primary_metric == "decision_success_metric"
+    assert approved.experiment_plan.target_segment == "mid-market admins"
+    assert approved.experiment_plan.reversible is True
 
 
 def test_product_council_prompts_encode_distinct_decision_mandates() -> None:

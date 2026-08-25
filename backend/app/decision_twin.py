@@ -222,6 +222,8 @@ def _node(
     segment: str | None = None,
     value: float | None = None,
     unit: str | None = None,
+    observed_at: str = "2026-08-23T18:00:00+00:00",
+    confidence: float | None = None,
 ) -> EvidenceNode:
     return EvidenceNode(
         node_id=node_id,
@@ -229,11 +231,13 @@ def _node(
         title=title,
         excerpt=excerpt,
         source_label=source_label,
-        observed_at="2026-08-23T18:00:00+00:00",
+        observed_at=observed_at,
         content_hash=_digest(
             {"node_id": node_id, "source": source_label, "excerpt": excerpt}
         ),
-        confidence=0.94 if kind != "customer" else 0.82,
+        confidence=(0.94 if kind != "customer" else 0.82)
+        if confidence is None
+        else confidence,
         segment=segment,
         value=value,
         unit=unit,
@@ -490,6 +494,211 @@ def build_demo_decision_case(
     return case
 
 
+def build_intake_decision_case(
+    *,
+    case_id: str,
+    question: str,
+    current_commitment: str,
+    urgency: str,
+    positive_signal: str,
+    risk_signal: str,
+    affected_segment: str | None = None,
+) -> DecisionCase:
+    """Build an honest evidence packet from PM-provided, unverified context."""
+    now = datetime.now(UTC).isoformat()
+    segment = affected_segment.strip() if affected_segment else "affected users"
+    source_label = "PM-provided context · unverified"
+    nodes = [
+        _node(
+            "commitment-provided",
+            "commitment",
+            "Current product commitment",
+            current_commitment,
+            source_label,
+            segment=segment,
+            observed_at=now,
+            confidence=0.6,
+        ),
+        _node(
+            "positive-signal-provided",
+            "customer",
+            "Strongest signal in favor",
+            positive_signal,
+            source_label,
+            segment=segment,
+            observed_at=now,
+            confidence=0.6,
+        ),
+        _node(
+            "risk-signal-provided",
+            "support",
+            "Strongest signal against",
+            risk_signal,
+            source_label,
+            segment=segment,
+            observed_at=now,
+            confidence=0.6,
+        ),
+    ]
+    node_ids = [node.node_id for node in nodes]
+    options = [
+        CounterfactualOption(
+            option_id="ship",
+            title="Proceed as committed",
+            summary="Proceed with the current commitment and measure the named risk explicitly.",
+            affected_segments=[segment],
+            expected_outcome="Capture the upside signal while testing whether the stated risk materializes.",
+            risks=["The risk signal may be causal", "The evidence is PM-provided and not independently verified"],
+            guardrails=["Stop if the named risk worsens beyond the agreed threshold"],
+            would_change_mind_if="The risk signal strengthens or the expected upside fails to appear.",
+            rollback="Return to the pre-decision state and preserve the observations for review.",
+            evidence_node_ids=node_ids,
+        ),
+        CounterfactualOption(
+            option_id="rollback",
+            title="Reverse the commitment",
+            summary="Reverse the current commitment while the risk is investigated.",
+            affected_segments=[segment],
+            expected_outcome="Reduce immediate exposure to the stated risk at the cost of the positive signal.",
+            risks=["The upside may be lost", "Reversal may consume product and stakeholder capacity"],
+            guardrails=["Revisit if the positive signal disappears after reversal"],
+            would_change_mind_if="The risk is disproved or a smaller reversible test becomes available.",
+            rollback="Restore the commitment behind an explicit approval gate.",
+            evidence_node_ids=node_ids,
+        ),
+        CounterfactualOption(
+            option_id="segment",
+            title="Run a bounded test",
+            summary="Limit the commitment to the affected segment and test the conflict before expanding.",
+            affected_segments=[segment],
+            expected_outcome="Preserve learning while limiting the blast radius of the unresolved risk.",
+            risks=["A bounded test may delay the broader commitment", "Segment selection may bias the result"],
+            guardrails=["Stop the test if the named risk crosses the human-approved threshold"],
+            would_change_mind_if="The commitment cannot be isolated safely or the result cannot be measured.",
+            rollback="Remove the test allocation and restore the prior experience for the segment.",
+            evidence_node_ids=node_ids,
+        ),
+        CounterfactualOption(
+            option_id="defer",
+            title="Pause for one missing signal",
+            summary="Pause the commitment until one named observation resolves the central uncertainty.",
+            affected_segments=[segment],
+            expected_outcome="Improve decision confidence without turning the pause into an open-ended research cycle.",
+            risks=["The decision window may close", "More evidence may remain inconclusive"],
+            guardrails=["Return to the decision gate within seven days"],
+            would_change_mind_if="A new independent signal resolves the conflict sooner.",
+            rollback="Resume the prior operating state without publishing the commitment.",
+            evidence_node_ids=node_ids,
+        ),
+    ]
+    positions = [
+        CouncilPosition(
+            role="customer",
+            recommendation="segment",
+            thesis="Protect the affected users while testing whether the upside is real.",
+            supporting_node_ids=["positive-signal-provided"],
+            contradicting_node_ids=["risk-signal-provided"],
+            risks=["The supplied signals may not represent all users"],
+            would_change_mind_if="A representative user signal resolves the conflict.",
+        ),
+        CouncilPosition(
+            role="usage",
+            recommendation="defer",
+            thesis="No verified metric is attached, so the decision needs a measurable observation.",
+            supporting_node_ids=["risk-signal-provided"],
+            contradicting_node_ids=["positive-signal-provided"],
+            risks=["Anecdotal context can be mistaken for measured impact"],
+            would_change_mind_if="A bounded metric shows the positive signal outweighs the risk.",
+        ),
+        CouncilPosition(
+            role="strategy",
+            recommendation="ship",
+            thesis="The current commitment has strategic value, but it should remain reversible.",
+            supporting_node_ids=["commitment-provided", "positive-signal-provided"],
+            contradicting_node_ids=["risk-signal-provided"],
+            risks=["A pause may weaken the commitment or miss the decision window"],
+            would_change_mind_if="The risk threatens the core objective of the commitment.",
+        ),
+        CouncilPosition(
+            role="feasibility",
+            recommendation="segment",
+            thesis="A bounded test is the smallest reversible action supported by the supplied context.",
+            supporting_node_ids=["commitment-provided", "risk-signal-provided"],
+            contradicting_node_ids=[],
+            risks=["The product may not support a clean segment boundary"],
+            would_change_mind_if="The commitment cannot be isolated or instrumented safely.",
+        ),
+        CouncilPosition(
+            role="challenger",
+            recommendation="defer",
+            thesis="Both signals were supplied by one PM and should not be treated as independent proof.",
+            supporting_node_ids=["risk-signal-provided"],
+            contradicting_node_ids=["positive-signal-provided"],
+            risks=["The decision packet may encode the author's framing bias"],
+            would_change_mind_if="An independent source corroborates the decision-driving signal.",
+        ),
+    ]
+    manifest_hash = _manifest_hash(nodes)
+    raw = {
+        "question": question,
+        "recommendation": "segment",
+        "positions": [position.model_dump(mode="json") for position in positions],
+        "options": [option.model_dump(mode="json") for option in options],
+        "evidence_manifest_hash": manifest_hash,
+    }
+    council = CouncilSynthesis(
+        question=question,
+        recommendation="segment",
+        executive_summary="Run a bounded test: preserve the upside signal, limit exposure to the stated risk, and require a measurable stop condition before expansion.",
+        decisive_conflict="The current commitment and positive signal support action, while the risk signal is unresolved and all context is PM-provided rather than independently verified.",
+        positions=positions,
+        options=options,
+        evidence_manifest_hash=manifest_hash,
+        synthesis_hash=_digest(raw),
+        mode="deterministic_demo_fallback",
+    )
+    case = DecisionCase(
+        case_id=case_id,
+        title=(question.rstrip(" ?.")[:76] or "PM decision review"),
+        question=question,
+        current_commitment=current_commitment,
+        urgency=urgency,
+        evidence_nodes=nodes,
+        evidence_edges=[
+            EvidenceEdge(
+                source_id="positive-signal-provided",
+                target_id="commitment-provided",
+                relation="supports",
+            ),
+            EvidenceEdge(
+                source_id="risk-signal-provided",
+                target_id="commitment-provided",
+                relation="contradicts",
+            ),
+        ],
+        council=council,
+        events=[
+            {
+                "event_id": "pm-intake-captured",
+                "action": "bounded_decision_intake",
+                "outcome": "unverified_context_packet_created",
+                "generation": 1,
+                "source_mode": "pm_provided_unverified",
+            },
+            {
+                "event_id": "product-council-complete",
+                "action": "deterministic_product_council",
+                "outcome": "bounded_intake_fallback",
+                "generation": 1,
+                "execution_mode": "deterministic_demo_fallback",
+            },
+        ],
+    )
+    validate_evidence_graph(case)
+    validate_council(case)
+    return case
+
+
 def attach_decision_precedents(
     case: DecisionCase, precedents: list[Any]
 ) -> DecisionCase:
@@ -646,6 +855,38 @@ def _experiment_plan(
         (node for node in evidence_nodes if node.node_id == "metric-activation-split"),
         None,
     )
+    if metric_node is None:
+        target = option.affected_segments[0]
+        return ExperimentPlan(
+            plan_id=f"experiment-{option.option_id}-intake",
+            option_id=option.option_id,
+            hypothesis=(
+                f"{option.title} produces the expected outcome without crossing the "
+                "human-approved risk threshold."
+            ),
+            target_segment=target,
+            primary_metric="decision_success_metric",
+            success_condition=(
+                "The PM-defined success measure improves from baseline within the review window."
+            ),
+            success_operator="gte",
+            success_threshold=0.05,
+            guardrails=option.guardrails,
+            stop_conditions=[
+                "Stop if the PM-defined risk measure worsens from baseline.",
+                "Stop if the action can no longer be reversed safely.",
+            ],
+            stop_operator="lte",
+            stop_threshold=-0.01,
+            review_at=(approved_at + timedelta(days=7)).isoformat(),
+            owner_actions=[
+                "Name one success measure and its baseline before starting.",
+                "Name one risk measure and the threshold that stops the action.",
+                f"Limit the first action to {target}.",
+                "Return to the human decision gate when the review window closes.",
+            ],
+            rollback=option.rollback,
+        )
     enterprise_change = (
         float(metric_node.value)
         if metric_node is not None and metric_node.value is not None

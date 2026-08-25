@@ -26,14 +26,15 @@ function EvidenceCard({ node }) {
 
 export default function EvidenceCouncil({ decisionCase }) {
   const council = decisionCase.council;
+  const isProvidedIntake = decisionCase.events.some((event) => event.source_mode === "pm_provided_unverified");
   const priorityKinds = ["metric", "support", "customer"];
   const primaryNodes = priorityKinds.map((kind) => decisionCase.evidence_nodes.find((node) => node.kind === kind)).filter(Boolean);
   const supportingNodes = decisionCase.evidence_nodes.filter((node) => !primaryNodes.some((primary) => primary.node_id === node.node_id));
   return (
     <section className="decision-room-section evidence-council" aria-labelledby="evidence-council-title">
       <header className="decision-room-section-header">
-        <div><span className="decision-room-kicker">Evidence snapshot</span><h3 id="evidence-council-title">Three signals changed the decision</h3><p className="section-dek">Usage moved in opposite directions, while customer and support evidence explain why.</p></div>
-        <span className={`council-mode ${council.mode === "google_adk" ? "live" : "fixture"}`}>{council.mode === "google_adk" ? "Live Google ADK" : "Pinned demo data"}</span>
+        <div><span className="decision-room-kicker">Evidence snapshot</span><h3 id="evidence-council-title">{isProvidedIntake ? "Your decision-driving signals, kept honest" : "Three signals changed the decision"}</h3><p className="section-dek">{isProvidedIntake ? "These inputs shape the comparison, but remain explicitly unverified until a connected source corroborates them." : "Usage moved in opposite directions, while customer and support evidence explain why."}</p></div>
+        <span className={`council-mode ${council.mode === "google_adk" ? "live" : "fixture"}`}>{council.mode === "google_adk" ? "Live Google ADK" : isProvidedIntake ? "Bounded fallback" : "Pinned demo data"}</span>
       </header>
       <div className="decision-evidence-grid priority">
         {primaryNodes.map((node) => <EvidenceCard node={node} key={node.node_id} />)}

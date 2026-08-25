@@ -145,6 +145,11 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Guardrail + rollback' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Open source-connected workspace flow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'See the decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Use my decision' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Build my decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'PM-provided · unverified' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Copy decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal '/api/decision-twin/intake' frontend/src/api.js \
   || ! check_frontend_literal 'This decision has a precedent.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'window.location.assign(destination)' frontend/src/components/OperatorAccess.jsx \
   || ! check_frontend_literal 'decision-recommendation-strip' frontend/src/components/DecisionRoom.jsx \

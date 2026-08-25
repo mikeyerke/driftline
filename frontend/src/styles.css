@@ -1053,6 +1053,28 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .decision-room-safe-note { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 12px; border-top: 1px solid #d3e0f1; color: #315fae; font-size: 11px; font-weight: 700; }
 .decision-room-safe-note svg { color: var(--green); }
 
+.decision-room-intake-trigger { min-height: 50px; padding: 0 18px; font-weight: 800; }
+.decision-intake { margin: 0 0 28px; padding: 26px; border: 1px solid #bfd1ec; border-radius: 10px; background: #f8fbff; box-shadow: 0 12px 30px rgba(14, 45, 94, .06); }
+.decision-intake > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 28px; padding-bottom: 18px; border-bottom: 1px solid #d9e5f3; }
+.decision-intake h2 { max-width: 650px; margin: 5px 0 0; color: #071a42; font-size: 24px; letter-spacing: -.03em; }
+.decision-intake > header > p { max-width: 430px; margin: 0; color: #526a91; font-size: 12px; line-height: 1.55; }
+.decision-intake form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px 18px; padding-top: 20px; }
+.decision-intake label { display: grid; gap: 7px; min-width: 0; color: #173466; font-size: 11px; font-weight: 800; }
+.decision-intake label > span { display: flex; align-items: baseline; gap: 6px; }
+.decision-intake label small { color: #718097; font-size: 9px; font-weight: 600; }
+.decision-intake textarea, .decision-intake input { width: 100%; box-sizing: border-box; padding: 10px 11px; border: 1px solid #c8d6e8; border-radius: 6px; outline: 0; color: var(--ink); background: #fff; font: inherit; font-size: 12px; font-weight: 500; line-height: 1.45; }
+.decision-intake textarea { resize: vertical; }
+.decision-intake textarea:focus, .decision-intake input:focus { border-color: #6e9ff0; box-shadow: 0 0 0 3px rgba(7, 91, 232, .11); }
+.decision-intake textarea::placeholder, .decision-intake input::placeholder { color: #8794a8; }
+.decision-intake-wide, .decision-intake-submit { grid-column: 1 / -1; }
+.decision-intake-segment { max-width: 360px; }
+.decision-intake-submit { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-top: 5px; }
+.decision-intake-submit > div { display: flex; align-items: center; gap: 6px; color: #526a91; font-size: 10px; }
+.decision-intake-submit > div svg { color: var(--green); }
+.decision-intake-submit .primary { min-height: 46px; }
+.decision-room-header-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.decision-room-header-actions button > span { display: inline-flex; align-items: center; gap: 6px; }
+
 .decision-recommendation-strip { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto; gap: 9px 18px; align-items: center; margin: 18px 28px 0; padding: 14px 16px; border: 1px solid #b9dfc9; border-radius: 7px 7px 0 0; background: #f4fcf7; }
 .decision-recommendation-heading { display: flex; align-items: center; gap: 7px; color: var(--green); white-space: nowrap; }
 .decision-recommendation-heading span { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
@@ -1104,6 +1126,8 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-autonomy-proof > div > span:nth-child(3) { padding-left: 0; border-left: 0; }
   .decision-memory-proof { grid-template-columns: auto minmax(0, 1fr); }
   .decision-memory-proof dl { grid-column: 2; padding-top: 12px; padding-left: 0; border-top: 1px solid #ded8ef; border-left: 0; }
+  .decision-intake > header { flex-direction: column; gap: 10px; }
+  .decision-intake > header > p { max-width: 620px; }
 }
 
 @media (min-width: 721px) {
@@ -1129,6 +1153,12 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-autonomy-proof > div > span:first-child { padding-top: 0; border-top: 0; }
   .decision-memory-proof { grid-template-columns: 1fr; margin-left: 18px; margin-right: 18px; }
   .decision-memory-proof dl { grid-column: 1; }
+  .decision-intake { padding: 21px 18px; }
+  .decision-intake form { grid-template-columns: 1fr; }
+  .decision-intake-wide, .decision-intake-submit { grid-column: 1; }
+  .decision-intake-submit { align-items: stretch; flex-direction: column; }
+  .decision-intake-submit .primary { justify-content: center; }
+  .decision-room-header-actions { align-items: stretch; flex-direction: column; }
 }
 
 @media (max-width: 1100px) {

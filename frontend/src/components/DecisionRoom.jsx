@@ -1,6 +1,6 @@
-import { ArrowRight, Bot, CheckCircle2, CircleAlert, ClipboardCheck, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, Play, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
-import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinOutcome, startDecisionTwin } from "../api";
+import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinOutcome, startDecisionTwin, startDecisionTwinIntake } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
 import EvidenceCouncil from "./EvidenceCouncil";
 import LearningReceipt from "./LearningReceipt";
@@ -9,6 +9,15 @@ const stages = ["Detect drift", "Compare options", "Approve action", "Learn"];
 
 const optionTitle = (options, id) => options.find((option) => option.option_id === id)?.title || id;
 
+const emptyIntake = {
+  question: "",
+  current_commitment: "",
+  urgency: "",
+  positive_signal: "",
+  risk_signal: "",
+  affected_segment: "",
+};
+
 export default function DecisionRoom({ onOpenWorkflow }) {
   const [decisionCase, setDecisionCase] = useState(null);
   const [selectedId, setSelectedId] = useState("segment");
@@ -16,6 +25,15 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const [busy, setBusy] = useState("");
   const [monitoring, setMonitoring] = useState(false);
   const [error, setError] = useState("");
+  const [intakeOpen, setIntakeOpen] = useState(false);
+  const [intake, setIntake] = useState(emptyIntake);
+  const [copyStatus, setCopyStatus] = useState("");
+
+  const applyDecisionCase = (next) => {
+    setDecisionCase(next);
+    setEvaluation(null);
+    setSelectedId(next.council.recommendation);
+  };
 
   useEffect(() => {
     if (!decisionCase?.case_id) return;
@@ -58,9 +76,17 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     setBusy("council"); setError("");
     try {
       const next = await startDecisionTwin();
-      setDecisionCase(next);
-      setEvaluation(null);
-      setSelectedId(next.council.recommendation);
+      applyDecisionCase(next);
+    } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
+  };
+
+  const submitIntake = async (event) => {
+    event.preventDefault();
+    setBusy("intake"); setError("");
+    try {
+      const payload = { ...intake };
+      if (!payload.affected_segment.trim()) delete payload.affected_segment;
+      applyDecisionCase(await startDecisionTwinIntake(payload));
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
   };
 
@@ -85,6 +111,36 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     setMonitoring(false);
     setBusy("");
     setError("");
+    setCopyStatus("");
+  };
+
+  const copyDecisionBrief = async () => {
+    const option = decisionCase.council.options.find((item) => item.option_id === selectedId)
+      || decisionCase.council.options.find((item) => item.option_id === decisionCase.council.recommendation);
+    const brief = [
+      `# ${decisionCase.title}`,
+      "",
+      `Decision: ${decisionCase.question}`,
+      `Why now: ${decisionCase.urgency}`,
+      `Current commitment: ${decisionCase.current_commitment}`,
+      "",
+      `Recommendation: ${option?.title || decisionCase.council.recommendation}`,
+      decisionCase.council.executive_summary,
+      `Decisive conflict: ${decisionCase.council.decisive_conflict}`,
+      "",
+      `Guardrail: ${option?.guardrails?.[0] || "Define before action"}`,
+      `Rollback: ${option?.rollback || "Return to the prior state"}`,
+      "",
+      "Evidence:",
+      ...decisionCase.evidence_nodes.map((node) => `- ${node.title}: ${node.excerpt} (${node.source_label})`),
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(brief);
+      setCopyStatus("Copied");
+      window.setTimeout(() => setCopyStatus(""), 1800);
+    } catch {
+      setError("Copy was blocked by the browser. Select the brief and copy it manually.");
+    }
   };
 
   const activeStage = !decisionCase ? 0 : decisionCase.status === "needs_approval" || decisionCase.status === "reopened" ? 2 : 3;
@@ -115,6 +171,9 @@ export default function DecisionRoom({ onOpenWorkflow }) {
             {busy ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}
             {busy ? "Reading the decision evidence…" : "See the decision brief"}
           </button>
+          <button className="secondary decision-room-intake-trigger" type="button" onClick={() => setIntakeOpen((open) => !open)} disabled={Boolean(busy)} aria-expanded={intakeOpen} aria-controls="decision-intake-form">
+            <PencilLine size={17} />Use my decision
+          </button>
           <span>Interactive 90-second example · no sign-in required</span>
         </div>
         {busy === "council" && <p className="decision-room-status" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Checking evidence, disagreement, and reversible options.</p>}
@@ -131,6 +190,22 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         <div className="decision-room-safe-note"><ShieldCheck size={15} />No external writes before approval</div>
       </div>
     </section>
+    {intakeOpen && <section className="decision-intake" id="decision-intake-form" aria-labelledby="decision-intake-title">
+      <header>
+        <div><span className="decision-room-bridge-kicker">Bring your own decision</span><h2 id="decision-intake-title">Turn the decision already blocking your team into a bounded brief.</h2></div>
+        <p>Use non-confidential context. Driftline labels every input as PM-provided and unverified; it never presents your notes as connected evidence.</p>
+      </header>
+      <form onSubmit={submitIntake}>
+        <label className="decision-intake-wide"><span>Decision question</span><textarea required minLength="12" maxLength="280" rows="2" value={intake.question} onChange={(event) => setIntake({ ...intake, question: event.target.value })} placeholder="Should we expand the beta to all mid-market accounts next month?" /></label>
+        <label><span>Current commitment</span><textarea required minLength="12" maxLength="320" rows="3" value={intake.current_commitment} onChange={(event) => setIntake({ ...intake, current_commitment: event.target.value })} placeholder="Launch to every mid-market account on September 15." /></label>
+        <label><span>Why now</span><textarea required minLength="12" maxLength="320" rows="3" value={intake.urgency} onChange={(event) => setIntake({ ...intake, urgency: event.target.value })} placeholder="Sales has committed the date and the allocation decision is due Friday." /></label>
+        <label><span>Strongest signal in favor</span><textarea required minLength="12" maxLength="500" rows="3" value={intake.positive_signal} onChange={(event) => setIntake({ ...intake, positive_signal: event.target.value })} placeholder="Beta users complete the core workflow faster and renewal intent improved." /></label>
+        <label><span>Strongest risk signal</span><textarea required minLength="12" maxLength="500" rows="3" value={intake.risk_signal} onChange={(event) => setIntake({ ...intake, risk_signal: event.target.value })} placeholder="Admins report permission confusion and support volume is rising." /></label>
+        <label className="decision-intake-segment"><span>Affected segment <small>Optional</small></span><input maxLength="80" value={intake.affected_segment} onChange={(event) => setIntake({ ...intake, affected_segment: event.target.value })} placeholder="Mid-market admins" /></label>
+        <div className="decision-intake-submit"><div><ShieldCheck size={15} /><span>No external actions. A human still approves the response.</span></div><button className="primary" type="submit" disabled={Boolean(busy)}>{busy === "intake" ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />}{busy === "intake" ? "Building the decision brief…" : "Build my decision brief"}</button></div>
+      </form>
+      {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
+    </section>}
     <section className="decision-room-utility-bridge" aria-labelledby="decision-room-utility-title">
       <header>
         <div>
@@ -177,7 +252,8 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const selectedOption = decisionCase.council.options.find((option) => option.option_id === selectedId);
   const recommendedOption = decisionCase.council.options.find((option) => option.option_id === decisionCase.council.recommendation);
   const councilVotes = new Set(decisionCase.council.positions.map((position) => position.recommendation)).size;
-  const approvalLabel = selectedId === "segment" ? "Approve segmented experiment" : `Approve ${optionTitle(decisionCase.council.options, selectedId).toLowerCase()}`;
+  const isProvidedIntake = decisionCase.events.some((event) => event.source_mode === "pm_provided_unverified");
+  const approvalLabel = selectedId === "segment" && !isProvidedIntake ? "Approve segmented experiment" : `Approve ${optionTitle(decisionCase.council.options, selectedId).toLowerCase()}`;
   return (
     <section className="decision-room" aria-labelledby="decision-room-title">
       <header className="decision-room-header">
@@ -186,7 +262,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <h2 id="decision-room-title">{decisionCase.title}</h2>
           <p>{decisionCase.question}</p>
         </div>
-        <button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button>
+        <div className="decision-room-header-actions"><button className="secondary compact" type="button" onClick={copyDecisionBrief}><span aria-live="polite">{copyStatus === "Copied" ? <Check size={14} /> : <Copy size={14} />}{copyStatus || "Copy decision brief"}</span></button><button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button></div>
       </header>
       <nav className="decision-room-stages" aria-label="Decision Twin progress">
         {stages.map((stage, index) => <span className={index < activeStage ? "complete" : index === activeStage ? "current" : ""} key={stage}>
@@ -203,10 +279,10 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         <span className="decision-recommendation-proof">5 bounded perspectives · disagreement preserved</span>
       </section>}
       <section className="decision-autonomy-proof" aria-label="What Driftline completed autonomously">
-        <header><span>Completed before human approval</span><strong>Driftline did the evidence work—not just the writing.</strong></header>
+        <header><span>Completed before human approval</span><strong>{isProvidedIntake ? "Driftline structured your context without upgrading it to verified evidence." : "Driftline did the evidence work—not just the writing."}</strong></header>
         <div>
-          <span><Database size={16} /><b>{decisionCase.evidence_nodes.length} cited signals</b><small>with source provenance</small></span>
-          <span><Bot size={16} /><b>{decisionCase.council.positions.length} independent agents</b><small>through Google ADK</small></span>
+          <span><Database size={16} /><b>{decisionCase.evidence_nodes.length} cited {isProvidedIntake ? "inputs" : "signals"}</b><small>{isProvidedIntake ? "PM-provided · unverified" : "with source provenance"}</small></span>
+          <span><Bot size={16} /><b>{decisionCase.council.positions.length} independent agents</b><small>{decisionCase.council.mode === "google_adk" ? "through Google ADK" : "bounded fallback"}</small></span>
           <span><GitCompareArrows size={16} /><b>{councilVotes} competing responses</b><small>dissent preserved</small></span>
           <span><ShieldCheck size={16} /><b>1 reversible plan</b><small>gated by a human</small></span>
         </div>

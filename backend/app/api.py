@@ -1,7496 +1,1459 @@
-from __future__ import annotations
-
-import asyncio
-import base64
-import copy
-import hashlib
-import hmac
-import json
-import logging
-import os
-import re
-import secrets
-from collections import deque
-from collections.abc import Callable
-from contextvars import ContextVar
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from statistics import median
-from threading import Lock
-from time import monotonic
-from typing import Any, Literal
-from urllib.parse import parse_qsl, urlencode, urlparse
-from uuid import uuid4
-
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
-
-try:  # Cloud Tasks is optional for local synthetic development.
-    from google.api_core.exceptions import AlreadyExists as TaskAlreadyExists
-    from google.cloud import tasks_v2
-except ImportError:  # pragma: no cover - exercised only in a minimal local env.
-    tasks_v2 = None
-    TaskAlreadyExists = type("TaskAlreadyExists", (Exception,), {})
-
-from .adk_runtime import run_agent_task
-from .artifacts import persist_action_artifact, persist_operational_output
-from .connectors import (
-    ConfluenceConfig,
-    ConfluenceConnector,
-    ConnectorError,
-    GitHubConfig,
-    GitHubConnector,
-    JiraConfig,
-    JiraConnector,
-    SalesforceConfig,
-    SalesforceReadOnlyClient,
-    SalesforceReauthorizationRequired,
-    SlackConfig,
-    SlackConnector,
-    exchange_salesforce_code,
-    execute_confluence_handoff,
-    execute_github_handoff,
-    execute_jira_handoff,
-    execute_slack_handoff,
-    read_secret,
-    refresh_salesforce_token,
-    reverse_confluence_handoff,
-    reverse_github_handoff,
-    reverse_jira_handoff,
-    reverse_slack_handoff,
-    salesforce_authorization_url,
-    salesforce_readiness,
-    secret_version_for,
-    tenant_secret_credentials,
-    write_secret_version,
-)
-from .credential_broker import (
-    CredentialBrokerError,
-    allowed_operations,
-    normalize_allowed_operations,
-    resolve_tenant_credential,
-)
-from .decision_copilot import validate_approval_choice
-from .decision_twin import (
-    DecisionTwinPolicyError,
-    approve_decision_case,
-    attach_aggregate_metrics,
-    attach_decision_precedents,
-    build_demo_decision_case,
-    record_outcome,
-)
-from .materiality import build_change_card, normalize_internal_context
-from .memory import build_memory_summary
-from .models import ActionItemStatus, JobState, WorkflowState, WorkflowStatus, utc_now
-from .multimodal import (
-    MultimodalUnavailable,
-    analyze_visual_evidence,
-    get_visual_evidence,
-    visual_asset_bytes,
-)
-from .persistence import (
-    claim_job,
-    compare_and_set_decision_case,
-    compare_and_set_workflow,
-    consume_salesforce_oauth_state,
-    delete_salesforce_connection,
-    list_connector_bindings,
-    list_connector_profiles,
-    list_credential_access_events,
-    list_evaluations,
-    list_job_failures,
-    list_jobs,
-    list_outcome_measurements,
-    list_tenant_audit_events,
-    list_tenant_memberships,
-    list_tenant_memberships_for_email,
-    list_workflows,
-    load_connector_binding,
-    load_connector_profile,
-    load_credential_enrollment,
-    load_decision_case,
-    load_job,
-    load_latest_evaluation,
-    load_salesforce_connection,
-    load_tenant,
-    load_tenant_policy,
-    load_tenant_usage,
-    load_workflow,
-    persist_connector_binding,
-    persist_connector_profile,
-    persist_credential_enrollment,
-    persist_decision_case,
-    persist_evaluation,
-    persist_job,
-    persist_job_failure,
-    persist_outcome_measurement,
-    persist_salesforce_connection,
-    persist_salesforce_oauth_state,
-    persist_tenant,
-    persist_tenant_audit_event,
-    persist_tenant_membership,
-    persist_tenant_policy,
-    persist_workflow,
-    provision_tenant_metadata,
-    record_tenant_usage,
-    reserve_tenant_rate_limit,
-    update_jobs_for_workflow,
-)
-from .product_analytics import (
-    AnalyticsPolicyError,
-    query_aggregate_metric,
-    query_decision_precedents,
-)
-from .product_council import ProductCouncilUnavailable, run_live_product_council
-from .trace_eval import (
-    build_quality_fixture,
-    evaluate_decision_twin_case,
-    run_quality_gate,
-)
-
-
-def _read_tenant_secret(tenant_id: str, secret_name: str, *, version: str = "latest") -> str:
-    """Read through the tenant identity with compatibility for local fakes."""
-    credentials = tenant_secret_credentials(tenant_id)
-    try:
-        return read_secret(secret_name, version=version, credentials=credentials)
-    except TypeError:
-        # Older local test doubles accepted only the secret name. This branch
-        # never runs with the production Secret Manager client.
-        try:
-            return read_secret(secret_name, version=version)
-        except TypeError:
-            return read_secret(secret_name)
-
-
-def _tenant_secret_version(tenant_id: str, secret_name: str) -> str:
-    credentials = tenant_secret_credentials(tenant_id)
-    try:
-        return secret_version_for(secret_name, credentials=credentials)
-    except TypeError:
-        return secret_version_for(secret_name)
-
-
-def _write_tenant_secret(tenant_id: str, secret_name: str, value: str) -> str | None:
-    credentials = tenant_secret_credentials(tenant_id)
-    try:
-        return write_secret_version(secret_name, value, credentials=credentials)
-    except TypeError:
-        return write_secret_version(secret_name, value)
-
-
-from .simulator import simulate_scenarios
-from .source import (
-    _source_enabled,
-    inspect_allowlisted_source,
-    list_allowlisted_sources,
-    list_source_histories,
-    list_source_history,
-    register_operator_source,
-    scheduler_source_entries,
-    set_operator_source_state,
-    source_definition,
-    source_definitions,
-    source_registry_health,
-)
-from .tenant import (
-    CONNECTOR_NAMES,
-    principal_for_claims,
-    principal_for_hmac,
-    public_demo_principal,
-    tenant_connector_secret_name,
-    tenant_credential_namespace,
-    tenant_operator_signing_secret_name,
-    validate_connector_name,
-    validate_connector_profile,
-    validate_tenant_id,
-)
-from .workflow import PolicyViolation, packet_markdown, workflow_store
-
-logger = logging.getLogger("driftline.api")
-app = FastAPI(title="Driftline API", version="0.2.0")
-_request_auth: ContextVar[tuple[str | None, str | None]] = ContextVar(
-    "driftline_request_auth", default=(None, None)
-)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        origin.strip()
-        for origin in os.getenv(
-            "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
-        ).split(",")
-        if origin.strip()
-    ],
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*"],
-)
-
-
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "DENY")
-    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    # Keep the capability deny-list authoritative even if a route or upstream
-    # middleware supplied a broader policy.  This is a deliberate fail-closed
-    # invariant for the public console, not a default that callers may widen.
-    response.headers[
-        "Permissions-Policy"
-    ] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-    if request.url.path.startswith("/api/"):
-        # API responses can contain tenant-scoped metadata or one-time OAuth
-        # handoff state. Never let a browser, proxy, or shared intermediary
-        # retain those responses beyond the request.
-        response.headers["Cache-Control"] = "no-store"
-    elif request.url.path == "/health":
-        # Health is intentionally public for Cloud Run/Uptime checks, but its
-        # persistence and async-job flags describe the active deployment. Do
-        # not let a browser or intermediary serve a stale control-plane state.
-        response.headers["Cache-Control"] = "no-store"
-    elif request.url.path.startswith("/assets/") and response.status_code == 200:
-        # Vite fingerprints production bundles, so immutable caching is safe
-        # and keeps repeat visits from redownloading the console shell.
-        response.headers.setdefault(
-            "Cache-Control", "public, max-age=31536000, immutable"
-        )
-    elif response.headers.get("content-type", "").startswith("text/html"):
-        # The HTML shell points at the current fingerprinted bundle and carries
-        # the release proof shown in the console.  Revalidate it on every
-        # navigation so an already-deployed tab cannot quietly boot an older
-        # shell after a Cloud Run revision changes.  Fingerprinted assets stay
-        # immutable above, so this does not give up the normal asset-cache win.
-        response.headers["Cache-Control"] = "no-store"
-    response.headers.setdefault(
-        "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; "
-        "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/; "
-        "style-src-elem 'self' 'unsafe-inline' https://accounts.google.com/gsi/; "
-        "font-src 'self'; img-src 'self' data:; "
-        "connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; "
-        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
-    )
-    # Cloud Run terminates TLS before forwarding to Uvicorn, so the app often
-    # sees an internal HTTP scheme even for the public HTTPS URL. The service
-    # has no HTTP-only public route; emit HSTS unconditionally so the browser
-    # never downgrades the deployed console.
-    response.headers.setdefault(
-        "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
-    )
-    return response
-
-
-@app.middleware("http")
-async def secure_get_auth(request: Request, call_next):
-    """Keep bearer/HMAC credentials out of URLs and access logs.
-
-    Endpoint models retain their explicit token fields for local/bootstrap
-    compatibility, but hosted requests resolve credentials from headers via a
-    request-scoped context. Never rewrite the query string with a bearer token:
-    ASGI access logging can record that URL before the endpoint runs.
-    """
-    if request.method == "GET" and os.getenv(
-        "DRIFTLINE_REJECT_QUERY_AUTH", "false"
-    ).casefold() == "true":
-        pairs = parse_qsl(
-            request.scope.get("query_string", b"").decode(), keep_blank_values=True
-        )
-        sensitive_keys = {"approval_token", "identity_token"}
-        if {key for key, _value in pairs} & sensitive_keys:
-            # Uvicorn's access logger reads the mutable ASGI scope. Remove
-            # credential parameters before returning the rejection so a
-            # hostile query token cannot be retained in the request line.
-            request.scope["query_string"] = urlencode(
-                [
-                    (key, value)
-                    for key, value in pairs
-                    if key not in sensitive_keys
-                ]
-            ).encode()
-            return JSONResponse(
-                {"detail": "Query authentication is disabled; use request headers."},
-                status_code=400,
-            )
-    auth_token = _request_auth.set(
-        (request.headers.get("x-driftline-approval"), request.headers.get("authorization"))
-    )
-    try:
-        return await call_next(request)
-    finally:
-        _request_auth.reset(auth_token)
-
-
-class ApprovalRequest(BaseModel):
-    approver: str = Field(min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    decision: str = Field(default="grandfather_existing_customers", max_length=64)
-    artifact_decisions: dict[str, str] | None = None
-    copilot_option_id: str | None = Field(default=None, min_length=3, max_length=64)
-    copilot_artifact_override: bool = False
-    copilot_override_reason: str | None = Field(default=None, min_length=3, max_length=240)
-    approval_mode: Literal["demo", "signed"] = "demo"
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class UndoRequest(BaseModel):
-    actor: str = Field(min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_mode: Literal["demo", "signed"] = "demo"
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class ReconcileRequest(UndoRequest):
-    """Named-human recovery request for a durably interrupted operation."""
-
-
-class DecisionTwinApprovalRequest(BaseModel):
-    approver: str = Field(min_length=2, max_length=120)
-    option_id: Literal["ship", "rollback", "segment", "defer"]
-    expected_synthesis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    expected_generation: int = Field(ge=1, le=20)
-
-
-class DecisionTwinOutcomeRequest(BaseModel):
-    expected_generation: int = Field(ge=1, le=20)
-    scenario: Literal["guardrail_breach", "successful_recovery"] = (
-        "guardrail_breach"
-    )
-
-
-class DismissRequest(BaseModel):
-    actor: str = Field(min_length=1, max_length=120)
-    reason: str = Field(min_length=3, max_length=240)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_mode: Literal["demo", "signed"] = "demo"
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class ConnectorContextRequest(BaseModel):
-    """Signed operator request for aggregate-only internal context."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class ConnectorBindingRequest(BaseModel):
-    """Owner request to register/verify a tenant connector secret binding."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    allowed_operations: list[str] | None = Field(default=None, max_length=10)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class ConnectorCredentialEnrollmentRequest(BaseModel):
-    """Owner request for a short-lived, secret-free connector enrollment."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    allowed_operations: list[str] | None = Field(default=None, max_length=10)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class ConnectorBindingRotationRequest(BaseModel):
-    """Owner request to begin a tenant connector credential rotation."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    reason: str = Field(default="credential_rotation", min_length=3, max_length=240)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class ConnectorProfileRequest(BaseModel):
-    """Owner-managed non-secret connector destination profile."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    settings: dict[str, str] = Field(default_factory=dict)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class TenantMemberRequest(BaseModel):
-    """Owner-managed durable membership metadata; never accepts credentials."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    email: str = Field(min_length=3, max_length=320)
-    role: Literal["viewer", "operator", "owner"] = "viewer"
-    status: Literal["active", "disabled"] = "active"
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class TenantDeprovisionRequest(BaseModel):
-    """Owner-confirmed soft deprovisioning request; never deletes secrets."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    tenant_id: str = Field(min_length=3, max_length=63)
-    confirmation: str = Field(min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class TenantPolicyRequest(BaseModel):
-    """Owner-managed bounded tenant allowance and retention; never billing."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    agent_calls_per_window: int = Field(default=10, ge=1, le=1000)
-    workflow_mutations_per_window: int = Field(default=30, ge=1, le=1000)
-    connector_calls_per_window: int = Field(default=60, ge=1, le=1000)
-    retention_days: int = Field(default=30, ge=1, le=3650)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class PlatformTenantProvisionRequest(BaseModel):
-    """Platform-admin tenant bootstrap metadata; never accepts credentials."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    tenant_id: str = Field(min_length=3, max_length=63)
-    owner_email: str = Field(min_length=3, max_length=320)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class ActionItemRequest(BaseModel):
-    actor: str = Field(min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_mode: Literal["demo", "signed"] = "demo"
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class ActionFailureRequest(ActionItemRequest):
-    reason: str = Field(min_length=1, max_length=240)
-
-
-class AgentRunRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=2000)
-    user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
-    source_id: str = Field(default="public/pricing", min_length=1, max_length=80)
-    # The public judge path intentionally omits these fields and stays
-    # tenantless. A real operator can supply the same signed identity fields
-    # used by the connector/action lanes so ADK execution carries a durable
-    # tenant boundary all the way into source inspection and Firestore state.
-    operator: str | None = Field(default=None, min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class EvaluationRunRequest(BaseModel):
-    """Run the deterministic quality suite against a safe workflow trace."""
-
-    workflow_id: str | None = Field(default=None, min_length=8, max_length=120)
-    operator: str | None = Field(default=None, min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class JobStartRequest(BaseModel):
-    query: str = Field(
-        default=(
-            "Inspect the allowlisted public/pricing change, verify the evidence, "
-            "map the affected artifacts, and stop at the human approval gate."
-        ),
-        min_length=1,
-        max_length=2000,
-    )
-    user_id: str = Field(default="demo-operator", min_length=1, max_length=128)
-    # ``tenant_demo`` is an authenticated pilot lane: it replays one of the
-    # pinned fixtures through the real ADK coordinator while retaining the
-    # tenant boundary and connector approval gates. It is deliberately
-    # distinct from both the anonymous judge replay and live monitoring.
-    run_mode: Literal["demo", "monitor", "tenant_demo"] = "demo"
-    source_id: str = Field(default="public/pricing", min_length=1, max_length=80)
-    operator: str = Field(default="demo-operator", min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class JobRetryRequest(BaseModel):
-    """Tenant-authenticated retry request; never accepts a new query or source."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class MultimodalAnalysisRequest(BaseModel):
-    asset_id: str = Field(default="promise-card", min_length=1, max_length=80)
-    mode: Literal["live", "demo"] = "live"
-
-
-class SourceOnboardingRequest(BaseModel):
-    source_id: str = Field(min_length=8, max_length=80)
-    name: str = Field(min_length=1, max_length=120)
-    category: str = Field(min_length=1, max_length=80)
-    change_type: str = Field(min_length=1, max_length=100)
-    url: str = Field(min_length=12, max_length=500)
-    owner: str = Field(min_length=1, max_length=100)
-    cadence: str = Field(default="24h", max_length=4)
-    freshness_sla_hours: int = Field(default=48, ge=1, le=168)
-    parser: Literal["html", "text", "rss"] = "html"
-    registered_by: str = Field(min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class SourceLifecycleRequest(BaseModel):
-    """Pause/resume one tenant-owned source without accepting credentials."""
-
-    enabled: bool
-    reason: str = Field(default="", max_length=240)
-    operator: str = Field(min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class OutcomeMeasurementRequest(BaseModel):
-    """Aggregate pilot evidence; raw customer text and identifiers are excluded."""
-
-    operator: str = Field(min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    source_type: Literal[
-        "customer_interview", "pilot_log", "win_loss", "billing_record"
-    ]
-    cohort_label: str = Field(min_length=1, max_length=80)
-    changes_observed: int = Field(ge=1, le=10000)
-    # Minutes are totals for the observed change set, not per-change values.
-    # A zero baseline cannot establish a before/after delta, so reject it at
-    # the boundary instead of allowing a misleading "time saved" record.
-    baseline_minutes: float = Field(gt=0, le=1_000_000)
-    driftline_minutes: float = Field(ge=0, le=1_000_000)
-    baseline_owner_ready_within_24h: int | None = Field(default=None, ge=0, le=10000)
-    driftline_owner_ready_within_24h: int | None = Field(default=None, ge=0, le=10000)
-    baseline_actions_completed_within_7d: int | None = Field(default=None, ge=0, le=10000)
-    driftline_actions_completed_within_7d: int | None = Field(default=None, ge=0, le=10000)
-    baseline_reversed_or_reopened: int | None = Field(default=None, ge=0, le=10000)
-    driftline_reversed_or_reopened: int | None = Field(default=None, ge=0, le=10000)
-    revenue_lift_usd: float | None = Field(
-        default=None, ge=-1_000_000_000, le=1_000_000_000
-    )
-    retention_lift_pct: float | None = Field(default=None, ge=-100, le=100)
-    willingness_to_pay_usd: float | None = Field(default=None, ge=0, le=1_000_000)
-    evidence_ref: str = Field(min_length=1, max_length=300)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class SalesforceConnectRequest(BaseModel):
-    operator: str = Field(min_length=1, max_length=120)
-    tenant_id: str | None = Field(default=None, min_length=3, max_length=63)
-    approval_token: str | None = Field(default=None, max_length=256)
-    identity_token: str | None = Field(default=None, max_length=4096)
-
-
-class SalesforceHealthRequest(SalesforceConnectRequest):
-    pass
-
-
-def _positive_int(name: str, default: int) -> int:
-    try:
-        value = int(os.getenv(name, str(default)))
-    except ValueError:
-        return default
-    return value if value > 0 else default
-
-
-AGENT_MAX_CALLS = _positive_int("DRIFTLINE_AGENT_MAX_CALLS", 10)
-# Anonymous judges share one public lane, so give that lane a separately
-# bounded allowance. Keeping it distinct from signed tenant quotas prevents a
-# burst of evaluation traffic from starving an authenticated pilot while still
-# limiting unauthenticated Gemini spend.
-PUBLIC_AGENT_MAX_CALLS = _positive_int("DRIFTLINE_PUBLIC_AGENT_MAX_CALLS", 20)
-AGENT_WINDOW_SECONDS = _positive_int("DRIFTLINE_AGENT_WINDOW_SECONDS", 3600)
-_agent_call_times: deque[float] = deque()
-_tenant_agent_call_times: dict[str, deque[float]] = {}
-_agent_call_lock = Lock()
-
-DEMO_MAX_MUTATIONS = _positive_int("DRIFTLINE_DEMO_MAX_MUTATIONS", 30)
-DEMO_WINDOW_SECONDS = _positive_int("DRIFTLINE_DEMO_WINDOW_SECONDS", 3600)
-_demo_mutation_times: deque[float] = deque()
-_tenant_demo_mutation_times: dict[str, deque[float]] = {}
-_demo_mutation_lock = Lock()
-CONNECTOR_MAX_CALLS = _positive_int("DRIFTLINE_CONNECTOR_MAX_CALLS", 60)
-CONNECTOR_WINDOW_SECONDS = _positive_int(
-    "DRIFTLINE_CONNECTOR_WINDOW_SECONDS", 3600
-)
-_connector_call_times: deque[float] = deque()
-_tenant_connector_call_times: dict[str, deque[float]] = {}
-_connector_call_lock = Lock()
-MULTIMODAL_MAX_CALLS = _positive_int("DRIFTLINE_MULTIMODAL_MAX_CALLS", 10)
-MULTIMODAL_WINDOW_SECONDS = _positive_int(
-    "DRIFTLINE_MULTIMODAL_WINDOW_SECONDS", 3600
-)
-_multimodal_call_times: deque[float] = deque()
-_multimodal_call_lock = Lock()
-MAX_JOB_ATTEMPTS = _positive_int("DRIFTLINE_MAX_JOB_ATTEMPTS", 3)
-# Anonymous evaluation telemetry is intentionally a recent bounded window.
-# Durable records remain append-only; this prevents repeated verifier runs from
-# presenting synthetic traffic as if it were product adoption. Signed tenant
-# views keep their requested tenant-scoped bound instead.
-PUBLIC_METRIC_WINDOW = _positive_int("DRIFTLINE_PUBLIC_METRIC_WINDOW", 50)
-
-_salesforce_oauth_states: dict[str, dict[str, object]] = {}
-_salesforce_oauth_lock = Lock()
-
-_jobs: dict[str, JobState] = {}
-_jobs_lock = Lock()
-_public_job_lock = Lock()
-_workflow_transition_lock = Lock()
-_background_tasks: set[asyncio.Task[None]] = set()
-
-
-def _merge_durable_records(
-    memory_records: list[Any],
-    loader: Callable[[int], list[Any]],
-    *,
-    limit: int,
-    key: Callable[[Any], str],
-) -> list[Any]:
-    """Merge the current instance with durable history for operator metrics.
-
-    Cloud Run instances are intentionally disposable. Reading only the local
-    cache whenever it contains one record makes value proof, memory, and ops
-    summaries under-report after a fresh instance starts. Firestore remains
-    the source of truth in hosted mode; the local copy wins for an in-flight
-    transition that has not finished its durable write. A bounded local
-    fallback keeps local development and a transient Firestore outage useful.
-    """
-    bounded_limit = max(1, int(limit))
-    durable_records: list[Any] = []
-    if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
-        try:
-            durable_records = loader(bounded_limit)
-        except Exception:  # noqa: BLE001 - metrics must not take the console down.
-            logger.warning("Durable record merge unavailable; using local records")
-    merged = {key(record): record for record in durable_records if key(record)}
-    for record in memory_records:
-        identifier = key(record)
-        if identifier:
-            merged[identifier] = record
-
-    def sort_key(record: Any) -> str:
-        if isinstance(record, dict):
-            return str(record.get("updated_at") or record.get("created_at") or "")
-        return str(
-            getattr(record, "updated_at", None)
-            or getattr(record, "created_at", None)
-            or ""
-        )
-
-    return sorted(merged.values(), key=sort_key, reverse=True)[:bounded_limit]
-
-
-def _metric_history_limit(requested: int, identity: dict[str, str] | None) -> int:
-    """Bound anonymous metrics without narrowing a signed tenant view."""
-    bounded = max(1, int(requested))
-    return min(bounded, PUBLIC_METRIC_WINDOW) if identity is None else bounded
-
-
-def _metric_window(identity: dict[str, str] | None, limit: int) -> dict[str, object]:
-    return {
-        "scope": (
-            "public_recent_evaluation_window"
-            if identity is None
-            else "signed_tenant_window"
-        ),
-        "limit": limit,
-        "append_only_history": True,
-    }
-
-
-def _source_health_summary(source_health: list[dict[str, object]]) -> dict[str, int]:
-    """Summarize every source state without dropping paused tenant entries."""
-    return {
-        "total": len(source_health),
-        "healthy": sum(item.get("status") == "healthy" for item in source_health),
-        "stale": sum(item.get("status") == "stale" for item in source_health),
-        "needs_baseline": sum(
-            item.get("status") == "needs_baseline" for item in source_health
-        ),
-        "synthetic_only": sum(
-            item.get("status") == "synthetic_only" for item in source_health
-        ),
-        "source_failed": sum(
-            item.get("status") == "source_failed" for item in source_health
-        ),
-        "paused": sum(item.get("status") == "paused" for item in source_health),
-        "due": sum(bool(item.get("cadence_due")) for item in source_health),
-    }
-
-
-def _visible_tenant_record(record: Any, identity: dict[str, str] | None) -> bool:
-    """Apply the public-vs-tenant record visibility contract.
-
-    Anonymous requests are limited to tenantless demo records. Once a caller
-    is authenticated, tenantless records must not be mixed into that tenant's
-    operational counts: they are deployment-wide fixtures, not customer
-    evidence. A signed request therefore requires an exact tenant match.
-    """
-    tenant_id = getattr(record, "tenant_id", None)
-    if identity is None:
-        return tenant_id is None
-    return tenant_id is not None and tenant_id == identity.get("tenant_id")
-
-
-def _count_record_modes(records: list[Any], attribute: str) -> dict[str, int]:
-    """Count a bounded record mode field without leaking record contents."""
-    counts: dict[str, int] = {}
-    for record in records:
-        mode = str(getattr(record, attribute, None) or "unknown")
-        counts[mode] = counts.get(mode, 0) + 1
-    return counts
-
-
-def _record_tenant_usage(tenant_id: str | None, metric: str) -> None:
-    """Best-effort aggregate metering after a quota slot is reserved."""
-    if not tenant_id:
-        return
-    try:
-        record_tenant_usage(tenant_id, metric)
-    except Exception:  # noqa: BLE001 - metering must not authorize extra work.
-        logger.warning("Tenant usage ledger update failed for %s/%s", tenant_id, metric)
-
-
-def _tenant_quota_limit(tenant_id: str | None, metric: str, fallback: int) -> int:
-    """Resolve one tenant's bounded allowance without widening on failure."""
-    if not tenant_id:
-        return fallback
-    policy_key = {
-        "agent_calls": "agent_calls_per_window",
-        "workflow_mutations": "workflow_mutations_per_window",
-        "connector_calls": "connector_calls_per_window",
-    }.get(metric)
-    if policy_key is None:
-        return fallback
-    try:
-        policy = load_tenant_policy(tenant_id, defaults={policy_key: fallback})
-        return max(1, min(int(policy.get(policy_key, fallback)), 1000))
-    except Exception:  # noqa: BLE001 - quota lookup must fail closed hosted.
-        if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore":
-            return 0
-        return fallback
-
-
-def _reserve_durable_tenant_slot(
-    tenant_id: str | None, metric: str, limit: int, window_seconds: int
-) -> bool | None:
-    """Reserve a signed tenant slot transactionally when Firestore is active.
-
-    None means local development mode, where the process-local bucket remains
-    authoritative. A Firestore error fails closed instead of silently allowing
-    unmetered tenant work.
-    """
-    if not tenant_id:
-        return None
-    if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() != "firestore":
-        return None
-    try:
-        return reserve_tenant_rate_limit(
-            tenant_id, metric, limit, window_seconds
-        )
-    except Exception:
-        logger.exception("Durable tenant quota reservation failed")
-        return False
-
-
-def _reserve_agent_call(tenant_id: str | None = None) -> bool:
-    fallback_limit = AGENT_MAX_CALLS if tenant_id else PUBLIC_AGENT_MAX_CALLS
-    limit = _tenant_quota_limit(tenant_id, "agent_calls", fallback_limit)
-    if limit < 1:
-        return False
-    durable = _reserve_durable_tenant_slot(
-        tenant_id, "agent_calls", limit, AGENT_WINDOW_SECONDS
-    )
-    if durable is not None:
-        if durable:
-            _record_tenant_usage(tenant_id, "agent_calls")
-        return durable
-    now = monotonic()
-    cutoff = now - AGENT_WINDOW_SECONDS
-    with _agent_call_lock:
-        times = (
-            _tenant_agent_call_times.setdefault(tenant_id, deque())
-            if tenant_id
-            else _agent_call_times
-        )
-        while times and times[0] <= cutoff:
-            times.popleft()
-        if len(times) >= limit:
-            return False
-        times.append(now)
-        _record_tenant_usage(tenant_id, "agent_calls")
-        return True
-
-
-def _reserve_product_council_calls() -> bool:
-    """Reserve the exact five specialist turns and one synthesis turn."""
-    required = 6
-    limit = _tenant_quota_limit(None, "agent_calls", PUBLIC_AGENT_MAX_CALLS)
-    now = monotonic()
-    cutoff = now - AGENT_WINDOW_SECONDS
-    with _agent_call_lock:
-        while _agent_call_times and _agent_call_times[0] <= cutoff:
-            _agent_call_times.popleft()
-        if len(_agent_call_times) + required > limit:
-            return False
-        _agent_call_times.extend([now] * required)
-        return True
-
-
-def _quota_rate_limit_error(detail: str, window_seconds: int) -> HTTPException:
-    """Return a bounded, machine-readable recovery signal for quota work."""
-    return HTTPException(
-        status_code=429,
-        detail=detail,
-        headers={"Retry-After": str(max(1, int(window_seconds)))},
-    )
-
-
-def _agent_rate_limit_error(detail: str) -> HTTPException:
-    return _quota_rate_limit_error(detail, AGENT_WINDOW_SECONDS)
-
-
-def _demo_mutation_rate_limit_error(detail: str) -> HTTPException:
-    return _quota_rate_limit_error(detail, DEMO_WINDOW_SECONDS)
-
-
-def _connector_rate_limit_error(detail: str) -> HTTPException:
-    return _quota_rate_limit_error(detail, CONNECTOR_WINDOW_SECONDS)
-
-
-def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
-    limit = _tenant_quota_limit(tenant_id, "workflow_mutations", DEMO_MAX_MUTATIONS)
-    if limit < 1:
-        return False
-    durable = _reserve_durable_tenant_slot(
-        tenant_id, "workflow_mutations", limit, DEMO_WINDOW_SECONDS
-    )
-    if durable is not None:
-        if durable:
-            _record_tenant_usage(tenant_id, "workflow_mutations")
-        return durable
-    now = monotonic()
-    cutoff = now - DEMO_WINDOW_SECONDS
-    with _demo_mutation_lock:
-        times = (
-            _tenant_demo_mutation_times.setdefault(tenant_id, deque())
-            if tenant_id
-            else _demo_mutation_times
-        )
-        while times and times[0] <= cutoff:
-            times.popleft()
-        if len(times) >= limit:
-            return False
-        times.append(now)
-        _record_tenant_usage(tenant_id, "workflow_mutations")
-        return True
-
-
-def _reserve_connector_call(tenant_id: str | None = None) -> bool:
-    """Reserve one bounded external connector read for the tenant."""
-    limit = _tenant_quota_limit(
-        tenant_id, "connector_calls", CONNECTOR_MAX_CALLS
-    )
-    if limit < 1:
-        return False
-    durable = _reserve_durable_tenant_slot(
-        tenant_id, "connector_calls", limit, CONNECTOR_WINDOW_SECONDS
-    )
-    if durable is not None:
-        if durable:
-            _record_tenant_usage(tenant_id, "connector_calls")
-        return durable
-    now = monotonic()
-    cutoff = now - CONNECTOR_WINDOW_SECONDS
-    with _connector_call_lock:
-        times = (
-            _tenant_connector_call_times.setdefault(tenant_id, deque())
-            if tenant_id
-            else _connector_call_times
-        )
-        while times and times[0] <= cutoff:
-            times.popleft()
-        if len(times) >= limit:
-            return False
-        times.append(now)
-        _record_tenant_usage(tenant_id, "connector_calls")
-        return True
-
-
-def _reserve_multimodal_call() -> int | None:
-    """Reserve one public visual-analysis call and return retry seconds.
-
-    Visual analysis is deliberately allowlisted, but it still crosses the
-    Vertex/Gemini cost boundary. Keep a process-wide budget and tell clients
-    when the fixed window will reopen instead of leaving them to retry-loop.
-    Cloud Run is configured with one maximum instance, so this guard bounds
-    the public deployment's normal request path without adding tenant data to
-    the identity-free demo lane.
-    """
-    now = monotonic()
-    cutoff = now - MULTIMODAL_WINDOW_SECONDS
-    with _multimodal_call_lock:
-        while _multimodal_call_times and _multimodal_call_times[0] <= cutoff:
-            _multimodal_call_times.popleft()
-        if len(_multimodal_call_times) >= MULTIMODAL_MAX_CALLS:
-            return max(
-                1,
-                int(
-                    _multimodal_call_times[0]
-                    + MULTIMODAL_WINDOW_SECONDS
-                    - now
-                )
-                + 1,
-            )
-        _multimodal_call_times.append(now)
-        return None
-
-
-def _tasks_enabled() -> bool:
-    return os.getenv("DRIFTLINE_TASKS_ENABLED", "false").casefold() == "true"
-
-
-def _resolve_workflow(workflow_id: str):
-    try:
-        return workflow_store.get(workflow_id)
-    except KeyError:
-        state = load_workflow(workflow_id)
-        if state is not None:
-            return workflow_store.restore(state)
-        raise
-
-
-def _enforce_workflow_tenant(
-    state: WorkflowState, approval_identity: dict[str, str]
-) -> None:
-    """Prevent a signed operator from acting on another tenant's workflow."""
-    scope = approval_identity.get("scope")
-    # Keep accepting the legacy value for persisted/local identities, but use
-    # the production-facing name for all new public decisions.
-    if scope in {
-        "public_evaluation_packet_only",
-        # Backwards-compatible values for locally persisted identities.
-        "public_packet_only",
-        "sandbox_packet_only",
-    }:
-        if state.tenant_id is not None:
-            raise HTTPException(
-                status_code=403,
-                detail="Tenant-scoped workflow requires signed approval",
-            )
-        return
-    expected_tenant = approval_identity.get("tenant_id")
-    if not expected_tenant or not state.tenant_id:
-        raise HTTPException(status_code=403, detail="workflow_tenant_missing")
-    if state.tenant_id != expected_tenant:
-        raise HTTPException(status_code=403, detail="workflow_tenant_mismatch")
-
-
-def _authorize_workflow_tenant(
-    workflow_id: str, approval_identity: dict[str, str]
-) -> None:
-    try:
-        state = _resolve_workflow(workflow_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    _enforce_workflow_tenant(state, approval_identity)
-
-
-def _authorize_read_tenant(
-    state: WorkflowState | JobState,
-    *,
-    resource_id: str,
-    operator: str | None,
-    tenant_id: str | None,
-    approval_token: str | None,
-    identity_token: str | None,
-) -> None:
-    """Keep tenant-bound reads behind the same signed operator boundary.
-
-    The public judge console deliberately reads tenantless synthetic fixtures.
-    A real monitor job/workflow, however, can contain connector-derived
-    metadata and must never become readable merely because its identifier is
-    guessed.  Signed callers use the exact same HMAC/OIDC identity path as
-    mutations and are checked against the resource tenant.
-    """
-    if state.tenant_id is None:
-        return
-    if not operator or not tenant_id:
-        raise HTTPException(
-            status_code=403, detail="Tenant-scoped resource requires signed approval"
-        )
-    identity = _verify_approval_mode(
-        resource_id,
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    _enforce_workflow_tenant(state, identity)
-
-
-def _resolve_job(job_id: str) -> JobState:
-    with _jobs_lock:
-        job = _jobs.get(job_id)
-    if job is not None:
-        return job
-    job = load_job(job_id)
-    if job is not None:
-        with _jobs_lock:
-            _jobs[job_id] = job
-        return job
-    raise KeyError(f"Unknown job: {job_id}")
-
-
-def _claim_job_for_run(job_id: str) -> bool:
-    """Claim a queued job before invoking the agent runtime.
-
-    The process lock closes the local race; ``claim_job`` adds the durable
-    Firestore transaction for duplicate Cloud Tasks deliveries across Cloud
-    Run instances.
-    """
-    claim_id = f"claim-{uuid4().hex}"
-    with _jobs_lock:
-        try:
-            job = _jobs.get(job_id) or load_job(job_id)
-        except Exception:
-            logger.exception("Unable to load job %s for claiming", job_id)
-            return False
-        if job is None:
-            return False
-        if job.status != "queued":
-            _jobs[job_id] = job
-            return False
-        if not claim_job(job_id, claim_id):
-            durable = load_job(job_id)
-            if durable is not None:
-                _jobs[job_id] = durable
-            return False
-        job.status = "running"
-        job.claim_id = claim_id
-        job.run_attempts += 1
-        job.touch()
-        _jobs[job_id] = job
-    persist_job(job)
-    return True
-
-
-def _set_job(job: JobState) -> None:
-    job.touch()
-    with _jobs_lock:
-        _jobs[job.job_id] = job
-    persist_job(job)
-
-
-def _sync_jobs_for_workflow(workflow_id: str, status: str) -> None:
-    with _jobs_lock:
-        matching = [job for job in _jobs.values() if job.workflow_id == workflow_id]
-    for job in matching:
-        job.status = status
-        _set_job(job)
-    update_jobs_for_workflow(workflow_id, status)
-
-
-def _safe_connector_call(
-    operation: Callable[[WorkflowState], dict[str, object]],
-    status_key: str,
-    state: WorkflowState,
-) -> dict[str, object]:
-    try:
-        return operation(state)
-    except (ConnectorError, CredentialBrokerError) as exc:
-        logger.warning("%s connector failed: %s", status_key, exc)
-        return {f"{status_key}_status": "failed", "external_write": False}
-
-
-def _enqueue_cloud_task(job: JobState) -> None:
-    if tasks_v2 is None:
-        raise RuntimeError("Cloud Tasks dependency is unavailable")
-    project = os.getenv("GOOGLE_CLOUD_PROJECT")
-    location = os.getenv("DRIFTLINE_TASK_LOCATION", "us-central1")
-    queue = os.getenv("DRIFTLINE_TASK_QUEUE", "driftline-jobs")
-    target_url = os.getenv("DRIFTLINE_TASK_TARGET_URL")
-    service_account = os.getenv("DRIFTLINE_TASK_SERVICE_ACCOUNT")
-    if not project or not target_url or not service_account:
-        raise RuntimeError("Cloud Tasks configuration is incomplete")
-
-    client = tasks_v2.CloudTasksClient()
-    parent = client.queue_path(project, location, queue)
-    task = tasks_v2.Task(
-        # A deterministic task name makes an enqueue retry idempotent.  Cloud
-        # Tasks returns ALREADY_EXISTS for the same job instead of creating a
-        # second delivery.
-        name=client.task_path(project, location, queue, job.job_id),
-        http_request=tasks_v2.HttpRequest(
-            http_method=tasks_v2.HttpMethod.POST,
-            url=f"{target_url.rstrip('/')}/api/jobs/{job.job_id}/run",
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({"job_id": job.job_id}).encode("utf-8"),
-            oidc_token=tasks_v2.OidcToken(
-                service_account_email=service_account,
-                audience=target_url.rstrip("/"),
-            ),
-        ),
-    )
-    try:
-        client.create_task(parent=parent, task=task)
-    except TaskAlreadyExists:
-        logger.info(
-            "Cloud Task for %s already exists; treating enqueue as success", job.job_id
-        )
-
-
-def _enqueue_decision_twin_monitor(case_id: str, generation: int) -> None:
-    """Queue one idempotent post-approval Decision Twin measurement."""
-    if tasks_v2 is None:
-        raise RuntimeError("Cloud Tasks dependency is unavailable")
-    project = os.getenv("GOOGLE_CLOUD_PROJECT")
-    location = os.getenv("DRIFTLINE_TASK_LOCATION", "us-central1")
-    queue = os.getenv("DRIFTLINE_TASK_QUEUE", "driftline-jobs")
-    target_url = os.getenv("DRIFTLINE_TASK_TARGET_URL")
-    service_account = os.getenv("DRIFTLINE_TASK_SERVICE_ACCOUNT")
-    if not project or not target_url or not service_account:
-        raise RuntimeError("Cloud Tasks configuration is incomplete")
-
-    client = tasks_v2.CloudTasksClient()
-    parent = client.queue_path(project, location, queue)
-    task_key = hashlib.sha256(f"{case_id}:{generation}".encode()).hexdigest()[:24]
-    task = tasks_v2.Task(
-        name=client.task_path(
-            project, location, queue, f"decision-monitor-{task_key}"
-        ),
-        http_request=tasks_v2.HttpRequest(
-            http_method=tasks_v2.HttpMethod.POST,
-            url=(
-                f"{target_url.rstrip('/')}/api/decision-twin/"
-                f"{case_id}/monitor/run"
-            ),
-            headers={"Content-Type": "application/json"},
-            body=json.dumps(
-                {
-                    "expected_generation": generation,
-                    "scenario": "guardrail_breach",
-                }
-            ).encode("utf-8"),
-            oidc_token=tasks_v2.OidcToken(
-                service_account_email=service_account,
-                audience=target_url.rstrip("/"),
-            ),
-        ),
-    )
-    try:
-        client.create_task(parent=parent, task=task)
-    except TaskAlreadyExists:
-        logger.info(
-            "Decision monitor for %s generation %s already exists",
-            case_id,
-            generation,
-        )
-
-
-def _verify_task_request(request: Request) -> None:
-    if not _tasks_enabled():
-        return
-    authorization = request.headers.get("authorization", "")
-    expected_audience = os.getenv("DRIFTLINE_TASK_TARGET_URL", "").rstrip("/")
-    expected_email = os.getenv("DRIFTLINE_TASK_SERVICE_ACCOUNT", "")
-    if not authorization.startswith("Bearer ") or not expected_audience:
-        raise HTTPException(status_code=401, detail="Task identity is required")
-    try:
-        from google.auth.transport.requests import Request as GoogleRequest
-        from google.oauth2 import id_token
-
-        claims = id_token.verify_oauth2_token(
-            authorization.removeprefix("Bearer ").strip(),
-            GoogleRequest(),
-            audience=expected_audience,
-        )
-    except Exception as exc:  # pragma: no cover - token verification is cloud-only.
-        raise HTTPException(status_code=401, detail="Invalid task identity") from exc
-    if expected_email and claims.get("email") != expected_email:
-        raise HTTPException(status_code=403, detail="Unexpected task identity")
-
-
-def _verify_scheduler_request(request: Request) -> None:
-    """Verify the dedicated Cloud Scheduler identity before monitor ticks."""
-    authorization = request.headers.get("authorization", "")
-    expected_audience = os.getenv("DRIFTLINE_SCHEDULER_AUDIENCE", "").rstrip("/")
-    expected_email = os.getenv("DRIFTLINE_SCHEDULER_SERVICE_ACCOUNT", "")
-    if not authorization.startswith("Bearer ") or not expected_audience:
-        raise HTTPException(status_code=401, detail="Scheduler identity is required")
-    try:
-        from google.auth.transport.requests import Request as GoogleRequest
-        from google.oauth2 import id_token
-
-        claims = id_token.verify_oauth2_token(
-            authorization.removeprefix("Bearer ").strip(),
-            GoogleRequest(),
-            audience=expected_audience,
-        )
-    except Exception as exc:  # pragma: no cover - token verification is cloud-only.
-        raise HTTPException(
-            status_code=401, detail="Invalid scheduler identity"
-        ) from exc
-    if expected_email and claims.get("email") != expected_email:
-        raise HTTPException(status_code=403, detail="Unexpected scheduler identity")
-
-
-def _verify_approval_mode(
-    workflow_id: str,
-    actor: str,
-    mode: str,
-    token: str | None,
-    identity_token: str | None = None,
-    requested_tenant_id: str | None = None,
-) -> dict[str, str]:
-    """Bound public decisions to an explicit demo or signed approval mode.
-
-    The public console intentionally runs in ``demo`` mode and creates
-    packet-only outputs. A configured operator lane can use a Google OIDC
-    identity for the allowlisted operator email, or an HMAC token generated
-    from the dedicated approval secret as an isolated break-glass path;
-    unsigned public names are rejected before the workflow policy engine runs.
-    """
-    header_approval, header_identity = _request_auth.get()
-    token = token or header_approval
-    identity_token = identity_token or header_identity
-    configured = os.getenv("DRIFTLINE_APPROVAL_MODE", "demo").casefold()
-    signed_enabled = (
-        os.getenv("DRIFTLINE_SIGNED_APPROVALS_ENABLED", "false").casefold() == "true"
-    )
-    # Keep the public judge console in demo mode while allowing a separately
-    # signed operator lane to exercise configured connectors.  A deployment
-    # configured as signed remains strict and never accepts demo approvals.
-    if configured == "signed" and mode != "signed":
-        raise HTTPException(status_code=403, detail="Approval mode is not enabled")
-    if mode == "signed" and configured != "signed" and not signed_enabled:
-        raise HTTPException(status_code=403, detail="Signed approval is not enabled")
-    if mode == "demo" and configured != "demo":
-        raise HTTPException(status_code=403, detail="Approval mode is not enabled")
-    cleaned = actor.strip()
-    if mode == "demo":
-        principal = public_demo_principal()
-        return {
-            "mode": "demo",
-            "identity": "named_demo_actor",
-            "scope": "public_evaluation_packet_only",
-            "tenant_id": principal.tenant_id,
-            "role": principal.role,
-        }
-    if identity_token:
-        audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
-        if not audience:
-            raise HTTPException(
-                status_code=403, detail="Google operator identity is not enabled"
-            )
-        try:
-            claims = _verify_google_identity_claims(identity_token, audience)
-        except Exception as exc:  # pragma: no cover - Google-only runtime path.
-            raise HTTPException(
-                status_code=401, detail="Invalid Google operator identity"
-            ) from exc
-        email = str(claims.get("email", "")).casefold()
-        allowed = {
-            item.strip().casefold()
-            for item in os.getenv("DRIFTLINE_OPERATOR_EMAILS", "").split(",")
-            if item.strip()
-        }
-        if allowed and email not in allowed:
-            raise HTTPException(
-                status_code=403, detail="Google operator is not allowlisted"
-            )
-        try:
-            principal = principal_for_claims(
-                subject=str(claims.get("sub", "")),
-                email=email,
-                requested_tenant_id=requested_tenant_id,
-            )
-        except (ValueError, PermissionError) as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
-        if not principal.can("operator"):
-            raise HTTPException(
-                status_code=403, detail="Tenant role cannot perform this operation"
-            )
-        return {
-            "mode": "signed",
-            "identity": "google_oidc_operator",
-            "scope": "configured",
-            "subject": str(claims.get("sub", "")),
-            "email": email,
-            "tenant_id": principal.tenant_id,
-            "role": principal.role,
-        }
-    # Production tenant lanes should use short-lived Google OIDC identities,
-    # not a replayable break-glass bearer value. Keep the HMAC path available
-    # only when an operator explicitly opts into it (local/bootstrap or an
-    # incident runbook), and fail closed when the deployment requires OIDC.
-    if (
-        os.getenv("DRIFTLINE_REQUIRE_GOOGLE_OPERATOR_IDENTITY", "false").casefold()
-        == "true"
-    ):
-        raise HTTPException(
-            status_code=401,
-            detail="Google operator identity is required for this deployment",
-        )
-    # A deployment-wide signer is retained only as an explicit compatibility
-    # fallback. SaaS deployments can set a deterministic, infrastructure-owned
-    # per-tenant secret prefix and require every break-glass request to use the
-    # tenant's own signer. OIDC remains preferred for normal operator traffic.
-    tenant_for_signing = requested_tenant_id or os.getenv(
-        "DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo"
-    )
-    try:
-        tenant_for_signing = validate_tenant_id(tenant_for_signing)
-    except ValueError as exc:
-        raise HTTPException(status_code=403, detail="tenant_id_invalid") from exc
-    secret = ""
-    tenant_signing_prefix = os.getenv(
-        "DRIFTLINE_TENANT_SIGNING_SECRET_PREFIX", ""
-    ).strip()
-    require_tenant_signer = (
-        os.getenv("DRIFTLINE_REQUIRE_TENANT_SIGNING_SECRETS", "false").casefold()
-        == "true"
-    )
-    if tenant_signing_prefix:
-        try:
-            secret = _read_tenant_secret(
-                tenant_for_signing,
-                tenant_operator_signing_secret_name(
-                    tenant_for_signing, tenant_signing_prefix
-                ),
-            ).strip()
-        except (ConnectorError, ValueError):
-            if require_tenant_signer:
-                raise HTTPException(
-                    status_code=401, detail="Tenant signing secret is unavailable"
-                ) from None
-    if not secret and not require_tenant_signer:
-        secret = os.getenv("DRIFTLINE_APPROVAL_SIGNING_SECRET", "")
-    if not secret or not token:
-        raise HTTPException(status_code=401, detail="Signed approval is required")
-    message = f"{workflow_id}:{cleaned}".encode()
-    expected = hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(token, expected):
-        raise HTTPException(status_code=401, detail="Invalid signed approval")
-    try:
-        principal = principal_for_hmac(requested_tenant_id)
-    except (ValueError, PermissionError) as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    return {
-        "mode": "signed",
-        "identity": "signed_operator",
-        "scope": "configured",
-        "tenant_id": principal.tenant_id,
-        "role": principal.role,
-    }
-
-
-def _audit_actor(actor: str, approval_identity: dict[str, str]) -> str:
-    """Bind OIDC audit attribution to the identity that signed the request."""
-    if approval_identity.get("identity") == "google_oidc_operator":
-        email = approval_identity.get("email", "").strip()
-        if not email:
-            raise HTTPException(
-                status_code=401, detail="Google operator identity is incomplete"
-            )
-        return email
-    return actor.strip()
-
-
-def _verify_platform_operator(identity_token: str | None) -> dict[str, str]:
-    """Verify the separate platform-admin OIDC boundary for tenant bootstrap."""
-    audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
-    if not identity_token or not audience:
-        raise HTTPException(status_code=401, detail="Platform identity is required")
-    try:
-        claims = _verify_google_identity_claims(identity_token, audience)
-    except Exception as exc:  # pragma: no cover - Google-only runtime path.
-        raise HTTPException(status_code=401, detail="Invalid platform identity") from exc
-    email = str(claims.get("email", "")).strip().casefold()
-    allowed = {
-        item.strip().casefold()
-        for item in os.getenv("DRIFTLINE_PLATFORM_OPERATOR_EMAILS", "").split(",")
-        if item.strip()
-    }
-    if not email or email not in allowed:
-        raise HTTPException(status_code=403, detail="Platform operator is not allowlisted")
-    return {
-        "identity": "google_oidc_platform_operator",
-        "subject": str(claims.get("sub", "")),
-        "email": email,
-    }
-
-
-def _verify_google_identity_claims(
-    identity_token: str | None, audience: str
-) -> dict[str, object]:
-    """Verify a Google OIDC identity once, including the tenant-safe claims.
-
-    This helper is shared by the tenant selector and signed operator routes so
-    both use the same audience, issuer, expiry, and verified-email checks. It
-    intentionally returns claims only in memory; no token is persisted.
-    """
-    if not identity_token or not audience:
-        raise ValueError("google_identity_required")
-    from google.auth.transport.requests import Request as GoogleRequest
-    from google.oauth2 import id_token
-
-    claims = id_token.verify_oauth2_token(
-        identity_token.removeprefix("Bearer ").strip(),
-        GoogleRequest(),
-        audience=audience,
-    )
-    issuer = str(claims.get("iss", ""))
-    if issuer not in {"accounts.google.com", "https://accounts.google.com"}:
-        raise ValueError("google_identity_issuer_invalid")
-    email = str(claims.get("email", "")).strip().casefold()
-    if not email or claims.get("email_verified") is False:
-        raise ValueError("google_identity_email_unverified")
-    if not str(claims.get("sub", "")).strip():
-        raise ValueError("google_identity_subject_missing")
-    return claims
-
-
-_CONNECTOR_HANDOFFS: tuple[
-    tuple[
-        str,
-        Callable[[WorkflowState], dict[str, object]],
-        Callable[[WorkflowState], dict[str, object]],
-    ],
-    ...,
-] = (
-    ("jira", execute_jira_handoff, reverse_jira_handoff),
-    ("confluence", execute_confluence_handoff, reverse_confluence_handoff),
-    ("slack", execute_slack_handoff, reverse_slack_handoff),
-    ("github", execute_github_handoff, reverse_github_handoff),
-)
-
-
-def _prepared_connector_info() -> dict[str, object]:
-    """Return an honest packet-only result for the public demo lane.
-
-    Connector configuration is intentionally not enough to authorize a write:
-    only a signed operator approval can cross that boundary. This protects the
-    public demo even if credentials are present in the isolated deployment.
-    """
-    result: dict[str, object] = {}
-    for name, _, _ in _CONNECTOR_HANDOFFS:
-        result[f"{name}_status"] = "prepared_only"
-        result[f"{name}_prepared_only"] = True
-        result[f"{name}_external_write"] = False
-    return result
-
-
-def _connector_handoff_info(
-    state: WorkflowState,
-    approval_identity: dict[str, str],
-    *,
-    reverse: bool = False,
-) -> dict[str, object]:
-    """Execute only the signed workflow's explicitly mapped connectors.
-
-    A connector being configured for a tenant is not itself permission to fan
-    out every packet to that provider.  The impact graph is the source of truth
-    for the current approval: forward work is sent only to destinations shown
-    in ``integration_targets``.  During reversal, retain compatibility with
-    older action records by reversing any connector that actually recorded an
-    external write, even if that legacy workflow did not expose the target in
-    its original graph.
-    """
-    if approval_identity.get("scope") != "configured":
-        return _prepared_connector_info()
-    selected = {
-        str(target.get("system", "")).casefold()
-        for target in state.integration_targets
-        if isinstance(target, dict)
-    }
-    action = state.action_record or {}
-    result: dict[str, object] = {}
-    for name, execute, undo in _CONNECTOR_HANDOFFS:
-        status_key = f"{name}_status"
-        external_key = f"{name}_external_write"
-        prior_status = str(action.get(status_key, "")).casefold()
-        completed_statuses = (
-            {"reversed"} if reverse else {"created", "reused", "reactivated"}
-        )
-        if prior_status in completed_statuses:
-            result.update(
-                {
-                    key: value
-                    for key, value in action.items()
-                    if key.startswith(f"{name}_")
-                }
-            )
-            result[external_key] = bool(action.get(external_key, True))
-            result["external_write"] = True
-            continue
-        if reverse:
-            should_run = bool(action.get(external_key)) or prior_status in {
-                "created",
-                "reused",
-                "reactivated",
-            }
-        else:
-            should_run = name.casefold() in selected
-        if not should_run:
-            result[status_key] = "not_selected"
-            result[f"{name}_prepared_only"] = True
-            result[external_key] = False
-            continue
-        operation = undo if reverse else execute
-        connector_result = _safe_connector_call(operation, name, state)
-        connector_external_write = bool(connector_result.get("external_write", False))
-        result.update(
-            {
-                key: value
-                for key, value in connector_result.items()
-                if key != "external_write"
-            }
-        )
-        result[external_key] = connector_external_write
-        result["external_write"] = bool(result.get("external_write", False)) or connector_external_write
-    return result
-
-
-def _claim_side_effect_operation(
-    state: WorkflowState,
-    *,
-    kind: Literal["approval", "reversal"],
-    actor: str,
-    approval_identity: dict[str, str],
-) -> None:
-    """Attach a credential-free durable claim before any side effect begins."""
-    now_value = datetime.now(UTC)
-    now = now_value.isoformat()
-    state.operation = {
-        "operation_id": f"op-{uuid4().hex}",
-        "kind": kind,
-        "status": "executing",
-        "generation": 1,
-        "attempts": 1,
-        "actor": actor,
-        "scope": approval_identity.get("scope", "public_demo"),
-        "tenant_id": approval_identity.get("tenant_id"),
-        "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
-        "started_at": now,
-        "last_attempt_at": now,
-        "lease_expires_at": (
-            now_value + timedelta(seconds=_operation_lease_seconds())
-        ).isoformat(),
-    }
-
-
-def _operation_lease_seconds() -> int:
-    """Keep the claim exclusive beyond the Cloud Run request timeout."""
-    try:
-        configured = int(os.getenv("DRIFTLINE_OPERATION_LEASE_SECONDS", "360"))
-    except ValueError:
-        configured = 360
-    return max(330, min(configured, 900))
-
-
-def _operation_lease_expired(
-    operation: dict[str, object], *, now: datetime | None = None
-) -> bool:
-    """Fail closed unless a durable claim carries a valid, elapsed lease."""
-    raw_expiry = operation.get("lease_expires_at")
-    if not raw_expiry:
-        return False
-    try:
-        expiry = datetime.fromisoformat(str(raw_expiry))
-    except ValueError:
-        return False
-    if expiry.tzinfo is None:
-        return False
-    return expiry <= (now or datetime.now(UTC))
-
-
-def _expire_stale_operation_claim(state: WorkflowState) -> WorkflowState:
-    """Turn a hard-crash orphan into the ordinary exclusive recovery lane."""
-    if state.status not in {
-        WorkflowStatus.APPROVAL_EXECUTING,
-        WorkflowStatus.REVERSAL_EXECUTING,
-    }:
-        raise PolicyViolation("Workflow operation is not awaiting lease recovery")
-    if not _operation_lease_expired(state.operation or {}):
-        raise PolicyViolation("Workflow operation is still active; retry after its lease")
-    state.operation = {
-        **state.operation,
-        "status": "reconciliation_required",
-        "last_error_code": "operation_lease_expired",
-        "last_failed_at": utc_now(),
-    }
-    state.action_record = {
-        **(state.action_record or {}),
-        "reconciliation_required": True,
-        "operation_id": state.operation.get("operation_id"),
-    }
-    state.status = WorkflowStatus.RECONCILIATION_REQUIRED
-    state.events.append(
-        {
-            "event_id": f"evt-{uuid4().hex[:12]}",
-            "timestamp": utc_now(),
-            "action": "operation_reconciler",
-            "outcome": "expired_claim_recovered",
-            "stage": state.stage.value,
-            "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
-            "operation_id": state.operation.get("operation_id"),
-        }
-    )
-    return state
-
-
-def _execute_claimed_side_effects(
-    state: WorkflowState,
-    approval_identity: dict[str, str],
-    *,
-    reverse: bool,
-) -> WorkflowState:
-    """Run the idempotent connector + artifact bundle for a claimed operation."""
-    if state.action_record is not None and not reverse:
-        state.action_record["tenant_id"] = approval_identity["tenant_id"]
-    connector_info = _connector_handoff_info(
-        state,
-        approval_identity,
-        reverse=reverse,
-    )
-    external_systems_changed = any(
-        connector_info.get(f"{name}_external_write", False)
-        or connector_info.get("external_write", False)
-        for name, _, _ in _CONNECTOR_HANDOFFS
-    )
-    # Persist confirmed per-connector outcomes on the claimed state before a
-    # later connector failure enters reconciliation. The exception handler
-    # commits this mutated snapshot, so a retry can reuse completed writes
-    # instead of repeating them.
-    state.action_record = {
-        **(state.action_record or {}),
-        **connector_info,
-        "external_write_authorized": approval_identity.get("scope") == "configured",
-        "external_write": external_systems_changed,
-        "external_systems_changed": external_systems_changed,
-    }
-    if any(
-        key.endswith("_status") and value == "failed"
-        for key, value in connector_info.items()
-    ):
-        raise ConnectorError("A selected connector remains unavailable")
-    artifact_kind = "rollback" if reverse else "active"
-    storage_info = persist_action_artifact(state, kind=artifact_kind)
-    operational_info = persist_operational_output(state, kind=artifact_kind)
-    state.action_record = {
-        **(state.action_record or {}),
-        **storage_info,
-        **operational_info,
-        "operational_side_effect": operational_info.get(
-            "operational_status", "not_configured"
-        ),
-    }
-    state.operation = {
-        **state.operation,
-        "status": "completed",
-        "completed_at": utc_now(),
-        "last_error_code": None,
-    }
-    state.events.append(
-        {
-            "event_id": f"evt-{uuid4().hex[:12]}",
-            "timestamp": utc_now(),
-            "action": "operation_executor",
-            "outcome": "operation_completed",
-            "stage": state.stage.value,
-            "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
-            "operation_id": state.operation.get("operation_id"),
-            "attempts": state.operation.get("attempts", 1),
-        }
-    )
-    state.status = (
-        WorkflowStatus.NEEDS_APPROVAL if reverse else WorkflowStatus.COMPLETE
-    )
-    return state
-
-
-def _mark_reconciliation_required(
-    state: WorkflowState,
-    *,
-    expected_status: WorkflowStatus,
-    fallback: WorkflowState,
-    error: Exception,
-) -> WorkflowState:
-    """Persist an ambiguous/interrupted outcome without leaking error details."""
-    state.operation = {
-        **state.operation,
-        "status": "reconciliation_required",
-        "last_error_code": type(error).__name__,
-        "last_failed_at": utc_now(),
-    }
-    state.action_record = {
-        **(state.action_record or {}),
-        "reconciliation_required": True,
-        "operation_id": state.operation.get("operation_id"),
-    }
-    state.status = WorkflowStatus.RECONCILIATION_REQUIRED
-    state.events.append(
-        {
-            "event_id": f"evt-{uuid4().hex[:12]}",
-            "timestamp": utc_now(),
-            "action": "operation_reconciler",
-            "outcome": "reconciliation_required",
-            "stage": state.stage.value,
-            "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
-            "operation_id": state.operation.get("operation_id"),
-        }
-    )
-    return _commit_workflow_transition(
-        state,
-        expected_status.value,
-        fallback,
-    )
-
-
-def _connector_context_info(tenant_id: str) -> dict[str, object]:
-    """Read fixed internal scopes and return aggregate metadata only.
-
-    This lane is deliberately independent of approval-time writes. A bad or
-    unavailable connector produces an explicit status rather than partial raw
-    records, and no connector receives user-supplied paths, JQL, channel IDs,
-    or repository names.
-    """
-    definitions: tuple[tuple[str, Callable[[], object], str], ...] = (
-        ("jira", lambda: JiraConnector(JiraConfig.from_env(tenant_id)).read_context_summary(), "read_only_project"),
-        ("confluence", lambda: ConfluenceConnector(ConfluenceConfig.from_env(tenant_id)).read_context_summary(), "read_only_space"),
-        ("slack", lambda: SlackConnector(SlackConfig.from_env(tenant_id)).read_context_summary(), "read_only_channel"),
-        ("github", lambda: GitHubConnector(GitHubConfig.from_env(tenant_id)).read_context_summary(), "read_only_repository"),
-        ("salesforce", lambda: _salesforce_context_info(tenant_id), "read_only_crm"),
-    )
-    result: dict[str, object] = {}
-    for name, operation, scope in definitions:
-        enabled = os.getenv(f"DRIFTLINE_{name.upper()}_ENABLED", "false").casefold() == "true"
-        if not enabled:
-            result[name] = {
-                "status": "not_configured",
-                "mode": "prepared_only",
-                "scope": scope,
-                "external_read": False,
-                "redaction": "aggregate_metadata_only",
-            }
-            continue
-        try:
-            summary = operation()
-            result[name] = {
-                **summary,
-                # A connector may be enabled at the deployment level while a
-                # tenant is still awaiting OAuth. Preserve that honest
-                # per-tenant state instead of turning a metadata-only result
-                # into a false external-read claim.
-                "external_read": summary.get("external_read", True),
-            }
-        except ConnectorError as exc:
-            logger.warning("%s context read failed: %s", name, exc)
-            result[name] = {
-                "status": "failed",
-                "mode": "read_only_context",
-                "scope": scope,
-                "external_read": False,
-                "reason": str(exc),
-                "redaction": "aggregate_metadata_only",
-            }
-    return result
-
-
-def _read_internal_context_for_run(tenant_id: str | None) -> dict[str, object] | None:
-    """Read and normalize aggregate tenant context for one signed run.
-
-    The context summary endpoint is intentionally request-scoped, but a signed
-    workflow run needs the same bounded metadata attached to its Change Card so
-    operators can act on verified workload exposure.  Keep this seam fail
-    closed: no tenant, no connector quota, connector failure, or no verified
-    read means no context is passed to ADK or persisted.
-    """
-    if not tenant_id or not _reserve_connector_call(tenant_id):
-        return None
-    try:
-        context = normalize_internal_context(_connector_context_info(tenant_id))
-    except Exception as exc:  # noqa: BLE001 - connector reads fail closed.
-        logger.warning(
-            "Aggregate connector context unavailable for signed run: %s",
-            type(exc).__name__,
-        )
-        return None
-    if int(context.get("verified_connector_count", 0)) < 1:
-        return None
-    return context
-
-
-def _transition_workflow(
-    workflow_id: str,
-    expected_status: str,
-    transition: Callable[[WorkflowState], WorkflowState],
-) -> WorkflowState:
-    """Run one policy transition and commit it with a durable CAS."""
-    with _workflow_transition_lock:
-        state = _resolve_workflow(workflow_id)
-        previous = copy.deepcopy(state)
-        result = transition(state)
-        if not compare_and_set_workflow(result, expected_status):
-            # Restore this process from durable truth after a cross-instance
-            # race, rather than leaving a locally mutated but uncommitted run.
-            durable = load_workflow(workflow_id)
-            if durable is not None:
-                workflow_store.restore(durable)
-            else:
-                workflow_store.restore(previous)
-            raise PolicyViolation("Workflow changed concurrently; retry the decision")
-        return result
-
-
-def _commit_workflow_transition(
-    state: WorkflowState,
-    expected_status: str,
-    fallback: WorkflowState,
-) -> WorkflowState:
-    """Finish a durable operation without ever publishing stale local truth."""
-    if compare_and_set_workflow(state, expected_status):
-        workflow_store.restore(state)
-        return state
-    durable = load_workflow(state.workflow_id)
-    workflow_store.restore(durable if durable is not None else fallback)
-    raise PolicyViolation(
-        "Workflow operation changed concurrently; durable state was reloaded"
-    )
-
-
-def _recover_orphaned_workflow(job: JobState) -> WorkflowState | None:
-    """Find a workflow created by a partial run of this source job.
-
-    Source inspection writes its append-only observation and workflow before
-    the model's optional follow-up/analysis turns. If a transient model error
-    happens after that write, the next bounded retry can otherwise advance the
-    source baseline and hide the real approval work. Match only a recent
-    workflow for the same tenant and exact source, then let the caller attach
-    it to the durable job.
-    """
-    candidates: list[WorkflowState] = []
-    with _workflow_transition_lock:
-        candidates.extend(workflow_store._runs.values())
-    candidates.extend(list_workflows(limit=50))
-    unique: dict[str, WorkflowState] = {
-        state.workflow_id: state for state in candidates
-    }
-    matching = [
-        state
-        for state in unique.values()
-        if state.tenant_id == job.tenant_id
-        and state.evidence is not None
-        and state.evidence.source_id == job.source_id
-        and state.created_at >= job.created_at
-    ]
-    matching.sort(key=lambda state: state.created_at, reverse=True)
-    return matching[0] if matching else None
-
-
-async def _run_job(job_id: str) -> None:
-    if not _claim_job_for_run(job_id):
-        logger.info("Job %s was already claimed or completed", job_id)
-        return
-    job = _resolve_job(job_id)
-    try:
-        bound_query = (
-            job.query
-            if f'source_id "{job.source_id}"' in job.query
-            else f'{job.query} Use the exact allowlisted source_id "{job.source_id}".'
-        )
-        internal_context = (
-            _read_internal_context_for_run(job.tenant_id)
-            if job.tenant_id and job.run_mode in {"tenant_demo", "monitor"}
-            else None
-        )
-        if job.run_mode == "demo" and job.tenant_id is None:
-            result = await run_agent_task(bound_query, job.user_id)
-        elif job.tenant_id is None:
-            result = await run_agent_task(bound_query, job.user_id, job.run_mode)
-        elif internal_context is not None:
-            result = await run_agent_task(
-                bound_query,
-                job.user_id,
-                job.run_mode,
-                tenant_id=job.tenant_id,
-                internal_context=internal_context,
-            )
-        else:
-            result = await run_agent_task(
-                bound_query,
-                job.user_id,
-                job.run_mode,
-                tenant_id=job.tenant_id,
-            )
-        # Preserve the deterministic source disposition on the durable job,
-        # even when no workflow is created for a baseline/no-op observation.
-        # This keeps monitor utility separate from the asynchronous job
-        # lifecycle: ``complete`` alone is not enough to explain what happened.
-        job.source_status = str(result.get("source_status")) if result.get("source_status") else None
-        if "change_detected" in result:
-            job.change_detected = bool(result.get("change_detected"))
-        workflow_id = result.get("workflow_id")
-        if not workflow_id:
-            if result.get("change_detected") is False or result.get(
-                "source_status"
-            ) in {
-                "baseline_established",
-                "unchanged",
-            }:
-                job.status = "complete"
-                job.model = result.get("model")
-                job.execution_mode = result.get("execution_mode")
-                job.tool_calls = result.get("tool_calls", [])
-                job.event_count = int(result.get("event_count", 0))
-                if result.get("source_status") == "source_fetch_failed":
-                    # A fetch outage is a durable monitor disposition, not a
-                    # material change and not an ADK failure. Keep the job
-                    # complete so the scheduler can retry on cadence, while
-                    # making the operator-facing outcome unambiguous instead
-                    # of borrowing the model's generic no-change wording.
-                    job.response = (
-                        "Source fetch failed; no workflow was created. "
-                        "The bounded scheduler will retry this source."
-                    )
-                else:
-                    job.response = (
-                        result.get("response")
-                        or "No material source change was found."
-                    )
-                job.error = None
-                _set_job(job)
-                return
-            raise RuntimeError("Agent completed without creating a workflow")
-        state = _resolve_workflow(workflow_id)
-        state.agent_trace = result.get("agent_trace")
-        persist_workflow(state)
-        job.status = (
-            "needs_approval"
-            if state.status.value == "needs_approval"
-            else state.status.value
-        )
-        job.workflow_id = workflow_id
-        job.model = result.get("model")
-        job.execution_mode = result.get("execution_mode")
-        job.tool_calls = result.get("tool_calls", [])
-        job.event_count = int(result.get("event_count", 0))
-        job.response = result.get("response", "")
-        job.error = None
-    except Exception as exc:
-        recovered = _recover_orphaned_workflow(job)
-        if recovered is not None:
-            recovered.agent_trace = {
-                **(recovered.agent_trace or {}),
-                "execution_mode": "google_adk",
-                "decision_copilot": {
-                    "mode": "unavailable",
-                    "reason": "Transient model failure; rerun the scan before approval.",
-                },
-            }
-            persist_workflow(recovered)
-            job.workflow_id = recovered.workflow_id
-            job.status = (
-                "needs_approval"
-                if recovered.status.value == "needs_approval"
-                else recovered.status.value
-            )
-            job.model = job.model or os.getenv("MODEL_NAME", "gemini-3.5-flash")
-            job.execution_mode = job.execution_mode or "google_adk"
-            job.response = (
-                "Evidence captured; the workflow was preserved after a bounded "
-                "agent retry. Human approval is still required."
-            )
-            job.error = None
-            _set_job(job)
-            logger.warning(
-                "Recovered workflow %s for partially completed job %s after %s",
-                recovered.workflow_id,
-                job.job_id,
-                type(exc).__name__,
-            )
-            return
-        # The public judge console is an explicitly synthetic, identity-free
-        # lane.  Keep it reviewable when a real Gemini turn is temporarily
-        # quota-limited or unavailable, while leaving signed/monitor runs
-        # fail-closed.  The fallback is labelled in the durable job and
-        # workflow records; it never claims a Gemini execution occurred.
-        if _complete_demo_fallback(job, exc):
-            job.source_status = "changed"
-            job.change_detected = True
-            _set_job(job)
-            return
-        logger.exception("Async Driftline job failed")
-        if job.run_attempts < MAX_JOB_ATTEMPTS:
-            # Returning a retriable state lets Cloud Tasks redeliver the same
-            # deterministic task. The durable claim is cleared only after the
-            # failed attempt has been recorded, so a duplicate delivery cannot
-            # run concurrently with the retry.
-            job.status = "queued"
-            job.claim_id = None
-            job.error = (
-                f"Transient agent failure; retry {job.run_attempts}/{MAX_JOB_ATTEMPTS}."
-            )
-        else:
-            job.status = "failed"
-            job.error = "The agent job failed after bounded retries."
-            try:
-                persist_job_failure(
-                    {
-                        "job_id": job.job_id,
-                        "workflow_id": job.workflow_id,
-                        "tenant_id": job.tenant_id,
-                        "attempts": job.run_attempts,
-                        "failed_at": utc_now(),
-                    }
-                )
-            except Exception:
-                logger.exception("Unable to persist terminal failure for %s", job.job_id)
-    _set_job(job)
-
-
-def _complete_demo_fallback(job: JobState, error: Exception) -> bool:
-    """Create the bounded synthetic replay when the public demo's ADK turn fails.
-
-    This is intentionally narrow: only tenantless ``demo`` jobs with a
-    static allowlisted source can use it.  Signed tenant jobs and monitor
-    runs must surface the real failure instead of hiding an unavailable
-    Gemini/connector execution behind synthetic state.
-    """
-    if job.run_mode != "demo" or job.tenant_id is not None:
-        return False
-    match = re.search(r'allowlisted source_id "([^"]+)"', job.query)
-    source_id = match.group(1) if match else "public/pricing"
-    definition = source_definition(source_id)
-    if not definition or definition.get("dynamic") == "true":
-        return False
-    state = workflow_store.start_demo(
-        source_id=source_id,
-        source_name=definition["name"],
-        source_category=definition.get("category"),
-        source_change_type=definition.get("change_type"),
-        source_url=definition["url"],
-        before_text=definition["before"],
-        after_text=definition["after"],
-        snapshot_label=f"Synthetic replay fixture Â· {source_id}",
-        data_mode="synthetic_demo",
-    )
-    persist_workflow(state)
-    job.status = "needs_approval"
-    job.workflow_id = state.workflow_id
-    job.model = "synthetic"
-    job.execution_mode = "deterministic_demo_fallback"
-    job.tool_calls = []
-    job.event_count = 0
-    job.response = (
-        "Gemini was temporarily unavailable; this is a labelled synthetic "
-        "replay so the approval and evidence workflow remains reviewable."
-    )
-    job.error = None
-    logger.warning(
-        "Demo ADK unavailable; served labelled synthetic replay (%s)",
-        type(error).__name__,
-    )
-    return True
-
-
-def _schedule_local_job(job: JobState) -> None:
-    task = asyncio.create_task(_run_job(job.job_id))
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
-
-
-def _start_job(
-    *,
-    query: str,
-    user_id: str,
-    run_mode: str,
-    background_tasks: BackgroundTasks,
-    tenant_id: str | None = None,
-    source_id: str = "public/pricing",
-    retry_of: str | None = None,
-) -> JobState:
-    job = JobState(
-        job_id=f"job-{uuid4().hex[:12]}",
-        query=query,
-        user_id=user_id,
-        tenant_id=tenant_id,
-        run_mode=run_mode,
-        source_id=source_id,
-        retry_of=retry_of,
-    )
-    _set_job(job)
-    try:
-        if _tasks_enabled():
-            _enqueue_cloud_task(job)
-        else:
-            background_tasks.add_task(_run_job, job.job_id)
-    except Exception:
-        logger.exception("Unable to enqueue async Driftline job")
-        job.status = "failed"
-        job.error = (
-            "Async execution is not configured. Check the Cloud Tasks deployment."
-        )
-        _set_job(job)
-    return job
-
-
-def _inflight_monitor_job_exists(
-    source_id: str,
-    tenant_id: str | None,
-) -> bool:
-    """Return whether this source already has an active monitor job.
-
-    Scheduler delivery is at-least-once. Checking both the instance cache and
-    the durable job ledger prevents a duplicate tick (or a second Cloud Run
-    instance) from launching another model call for the same source.
-    """
-    try:
-        with _jobs_lock:
-            candidates = list(_jobs.values())
-        candidates.extend(list_jobs(limit=50))
-    except Exception:
-        # A ledger outage must not make the scheduler fan out unbounded work.
-        logger.exception("Unable to inspect in-flight monitor jobs")
-        return True
-    return any(
-        job.run_mode == "monitor"
-        and job.source_id == source_id
-        and job.tenant_id == tenant_id
-        and job.status in {"queued", "running"}
-        for job in candidates
-    )
-
-
-def _monitor_due_selection(
-    entries: list[tuple[str | None, str, dict[str, str]]],
-    *,
-    max_sources: int,
-    force_source_id: str | None = None,
-) -> tuple[
-    list[tuple[str | None, str, dict[str, str]]],
-    list[dict[str, object]],
-]:
-    """Select bounded, due monitor work without starving tenant sources.
-
-    The scheduler runs more often than many source cadences.  Only sources
-    whose append-only ledger says ``needs_baseline``, ``stale``,
-    ``source_failed``, or whose cadence deadline has arrived should consume a
-    model call.  Due entries are then interleaved by tenant bucket so the
-    pinned public fixtures cannot monopolize the cap when many tenants are
-    registered.  A manually requested canary bypasses due filtering but still
-    respects the hard source cap.
-    """
-    bounded_max = max(1, max_sources)
-    if force_source_id:
-        selected = [
-            entry for entry in entries if entry[1] == force_source_id.strip()
-        ][:bounded_max]
-        deferred = [
-            {
-                "tenant_id": tenant_id,
-                "source_id": source_id,
-                "reason": "canary_cap",
-            }
-            for tenant_id, source_id, _definition in entries
-            if source_id != force_source_id.strip()
-        ]
-        return selected, deferred
-
-    health_by_tenant: dict[str | None, dict[str, dict[str, object]]] = {}
-    health_failed: set[str | None] = set()
-    tenant_ids = list(dict.fromkeys(tenant_id for tenant_id, _source_id, _definition in entries))
-    for tenant_id in tenant_ids:
-        try:
-            health_by_tenant[tenant_id] = {
-                str(item.get("source_id")): item
-                for item in source_registry_health(tenant_id=tenant_id)
-                if item.get("source_id")
-            }
-        except Exception:
-            logger.exception("Unable to evaluate monitor due state for tenant %s", tenant_id)
-            health_by_tenant[tenant_id] = {}
-            health_failed.add(tenant_id)
-
-    now = datetime.now(UTC)
-    due: list[tuple[int, tuple[str | None, str, dict[str, str]], str]] = []
-    deferred: list[dict[str, object]] = []
-    due_statuses = {"needs_baseline", "stale", "source_failed", "synthetic_only"}
-    for position, entry in enumerate(entries):
-        tenant_id, source_id, _definition = entry
-        health = health_by_tenant.get(tenant_id, {}).get(source_id)
-        if tenant_id in health_failed or health is None:
-            due.append((position, entry, "health_unavailable"))
-            continue
-        status = str(health.get("status", "needs_baseline"))
-        if status in due_statuses:
-            due.append((position, entry, status))
-            continue
-        next_due = health.get("next_due_at")
-        try:
-            due_at = datetime.fromisoformat(str(next_due)) if next_due else None
-        except ValueError:
-            due_at = None
-        if due_at is None or due_at <= now:
-            due.append((position, entry, "cadence_due" if due_at else "missing_due_time"))
-        else:
-            deferred.append(
-                {
-                    "tenant_id": tenant_id,
-                    "source_id": source_id,
-                    "reason": "not_due",
-                    "next_due_at": str(next_due),
-                }
-            )
-
-    # Round-robin due work by tenant bucket.  With one public bucket this
-    # preserves the pinned fixture order; with multiple buckets each tenant
-    # gets a chance before the global cap is consumed.
-    buckets: dict[str | None, list[tuple[int, tuple[str | None, str, dict[str, str]], str]]] = {}
-    bucket_order: list[str | None] = []
-    for item in due:
-        tenant_id = item[1][0]
-        if tenant_id not in buckets:
-            buckets[tenant_id] = []
-            bucket_order.append(tenant_id)
-        buckets[tenant_id].append(item)
-    selected_due: list[tuple[str | None, str, dict[str, str]]] = []
-    selected_keys: set[tuple[str | None, str]] = set()
-    while len(selected_due) < bounded_max and bucket_order:
-        progressed = False
-        for tenant_id in bucket_order:
-            bucket = buckets.get(tenant_id) or []
-            if not bucket:
-                continue
-            _position, entry, reason = bucket.pop(0)
-            selected_due.append(entry)
-            selected_keys.add((entry[0], entry[1]))
-            progressed = True
-            if len(selected_due) >= bounded_max:
-                break
-        if not progressed:
-            break
-
-    for _position, entry, reason in due:
-        key = (entry[0], entry[1])
-        if key not in selected_keys:
-            deferred.append(
-                {
-                    "tenant_id": entry[0],
-                    "source_id": entry[1],
-                    "reason": "source_cap",
-                    "due_reason": reason,
-                }
-            )
-    return selected_due, deferred
-
-
-def _inflight_public_job(source_id: str) -> JobState | None:
-    """Return an active anonymous job for a source, if one is already queued."""
-    try:
-        with _jobs_lock:
-            candidates = list(_jobs.values())
-        candidates.extend(list_jobs(limit=50))
-    except Exception:
-        # The existing per-window agent quota remains the fallback guardrail if
-        # a transient Firestore read cannot inspect the history ledger.
-        logger.warning("Unable to inspect public in-flight jobs", exc_info=True)
-        return None
-    active = [
-        job
-        for job in candidates
-        if job.tenant_id is None
-        and job.run_mode == "demo"
-        and job.source_id == source_id
-        and job.status in {"queued", "running"}
-    ]
-    if not active:
-        return None
-    return max(active, key=lambda item: item.updated_at or item.created_at or "")
-
-
-@app.get("/health")
-def health() -> dict[str, str | bool]:
-    return {
-        "status": "ok",
-        "service": "driftline-agent",
-        "persistence": os.getenv("DRIFTLINE_PERSISTENCE", "memory"),
-        "async_jobs": _tasks_enabled(),
-        # Cloud Build injects the reviewed Git SHA and build id at deploy time.
-        # They are non-secret release metadata and make the public readiness
-        # probe sufficient to tie a serving revision back to source control.
-        "release_sha": os.getenv("DRIFTLINE_RELEASE_SHA", "unknown"),
-        "build_id": os.getenv("DRIFTLINE_BUILD_ID", "unknown"),
-    }
-
-
-def _safe_evaluation_response(record: dict[str, object] | None) -> dict[str, object] | None:
-    if record is None:
-        return None
-    return {
-        key: value
-        for key, value in record.items()
-        if key not in {"tenant_id", "expires_at"}
-    }
-
-
-def _safe_evaluation_summary(record: dict[str, object]) -> dict[str, object]:
-    """Return the bounded, metadata-only shape used by the history lane.
-
-    The latest report includes fourteen case explanations for operator review.
-    A trajectory should remain small and comparable instead of repeating those
-    case payloads on every point.  Never include tenant identifiers or expiry
-    metadata in this public/signed response.
-    """
-    allowed = {
-        "evaluation_id",
-        "suite_version",
-        "evaluated_at",
-        "gate_status",
-        "release_sha",
-        "model",
-        "execution_mode",
-        "trace_data_mode",
-        "case_count",
-        "passed_case_count",
-        "critical_failures",
-        "safety_score",
-        "usefulness_score",
-        "overall_score",
-        "trend",
-    }
-    return {
-        key: value
-        for key, value in record.items()
-        if key in allowed
-    }
-
-
-def _evaluation_identity(
-    *,
-    resource: str,
-    operator: str | None,
-    tenant_id: str | None,
-    approval_token: str | None,
-    identity_token: str | None,
-) -> dict[str, str] | None:
-    has_auth = any(
-        value is not None
-        for value in (operator, tenant_id, approval_token, identity_token)
-    )
-    if not has_auth:
-        return None
-    if not operator or not tenant_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Signed approval is required for tenant evaluation records",
-        )
-    return _verify_approval_mode(
-        resource,
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-
-
-@app.get("/api/evals/latest")
-def get_latest_evaluation(
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return the newest safe quality-gate result for this visibility lane."""
-    identity = _evaluation_identity(
-        resource="trace-eval:latest",
-        operator=operator,
-        tenant_id=tenant_id,
-        approval_token=approval_token,
-        identity_token=identity_token,
-    )
-    record = load_latest_evaluation(identity["tenant_id"] if identity else None)
-    return {
-        "status": "ok" if record else "not_run",
-        "scope": "tenant" if identity else "public_evaluation",
-        "evaluation": _safe_evaluation_response(record),
-        "customer_outcome": False,
-        "trace_redacted": True,
-    }
-
-
-@app.get("/api/evals/history")
-def get_evaluation_history(
-    limit: int = 12,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return a bounded score trajectory for the current visibility lane.
-
-    History is metadata-only and exact-lane scoped.  The anonymous public lane
-    can see only tenantless evaluation records; signed operators can see only
-    their selected tenant's reports.  Case explanations stay on the latest
-    endpoint so a trajectory cannot become an accidental trace archive.
-    """
-    identity = _evaluation_identity(
-        resource="trace-eval:history",
-        operator=operator,
-        tenant_id=tenant_id,
-        approval_token=approval_token,
-        identity_token=identity_token,
-    )
-    bounded_limit = max(1, min(int(limit), 20))
-    records = list_evaluations(
-        identity["tenant_id"] if identity else None,
-        limit=bounded_limit,
-    )
-    return {
-        "status": "ok" if records else "not_run",
-        "scope": "tenant" if identity else "public_evaluation",
-        "evaluations": [_safe_evaluation_summary(record) for record in records],
-        "customer_outcome": False,
-        "trace_redacted": True,
-    }
-
-
-@app.post("/api/evals/run")
-def run_evaluation(request: EvaluationRunRequest) -> dict[str, object]:
-    """Evaluate a known workflow or the bounded public golden fixture.
-
-    This route does not invoke Gemini or any connector.  It evaluates an
-    existing trace and writes only the redacted report, which makes it safe for
-    a judge or CI smoke run while preserving signed tenant visibility.
-    """
-    identity = _evaluation_identity(
-        resource=f"trace-eval:{request.workflow_id or 'fixture'}",
-        operator=request.operator,
-        tenant_id=request.tenant_id,
-        approval_token=request.approval_token,
-        identity_token=request.identity_token,
-    )
-    trace: dict[str, object]
-    tenant_id = identity["tenant_id"] if identity else None
-    if request.workflow_id:
-        try:
-            state = _resolve_workflow(request.workflow_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Workflow not found") from exc
-        _authorize_read_tenant(
-            state,
-            resource_id=state.workflow_id,
-            operator=request.operator,
-            tenant_id=request.tenant_id,
-            approval_token=request.approval_token,
-            identity_token=request.identity_token,
-        )
-        trace = state.to_dict()
-        tenant_id = state.tenant_id
-    else:
-        trace = build_quality_fixture()
-    previous = load_latest_evaluation(tenant_id)
-    agent_trace = trace.get("agent_trace") if isinstance(trace, dict) else None
-    agent_metadata = agent_trace if isinstance(agent_trace, dict) else {}
-    report = run_quality_gate(
-        trace,
-        release_sha=os.getenv("DRIFTLINE_RELEASE_SHA", "unknown"),
-        model=str(agent_metadata.get("model") or os.getenv("MODEL_NAME", "unknown")),
-        execution_mode=str(agent_metadata.get("execution_mode") or "unknown"),
-        previous_report=previous,
-        evaluation_id=f"eval-{uuid4().hex[:12]}",
-    )
-    report["tenant_id"] = tenant_id
-    try:
-        stored = persist_evaluation(report)
-    except Exception as exc:
-        logger.exception("Unable to persist trace evaluation")
-        raise HTTPException(status_code=503, detail="Trace evaluation persistence unavailable") from exc
-    return {
-        "status": stored["gate_status"],
-        "evaluation": _safe_evaluation_response(stored),
-        "customer_outcome": False,
-        "trace_redacted": True,
-    }
-
-
-@app.get("/api/auth/config")
-def get_auth_config() -> dict[str, object]:
-    """Expose only the public Google Identity Services configuration.
-
-    A web OAuth client id is not a credential. Returning it lets the hosted
-    console offer an actual operator sign-in without shipping a secret or
-    weakening the anonymous packet-safe judge lane. The API still validates
-    the resulting short-lived Google ID token and durable tenant membership on
-    every signed request.
-    """
-    audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
-    sign_in_origin = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_SIGNIN_ORIGIN", "").strip().rstrip("/")
-    parsed_origin = urlparse(sign_in_origin) if sign_in_origin else None
-    if parsed_origin and (
-        parsed_origin.scheme != "https"
-        or not parsed_origin.netloc
-        or parsed_origin.path not in {"", "/"}
-        or parsed_origin.params
-        or parsed_origin.query
-        or parsed_origin.fragment
-    ):
-        sign_in_origin = ""
-    return {
-        "enabled": bool(audience),
-        "client_id": audience or None,
-        "mode": "google_oidc" if audience else "unavailable",
-        "anonymous_lane": "packet_only",
-        "sign_in_origin": sign_in_origin or None,
-        "credential_values_exposed": False,
-    }
-
-
-def _salesforce_secret_name(tenant_id: str) -> str:
-    """Return the same tenant connector secret name used by every adapter."""
-    return tenant_connector_secret_name(tenant_id, "salesforce")
-
-
-def _salesforce_connection_metadata(
-    tenant_id: str,
-) -> tuple[dict[str, object], dict[str, object], bool]:
-    """Load Salesforce metadata and verify the exact tenant binding."""
-    connection = load_salesforce_connection(tenant_id) or {}
-    binding = load_connector_binding(tenant_id, "salesforce") or {}
-    connected = (
-        connection.get("status") == "connected_read_only"
-        and binding.get("status") == "active"
-        and binding.get("secret_name") == _salesforce_secret_name(tenant_id)
-    )
-    return connection, binding, connected
-
-
-_SALESFORCE_OBJECT_ALLOWLIST = ("Product2", "PricebookEntry", "Opportunity")
-
-
-def _safe_salesforce_health_objects(value: object) -> list[dict[str, object]]:
-    """Keep only bounded aggregate CRM proof; never persist record contents."""
-    if not isinstance(value, list):
-        return []
-    safe: list[dict[str, object]] = []
-    for item in value:
-        if not isinstance(item, dict):
-            continue
-        object_name = str(item.get("object", "")).strip()
-        if object_name not in _SALESFORCE_OBJECT_ALLOWLIST:
-            continue
-        try:
-            total = max(0, int(item.get("total", 0)))
-        except (TypeError, ValueError):
-            continue
-        fields = sorted(
-            {
-                str(field).strip()[:80]
-                for field in item.get("fields", [])
-                if str(field).strip()
-            }
-        )[:20]
-        safe.append({"object": object_name, "total": total, "fields": fields})
-    return sorted(
-        safe,
-        key=lambda item: _SALESFORCE_OBJECT_ALLOWLIST.index(str(item["object"])),
-    )
-
-
-def _safe_salesforce_health_failures(value: object) -> list[dict[str, str]]:
-    """Keep per-object probe diagnostics bounded and provider-response free."""
-    if not isinstance(value, list):
-        return []
-    safe: list[dict[str, str]] = []
-    for item in value:
-        if not isinstance(item, dict):
-            continue
-        object_name = str(item.get("object", "")).strip()
-        if object_name not in _SALESFORCE_OBJECT_ALLOWLIST:
-            continue
-        reason = str(item.get("reason", "salesforce_query_failed")).strip()
-        safe.append({"object": object_name, "reason": reason[:120]})
-    return sorted(
-        safe,
-        key=lambda item: _SALESFORCE_OBJECT_ALLOWLIST.index(str(item["object"])),
-    )
-
-
-def _salesforce_health_objects_complete(value: object) -> bool:
-    """Return whether every allowlisted CRM object produced an aggregate read."""
-    objects = _safe_salesforce_health_objects(value)
-    return bool(
-        len(objects) == len(_SALESFORCE_OBJECT_ALLOWLIST)
-        and {str(item["object"]) for item in objects}
-        == set(_SALESFORCE_OBJECT_ALLOWLIST)
-    )
-
-
-def _salesforce_aggregate_read_is_complete(
-    connection: dict[str, object], connected: bool, persisted_health: str
-) -> bool:
-    """Require the full bounded object allowlist before displaying proof."""
-    return bool(
-        connected
-        and persisted_health == "connected_read_only"
-        and connection.get("health_checked_at")
-        and _salesforce_health_objects_complete(connection.get("health_objects"))
-    )
-
-
-def _record_salesforce_health_status(
-    tenant_id: str,
-    status: str,
-    *,
-    reason: str | None = None,
-    objects: object = None,
-    failures: object = None,
-) -> None:
-    """Persist bounded Salesforce health metadata without CRM or credentials.
-
-    A health probe is an operator-triggered read, so its recovery state should
-    survive a page reload. Keep the connection itself separate from the probe
-    result: an OAuth connection can remain present while its refresh token
-    needs reauthorization. Persistence failures must not turn a provider
-    response into an application outage.
-    """
-    try:
-        connection = load_salesforce_connection(tenant_id)
-        if not connection:
-            return
-        payload = {
-            **connection,
-            "health_status": status,
-            "health_checked_at": utc_now(),
-        }
-        if reason:
-            payload["health_reason"] = reason
-        else:
-            payload.pop("health_reason", None)
-        if objects is not None:
-            payload["health_objects"] = _safe_salesforce_health_objects(objects)
-        if failures is not None:
-            safe_failures = _safe_salesforce_health_failures(failures)
-            if safe_failures:
-                payload["health_failures"] = safe_failures
-            else:
-                payload.pop("health_failures", None)
-        persist_salesforce_connection(payload)
-    except Exception as exc:  # noqa: BLE001  # metadata must not mask provider health.
-        logger.warning(
-            "Salesforce health metadata persistence failed: %s",
-            type(exc).__name__,
-        )
-
-
-def _salesforce_context_info(tenant_id: str) -> dict[str, object]:
-    """Return aggregate Salesforce context for the signed internal lane.
-
-    This function deliberately performs no work when the tenant has not
-    completed OAuth. Once connected, it reuses the same fixed object allowlist
-    as the explicit health probe and returns counts/field names only; raw CRM
-    records, tokens, and query text never enter the workflow or audit log.
-    """
-    readiness = salesforce_readiness()
-    connection, _binding, connected = _salesforce_connection_metadata(tenant_id)
-    persisted_health = str(connection.get("health_status", "")).casefold()
-    # Once an explicit probe has established that Salesforce rejected the
-    # refresh token, do not retry the dead credential from every downstream
-    # context read. Keep the connection metadata visible for repair, fail
-    # closed for CRM context, and make reauthorization the only recovery path.
-    if not connected or persisted_health == "reauthorization_required":
-        has_connection = bool(connection)
-        repair_status = (
-            "reauthorization_required"
-            if persisted_health == "reauthorization_required"
-            else "setup_incomplete"
-            if has_connection
-            else "not_configured"
-        )
-        payload = {
-            "status": repair_status,
-            "mode": "read_only_context" if has_connection else readiness.get("mode", "prepared_only"),
-            "scope": "read_only_crm",
-            "external_read": False,
-            "redaction": "aggregate_metadata_only",
-            "authorization_required": bool(
-                repair_status in {"reauthorization_required", "setup_incomplete"}
-                or readiness.get("status") == "oauth_ready"
-            ),
-        }
-        if has_connection:
-            payload["reason"] = connection.get("health_reason") or "connector_binding_missing"
-        return payload
-    config = SalesforceConfig.from_env()
-    try:
-        refresh_token = resolve_tenant_credential(
-            tenant_id,
-            "salesforce",
-            operation="read_context",
-            secret_reader=lambda secret_name, *, version="latest": _read_tenant_secret(
-                tenant_id, secret_name, version=version
-            ),
-        ).value
-        token = refresh_salesforce_token(config, refresh_token)
-        client = SalesforceReadOnlyClient(
-            config,
-            access_token=str(token["access_token"]),
-            instance_url=str(connection["instance_url"]),
-        )
-        health = client.health_summary()
-        health_objects = _safe_salesforce_health_objects(health.get("objects"))
-        health_failures = _safe_salesforce_health_failures(health.get("failed_objects"))
-        aggregate_read_verified = bool(
-            health.get("status") == "connected_read_only"
-            and _salesforce_health_objects_complete(health_objects)
-        )
-        summary = {
-            **health,
-            "scope": "read_only_crm",
-            # A partial probe is useful diagnostics, not verified context.
-            # Keep it out of the Change Card and model prompt until every
-            # allowlisted object succeeds.
-            "external_read": aggregate_read_verified,
-            "aggregate_read_verified": aggregate_read_verified,
-            "aggregate_read_status": "verified" if aggregate_read_verified else "unverified",
-            "aggregate_read_objects": health_objects,
-            "aggregate_read_failures": health_failures,
-            "redaction": "aggregate_metadata_only",
-        }
-        _record_salesforce_health_status(
-            tenant_id,
-            str(summary.get("status", "connected_read_only")),
-            reason=summary.get("reason"),
-            objects=summary.get("objects"),
-            failures=summary.get("failed_objects"),
-        )
-        return summary
-    except (ConnectorError, CredentialBrokerError) as exc:
-        logger.warning("salesforce context read failed: %s", exc)
-        if isinstance(exc, SalesforceReauthorizationRequired):
-            _record_salesforce_health_status(
-                tenant_id,
-                "reauthorization_required",
-                reason="refresh_token_rejected",
-            )
-            return {
-                "status": "reauthorization_required",
-                "mode": "read_only_context",
-                "scope": "read_only_crm",
-                "external_read": False,
-                "redaction": "aggregate_metadata_only",
-                "authorization_required": True,
-                "reason": "refresh_token_rejected",
-            }
-        # A non-auth provider or credential failure must invalidate the last
-        # verified snapshot as well. Otherwise a transient outage could leave
-        # ``health_status=connected_read_only`` in Firestore and make an old
-        # aggregate proof look current to the next workflow. Persist only a
-        # stable internal reason; provider bodies and credentials stay out of
-        # the tenant record.
-        _record_salesforce_health_status(
-            tenant_id,
-            "failed",
-            reason="context_read_failed",
-        )
-        return {
-            "status": "failed",
-            "mode": "read_only_context",
-            "scope": "read_only_crm",
-            "external_read": False,
-            "redaction": "aggregate_metadata_only",
-            "aggregate_read_verified": False,
-            "aggregate_read_status": "unverified",
-            "reason": "context_read_failed",
-        }
-
-
-def _save_salesforce_state(state: str, payload: dict[str, object]) -> None:
-    expires_at = float(payload.get("expires_at", 0))
-    with _salesforce_oauth_lock:
-        _salesforce_oauth_states[state] = payload
-        # Keep the local fallback bounded and remove expired state eagerly.
-        for key, item in list(_salesforce_oauth_states.items()):
-            if float(item.get("expires_at", 0)) < expires_at - 900:
-                _salesforce_oauth_states.pop(key, None)
-    persist_salesforce_oauth_state(state, payload)
-
-
-def _consume_salesforce_state(state: str) -> dict[str, object] | None:
-    with _salesforce_oauth_lock:
-        payload = _salesforce_oauth_states.pop(state, None)
-    durable = consume_salesforce_oauth_state(state)
-    # Firestore is authoritative in the hosted deployment. Never resurrect a
-    # consumed/deleted OAuth state from another instance's local memory.
-    result = (
-        durable
-        if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore"
-        else durable or payload
-    )
-    if not result or float(result.get("expires_at", 0)) < datetime.now(UTC).timestamp():
-        return None
-    return result
-
-
-@app.get("/api/connectors/salesforce/status")
-def salesforce_status(
-    operator: str,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return one tenant's Salesforce connection metadata without credentials.
-
-    This is deliberately separate from the health probe: opening Settings must
-    not make a Salesforce network call or refresh a provider token. The browser
-    can use the returned state to offer an explicit OAuth handoff, while the
-    aggregate health action remains a separately auditable operator click.
-    """
-    identity = _verify_approval_mode(
-        "salesforce-status",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    safe_tenant = identity["tenant_id"]
-    return _salesforce_status_payload(safe_tenant)
-
-
-def _salesforce_status_payload(tenant_id: str) -> dict[str, object]:
-    """Build signed Salesforce status, including the last aggregate-read proof."""
-    readiness = salesforce_readiness()
-    connection, binding, connected = _salesforce_connection_metadata(tenant_id)
-    has_connection = bool(connection)
-    instance_url = str(connection.get("instance_url", "")).rstrip("/")
-    hostname = urlparse(instance_url).hostname if instance_url else None
-    persisted_health = str(connection.get("health_status", "")).casefold()
-    status = (
-        "reauthorization_required"
-        if has_connection and persisted_health == "reauthorization_required"
-        else "setup_incomplete"
-        if has_connection and not connected
-        else "connected_read_only"
-        if connected
-        else readiness.get("status", "not_configured")
-    )
-    aggregate_read_verified = _salesforce_aggregate_read_is_complete(
-        connection, connected, persisted_health
-    )
-    aggregate_read_status = (
-        "verified"
-        if aggregate_read_verified
-        else "unverified"
-        if connected and persisted_health == "connected_read_only"
-        else "setup_incomplete"
-        if status == "setup_incomplete"
-        else persisted_health or "not_run"
-    )
-    return {
-        "tenant_id": tenant_id,
-        "connector": "salesforce",
-        "status": status,
-        "mode": "read_only_context" if has_connection else readiness.get("mode", "prepared_only"),
-        "external_write": False,
-        "scope": readiness.get("scope", "read_only_context"),
-        "allowed_objects": readiness.get("allowed_objects", ["Product2", "PricebookEntry", "Opportunity"]),
-        "authorization_required": bool(
-            status in {"reauthorization_required", "setup_incomplete"}
-            or not connected and readiness.get("status") == "oauth_ready"
-        ),
-        # A stale connection record must not look like a usable CRM binding.
-        # Keep the repair state explicit so operators know the next action is
-        # OAuth reauthorization, not a generic settings refresh.
-        "setup_state": (
-            "binding_active"
-            if connected
-            else "binding_missing"
-            if has_connection
-            else "not_connected"
-        ),
-        "instance_hostname": hostname,
-        "connected_at": connection.get("connected_at") if has_connection else None,
-        "binding_status": binding.get("status") if binding else None,
-        "verified_at": binding.get("verified_at") if connected else None,
-        "health_checked_at": connection.get("health_checked_at") if has_connection else None,
-        "health_reason": connection.get("health_reason") if has_connection else None,
-        "aggregate_read_verified": aggregate_read_verified,
-        "aggregate_read_status": aggregate_read_status,
-        "aggregate_read_verified_at": (
-            connection.get("health_checked_at")
-            if aggregate_read_verified
-            else None
-        ),
-        "aggregate_read_objects": _safe_salesforce_health_objects(
-            connection.get("health_objects")
-        ),
-        "aggregate_read_failures": _safe_salesforce_health_failures(
-            connection.get("health_failures")
-        ),
-        "aggregate_read_reason": connection.get("health_reason")
-        or ("connector_binding_missing" if status == "setup_incomplete" else None)
-        or ("allowlist_incomplete" if aggregate_read_status == "unverified" else None),
-        "next_step": (
-            "Reauthorize Salesforce read-only access; the callback will rerun all three aggregate queries before activating the tenant binding."
-            if status == "reauthorization_required"
-            else "Reconnect Salesforce read-only access to rebuild the missing tenant binding, then run the aggregate read probe."
-            if status == "setup_incomplete"
-            else "Run the explicit aggregate read probe before using CRM context."
-            if status == "connected_read_only" and not aggregate_read_verified
-            else None
-        ),
-        "credential_values_exposed": False,
-    }
-
-
-@app.post("/api/connectors/salesforce/start")
-def start_salesforce_connection(request: SalesforceConnectRequest) -> dict[str, object]:
-    """Start a tenant-scoped Salesforce OAuth authorization-code flow."""
-    identity = _verify_approval_mode(
-        "salesforce-connect",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    config = SalesforceConfig.from_env()
-    try:
-        config.validate_oauth()
-        tenant_id = identity["tenant_id"]
-        state = secrets.token_urlsafe(32)
-        # Salesforce enforces PKCE on this External Client App. Keep the
-        # verifier in the expiring server-side state record; only the S256
-        # challenge is sent through the browser.
-        code_verifier = secrets.token_urlsafe(64)
-        code_challenge = (
-            base64.urlsafe_b64encode(
-                hashlib.sha256(code_verifier.encode("ascii")).digest()
-            )
-            .rstrip(b"=")
-            .decode("ascii")
-        )
-        _save_salesforce_state(
-            state,
-            {
-                "tenant_id": tenant_id,
-                "operator": request.operator.strip(),
-                "subject": identity.get("subject", ""),
-                "email": identity.get("email", ""),
-                "expires_at": datetime.now(UTC).timestamp() + 600,
-                "code_verifier": code_verifier,
-            },
-        )
-        return {
-            "status": "authorization_required",
-            "tenant_id": tenant_id,
-            "authorize_url": salesforce_authorization_url(
-                config, state, code_challenge=code_challenge
-            ),
-            "expires_in_seconds": 600,
-            "scopes": config.scope.split(),
-            "disclosure": "The callback stores only a tenant-scoped refresh-token reference in Secret Manager; no Salesforce records are copied.",
-        }
-    except (ConnectorError, ValueError) as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-
-@app.get("/api/connectors/salesforce/oauth/callback")
-def salesforce_oauth_callback(
-    code: str | None = None,
-    state: str | None = None,
-    error: str | None = None,
-) -> Response:
-    """Consume a one-time callback and persist only safe connection metadata."""
-    if error:
-        return PlainTextResponse(
-            "Salesforce authorization was declined.", status_code=400
-        )
-    if not code or not state:
-        return PlainTextResponse("Salesforce callback is incomplete.", status_code=400)
-    callback_state = _consume_salesforce_state(state)
-    if callback_state is None:
-        return PlainTextResponse(
-            "Salesforce authorization expired or was already used.", status_code=400
-        )
-    config = SalesforceConfig.from_env()
-    try:
-        result = exchange_salesforce_code(
-            config,
-            code,
-            code_verifier=str(callback_state.get("code_verifier", "")),
-        )
-        access_token = str(result.get("access_token", ""))
-        refresh_token = str(result.get("refresh_token", ""))
-        instance_url = str(result.get("instance_url", "")).rstrip("/")
-        if not access_token or not refresh_token or not instance_url:
-            raise ConnectorError("salesforce_refresh_token_missing")
-        tenant_id = validate_tenant_id(str(callback_state["tenant_id"]))
-        tenant = load_tenant(tenant_id)
-        if str((tenant or {}).get("status", "")).casefold() != "active":
-            raise ConnectorError("salesforce_tenant_inactive")
-
-        # Do one bounded aggregate read with the short-lived access token
-        # before persisting the refresh token or activating the binding. This
-        # makes the OAuth callback itself a real verification gate instead of
-        # reporting "connected" for a credential that has never read CRM.
-        health = SalesforceReadOnlyClient(
-            config,
-            access_token=access_token,
-            instance_url=instance_url,
-        ).health_summary()
-        if health.get("status") != "connected_read_only":
-            raise ConnectorError("salesforce_aggregate_read_unverified")
-        health_objects = _safe_salesforce_health_objects(health.get("objects"))
-        if (
-            len(health_objects) != len(_SALESFORCE_OBJECT_ALLOWLIST)
-            or {str(item["object"]) for item in health_objects}
-            != set(_SALESFORCE_OBJECT_ALLOWLIST)
-        ):
-            raise ConnectorError("salesforce_aggregate_read_unverified")
-
-        secret_name = _salesforce_secret_name(tenant_id)
-        secret_version = _write_tenant_secret(tenant_id, secret_name, refresh_token) or "latest"
-        binding = persist_connector_binding(
-            {
-                "tenant_id": tenant_id,
-                "connector": "salesforce",
-                "secret_name": secret_name,
-                "status": "active",
-                "scope": "tenant_bound_oauth_refresh_token",
-                "credential_id": f"cred-{tenant_id}-salesforce",
-                "secret_backend": "google_secret_manager",
-                "secret_reference_scope": "exact_tenant_connector_secret",
-                # Salesforce is deliberately read-only. Do not inherit the
-                # compatibility ``runtime`` scope used by older connectors;
-                # the OAuth callback must mint only the concrete operation
-                # the read probe can request.
-                "allowed_operations": normalize_allowed_operations(
-                    "salesforce", default="read_only"
-                ),
-                "lease_seconds": 300,
-                "secret_version": secret_version,
-                "verified_at": utc_now(),
-                "configured_by": callback_state.get("email", "") or "salesforce_oauth",
-                "updated_at": utc_now(),
-            }
-        )
-        persist_salesforce_connection(
-            {
-                "tenant_id": tenant_id,
-                "instance_url": instance_url,
-                "secret_name": secret_name,
-                "scopes": config.scope.split(),
-                "status": "connected_read_only",
-                "connected_at": utc_now(),
-                "operator_email": callback_state.get("email", ""),
-                "health_status": "connected_read_only",
-                "health_checked_at": utc_now(),
-                "health_objects": health_objects,
-            }
-        )
-        persist_tenant_audit_event(
-            {
-                "tenant_id": tenant_id,
-                "event_type": "salesforce_connected_read_only",
-                "connector": "salesforce",
-                "status": "active",
-                "secret_name": binding["secret_name"],
-                "aggregate_read_verified": True,
-                "aggregate_read_objects": health_objects,
-                "actor": callback_state.get("email", "") or "salesforce_oauth",
-            }
-        )
-        return PlainTextResponse(
-            "Salesforce connected to Driftline in read-only mode; aggregate read verified. You can close this tab."
-        )
-    except (ConnectorError, ValueError) as exc:
-        logger.warning("Salesforce OAuth callback failed: %s", str(exc))
-        if str(exc) == "salesforce_aggregate_read_unverified":
-            return PlainTextResponse(
-                "Salesforce authorization succeeded, but the three-object aggregate read did not pass. Check Product2, PricebookEntry, and Opportunity read permissions, then reconnect.",
-                status_code=503,
-            )
-        return PlainTextResponse(
-            "Driftline could not finish Salesforce setup. Provision the tenant Secret Manager secret and retry.",
-            status_code=503,
-        )
-
-
-@app.post("/api/connectors/salesforce/health")
-def salesforce_health(request: SalesforceHealthRequest) -> dict[str, object]:
-    """Run aggregate-only read probes for the authenticated tenant."""
-    identity = _verify_approval_mode(
-        "salesforce-health",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if not _reserve_connector_call(identity["tenant_id"]):
-        raise _connector_rate_limit_error("Connector read quota reached; retry later.")
-    tenant_id = identity["tenant_id"]
-    connection, _binding, connected = _salesforce_connection_metadata(tenant_id)
-    if (
-        not connected
-    ):
-        raise HTTPException(
-            status_code=409, detail="Salesforce is not connected for this tenant"
-        )
-    config = SalesforceConfig.from_env()
-    try:
-        logger.warning(
-            "Salesforce health credential resolver identity mode=%s",
-            os.getenv("DRIFTLINE_TENANT_SECRET_IDENTITY_MODE", "direct"),
-        )
-        refresh_token = resolve_tenant_credential(
-            tenant_id,
-            "salesforce",
-            operation="read_context",
-            secret_reader=lambda secret_name, *, version="latest": _read_tenant_secret(
-                tenant_id, secret_name, version=version
-            ),
-        ).value
-        token = refresh_salesforce_token(config, refresh_token)
-        client = SalesforceReadOnlyClient(
-            config,
-            access_token=str(token["access_token"]),
-            instance_url=str(connection["instance_url"]),
-        )
-        result = client.health_summary()
-        result_objects = _safe_salesforce_health_objects(result.get("objects"))
-        result_failures = _safe_salesforce_health_failures(result.get("failed_objects"))
-        aggregate_read_verified = bool(
-            result.get("status") == "connected_read_only"
-            and _salesforce_health_objects_complete(result_objects)
-        )
-        _record_salesforce_health_status(
-            tenant_id,
-            str(result.get("status", "connected_read_only")),
-            reason=result.get("reason"),
-            objects=result_objects,
-            failures=result_failures,
-        )
-        return {
-            "tenant_id": tenant_id,
-            **result,
-            "objects": result_objects,
-            "failed_objects": result_failures,
-            "aggregate_read_verified": aggregate_read_verified,
-            "aggregate_read_status": "verified" if aggregate_read_verified else "unverified",
-            "external_read": aggregate_read_verified,
-            "external_write": False,
-        }
-    except (ConnectorError, CredentialBrokerError) as exc:
-        # Keep the public response deliberately generic, but preserve the
-        # exception class chain in logs so an operator can distinguish an
-        # isolated Secret Manager/IAM failure from an upstream Salesforce
-        # failure without ever logging a credential or provider response.
-        chain: list[str] = []
-        cursor: BaseException | None = exc
-        seen: set[int] = set()
-        while cursor is not None and id(cursor) not in seen and len(chain) < 4:
-            seen.add(id(cursor))
-            chain.append(type(cursor).__name__)
-            cursor = cursor.__cause__ or cursor.__context__
-        root_detail = ""
-        if exc.__cause__ is not None:
-            root = exc.__cause__
-            while root.__cause__ is not None and root.__cause__ is not root:
-                root = root.__cause__
-            # Google API permission errors include the denied permission and
-            # resource, but never the bearer value. Truncate the detail to
-            # keep logs bounded and avoid echoing provider response bodies.
-            root_detail = str(root)[:320].replace("\n", " ")
-        logger.warning(
-            "Salesforce health probe failed: %s (exception_chain=%s detail=%s)",
-            str(exc),
-            " -> ".join(chain),
-            root_detail,
-        )
-        if isinstance(exc, SalesforceReauthorizationRequired):
-            _record_salesforce_health_status(
-                tenant_id,
-                "reauthorization_required",
-                reason="refresh_token_rejected",
-            )
-            return {
-                "tenant_id": tenant_id,
-                "status": "reauthorization_required",
-                "mode": "read_only_context",
-                "scope": "read_only_context",
-                "allowed_objects": ["Product2", "PricebookEntry", "Opportunity"],
-                "external_read": False,
-                "external_write": False,
-                "authorization_required": True,
-                "reason": "refresh_token_rejected",
-            }
-        # Clear any previously verified proof when a non-auth probe fails.
-        # The connection remains repairable, but no stale aggregate snapshot
-        # may continue to ground a workflow after this failed read.
-        _record_salesforce_health_status(
-            tenant_id,
-            "failed",
-            reason="read_probe_failed",
-        )
-        raise HTTPException(
-            status_code=503, detail="Salesforce read probe failed"
-        ) from exc
-
-
-@app.delete("/api/connectors/salesforce")
-def disconnect_salesforce(request: SalesforceConnectRequest) -> dict[str, object]:
-    """Revoke Driftline's connection metadata; token deletion stays recoverable."""
-    identity = _verify_approval_mode(
-        "salesforce-disconnect",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    tenant_id = identity["tenant_id"]
-    binding = load_connector_binding(tenant_id, "salesforce")
-    if binding:
-        persist_connector_binding(
-            {
-                **binding,
-                "tenant_id": tenant_id,
-                "connector": "salesforce",
-                "status": "revoked",
-                "revoked_at": utc_now(),
-                "revoked_by": identity.get("email") or identity.get("identity"),
-            }
-        )
-    delete_salesforce_connection(tenant_id)
-    persist_tenant_audit_event(
-        {
-            "tenant_id": tenant_id,
-            "event_type": "salesforce_disconnected",
-            "connector": "salesforce",
-            "status": "revoked",
-            "secret_name": (binding or {}).get("secret_name", _salesforce_secret_name(tenant_id)),
-            "actor": identity.get("email") or identity.get("identity"),
-        }
-    )
-    return {
-        "status": "disconnected",
-        "tenant_id": tenant_id,
-        "follow_up": "Revoke the Driftline app in Salesforce and delete the tenant secret during offboarding.",
-    }
-
-
-@app.get("/api/sources")
-def get_sources(
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Expose public fixtures or the caller's signed tenant registry."""
-    identity: dict[str, str] | None = None
-    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
-        if not operator or not tenant_id:
-            raise HTTPException(
-                status_code=401, detail="Signed approval is required for tenant sources"
-            )
-        identity = _verify_approval_mode(
-            "sources:list",
-            operator,
-            "signed",
-            approval_token,
-            identity_token,
-            tenant_id,
-        )
-    bound_tenant = identity.get("tenant_id") if identity else None
-    return {
-        "sources": list_allowlisted_sources(
-            bound_tenant, include_disabled=identity is not None
-        )
-    }
-
-
-@app.post("/api/operator/sources")
-def onboard_operator_source(request: SourceOnboardingRequest) -> dict[str, object]:
-    """Add one exact public source through an authenticated operator lane."""
-    approval_identity = _verify_approval_mode(
-        f"source-onboarding:{request.source_id}",
-        request.registered_by,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    try:
-        definition = register_operator_source(
-            source_id=request.source_id,
-            name=request.name,
-            category=request.category,
-            change_type=request.change_type,
-            url=request.url,
-            owner=request.owner,
-            cadence=request.cadence,
-            freshness_sla_hours=request.freshness_sla_hours,
-            parser=request.parser,
-            registered_by=request.registered_by,
-            tenant_id=approval_identity["tenant_id"],
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    # Production onboarding should prove that the exact URL is readable and
-    # establish its first append-only baseline in the same operator action.
-    # Keep local/synthetic test mode metadata-only, and never turn a fetch
-    # failure into a false change: inspect_allowlisted_source returns an
-    # explicit source_fetch_failed result for the scheduler to retry.
-    baseline: dict[str, object] | None = None
-    if os.getenv("DRIFTLINE_SOURCE_MODE", "synthetic").casefold() == "public":
-        baseline = inspect_allowlisted_source(
-            request.source_id,
-            tenant_id=approval_identity["tenant_id"],
-            force_replay=False,
-        )
-    return {
-        "status": "registered",
-        "source": {
-            key: value
-            for key, value in definition.items()
-            if key not in {"registered_by", "registered_at"}
-        },
-        "approval_identity": approval_identity,
-        "baseline": baseline,
-        "next_step": (
-            "Scheduler monitoring is active; the first baseline was established."
-            if baseline and baseline.get("status") == "baseline_established"
-            else "Scheduler will retry this source until a bounded baseline is established."
-            if baseline and baseline.get("status") == "source_fetch_failed"
-            else "Enable public source mode, then run a signed monitor tick to establish the baseline."
-        ),
-    }
-
-
-@app.post("/api/operator/sources/{source_id:path}/lifecycle")
-def update_operator_source_lifecycle(
-    source_id: str, request: SourceLifecycleRequest
-) -> dict[str, object]:
-    """Pause or resume one exact tenant-owned source.
-
-    This route never changes the append-only evidence ledger and never accepts
-    a URL or connector credential. The scheduler sees the same durable state
-    and skips paused sources until an explicit signed resume.
-    """
-    identity = _verify_approval_mode(
-        f"source-lifecycle:{source_id}:{'resume' if request.enabled else 'pause'}",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    previous = source_definition(
-        source_id, identity["tenant_id"], include_disabled=True
-    )
-    if previous is None or previous.get("dynamic") != "true":
-        raise HTTPException(status_code=404, detail="Tenant source is not registered")
-    previous_enabled = _source_enabled(previous.get("enabled", True))
-    try:
-        updated = set_operator_source_state(
-            source_id=source_id,
-            tenant_id=identity["tenant_id"],
-            enabled=request.enabled,
-            actor=identity.get("email") or identity.get("identity", "signed_operator"),
-            reason=request.reason,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    changed = updated.get("lifecycle_changed") == "true"
-    audit_event: dict[str, object] | None = None
-    if changed:
-        try:
-            audit_event = persist_tenant_audit_event(
-                {
-                    "tenant_id": identity["tenant_id"],
-                    "event_type": (
-                        "source_resumed" if request.enabled else "source_paused"
-                    ),
-                    "source_id": source_id,
-                    "status": "active" if request.enabled else "paused",
-                    "previous_enabled": previous_enabled,
-                    "enabled": request.enabled,
-                    "reason": request.reason.strip()[:240],
-                    "actor": identity.get("email") or identity.get("identity", "signed_operator"),
-                    "role": identity.get("role", "operator"),
-                }
-            )
-        except Exception as exc:
-            rollback_reason = str(
-                previous.get("pause_reason")
-                or "Audit persistence failed; source remains paused."
-            )
-            try:
-                set_operator_source_state(
-                    source_id=source_id,
-                    tenant_id=identity["tenant_id"],
-                    enabled=previous_enabled,
-                    actor="lifecycle-rollback",
-                    reason=rollback_reason,
-                )
-            except Exception:
-                logger.exception("Unable to roll back source lifecycle for %s", source_id)
-            raise HTTPException(
-                status_code=503,
-                detail="Source lifecycle audit is unavailable; no lifecycle change was retained",
-            ) from exc
-    safe_source = {
-        key: value
-        for key, value in updated.items()
-        if key
-        not in {"registered_by", "registered_at", "lifecycle_changed"}
-    }
-    return {
-        "status": (
-            "resumed"
-            if request.enabled and changed
-            else "paused"
-            if not request.enabled and changed
-            else "unchanged"
-        ),
-        "source": safe_source,
-        "audit_event": audit_event,
-        "scheduler_effect": (
-            "Monitoring resumes on the next due scheduler tick."
-            if request.enabled and changed
-            else "No new fetch or model job will be scheduled while paused."
-            if not request.enabled and changed
-            else "No lifecycle change was needed."
-        ),
-    }
-
-
-@app.get("/api/monitor/registry")
-def get_monitor_registry(
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return source freshness and allowlist health without fetching sources."""
-    identity: dict[str, str] | None = None
-    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
-        if not operator or not tenant_id:
-            raise HTTPException(
-                status_code=401, detail="Signed approval is required for monitor registry"
-            )
-        identity = _verify_approval_mode(
-            "monitor-registry",
-            operator,
-            "signed",
-            approval_token,
-            identity_token,
-            tenant_id,
-        )
-    sources = source_registry_health(
-        tenant_id=identity.get("tenant_id") if identity else None,
-        include_disabled=identity is not None,
-    )
-    return {
-        "append_only": True,
-        "generated_at": utc_now(),
-        "sources": sources,
-        "summary": _source_health_summary(sources),
-    }
-
-
-@app.get("/api/ops/summary")
-def get_ops_summary(
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Expose bounded operator health without cross-tenant record counts."""
-    identity: dict[str, str] | None = None
-    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
-        if not operator or not tenant_id:
-            raise HTTPException(
-                status_code=401, detail="Signed approval is required for tenant metrics"
-            )
-        identity = _verify_approval_mode(
-            "ops:summary",
-            operator,
-            "signed",
-            approval_token,
-            identity_token,
-            tenant_id,
-        )
-    with _jobs_lock:
-        job_records = list(_jobs.values())
-    metric_limit = _metric_history_limit(20, identity)
-    jobs = [
-        job
-        for job in _merge_durable_records(
-            job_records, list_jobs, limit=metric_limit, key=lambda item: item.job_id
-        )
-        if _visible_tenant_record(job, identity)
-    ]
-    workflow_records = list(workflow_store._runs.values())
-    workflows = [
-        state
-        for state in _merge_durable_records(
-            workflow_records,
-            list_workflows,
-            limit=metric_limit,
-            key=lambda item: item.workflow_id,
-        )
-        if _visible_tenant_record(state, identity)
-    ]
-    source_health = source_registry_health(
-        tenant_id=identity.get("tenant_id") if identity else None,
-        include_disabled=identity is not None,
-    )
-    source_health_summary = _source_health_summary(source_health)
-    job_failures = (
-        list_job_failures(identity["tenant_id"], limit=20)
-        if identity is not None
-        else []
-    )
-    connector_names = ("jira", "confluence", "slack", "github")
-    return {
-        "generated_at": utc_now(),
-        "telemetry_window": _metric_window(identity, metric_limit),
-        "project_id": os.getenv("GOOGLE_CLOUD_PROJECT", "local"),
-        "persistence": os.getenv("DRIFTLINE_PERSISTENCE", "memory"),
-        "async_jobs": _tasks_enabled(),
-        "model": os.getenv("MODEL_NAME", "gemini-3.5-flash"),
-        "guardrails": {
-            "agent_max_calls": AGENT_MAX_CALLS,
-            "public_agent_max_calls": PUBLIC_AGENT_MAX_CALLS,
-            "agent_window_seconds": AGENT_WINDOW_SECONDS,
-            "demo_max_mutations": DEMO_MAX_MUTATIONS,
-            "connector_max_calls": CONNECTOR_MAX_CALLS,
-            "connector_window_seconds": CONNECTOR_WINDOW_SECONDS,
-            "multimodal_max_calls": MULTIMODAL_MAX_CALLS,
-            "multimodal_window_seconds": MULTIMODAL_WINDOW_SECONDS,
-            "monitor_max_sources": _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5),
-            "tenant_quota_enforcement": (
-                "firestore_transaction"
-                if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold()
-                == "firestore"
-                else "process_local"
-            ),
-            # Public summaries deliberately omit tenant policy; signed
-            # operators receive only their own bounded control-plane values.
-            "tenant_policy": (
-                load_tenant_policy(identity["tenant_id"])
-                if identity is not None
-                else None
-            ),
-        },
-        "approval_security": {
-            "public_demo_packet_only": True,
-            "configured_mode": os.getenv("DRIFTLINE_APPROVAL_MODE", "demo"),
-            "signed_approvals_enabled": os.getenv(
-                "DRIFTLINE_SIGNED_APPROVALS_ENABLED", "false"
-            ).casefold()
-            == "true",
-            "google_oidc_operator_enabled": bool(
-                os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
-            ),
-            "external_writes_require_signed": True,
-            "credential_model": {
-                "tenant_bound": True,
-                "legacy_global_fallback": os.getenv(
-                    "DRIFTLINE_ALLOW_LEGACY_GLOBAL_CONNECTOR_SECRETS", "false"
-                ).casefold()
-                == "true",
-                "binding_route": "/api/connectors/{connector}/binding",
-                "metadata_collection": "driftline_connector_bindings",
-                "canonical_binding_path": "driftline_tenants/{tenant}/credentials/{connector}",
-                "namespace_schema_version": 1,
-                "namespace_migration": "scripts/migrate_tenant_credential_bindings.py",
-                "strict_namespace_required": os.getenv(
-                    "DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE", "false"
-                ).casefold()
-                == "true",
-                "broker_inventory_route": "/api/connectors/credentials",
-                "broker_access_route": "/api/connectors/credentials/access",
-                "broker_access_collection": "driftline_credential_access_events",
-                "resolution": "short_lived_tenant_scoped_lease",
-                "lease_seconds": 300,
-                "operation_scopes": {
-                    connector: allowed_operations(connector)
-                    for connector in sorted(
-                        ("jira", "confluence", "slack", "github", "salesforce")
-                    )
-                },
-                "profile_route": "/api/connectors/{connector}/profile",
-                "profile_collection": "driftline_tenant_connector_profiles",
-                "deployment_target_fallback": os.getenv(
-                    "DRIFTLINE_ALLOW_DEPLOYMENT_CONNECTOR_TARGET_FALLBACK",
-                    "false",
-                ).casefold()
-                == "true",
-                "tenant_collection": "driftline_tenants",
-                "membership_collection": "driftline_tenant_memberships",
-            },
-            "tenant_auth": {
-                # Hosted Firestore membership records are authoritative.  A
-                # static environment mapping is only a local/bootstrap
-                # compatibility path and must not be required for new tenants.
-                "configured": (
-                    os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold()
-                    == "firestore"
-                    or bool(os.getenv("DRIFTLINE_TENANT_MEMBERS", "").strip())
-                ),
-                "membership_source": (
-                    "firestore"
-                    if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold()
-                    == "firestore"
-                    else "environment_bootstrap"
-                ),
-                "static_operator_allowlist": bool(
-                    os.getenv("DRIFTLINE_OPERATOR_EMAILS", "").strip()
-                ),
-                "durable_memberships": True,
-                "default_tenant": os.getenv(
-                    "DRIFTLINE_DEFAULT_TENANT_ID", "driftline-demo"
-                ),
-                "role_model": ["viewer", "operator", "owner"],
-            },
-        },
-        "jobs": {
-            "total": len(jobs),
-            "dead_lettered": len(job_failures),
-            "by_status": {
-                status: sum(job.status == status for job in jobs)
-                for status in {job.status for job in jobs}
-            },
-        },
-        "workflows": {
-            "total": len(workflows),
-            "by_status": {
-                status: sum(state.status.value == status for state in workflows)
-                for status in {state.status.value for state in workflows}
-            },
-        },
-        "connectors": {
-            name: os.getenv(f"DRIFTLINE_{name.upper()}_ENABLED", "false").casefold()
-            == "true"
-            for name in connector_names
-        },
-        # Public health stays provider-configuration-only. Once an operator is
-        # signed into a tenant, surface that tenant's persisted aggregate-read
-        # proof instead of the deployment-wide OAuth readiness flag. This is
-        # what makes a successful CRM read (or a rejected refresh token) visible
-        # in the same operational summary the console already polls.
-        "crm": {
-            "salesforce": (
-                _salesforce_status_payload(identity["tenant_id"])
-                if identity is not None
-                else salesforce_readiness()
-            )
-        },
-        "source_health": source_health,
-        "source_health_summary": source_health_summary,
-    }
-
-
-@app.post("/api/connectors/context/summary")
-def get_connector_context_summary(request: ConnectorContextRequest) -> dict[str, object]:
-    """Read bounded internal context for an authenticated operator.
-
-    The public demo cannot call this route: it requires the same signed/OIDC
-    boundary used for configured connector writes. Results are aggregate-only
-    and this summary response is request-scoped. A separate signed workflow
-    run may attach the same normalized projection to its Change Card and
-    bounded model provenance; raw records and credentials never cross that
-    seam.
-    """
-    identity = _verify_approval_mode(
-        "connector-context-summary",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if not _reserve_connector_call(identity["tenant_id"]):
-        raise _connector_rate_limit_error("Connector read quota reached; retry later.")
-    summaries = _connector_context_info(identity["tenant_id"])
-    return {
-        "status": "ok",
-        "tenant_id": identity["tenant_id"],
-        "role": identity["role"],
-        "generated_at": utc_now(),
-        "context_contract": {
-            "purpose": "ground downstream impact planning with bounded internal workload context",
-            "redaction": "aggregate_metadata_only",
-            "persisted": False,
-            "retention": "request-scoped; no source bodies or message text retained",
-            "user_input_scope": "none; connector targets come only from the caller's durable tenant profile",
-        },
-        "connectors": summaries,
-    }
-
-
-@app.post("/api/connectors/{connector}/binding")
-def register_connector_binding(
-    connector: str, request: ConnectorBindingRequest
-) -> dict[str, object]:
-    """Register one deterministic tenant Secret Manager binding.
-
-    The runtime never accepts a secret value or arbitrary secret name. An
-    infrastructure operator pre-provisions the deterministic secret, then this
-    signed owner route verifies that it is readable and activates the binding.
-    """
-    try:
-        safe_connector = validate_connector_name(connector)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    identity = _verify_approval_mode(
-        f"connector-binding:{safe_connector}",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    tenant_id = identity["tenant_id"]
-    try:
-        scoped_operations = normalize_allowed_operations(
-            safe_connector, request.allowed_operations
-        )
-    except CredentialBrokerError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    secret_name = tenant_connector_secret_name(tenant_id, safe_connector)
-    existing_binding = load_connector_binding(tenant_id, safe_connector) or {}
-    status = "active"
-    secret_version = "latest"
-    try:
-        if not _read_tenant_secret(tenant_id, secret_name).strip():
-            status = "pending_secret"
-        else:
-            # Pin the binding to the exact Secret Manager version resolved at
-            # verification time. If a local emulator/test double cannot
-            # expose a concrete version, ``latest`` remains an explicit
-            # compatibility marker and the next owner verification can pin it.
-            try:
-                secret_version = _tenant_secret_version(tenant_id, secret_name)
-            except ConnectorError:
-                secret_version = "latest"
-    except ConnectorError:
-        status = "pending_secret"
-    persist_tenant(
-        {
-            "tenant_id": tenant_id,
-            "status": "active",
-            "provisioning": "owner_connector_binding",
-            "configured_by": identity.get("email") or identity.get("identity"),
-            "updated_at": utc_now(),
-        }
-    )
-    if identity.get("email"):
-        persist_tenant_membership(
-            {
-                "tenant_id": tenant_id,
-                "email": identity["email"],
-                "role": identity.get("role", "owner"),
-                "status": "active",
-                "source": "verified_operator_binding",
-            }
-        )
-    binding = persist_connector_binding(
-        {
-            "tenant_id": tenant_id,
-            "connector": safe_connector,
-            "secret_name": secret_name,
-            "status": status,
-            "scope": "tenant_bound_connector_credential",
-            "credential_id": existing_binding.get("credential_id")
-            or f"cred-{tenant_id}-{safe_connector}",
-            "secret_backend": "google_secret_manager",
-            "secret_reference_scope": "exact_tenant_connector_secret",
-            "allowed_operations": scoped_operations,
-            "lease_seconds": 300,
-            "secret_version": secret_version,
-            "verified_at": utc_now() if status == "active" else None,
-            "configured_by": identity.get("email") or identity.get("identity"),
-            "updated_at": utc_now(),
-        }
-    )
-    audit_event = persist_tenant_audit_event(
-        {
-            "tenant_id": tenant_id,
-            "event_type": (
-                "connector_binding_activated"
-                if status == "active"
-                else "connector_binding_pending"
-            ),
-            "connector": safe_connector,
-            "status": status,
-            "secret_name": secret_name,
-            "actor": identity.get("email") or identity.get("identity"),
-        }
-    )
-    return {
-        "status": status,
-        "tenant_id": tenant_id,
-        "connector": safe_connector,
-        "secret_name": secret_name,
-        "credential_namespace": binding.get(
-            "credential_namespace",
-            tenant_credential_namespace(tenant_id, safe_connector)
-            if os.getenv("GOOGLE_CLOUD_PROJECT")
-            else None,
-        ),
-        "secret_version": binding.get("secret_version", "latest"),
-        "verified_at": binding.get("verified_at"),
-        "scope": binding["scope"],
-        "credential_value_accepted": False,
-        "audit_event_id": audit_event["event_id"],
-        "next_step": (
-            "Binding is active; connector calls will use this tenant secret."
-            if status == "active"
-            else "Provision the deterministic secret, then repeat this signed owner request."
-        ),
-    }
-
-
-@app.post("/api/connectors/{connector}/credential-enrollment")
-def start_connector_credential_enrollment(
-    connector: str, request: ConnectorCredentialEnrollmentRequest
-) -> dict[str, object]:
-    """Start a short-lived tenant credential enrollment handoff.
-
-    The response is intentionally a provisioning contract, not a credential
-    upload form. The owner provisions the exact deterministic Secret Manager
-    secret out of band, then completes this enrollment to verify and activate
-    the binding. New sessions default to read-only operations so downstream
-    writes require an explicit owner scope grant.
-    """
-    try:
-        safe_connector = validate_connector_name(connector)
-        scoped_operations = normalize_allowed_operations(
-            safe_connector, request.allowed_operations, default="read_only"
-        )
-    except (ValueError, CredentialBrokerError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    identity = _verify_approval_mode(
-        f"credential-enrollment:{safe_connector}",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    tenant_id = identity["tenant_id"]
-    existing = load_connector_binding(tenant_id, safe_connector)
-    if existing and str(existing.get("status", "")).casefold() == "active":
-        raise HTTPException(
-            status_code=409,
-            detail="connector_binding_active_use_rotation",
-        )
-    created_at = datetime.now(UTC)
-    expires_at = created_at.timestamp() + 900
-    enrollment_id = f"enroll-{uuid4().hex}"
-    secret_name = tenant_connector_secret_name(tenant_id, safe_connector)
-    enrollment = persist_credential_enrollment(
-        {
-            "tenant_id": tenant_id,
-            "connector": safe_connector,
-            "enrollment_id": enrollment_id,
-            "status": "awaiting_secret",
-            "secret_name": secret_name,
-            "credential_namespace": (
-                tenant_credential_namespace(tenant_id, safe_connector)
-                if os.getenv("GOOGLE_CLOUD_PROJECT")
-                else None
-            ),
-            "allowed_operations": scoped_operations,
-            "requested_by": identity.get("email") or identity.get("identity"),
-            "created_at": created_at.isoformat(),
-            "expires_at": datetime.fromtimestamp(expires_at, UTC).isoformat(),
-            "updated_at": created_at.isoformat(),
-        }
-    )
-    audit_event = persist_tenant_audit_event(
-        {
-            "tenant_id": tenant_id,
-            "event_type": "credential_enrollment_started",
-            "connector": safe_connector,
-            "enrollment_id": enrollment_id,
-            "status": "awaiting_secret",
-            "allowed_operations": scoped_operations,
-            "secret_name": secret_name,
-            "actor": identity.get("email") or identity.get("identity"),
-        }
-    )
-    return {
-        "status": enrollment["status"],
-        "tenant_id": tenant_id,
-        "connector": safe_connector,
-        "enrollment_id": enrollment_id,
-        "secret_name": secret_name,
-        "credential_namespace": enrollment.get("credential_namespace"),
-        "allowed_operations": scoped_operations,
-        "expires_at": enrollment["expires_at"],
-        "expires_in_seconds": 900,
-        "credential_value_exposed": False,
-        "audit_event_id": audit_event["event_id"],
-        "next_step": (
-            "Provision a version in this exact tenant secret out of band, then "
-            "call the enrollment completion route. The request never accepts a token value."
-        ),
-    }
-
-
-@app.post("/api/connectors/{connector}/credential-enrollment/{enrollment_id}/complete")
-def complete_connector_credential_enrollment(
-    connector: str,
-    enrollment_id: str,
-    request: ConnectorBindingRequest,
-) -> dict[str, object]:
-    """Verify an out-of-band secret and atomically activate its tenant binding."""
-    try:
-        safe_connector = validate_connector_name(connector)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    identity = _verify_approval_mode(
-        f"credential-enrollment-complete:{safe_connector}:{enrollment_id}",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    tenant_id = identity["tenant_id"]
-    enrollment = load_credential_enrollment(tenant_id, safe_connector, enrollment_id)
-    if enrollment is None:
-        raise HTTPException(status_code=404, detail="credential_enrollment_not_found")
-    if str(enrollment.get("status", "")).casefold() == "completed":
-        return {
-            "status": "active",
-            "tenant_id": tenant_id,
-            "connector": safe_connector,
-            "enrollment_id": enrollment_id,
-            "secret_name": enrollment.get("secret_name"),
-            "secret_version": enrollment.get("secret_version", "latest"),
-            "allowed_operations": enrollment.get("allowed_operations", []),
-            "credential_value_exposed": False,
-            "already_completed": True,
-        }
-    try:
-        expiry = datetime.fromisoformat(str(enrollment.get("expires_at", "")))
-    except ValueError:
-        expiry = datetime.min.replace(tzinfo=UTC)
-    if expiry <= datetime.now(UTC):
-        expired = persist_credential_enrollment(
-            {
-                **enrollment,
-                "status": "expired",
-                "updated_at": utc_now(),
-            }
-        )
-        raise HTTPException(
-            status_code=410,
-            detail={
-                "error": "credential_enrollment_expired",
-                "enrollment_id": expired["enrollment_id"],
-            },
-        )
-    secret_name = tenant_connector_secret_name(tenant_id, safe_connector)
-    try:
-        if not _read_tenant_secret(tenant_id, secret_name).strip():
-            raise ConnectorError("credential_empty")
-        try:
-            secret_version = _tenant_secret_version(tenant_id, secret_name)
-        except ConnectorError:
-            secret_version = "latest"
-    except ConnectorError:
-        return {
-            "status": "awaiting_secret",
-            "tenant_id": tenant_id,
-            "connector": safe_connector,
-            "enrollment_id": enrollment_id,
-            "secret_name": secret_name,
-            "allowed_operations": enrollment.get("allowed_operations", []),
-            "credential_value_exposed": False,
-            "next_step": "Add a version to the exact tenant secret, then retry completion.",
-        }
-    try:
-        scoped_operations = normalize_allowed_operations(
-            safe_connector,
-            list(enrollment.get("allowed_operations") or []),
-            default="read_only",
-        )
-    except CredentialBrokerError as exc:
-        raise HTTPException(status_code=409, detail="credential_scope_invalid") from exc
-    now = utc_now()
-    binding = persist_connector_binding(
-        {
-            "tenant_id": tenant_id,
-            "connector": safe_connector,
-            "secret_name": secret_name,
-            "status": "active",
-            "scope": "tenant_bound_connector_credential",
-            "credential_id": f"cred-{tenant_id}-{safe_connector}",
-            "secret_backend": "google_secret_manager",
-            "secret_reference_scope": "exact_tenant_connector_secret",
-            "allowed_operations": scoped_operations,
-            "lease_seconds": 300,
-            "secret_version": secret_version,
-            "enrollment_id": enrollment_id,
-            "verified_at": now,
-            "configured_by": identity.get("email") or identity.get("identity"),
-            "updated_at": now,
-        }
-    )
-    completed = persist_credential_enrollment(
-        {
-            **enrollment,
-            "status": "completed",
-            "secret_version": secret_version,
-            "completed_at": now,
-            "completed_by": identity.get("email") or identity.get("identity"),
-            "updated_at": now,
-        }
-    )
-    audit_event = persist_tenant_audit_event(
-        {
-            "tenant_id": tenant_id,
-            "event_type": "credential_enrollment_completed",
-            "connector": safe_connector,
-            "enrollment_id": enrollment_id,
-            "status": "active",
-            "secret_name": secret_name,
-            "secret_version": secret_version,
-            "allowed_operations": scoped_operations,
-            "actor": identity.get("email") or identity.get("identity"),
-        }
-    )
-    return {
-        "status": binding["status"],
-        "tenant_id": tenant_id,
-        "connector": safe_connector,
-        "enrollment_id": completed["enrollment_id"],
-        "secret_name": binding["secret_name"],
-        "secret_version": binding.get("secret_version", "latest"),
-        "allowed_operations": scoped_operations,
-        "credential_namespace": binding.get("credential_namespace"),
-        "credential_value_exposed": False,
-        "audit_event_id": audit_event["event_id"],
-    }
-
-
-@app.post("/api/connectors/{connector}/binding/revoke")
-def revoke_connector_binding(
-    connector: str, request: ConnectorBindingRequest
-) -> dict[str, object]:
-    """Revoke one tenant binding without deleting or returning its secret."""
-    try:
-        safe_connector = validate_connector_name(connector)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    identity = _verify_approval_mode(
-        f"connector-binding-revoke:{safe_connector}",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    tenant_id = identity["tenant_id"]
-    binding = load_connector_binding(tenant_id, safe_connector)
-    if binding is None:
-        raise HTTPException(status_code=404, detail="connector_binding_not_found")
-    revoked = persist_connector_binding(
-        {
-            **binding,
-            "tenant_id": tenant_id,
-            "connector": safe_connector,
-            "status": "revoked",
-            "revoked_at": utc_now(),
-            "revoked_by": identity.get("email") or identity.get("identity"),
-        }
-    )
-    audit_event = persist_tenant_audit_event(
-        {
-            "tenant_id": tenant_id,
-            "event_type": "connector_binding_revoked",
-            "connector": safe_connector,
-            "status": "revoked",
-            "secret_name": revoked["secret_name"],
-            "actor": identity.get("email") or identity.get("identity"),
-        }
-    )
-    return {
-        "status": "revoked",
-        "tenant_id": tenant_id,
-        "connector": safe_connector,
-        "secret_name": revoked["secret_name"],
-        "credential_namespace": revoked.get("credential_namespace"),
-        "credential_value_exposed": False,
-        "audit_event_id": audit_event["event_id"],
-        "follow_up": (
-            "Revoke the provider token and disable or rotate the Secret Manager "
-            "version during offboarding; re-run the signed owner binding route "
-            "only after a replacement secret is ready."
-        ),
-    }
-
-
-@app.post("/api/connectors/{connector}/binding/rotate")
-def rotate_connector_binding(
-    connector: str, request: ConnectorBindingRotationRequest
-) -> dict[str, object]:
-    """Begin an owner-controlled credential rotation without accepting a secret.
-
-    Rotation is a two-step control-plane operation: this endpoint moves the
-    binding to ``rotation_pending`` so connector calls fail closed, then an
-    infrastructure operator adds a new version to the deterministic Secret
-    Manager secret and repeats the normal binding verification route.  The
-    runtime never receives or returns a credential value.
-    """
-    try:
-        safe_connector = validate_connector_name(connector)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    identity = _verify_approval_mode(
-        f"connector-binding-rotate:{safe_connector}",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    tenant_id = identity["tenant_id"]
-    binding = load_connector_binding(tenant_id, safe_connector)
-    if binding is None:
-        raise HTTPException(status_code=404, detail="connector_binding_not_found")
-    current_status = str(binding.get("status", "")).casefold()
-    if current_status not in {"active", "rotation_pending"}:
-        raise HTTPException(
-            status_code=409,
-            detail="connector_binding_not_rotatable",
-        )
-    if current_status == "rotation_pending" and binding.get("rotation_id"):
-        return {
-            "status": "rotation_pending",
-            "tenant_id": tenant_id,
-            "connector": safe_connector,
-            "rotation_id": binding["rotation_id"],
-            "secret_name": binding["secret_name"],
-            "credential_namespace": binding.get("credential_namespace"),
-            "credential_value_exposed": False,
-            "already_pending": True,
-            "next_step": (
-                "Add a replacement version to this deterministic Secret Manager secret, "
-                "then repeat the signed owner binding request to verify and reactivate it."
-            ),
-        }
-    now = utc_now()
-    rotation_id = f"rotation-{uuid4().hex}"
-    pending = persist_connector_binding(
-        {
-            **binding,
-            "tenant_id": tenant_id,
-            "connector": safe_connector,
-            "status": "rotation_pending",
-            "rotation_id": rotation_id,
-            "rotation_reason": request.reason.strip(),
-            "rotation_started_at": now,
-            "rotation_started_by": identity.get("email") or identity.get("identity"),
-            "updated_at": now,
-        }
-    )
-    audit_event = persist_tenant_audit_event(
-        {
-            "tenant_id": tenant_id,
-            "event_type": "connector_binding_rotation_requested",
-            "connector": safe_connector,
-            "status": "rotation_pending",
-            "rotation_id": rotation_id,
-            "reason": request.reason.strip(),
-            "secret_name": pending["secret_name"],
-            "actor": identity.get("email") or identity.get("identity"),
-        }
-    )
-    return {
-        "status": "rotation_pending",
-        "tenant_id": tenant_id,
-        "connector": safe_connector,
-        "rotation_id": rotation_id,
-        "secret_name": pending["secret_name"],
-        "credential_namespace": pending.get("credential_namespace"),
-        "credential_value_exposed": False,
-        "audit_event_id": audit_event["event_id"],
-        "next_step": (
-            "Add a replacement version to this deterministic Secret Manager secret, "
-            "then repeat the signed owner binding request to verify and reactivate it."
-        ),
-    }
-
-
-@app.post("/api/connectors/{connector}/profile")
-def register_connector_profile(
-    connector: str, request: ConnectorProfileRequest
-) -> dict[str, object]:
-    """Persist one tenant's bounded, non-secret connector destination."""
-    try:
-        safe_connector = validate_connector_name(connector)
-        settings = validate_connector_profile(safe_connector, request.settings)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    identity = _verify_approval_mode(
-        f"connector-profile:{safe_connector}",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    tenant_id = identity["tenant_id"]
-    profile = persist_connector_profile(
-        {
-            "tenant_id": tenant_id,
-            "connector": safe_connector,
-            "settings": settings,
-            "updated_at": utc_now(),
-        }
-    )
-    audit_event = persist_tenant_audit_event(
-        {
-            "tenant_id": tenant_id,
-            "event_type": "connector_profile_updated",
-            "connector": safe_connector,
-            "setting_keys": sorted(settings),
-            "actor": identity.get("email") or identity.get("identity"),
-        }
-    )
-    return {
-        "status": "active",
-        "tenant_id": tenant_id,
-        "connector": safe_connector,
-        "settings": profile["settings"],
-        "credential_values_accepted": False,
-        "audit_event_id": audit_event["event_id"],
-    }
-
-
-@app.get("/api/connectors/{connector}/profile")
-def get_connector_profile(
-    connector: str,
-    operator: str,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return the caller's non-secret profile, never a credential value."""
-    try:
-        safe_connector = validate_connector_name(connector)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    identity = _verify_approval_mode(
-        f"connector-profile-read:{safe_connector}",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    profile = load_connector_profile(identity["tenant_id"], safe_connector)
-    return {
-        "tenant_id": identity["tenant_id"],
-        "connector": safe_connector,
-        "status": (profile or {}).get("status", "not_configured"),
-        "settings": (profile or {}).get("settings", {}),
-        "credential_values_exposed": False,
-    }
-
-
-@app.get("/api/tenants")
-def get_tenant_metadata(
-    operator: str,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return metadata for the caller's tenant, never credentials or secrets."""
-    identity = _verify_approval_mode(
-        "tenant-metadata",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    tenant = load_tenant(identity["tenant_id"]) or {
-        "tenant_id": identity["tenant_id"],
-        "status": "bootstrap_pending",
-    }
-
-    bindings = list_connector_bindings(identity["tenant_id"])
-    profiles = list_connector_profiles(identity["tenant_id"])
-    memberships = list_tenant_memberships(identity["tenant_id"])
-    return {
-        "tenant": {
-            key: value
-            for key, value in tenant.items()
-            if key not in {"token", "secret_value", "access_token", "refresh_token"}
-        },
-        "role": identity["role"],
-        "connector_binding_count": len(bindings),
-        "connector_profile_count": len(profiles),
-        "membership_count": len(memberships),
-        "credential_values_exposed": False,
-    }
-
-
-@app.get("/api/tenants/available")
-def get_available_tenants(identity_token: str | None = None) -> dict[str, object]:
-    """List the caller's active tenant memberships for a tenant switcher.
-
-    This is the only identity-only tenant discovery route. It does not accept a
-    tenant selector, HMAC token, or operator-supplied email, and it returns
-    membership metadata only. A user with one active membership can omit a
-    tenant selector on subsequent signed requests; a user with several must
-    explicitly choose one so an identity can never silently fall into the
-    deployment's demo tenant.
-    """
-    # Hosted browser clients send the short-lived ID token as an Authorization
-    # header so it never appears in a URL.  Keep the explicit query field only
-    # for local/bootstrap compatibility; production middleware owns the
-    # request-scoped header value.
-    _header_approval, header_identity = _request_auth.get()
-    identity_token = identity_token or header_identity
-    audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
-    try:
-        claims = _verify_google_identity_claims(identity_token, audience)
-        email = str(claims.get("email", "")).strip().casefold()
-        memberships = list_tenant_memberships_for_email(email)
-    except Exception as exc:
-        raise HTTPException(status_code=401, detail="Invalid tenant identity") from exc
-
-    available: list[dict[str, object]] = []
-    for member in memberships:
-        if str(member.get("status", "active")).casefold() != "active":
-            continue
-        tenant_id = str(member.get("tenant_id", "")).strip().casefold()
-        try:
-            tenant_id = validate_tenant_id(tenant_id)
-        except ValueError:
-            continue
-        tenant = load_tenant(tenant_id)
-        if os.getenv("DRIFTLINE_PERSISTENCE", "memory").casefold() == "firestore" and not tenant:
-            continue
-        if tenant and str(tenant.get("status", "active")).casefold() != "active":
-            continue
-        available.append(
-            {
-                "tenant_id": tenant_id,
-                "role": str(member.get("role", "viewer")).casefold(),
-                "membership_id": member.get("membership_id"),
-                "status": "active",
-            }
-        )
-    available.sort(key=lambda item: str(item["tenant_id"]))
-    return {
-        "status": "ok" if available else "no_active_memberships",
-        "email": email,
-        "tenants": available,
-        "selection_required": len(available) > 1,
-        "credential_values_exposed": False,
-    }
-
-
-@app.post("/api/platform/tenants")
-def provision_platform_tenant(
-    request: PlatformTenantProvisionRequest,
-) -> dict[str, object]:
-    """Create or reactivate tenant metadata through a platform OIDC identity.
-
-    This route is intentionally a control-plane bootstrap only. It creates no
-    Secret Manager value and accepts no provider credential; infrastructure
-    provisions the deterministic containers separately before bindings can be
-    activated.
-    """
-    platform = _verify_platform_operator(request.identity_token)
-    try:
-        tenant_id = validate_tenant_id(request.tenant_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    owner_email = request.owner_email.strip().casefold()
-    if "@" not in owner_email or len(owner_email) > 320:
-        raise HTTPException(status_code=422, detail="owner_email_invalid")
-    now = utc_now()
-    bootstrap_audit = {
-        "event_id": f"tenant-audit-{uuid4().hex}",
-        "tenant_id": tenant_id,
-        "event_type": "tenant_provisioned",
-        "status": "active",
-        "owner_email": owner_email,
-        "actor": platform["email"],
-        "identity": platform["identity"],
-        "created_at": now,
-    }
-    created = provision_tenant_metadata(
-        {
-            "tenant_id": tenant_id,
-            "status": "active",
-            "provisioning": "platform_oidc",
-            "configured_by": platform["email"],
-            "created_at": now,
-            "updated_at": now,
-        },
-        {
-            "tenant_id": tenant_id,
-            "email": owner_email,
-            "role": "owner",
-            "status": "active",
-            "source": "platform_oidc_bootstrap",
-            "configured_by": platform["email"],
-            "updated_at": now,
-        },
-        audit_payload=bootstrap_audit,
-    )
-    if not created:
-        # A previous platform bootstrap may have created the tenant document
-        # but failed before writing its owner membership (for example during a
-        # rolling Firestore migration). Repair that bounded, metadata-only
-        # state instead of leaving the tenant permanently undiscoverable.
-        existing_tenant = load_tenant(tenant_id) or {}
-        existing_memberships = list_tenant_memberships(tenant_id)
-        if (
-            str(existing_tenant.get("status", "")).casefold() == "active"
-            and not existing_memberships
-        ):
-            repaired = persist_tenant_membership(
-                {
-                    "tenant_id": tenant_id,
-                    "email": owner_email,
-                    "role": "owner",
-                    "status": "active",
-                    "source": "platform_oidc_membership_repair",
-                    "configured_by": platform["email"],
-                    "updated_at": now,
-                }
-            )
-            repair_audit = persist_tenant_audit_event(
-                {
-                    **bootstrap_audit,
-                    "event_id": f"tenant-audit-{uuid4().hex}",
-                    "event_type": "tenant_membership_repaired",
-                    "status": "active",
-                    "repair": "missing_owner_membership",
-                }
-            )
-            return {
-                "status": "active",
-                "tenant_id": tenant_id,
-                "owner_email": owner_email,
-                "membership_id": repaired["membership_id"],
-                "secret_references": {
-                    connector: tenant_connector_secret_name(tenant_id, connector)
-                    for connector in ("jira", "confluence", "slack", "github", "salesforce")
-                },
-                "operator_signing_secret": tenant_operator_signing_secret_name(tenant_id),
-                "credential_values_exposed": False,
-                "audit_event_id": repair_audit["event_id"],
-                "repaired_membership": True,
-                "next_step": (
-                    "Provision the deterministic Secret Manager containers out of band, "
-                    "then add provider values and activate each owner binding."
-                ),
-            }
-        raise HTTPException(status_code=409, detail="tenant_already_exists")
-    membership_id = base64.urlsafe_b64encode(
-        f"{tenant_id}:{owner_email}".encode()
-    ).decode("ascii").rstrip("=")
-    return {
-        "status": "active",
-        "tenant_id": tenant_id,
-        "owner_email": owner_email,
-        "membership_id": membership_id,
-        "secret_references": {
-            connector: tenant_connector_secret_name(tenant_id, connector)
-            for connector in ("jira", "confluence", "slack", "github", "salesforce")
-        },
-        "operator_signing_secret": tenant_operator_signing_secret_name(tenant_id),
-        "credential_values_exposed": False,
-        "audit_event_id": bootstrap_audit["event_id"],
-        "next_step": (
-            "Provision the deterministic Secret Manager containers out of band, "
-            "then add provider values and activate each owner binding."
-        ),
-    }
-
-
-@app.get("/api/tenants/audit")
-def get_tenant_audit(
-    operator: str,
-    tenant_id: str | None = None,
-    limit: int = 50,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return append-only tenant control-plane events without credentials."""
-    identity = _verify_approval_mode(
-        "tenant-audit",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    events = list_tenant_audit_events(identity["tenant_id"], limit=limit)
-    return {
-        "append_only": True,
-        "tenant_id": identity["tenant_id"],
-        "events": [
-            {
-                key: value
-                for key, value in event.items()
-                if key not in {"token", "secret_value", "access_token", "refresh_token"}
-            }
-            for event in events
-        ],
-        "credential_values_exposed": False,
-    }
-
-
-@app.get("/api/tenants/usage")
-def get_tenant_usage(
-    operator: str,
-    tenant_id: str | None = None,
-    period: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return aggregate tenant usage; this is metering, not billing."""
-    identity = _verify_approval_mode(
-        "tenant-usage",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    usage = load_tenant_usage(identity["tenant_id"], period=period)
-    return {
-        "tenant_id": identity["tenant_id"],
-        "period": usage.get("period"),
-        "usage": {
-            key: usage.get(key, 0)
-            for key in (
-                "agent_calls",
-                "workflow_mutations",
-                "connector_calls",
-                "monitor_jobs",
-            )
-        },
-        "metering": {
-            "durable": True,
-            "scope": "tenant_period",
-            "billing_enabled": False,
-            "retention": "control_plane_metadata; no content TTL",
-        },
-        "credential_values_exposed": False,
-    }
-
-
-@app.get("/api/tenants/policy")
-def get_tenant_policy(
-    operator: str,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return the caller's effective bounded quota and retention policy."""
-    identity = _verify_approval_mode(
-        "tenant-policy-read",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    policy = load_tenant_policy(identity["tenant_id"])
-    return {
-        "tenant_id": identity["tenant_id"],
-        "policy": policy,
-        "windows_seconds": {
-            "agent_calls": AGENT_WINDOW_SECONDS,
-            "workflow_mutations": DEMO_WINDOW_SECONDS,
-            "connector_calls": CONNECTOR_WINDOW_SECONDS,
-        },
-        "billing_enabled": False,
-        "metering_only": True,
-        "credential_values_exposed": False,
-    }
-
-
-@app.post("/api/tenants/policy")
-def update_tenant_policy(request: TenantPolicyRequest) -> dict[str, object]:
-    """Update one tenant's bounded quota and retention policy without redeploying."""
-    identity = _verify_approval_mode(
-        "tenant-policy-update",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    requested_policy = {
-        field: getattr(request, field)
-        for field in (
-            "agent_calls_per_window",
-            "workflow_mutations_per_window",
-            "connector_calls_per_window",
-            "retention_days",
-        )
-        if field in request.model_fields_set
-    }
-    policy = persist_tenant_policy(identity["tenant_id"], requested_policy)
-    audit_event = persist_tenant_audit_event(
-        {
-            "tenant_id": identity["tenant_id"],
-            "event_type": "tenant_policy_updated",
-            "policy_keys": sorted(policy),
-            "actor": identity.get("email") or identity.get("identity"),
-        }
-    )
-    return {
-        "status": "active",
-        "tenant_id": identity["tenant_id"],
-        "policy": policy,
-        "billing_enabled": False,
-        "metering_only": True,
-        "audit_event_id": audit_event["event_id"],
-        "credential_values_exposed": False,
-    }
-
-
-@app.post("/api/tenants/deprovision")
-def deprovision_tenant(request: TenantDeprovisionRequest) -> dict[str, object]:
-    """Soft-disable one tenant and revoke its connector bindings."""
-    identity = _verify_approval_mode(
-        "tenant-deprovision",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    tenant_id = identity["tenant_id"]
-    if request.confirmation.strip().casefold() != tenant_id:
-        raise HTTPException(status_code=422, detail="tenant_confirmation_mismatch")
-    now = utc_now()
-    bindings = list_connector_bindings(tenant_id)
-    for binding in bindings:
-        persist_connector_binding(
-            {
-                **binding,
-                "tenant_id": tenant_id,
-                "status": "revoked",
-                "revoked_at": now,
-                "revoked_by": identity.get("email") or identity.get("identity"),
-            }
-        )
-    memberships = list_tenant_memberships(tenant_id)
-    for member in memberships:
-        persist_tenant_membership(
-            {
-                **member,
-                "tenant_id": tenant_id,
-                "status": "disabled",
-                "updated_at": now,
-            }
-        )
-    persist_tenant(
-        {
-            "tenant_id": tenant_id,
-            "status": "disabled",
-            "deprovisioned_at": now,
-            "deprovisioned_by": identity.get("email") or identity.get("identity"),
-        }
-    )
-    audit_event = persist_tenant_audit_event(
-        {
-            "tenant_id": tenant_id,
-            "event_type": "tenant_deprovisioned",
-            "status": "disabled",
-            "revoked_binding_count": len(bindings),
-            "disabled_membership_count": len(memberships),
-            "actor": identity.get("email") or identity.get("identity"),
-        }
-    )
-    return {
-        "status": "disabled",
-        "tenant_id": tenant_id,
-        "revoked_binding_count": len(bindings),
-        "disabled_membership_count": len(memberships),
-        "audit_event_id": audit_event["event_id"],
-        "credential_values_exposed": False,
-        "follow_up": (
-            "Revoke provider tokens and delete or disable the tenant's Secret "
-            "Manager versions through infrastructure offboarding."
-        ),
-    }
-
-
-@app.get("/api/tenants/members")
-def get_tenant_members(
-    operator: str,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """List role metadata for one tenant; owners only may inspect membership."""
-    identity = _verify_approval_mode(
-        "tenant-members",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    members = list_tenant_memberships(identity["tenant_id"])
-    return {
-        "tenant_id": identity["tenant_id"],
-        "members": [
-            {
-                key: value
-                for key, value in member.items()
-                if key not in {"token", "secret_value", "access_token", "refresh_token"}
-            }
-            for member in members
-        ],
-        "credential_values_exposed": False,
-    }
-
-
-@app.post("/api/tenants/members")
-def provision_tenant_member(request: TenantMemberRequest) -> dict[str, object]:
-    """Provision or update one tenant role without accepting a secret/token."""
-    identity = _verify_approval_mode(
-        "tenant-member-provision",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Tenant owner role is required")
-    email = request.email.strip().casefold()
-    if "@" not in email or email.startswith("@") or email.endswith("@"):
-        raise HTTPException(status_code=422, detail="member_email_invalid")
-    tenant_id = identity["tenant_id"]
-    persist_tenant(
-        {
-            "tenant_id": tenant_id,
-            "status": "active",
-            "provisioning": "owner_membership",
-            "configured_by": identity.get("email") or identity.get("identity"),
-            "updated_at": utc_now(),
-        }
-    )
-    member = persist_tenant_membership(
-        {
-            "tenant_id": tenant_id,
-            "email": email,
-            "role": request.role,
-            "status": request.status,
-            "source": "owner_provisioned",
-            "updated_at": utc_now(),
-        }
-    )
-    return {
-        "status": request.status,
-        "tenant_id": tenant_id,
-        "email": email,
-        "role": request.role,
-        "membership_id": member["membership_id"],
-        "credential_values_exposed": False,
-    }
-
-
-@app.get("/api/connectors/bindings")
-def get_connector_bindings(
-    operator: str,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """List metadata-only connector bindings for the caller's tenant."""
-    identity = _verify_approval_mode(
-        "connector-bindings-list",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    bindings = list_connector_bindings(identity["tenant_id"])
-    return {
-        "tenant_id": identity["tenant_id"],
-        "bindings": [
-            {
-                key: value
-                for key, value in binding.items()
-                if key not in {"token", "secret_value", "access_token", "refresh_token"}
-            }
-            for binding in bindings
-        ],
-        "credential_values_exposed": False,
-    }
-
-
-@app.get("/api/connectors/credentials")
-def get_connector_credentials(
-    operator: str,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return the tenant credential-broker inventory without secret values."""
-    identity = _verify_approval_mode(
-        "connector-credentials-list",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    bindings = list_connector_bindings(identity["tenant_id"])
-    credentials = []
-    for binding in bindings:
-        connector = str(binding.get("connector", ""))
-        credentials.append(
-            {
-                "credential_id": binding.get(
-                    "credential_id", f"cred-{identity['tenant_id']}-{connector}"
-                ),
-                "connector": connector,
-                "status": binding.get("status", "unknown"),
-                "secret_backend": binding.get(
-                    "secret_backend", "google_secret_manager"
-                ),
-                "secret_reference_scope": binding.get(
-                    "secret_reference_scope", "exact_tenant_connector_secret"
-                ),
-                "secret_version": binding.get("secret_version", "latest"),
-                "allowed_operations": sorted(
-                    binding.get(
-                        "allowed_operations", allowed_operations(connector)
-                    )
-                ),
-                "lease_seconds": int(binding.get("lease_seconds", 300)),
-                "namespace_verified": bool(binding.get("credential_namespace")),
-                "credential_namespace": binding.get("credential_namespace"),
-                "verified_at": binding.get("verified_at"),
-                "updated_at": binding.get("updated_at"),
-                "credential_values_exposed": False,
-            }
-        )
-    return {
-        "status": "ok",
-        "tenant_id": identity["tenant_id"],
-        "credentials": credentials,
-        "architecture": {
-            "isolation": "tenant_binding_to_exact_secret_manager_secret",
-            "canonical_binding_path": "driftline_tenants/{tenant}/credentials/{connector}",
-            "namespace_schema_version": 1,
-            "namespace_migration": "scripts/migrate_tenant_credential_bindings.py",
-            "legacy_flat_mirror_writes": os.getenv(
-                "DRIFTLINE_WRITE_LEGACY_CONNECTOR_MIRROR", "false"
-            ).casefold()
-            == "true",
-            "strict_namespace_required": os.getenv(
-                "DRIFTLINE_REQUIRE_TENANT_CREDENTIAL_NAMESPACE", "false"
-            ).casefold()
-            == "true",
-            "resolution": "short_lived_in_process_lease",
-            "rotation": "owner_requested_then_version_pinned",
-            "revocation": "binding_status_fail_closed",
-            "audit_collection": "driftline_credential_access_events",
-            "enrollment": {
-                "start_route": "/api/connectors/{connector}/credential-enrollment",
-                "complete_route": "/api/connectors/{connector}/credential-enrollment/{id}/complete",
-                "session_ttl_seconds": 900,
-                "default_new_scope": ["read_context"],
-                "raw_secret_accepted": False,
-            },
-        },
-        "credential_values_exposed": False,
-    }
-
-
-@app.get("/api/connectors/credentials/access")
-def get_connector_credential_access(
-    operator: str,
-    tenant_id: str | None = None,
-    limit: int = 100,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return one tenant's redacted credential lease audit trail."""
-    identity = _verify_approval_mode(
-        "connector-credentials-access",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    events = list_credential_access_events(identity["tenant_id"], limit=limit)
-    redacted = [
-        {
-            key: value
-            for key, value in event.items()
-            if key
-            not in {
-                "value",
-                "token",
-                "secret_value",
-                "access_token",
-                "refresh_token",
-                "client_secret",
-            }
-        }
-        for event in events
-    ]
-    return {
-        "status": "ok",
-        "tenant_id": identity["tenant_id"],
-        "events": redacted,
-        "append_only": True,
-        "credential_values_exposed": False,
-    }
-
-
-@app.get("/api/connectors/bindings/health")
-def get_connector_binding_health(
-    operator: str,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Reconcile tenant binding metadata with readable Secret Manager state.
-
-    This is a read-only operator probe. It enumerates the fixed connector
-    allowlist, never accepts a secret name, and never returns a credential
-    value. Active bindings are checked against the exact deterministic secret;
-    pending, revoked, or missing bindings remain fail-closed and are surfaced
-    as attention items rather than being silently treated as healthy.
-    """
-    identity = _verify_approval_mode(
-        "connector-bindings-health",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    if not _reserve_connector_call(identity["tenant_id"]):
-        raise _connector_rate_limit_error("Connector read quota reached; retry later.")
-    bound = {
-        str(binding.get("connector")): binding
-        for binding in list_connector_bindings(identity["tenant_id"])
-        if binding.get("connector")
-    }
-
-    def profile_health(connector: str) -> dict[str, object]:
-        """Reconcile the non-secret destination profile without returning values."""
-        try:
-            profile = load_connector_profile(identity["tenant_id"], connector)
-        except Exception:  # noqa: BLE001 - health must not leak provider/storage errors.
-            return {
-                "status": "attention",
-                "reason": "profile_lookup_failed",
-                "configured_keys": [],
-            }
-        if not profile:
-            return {
-                "status": "not_configured",
-                "reason": "profile_missing",
-                "configured_keys": [],
-            }
-        if str(profile.get("status", "active")).casefold() != "active":
-            return {
-                "status": "attention",
-                "reason": "profile_inactive",
-                "configured_keys": [],
-            }
-        try:
-            safe_settings = validate_connector_profile(
-                connector, dict(profile.get("settings") or {})
-            )
-        except (TypeError, ValueError):
-            return {
-                "status": "attention",
-                "reason": "profile_invalid",
-                "configured_keys": [],
-            }
-        return {
-            "status": "healthy",
-            "reason": "profile_configured",
-            "configured_keys": sorted(safe_settings),
-        }
-
-    checks: list[dict[str, object]] = []
-    for connector in sorted(CONNECTOR_NAMES):
-        expected_secret = tenant_connector_secret_name(identity["tenant_id"], connector)
-        try:
-            expected_namespace = tenant_credential_namespace(
-                identity["tenant_id"], connector
-            )
-        except (TypeError, ValueError):
-            expected_namespace = None
-        binding = bound.get(connector)
-        profile = profile_health(connector)
-        if binding is None:
-            checks.append(
-                {
-                    "connector": connector,
-                    "status": "not_configured",
-                    "secret_status": "not_configured",
-                    "profile_status": profile["status"],
-                    "profile_reason": profile["reason"],
-                    "profile_configured_keys": profile["configured_keys"],
-                    "secret_name": expected_secret,
-                    "namespace_status": "not_configured",
-                    "credential_values_exposed": False,
-                }
-            )
-            continue
-        binding_status = str(binding.get("status", "unknown"))
-        secret_name = str(binding.get("secret_name", ""))
-        namespace = binding.get("credential_namespace")
-        namespace_status = (
-            "verified"
-            if isinstance(namespace, dict)
-            and isinstance(expected_namespace, dict)
-            and all(namespace.get(key) == expected_namespace.get(key) for key in (
-                "schema_version",
-                "tenant_id",
-                "connector",
-                "secret_resource",
-                "service_account",
-                "isolation",
-            ))
-            else "missing"
-            if expected_namespace is not None and namespace is None
-            else "not_checked"
-            if expected_namespace is None
-            else "mismatch"
-        )
-        check: dict[str, object] = {
-            "connector": connector,
-            "binding_status": binding_status,
-            "secret_name": expected_secret,
-            "namespace_status": namespace_status,
-            "profile_status": profile["status"],
-            "profile_reason": profile["reason"],
-            "profile_configured_keys": profile["configured_keys"],
-            "credential_values_exposed": False,
-        }
-        if secret_name != expected_secret:
-            check.update(status="attention", secret_status="name_mismatch")
-        elif namespace_status in {"missing", "mismatch"} or binding_status != "active":
-            check.update(status="attention", secret_status="not_checked")
-        else:
-            try:
-                readable = bool(_read_tenant_secret(tenant_id, expected_secret).strip())
-            except Exception:  # noqa: BLE001 - health must not leak provider errors.
-                readable = False
-            check.update(
-                status=(
-                    "healthy"
-                    if readable and profile["status"] == "healthy"
-                    else "attention"
-                ),
-                secret_status="readable" if readable else "unreadable",
-            )
-        checks.append(check)
-    return {
-        "status": "ok",
-        "tenant_id": identity["tenant_id"],
-        "generated_at": utc_now(),
-        "summary": {
-            "total": len(checks),
-            "healthy": sum(item["status"] == "healthy" for item in checks),
-            "attention": sum(item["status"] == "attention" for item in checks),
-            "not_configured": sum(
-                item["status"] == "not_configured" for item in checks
-            ),
-        },
-        "checks": checks,
-        "credential_values_exposed": False,
-    }
-
-
-@app.get("/api/ops/value-proof")
-def get_value_proof(
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return observed workflow throughput without cross-tenant disclosure."""
-    identity: dict[str, str] | None = None
-    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
-        if not operator or not tenant_id:
-            raise HTTPException(
-                status_code=401, detail="Signed approval is required for value metrics"
-            )
-        identity = _verify_approval_mode(
-            "ops:value-proof",
-            operator,
-            "signed",
-            approval_token,
-            identity_token,
-            tenant_id,
-        )
-    with _jobs_lock:
-        job_records = list(_jobs.values())
-    metric_limit = _metric_history_limit(50, identity)
-    jobs = [
-        job
-        for job in _merge_durable_records(
-            job_records, list_jobs, limit=metric_limit, key=lambda item: item.job_id
-        )
-        if _visible_tenant_record(job, identity)
-    ]
-    workflow_records = list(workflow_store._runs.values())
-    workflows = [
-        state
-        for state in _merge_durable_records(
-            workflow_records,
-            list_workflows,
-            limit=metric_limit,
-            key=lambda item: item.workflow_id,
-        )
-        if _visible_tenant_record(state, identity)
-    ]
-    action_items = [item for state in workflows for item in state.action_items]
-    source_health = source_registry_health(
-        tenant_id=identity.get("tenant_id") if identity else None,
-        include_disabled=identity is not None,
-    )
-    source_health_summary = _source_health_summary(source_health)
-    source_observation_total = sum(
-        int(item.get("observation_count", 0)) for item in source_health
-    )
-    source_unchanged_total = sum(
-        int(item.get("unchanged_observation_count", 0)) for item in source_health
-    )
-    source_changed_total = sum(
-        int(item.get("changed_observation_count", 0)) for item in source_health
-    )
-    source_observations = (
-        source_observation_total
-        if identity is not None
-        else min(metric_limit, source_observation_total)
-    )
-    # Anonymous views use the same bounded source-observation window as the
-    # rest of public telemetry. Preserve the comparison ratio while capping
-    # counts; signed tenant views retain the bounded per-source ledger counts
-    # returned by source_registry_health.
-    source_window_scale = (
-        1.0
-        if identity is not None or source_observation_total <= metric_limit
-        else metric_limit / source_observation_total
-    )
-    source_observations_unchanged = min(
-        metric_limit,
-        round(source_unchanged_total * source_window_scale),
-    )
-    source_observations_changed = min(
-        metric_limit,
-        round(source_changed_total * source_window_scale),
-    )
-    source_comparison_total = source_unchanged_total + source_changed_total
-    source_no_op_rate = (
-        round(source_unchanged_total / source_comparison_total, 3)
-        if source_comparison_total
-        else None
-    )
-    change_cards = [state.change_card for state in workflows if state.change_card]
-    materiality_cards = [card.get("materiality") or {} for card in change_cards]
-    closure_cards = [card.get("closure") or {} for card in change_cards]
-    historically_completed_action_ids = {
-        str(event.get("action_item_id"))
-        for state in workflows
-        for event in state.events
-        if event.get("actor") == "action_lifecycle"
-        and str(event.get("outcome", "")).endswith(":completed")
-        and event.get("action_item_id")
-    }
-    historically_completed_actions = len(historically_completed_action_ids)
-    workflow_data_modes = _count_record_modes(workflows, "data_mode")
-    job_run_modes = _count_record_modes(jobs, "run_mode")
-    external_writes = sum(
-        bool((state.action_record or {}).get("external_write")) for state in workflows
-    )
-    reversed_workflows = sum(
-        any(event.get("outcome") == "decision_reopened" for event in state.events)
-        for state in workflows
-    )
-    approval_latencies: list[float] = []
-    for state in workflows:
-        approval_event = next(
-            (
-                event
-                for event in state.events
-                if event.get("outcome") == "approval_recorded"
-            ),
-            None,
-        )
-        if not approval_event:
-            continue
-        try:
-            created = datetime.fromisoformat(state.created_at)
-            approved = datetime.fromisoformat(str(approval_event["timestamp"]))
-            approval_latencies.append(max(0.0, (approved - created).total_seconds()))
-        except (KeyError, TypeError, ValueError):
-            continue
-    approval_latencies.sort()
-    p50_latency = (
-        approval_latencies[len(approval_latencies) // 2] if approval_latencies else None
-    )
-    p90_latency = (
-        approval_latencies[
-            min(len(approval_latencies) - 1, int(len(approval_latencies) * 0.9))
-        ]
-        if approval_latencies
-        else None
-    )
-    owner_action_latencies: list[float] = []
-    for item in action_items:
-        try:
-            created = datetime.fromisoformat(str(item.get("created_at", "")))
-            completed = datetime.fromisoformat(str(item.get("completed_at", "")))
-            owner_action_latencies.append(max(0.0, (completed - created).total_seconds()))
-        except (TypeError, ValueError):
-            continue
-    owner_action_latencies.sort()
-    owner_action_p50 = (
-        owner_action_latencies[len(owner_action_latencies) // 2]
-        if owner_action_latencies
-        else None
-    )
-    owner_action_p90 = (
-        owner_action_latencies[
-            min(len(owner_action_latencies) - 1, int(len(owner_action_latencies) * 0.9))
-        ]
-        if owner_action_latencies
-        else None
-    )
-    return {
-        "generated_at": utc_now(),
-        "telemetry_window": _metric_window(identity, metric_limit),
-        "scope": (
-            "observed_tenant_records"
-            if identity
-            else "observed_driftline_public_evaluation_records"
-        ),
-        "observed": {
-            "jobs": len(jobs),
-            "workflows": len(workflows),
-            "workflow_data_modes": workflow_data_modes,
-            "job_run_modes": job_run_modes,
-            "tenant_scoped_workflows": sum(
-                state.tenant_id is not None for state in workflows
-            ),
-            "tenantless_workflows": sum(
-                state.tenant_id is None for state in workflows
-            ),
-            "workflows_reversed_or_reopened": reversed_workflows,
-            "external_write_actions": external_writes,
-            "action_items": len(action_items),
-            "action_items_completed": sum(
-                item.get("status") == ActionItemStatus.COMPLETED.value
-                for item in action_items
-            ),
-            # Current status intentionally excludes actions that were later
-            # reversed. The append-only lifecycle is the honest source for
-            # proving that owner work closed at least once.
-            "action_items_completed_historically": historically_completed_actions,
-            "healthy_sources": sum(
-                item.get("status") == "healthy" for item in source_health
-            ),
-            "sources_total": source_health_summary["total"],
-            "sources_due": source_health_summary["due"],
-            "sources_stale": source_health_summary["stale"],
-            "sources_needing_baseline": source_health_summary["needs_baseline"],
-            "sources_failed": source_health_summary["source_failed"],
-            "sources_paused": source_health_summary["paused"],
-            "sources_synthetic_only": source_health_summary["synthetic_only"],
-            # Anonymous source throughput uses the same recent bounded window
-            # as workflows/jobs. The append-only source ledger remains intact;
-            # signed tenant views retain their requested aggregate bound.
-            "source_observations": source_observations,
-            "source_observations_unchanged": source_observations_unchanged,
-            "source_observations_changed": source_observations_changed,
-            "source_no_op_comparison_rate": source_no_op_rate,
-            "source_observation_window": _metric_window(identity, metric_limit),
-            "approval_latency_seconds": {
-                "sample_count": len(approval_latencies),
-                "p50": p50_latency,
-                "p90": p90_latency,
-            },
-            "owner_action_cycle_seconds": {
-                "sample_count": len(owner_action_latencies),
-                "p50": owner_action_p50,
-                "p90": owner_action_p90,
-            },
-            "action_item_completion_rate": (
-                round(
-                    sum(
-                        item.get("status") == ActionItemStatus.COMPLETED.value
-                        for item in action_items
-                    )
-                    / len(action_items),
-                    3,
-                )
-                if action_items
-                else None
-            ),
-            "action_item_completion_rate_historically": (
-                round(historically_completed_actions / len(action_items), 3)
-                if action_items
-                else None
-            ),
-            "change_cards": len(change_cards),
-            "high_materiality_cards": sum(
-                item.get("severity") == "high" for item in materiality_cards
-            ),
-            "cards_with_named_owners": sum(
-                bool(card.get("owners")) for card in change_cards
-            ),
-            "cards_closed": sum(
-                item.get("state") == "closed" for item in closure_cards
-            ),
-            "cards_dismissed": sum(
-                item.get("state") == "dismissed" for item in closure_cards
-            ),
-            "overdue_owner_actions": sum(
-                int(item.get("overdue", 0)) for item in closure_cards
-            ),
-        },
-        "not_measured": [
-            "hours_saved_per_change",
-            "revenue_or_win_rate_lift",
-            "customer_retention_impact",
-            "willingness_to_pay",
-        ],
-        "interpretation": (
-            "Counts are direct records from this isolated Driftline deployment; "
-            "they are not customer or revenue claims."
-        ),
-    }
-
-
-@app.get("/api/ops/outcomes")
-def get_outcome_measurements(
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return aggregate outcomes only for the public or signed tenant scope."""
-    identity: dict[str, str] | None = None
-    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
-        if not operator or not tenant_id:
-            raise HTTPException(
-                status_code=401, detail="Signed approval is required for outcome records"
-            )
-        identity = _verify_approval_mode(
-            "ops:outcomes",
-            operator,
-            "signed",
-            approval_token,
-            identity_token,
-            tenant_id,
-        )
-    records = [
-        record
-        for record in list_outcome_measurements(50)
-        if record.get("tenant_id") is None
-        or (identity is not None and record.get("tenant_id") == identity.get("tenant_id"))
-    ]
-    return {
-        "scope": "operator_reported_outcome_ledger",
-        "records": records,
-        "count": len(records),
-        "status": "measured_records_available" if records else "not_measured",
-        "not_measured": []
-        if records
-        else [
-            "hours_saved_per_change",
-            "revenue_or_win_rate_lift",
-            "customer_retention_impact",
-            "willingness_to_pay",
-        ],
-        "disclosure": "Records are operator-reported aggregate evidence and remain unverified until reviewed against the referenced source.",
-    }
-
-
-@app.post("/api/ops/outcomes")
-def record_outcome_measurement(request: OutcomeMeasurementRequest) -> dict[str, object]:
-    """Ingest one aggregate pilot measurement through the signed operator lane."""
-    approval_identity = _verify_approval_mode(
-        f"outcome:{request.cohort_label}",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if not request.evidence_ref.startswith(("https://", "gs://", "artifact://")):
-        raise HTTPException(
-            status_code=422,
-            detail="evidence_ref_must_point_to_audit_artifact_or_https_source",
-        )
-    operational_counts = {
-        name: value
-        for name, value in {
-            "baseline_owner_ready_within_24h": request.baseline_owner_ready_within_24h,
-            "driftline_owner_ready_within_24h": request.driftline_owner_ready_within_24h,
-            "baseline_actions_completed_within_7d": request.baseline_actions_completed_within_7d,
-            "driftline_actions_completed_within_7d": request.driftline_actions_completed_within_7d,
-            "baseline_reversed_or_reopened": request.baseline_reversed_or_reopened,
-            "driftline_reversed_or_reopened": request.driftline_reversed_or_reopened,
-        }.items()
-        if value is not None
-    }
-    operational_pairs = (
-        (
-            "baseline_owner_ready_within_24h",
-            "driftline_owner_ready_within_24h",
-        ),
-        (
-            "baseline_actions_completed_within_7d",
-            "driftline_actions_completed_within_7d",
-        ),
-        ("baseline_reversed_or_reopened", "driftline_reversed_or_reopened"),
-    )
-    partial_pairs = [
-        baseline_key
-        for baseline_key, driftline_key in operational_pairs
-        if (getattr(request, baseline_key) is None)
-        != (getattr(request, driftline_key) is None)
-    ]
-    if partial_pairs:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "message": "pilot_operational_metric_requires_baseline_and_driftline",
-                "fields": partial_pairs,
-            },
-        )
-    over_count = [
-        name for name, value in operational_counts.items() if value > request.changes_observed
-    ]
-    if over_count:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "message": "pilot_operational_count_exceeds_changes_observed",
-                "fields": over_count,
-            },
-        )
-    time_delta = round(request.baseline_minutes - request.driftline_minutes, 2)
-    # The tenant/cohort/evidence tuple is the idempotency key. A network retry
-    # of the same reconciled artifact must not create a second aggregate row.
-    measurement_key = hashlib.sha256(
-        f"{approval_identity['tenant_id']}:{request.cohort_label}:{request.evidence_ref}".encode()
-    ).hexdigest()[:24]
-    measurement_id = f"measurement-{measurement_key}"
-    payload = {
-        "measurement_id": measurement_id,
-        "tenant_id": approval_identity["tenant_id"],
-        "source_type": request.source_type,
-        "cohort_label": request.cohort_label,
-        "changes_observed": request.changes_observed,
-        "baseline_minutes": request.baseline_minutes,
-        "driftline_minutes": request.driftline_minutes,
-        "time_saved_minutes_total": time_delta,
-        "time_saved_minutes_per_change": round(time_delta / request.changes_observed, 2),
-        "time_delta_direction": (
-            "saved" if time_delta > 0 else "added" if time_delta < 0 else "neutral"
-        ),
-        **operational_counts,
-        "revenue_lift_usd": request.revenue_lift_usd,
-        "retention_lift_pct": request.retention_lift_pct,
-        "willingness_to_pay_usd": request.willingness_to_pay_usd,
-        "evidence_ref": request.evidence_ref,
-        "status": "operator_reported_unverified",
-        "approval_identity": approval_identity.get("identity", "signed_operator"),
-        "captured_at": utc_now(),
-    }
-    try:
-        persisted = persist_outcome_measurement(payload)
-    except ValueError as exc:
-        if str(exc) == "outcome_measurement_conflict":
-            raise HTTPException(
-                status_code=409,
-                detail="outcome_measurement_conflict_for_evidence_ref",
-            ) from exc
-        raise
-    except Exception as exc:  # pragma: no cover - Firestore-only failure path.
-        logger.exception("Outcome measurement persistence failed")
-        raise HTTPException(
-            status_code=503, detail="Outcome ledger unavailable"
-        ) from exc
-    return {
-        "status": "recorded" if persisted is not False else "already_recorded",
-        "measurement": payload,
-        "disclosure": "This is operator-reported aggregate evidence, not an independently verified customer claim.",
-    }
-
-
-@app.get("/api/ops/pilot-report")
-def get_pilot_report(
-    cohort_label: str | None = None,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Summarize signed, aggregate pilot records without exposing evidence refs.
-
-    A pilot report is intentionally separate from public value proof. It only
-    reads the caller's tenant records, keeps the records marked
-    ``operator_reported_unverified``, and computes deltas without turning them
-    into independently verified customer claims.
-    """
-    if not operator or not tenant_id:
-        raise HTTPException(
-            status_code=401, detail="Signed approval is required for pilot reports"
-        )
-    identity = _verify_approval_mode(
-        "ops:pilot-report",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    requested_cohort = cohort_label.strip() if cohort_label else None
-    if requested_cohort and len(requested_cohort) > 80:
-        raise HTTPException(status_code=422, detail="cohort_label_too_long")
-    records = [
-        record
-        for record in list_outcome_measurements(100)
-        if record.get("tenant_id") == identity["tenant_id"]
-        and (not requested_cohort or record.get("cohort_label") == requested_cohort)
-    ]
-    total_changes = sum(int(record.get("changes_observed", 0) or 0) for record in records)
-    baseline_total = sum(float(record.get("baseline_minutes", 0) or 0) for record in records)
-    driftline_total = sum(float(record.get("driftline_minutes", 0) or 0) for record in records)
-    wtp_values = [
-        float(record["willingness_to_pay_usd"])
-        for record in records
-        if record.get("willingness_to_pay_usd") is not None
-    ]
-    revenue_values = [
-        float(record["revenue_lift_usd"])
-        for record in records
-        if record.get("revenue_lift_usd") is not None
-    ]
-    retention_values = [
-        float(record["retention_lift_pct"])
-        for record in records
-        if record.get("retention_lift_pct") is not None
-    ]
-    def _operational_metric(
-        baseline_key: str, driftline_key: str
-    ) -> dict[str, object]:
-        baseline_values = [
-            int(record[baseline_key])
-            for record in records
-            if record.get(baseline_key) is not None
-        ]
-        driftline_values = [
-            int(record[driftline_key])
-            for record in records
-            if record.get(driftline_key) is not None
-        ]
-        baseline_count = sum(baseline_values) if baseline_values else None
-        driftline_count = sum(driftline_values) if driftline_values else None
-        baseline_rate = (
-            round(baseline_count / total_changes * 100, 2)
-            if baseline_count is not None and total_changes
-            else None
-        )
-        driftline_rate = (
-            round(driftline_count / total_changes * 100, 2)
-            if driftline_count is not None and total_changes
-            else None
-        )
-        return {
-            "baseline_count": baseline_count,
-            "driftline_count": driftline_count,
-            "baseline_rate_pct": baseline_rate,
-            "driftline_rate_pct": driftline_rate,
-            "delta_percentage_points": (
-                round(driftline_rate - baseline_rate, 2)
-                if baseline_rate is not None and driftline_rate is not None
-                else None
-            ),
-        }
-    operational_metrics = {
-        "owner_ready_within_24h": _operational_metric(
-            "baseline_owner_ready_within_24h", "driftline_owner_ready_within_24h"
-        ),
-        "actions_completed_within_7d": _operational_metric(
-            "baseline_actions_completed_within_7d", "driftline_actions_completed_within_7d"
-        ),
-        "reversed_or_reopened": _operational_metric(
-            "baseline_reversed_or_reopened", "driftline_reversed_or_reopened"
-        ),
-    }
-    time_saved_total = round(baseline_total - driftline_total, 2)
-    return {
-        "scope": "signed_tenant_pilot_records",
-        "tenant_id": identity["tenant_id"],
-        "cohort_label": requested_cohort,
-        "status": "not_measured" if not records else "operator_reported_unverified",
-        "record_count": len(records),
-        "changes_observed": total_changes,
-        "baseline_minutes_total": round(baseline_total, 2),
-        "driftline_minutes_total": round(driftline_total, 2),
-        "time_saved_minutes_total": time_saved_total,
-        "time_saved_minutes_per_change": (
-            round(time_saved_total / total_changes, 2) if total_changes else None
-        ),
-        "time_delta_direction": (
-            "saved" if time_saved_total > 0 else "added" if time_saved_total < 0 else "neutral"
-        ) if records else None,
-        "time_delta_pct": (
-            round(time_saved_total / baseline_total * 100, 2) if baseline_total else None
-        ),
-        "time_saved_pct": (
-            round((baseline_total - driftline_total) / baseline_total * 100, 2)
-            if baseline_total
-            else None
-        ),
-        "revenue_lift_usd_total": round(sum(revenue_values), 2) if revenue_values else None,
-        "retention_lift_pct_median": round(median(retention_values), 2) if retention_values else None,
-        "willingness_to_pay_usd_median": round(median(wtp_values), 2) if wtp_values else None,
-        "operational_metrics": operational_metrics,
-        "disclosure": (
-            "Aggregate operator-reported evidence only; independently verify each "
-            "record against its source before making a customer or revenue claim."
-        ),
-    }
-
-
-def _pilot_packet_value(value: object, *, fallback: str = "Not measured") -> str:
-    """Render one aggregate pilot value without allowing Markdown injection."""
-    if value is None or value == "":
-        return fallback
-    return str(value).replace("\r", " ").replace("\n", " ").strip()[:160]
-
-
-@app.get("/api/ops/pilot-packet", response_class=PlainTextResponse)
-def download_pilot_packet(
-    cohort_label: str | None = None,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> PlainTextResponse:
-    """Download a signed, aggregate-only pilot review packet.
-
-    The packet is deliberately separate from the public value-proof view. It
-    is useful to a pilot reviewer while keeping evidence references, customer
-    identifiers, source bodies, and CRM records out of the exported artifact.
-    """
-    report = get_pilot_report(
-        cohort_label=cohort_label,
-        operator=operator,
-        tenant_id=tenant_id,
-        approval_token=approval_token,
-        identity_token=identity_token,
-    )
-    value_proof = get_value_proof(
-        operator=operator,
-        tenant_id=tenant_id,
-        approval_token=approval_token,
-        identity_token=identity_token,
-    )
-    observed = value_proof.get("observed") if isinstance(value_proof, dict) else {}
-    observed = observed if isinstance(observed, dict) else {}
-    approval_latency = observed.get("approval_latency_seconds")
-    approval_latency = approval_latency if isinstance(approval_latency, dict) else {}
-    owner_action_cycle = observed.get("owner_action_cycle_seconds")
-    owner_action_cycle = owner_action_cycle if isinstance(owner_action_cycle, dict) else {}
-    lines = [
-        "# Driftline pilot measurement packet",
-        "",
-        f"Generated: {_pilot_packet_value(utc_now())}",
-        f"Cohort: {_pilot_packet_value(report.get('cohort_label'))}",
-        f"Status: {_pilot_packet_value(report.get('status'))}",
-        "",
-        "## Aggregate workflow measures",
-        "",
-        f"- Records: {_pilot_packet_value(report.get('record_count'), fallback='0')}",
-        f"- Changes observed: {_pilot_packet_value(report.get('changes_observed'), fallback='0')}",
-        f"- Baseline minutes total: {_pilot_packet_value(report.get('baseline_minutes_total'), fallback='0')}",
-        f"- Driftline minutes total: {_pilot_packet_value(report.get('driftline_minutes_total'), fallback='0')}",
-        f"- Time saved minutes total: {_pilot_packet_value(report.get('time_saved_minutes_total'), fallback='Not measured')}",
-        f"- Time saved minutes per change: {_pilot_packet_value(report.get('time_saved_minutes_per_change'), fallback='Not measured')}",
-        f"- Time delta direction: {_pilot_packet_value(report.get('time_delta_direction'), fallback='Not measured')}",
-        f"- Time delta percent (saved positive): {_pilot_packet_value(report.get('time_saved_pct'), fallback='Not measured')}",
-        "",
-        "## Operational pilot outcomes (aggregate, operator-reported)",
-        "",
-        f"- Owner-ready within 24h (baseline â†’ Driftline): {_pilot_packet_value((report.get('operational_metrics') or {}).get('owner_ready_within_24h', {}).get('baseline_rate_pct'))} â†’ {_pilot_packet_value((report.get('operational_metrics') or {}).get('owner_ready_within_24h', {}).get('driftline_rate_pct'))}",
-        f"- Actions completed within 7d (baseline â†’ Driftline): {_pilot_packet_value((report.get('operational_metrics') or {}).get('actions_completed_within_7d', {}).get('baseline_rate_pct'))} â†’ {_pilot_packet_value((report.get('operational_metrics') or {}).get('actions_completed_within_7d', {}).get('driftline_rate_pct'))}",
-        f"- Reversed or reopened (baseline â†’ Driftline): {_pilot_packet_value((report.get('operational_metrics') or {}).get('reversed_or_reopened', {}).get('baseline_rate_pct'))} â†’ {_pilot_packet_value((report.get('operational_metrics') or {}).get('reversed_or_reopened', {}).get('driftline_rate_pct'))}",
-        "Rates are percentages of the observed change set; omitted fields remain not measured.",
-        "",
-        "## Customer outcomes",
-        "",
-        f"- Revenue / win-rate lift: {_pilot_packet_value(report.get('revenue_lift_usd_total'))}",
-        f"- Retention lift: {_pilot_packet_value(report.get('retention_lift_pct_median'))}",
-        f"- Willingness to pay: {_pilot_packet_value(report.get('willingness_to_pay_usd_median'))}",
-        "",
-        "## Driftline operational telemetry (not customer proof)",
-        "",
-        f"- Workflows observed: {_pilot_packet_value(observed.get('workflows'), fallback='0')}",
-        f"- Source observations: {_pilot_packet_value(observed.get('source_observations'), fallback='0')}",
-        f"- No-op source observations: {_pilot_packet_value(observed.get('source_observations_unchanged'), fallback='0')}",
-        f"- Material ledger changes: {_pilot_packet_value(observed.get('source_observations_changed'), fallback='0')}",
-        f"- No-op comparison rate: {_pilot_packet_value(observed.get('source_no_op_comparison_rate'))}",
-        f"- Owner actions completed historically: {_pilot_packet_value(observed.get('action_items_completed_historically'), fallback='0')}",
-        f"- Approval latency p50 / p90 seconds: {_pilot_packet_value(approval_latency.get('p50'))} / {_pilot_packet_value(approval_latency.get('p90'))}",
-        f"- Owner-action cycle p50 / p90 seconds: {_pilot_packet_value(owner_action_cycle.get('p50'))} / {_pilot_packet_value(owner_action_cycle.get('p90'))}",
-        "These values describe isolated Driftline workflow telemetry only. They do not establish customer time saved, revenue lift, retention, or willingness to pay.",
-        "",
-        "## Disclosure",
-        "",
-        _pilot_packet_value(report.get("disclosure")),
-        "This export contains aggregate values only. Reconcile the dated pilot evidence outside Driftline before making a customer, revenue, or ROI claim.",
-        "Evidence references, customer identifiers, CRM records, source bodies, and credentials are intentionally excluded.",
-        "",
-    ]
-    return PlainTextResponse(
-        "\n".join(lines),
-        headers={"Content-Disposition": 'attachment; filename="driftline-pilot-packet.md"'},
-    )
-
-
-@app.get("/api/sources/{source_id:path}/history")
-def get_source_history(
-    source_id: str,
-    limit: int = 12,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    identity: dict[str, str] | None = None
-    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
-        if not operator or not tenant_id:
-            raise HTTPException(
-                status_code=401, detail="Signed approval is required for source history"
-            )
-        identity = _verify_approval_mode(
-            f"source-history:{source_id}",
-            operator,
-            "signed",
-            approval_token,
-            identity_token,
-            tenant_id,
-        )
-    bound_tenant = identity.get("tenant_id") if identity else None
-    definition = source_definition(
-        source_id, bound_tenant, include_disabled=identity is not None
-    )
-    if definition is None:
-        raise HTTPException(status_code=404, detail="Source is not allowlisted")
-    if (
-        definition.get("dynamic") == "true"
-        and not identity
-    ):
-        raise HTTPException(status_code=403, detail="Tenant-scoped source requires signed approval")
-    bounded_limit = max(1, min(limit, 50))
-    observations = list_source_history(source_id, bounded_limit, bound_tenant)
-    return {
-        "source_id": source_id,
-        "append_only": True,
-        "observations": observations,
-        "memory": build_memory_summary({source_id: observations}, [])["sources"][0],
-    }
-
-
-@app.get("/api/memory/summary")
-def get_memory_summary(
-    limit: int = 50,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return append-only change memory plus recurring and unresolved work."""
-    bounded_limit = max(1, min(limit, 100))
-    identity: dict[str, str] | None = None
-    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
-        if not operator or not tenant_id:
-            raise HTTPException(
-                status_code=401, detail="Signed approval is required for tenant memory"
-            )
-        identity = _verify_approval_mode(
-            "memory:summary",
-            operator,
-            "signed",
-            approval_token,
-            identity_token,
-            tenant_id,
-        )
-    bounded_limit = _metric_history_limit(bounded_limit, identity)
-    source_tenant = identity.get("tenant_id") if identity else None
-    source_observations = list_source_histories(
-        list(source_definitions(source_tenant)),
-        limit=bounded_limit,
-        tenant_id=source_tenant,
-    )
-    with _jobs_lock:
-        workflow_records = list(workflow_store._runs.values())
-    workflows = [
-        state.to_dict()
-        for state in _merge_durable_records(
-            workflow_records,
-            list_workflows,
-            limit=bounded_limit,
-            key=lambda item: item.workflow_id,
-        )
-        if _visible_tenant_record(state, identity)
-    ]
-    summary = build_memory_summary(source_observations, workflows)
-    summary["history_window"] = _metric_window(identity, bounded_limit)
-    return summary
-
-
-@app.get("/api/multimodal/assets/{asset_id}/{side}")
-def get_multimodal_asset(
-    asset_id: str, side: str, mode: Literal["live", "demo"] = "live"
-) -> Response:
-    """Serve only bytes from the visual registry through the same origin."""
-    try:
-        asset = visual_asset_bytes(asset_id, side, mode)
-    except MultimodalUnavailable as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return Response(content=asset.body, media_type=asset.mime_type)
-
-
-@app.get("/api/multimodal/evidence/{asset_id}")
-def get_multimodal_evidence(
-    asset_id: str, mode: Literal["live", "demo"] = "live"
-) -> dict[str, object]:
-    """Return before/after visual metadata and the combined evidence hash."""
-    fallback_reason: str | None = None
-    resolved_mode = mode
-    try:
-        evidence = get_visual_evidence(asset_id, mode)
-    except MultimodalUnavailable as exc:
-        # The anonymous fixed visual lane should remain judgeable during a
-        # transient GitHub/public-byte outage. Keep the strict multimodal
-        # helper semantics intact, but return a visibly labelled synthetic
-        # pair from this public metadata route instead of a broken panel.
-        if mode != "live":
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        try:
-            evidence = get_visual_evidence(asset_id, "demo")
-            resolved_mode = "demo"
-            fallback_reason = str(exc)
-        except MultimodalUnavailable:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-    payload = evidence.to_dict()
-    payload["before_url"] = f"/api/multimodal/assets/{asset_id}/before?mode={resolved_mode}"
-    payload["after_url"] = f"/api/multimodal/assets/{asset_id}/after?mode={resolved_mode}"
-    if fallback_reason:
-        payload["fallback_reason"] = fallback_reason
-    return payload
-
-
-@app.post("/api/multimodal/analyze")
-async def analyze_multimodal(request: MultimodalAnalysisRequest) -> dict[str, object]:
-    """Run Gemini vision only on the bounded allowlisted visual pair."""
-    retry_after = _reserve_multimodal_call()
-    if retry_after is not None:
-        raise HTTPException(
-            status_code=429,
-            detail="Multimodal analysis quota reached; retry later.",
-            headers={"Retry-After": str(retry_after)},
-        )
-    try:
-        return await asyncio.to_thread(
-            analyze_visual_evidence, request.asset_id, request.mode
-        )
-    except MultimodalUnavailable as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-
-@app.get("/api/workflows/{workflow_id}/scenarios")
-def get_workflow_scenarios(
-    workflow_id: str,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Preview approve/grandfather/defer outcomes without making any writes."""
-    try:
-        state = _resolve_workflow(workflow_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    _authorize_read_tenant(
-        state,
-        resource_id=state.workflow_id,
-        operator=operator,
-        tenant_id=tenant_id,
-        approval_token=approval_token,
-        identity_token=identity_token,
-    )
-    impacts = [item.__dict__ for item in state.impacts]
-    return simulate_scenarios(
-        impacts,
-        state.evidence.evidence_hash if state.evidence else None,
-        state.integration_targets,
-    )
-
-
-@app.post("/api/decision-twin/demo")
-async def start_decision_twin_demo() -> dict:
-    """Create the pinned PM decision case and optionally run the live ADK council."""
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Decision Twin demo rate limit reached; retry later."
-        )
-    # Each anonymous run receives an opaque id. A shared deterministic id would
-    # let one judge session reset or mutate another session's approval.
-    case = build_demo_decision_case(
-        case_id=f"decision-onboarding-{secrets.token_hex(12)}"
-    )
-    if os.getenv("DECISION_TWIN_BIGQUERY_ENABLED", "false").casefold() == "true":
-        try:
-            small_metric, enterprise_metric = await asyncio.gather(
-                asyncio.to_thread(
-                    query_aggregate_metric, "activation_rate", "small_workspaces"
-                ),
-                asyncio.to_thread(
-                    query_aggregate_metric,
-                    "activation_rate",
-                    "enterprise_workspaces",
-                ),
-            )
-            case = attach_aggregate_metrics(
-                case,
-                [small_metric, enterprise_metric],
-            )
-        except Exception as exc:  # noqa: BLE001 - public demo retains a labelled fixture.
-            case.events.append(
-                {
-                    "event_id": "bigquery-aggregate-unavailable",
-                    "action": "bigquery_aggregate_reader",
-                    "outcome": "pinned_aggregate_fixture_retained",
-                    "generation": case.generation,
-                    "reason": (
-                        "analytics_policy_rejected"
-                        if isinstance(exc, AnalyticsPolicyError)
-                        else "bigquery_runtime_unavailable"
-                    ),
-                }
-            )
-    if os.getenv("DECISION_TWIN_DECISION_MEMORY_ENABLED", "false").casefold() == "true":
-        try:
-            precedents = await asyncio.to_thread(
-                query_decision_precedents,
-                [0.09, 0.11, 1.0, 1.0],
-            )
-            case = attach_decision_precedents(case, precedents)
-        except Exception as exc:  # noqa: BLE001 - retain the labelled fixture.
-            case.events.append(
-                {
-                    "event_id": "decision-memory-unavailable",
-                    "action": "bigquery_vector_precedent_reader",
-                    "outcome": "synthetic_precedent_fixture_retained",
-                    "generation": case.generation,
-                    "reason": (
-                        "analytics_policy_rejected"
-                        if isinstance(exc, AnalyticsPolicyError)
-                        else "bigquery_runtime_unavailable"
-                    ),
-                }
-            )
-    if os.getenv("DECISION_TWIN_LIVE_COUNCIL", "false").casefold() == "true":
-        if not _reserve_product_council_calls():
-            case.events.append(
-                {
-                    "event_id": "product-council-quota-bounded",
-                    "action": "google_adk_product_council",
-                    "outcome": "deterministic_demo_fallback",
-                    "generation": case.generation,
-                    "reason": "public_model_call_quota",
-                }
-            )
-        else:
-            try:
-                case.council = await run_live_product_council(case)
-                council_event = next(
-                    event
-                    for event in case.events
-                    if event.get("event_id") == "product-council-complete"
-                )
-                council_event["action"] = "google_adk_product_council"
-                council_event["outcome"] = "disagreement_preserved"
-                council_event["execution_mode"] = "google_adk"
-                council_event["model"] = os.getenv(
-                    "MODEL_NAME", "gemini-3.5-flash"
-                )
-            except ProductCouncilUnavailable as exc:
-                # The public judge flow remains reproducible, but the response
-                # and event never mislabel a fallback as a live model run.
-                case.events.append(
-                    {
-                        "event_id": "product-council-live-unavailable",
-                        "action": "google_adk_product_council",
-                        "outcome": "deterministic_demo_fallback",
-                        "generation": case.generation,
-                        "reason": str(exc)[:240],
-                    }
-                )
-    persist_decision_case(case)
-    return case.model_dump(mode="json")
-
-
-@app.get("/api/decision-twin/{case_id}")
-def get_decision_twin(case_id: str) -> dict:
-    case = load_decision_case(case_id)
-    if case is None:
-        raise HTTPException(status_code=404, detail="Decision case not found")
-    if case.tenant_id is not None:
-        raise HTTPException(status_code=404, detail="Decision case not found")
-    return case.model_dump(mode="json")
-
-
-@app.get("/api/decision-twin/{case_id}/evaluation")
-def get_decision_twin_evaluation(case_id: str) -> dict:
-    case = load_decision_case(case_id)
-    if case is None or case.tenant_id is not None:
-        raise HTTPException(status_code=404, detail="Decision case not found")
-    return evaluate_decision_twin_case(case)
-
-
-@app.post("/api/decision-twin/{case_id}/approve")
-def approve_decision_twin(
-    case_id: str,
-    request: DecisionTwinApprovalRequest,
-    background_tasks: BackgroundTasks,
-) -> dict:
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Decision Twin approval rate limit reached; retry later."
-        )
-    current = load_decision_case(case_id)
-    if current is None or current.tenant_id is not None:
-        raise HTTPException(status_code=404, detail="Decision case not found")
-    previous_status = current.status
-    previous_generation = current.generation
-    try:
-        approved = approve_decision_case(
-            current,
-            option_id=request.option_id,
-            approver=request.approver,
-            expected_synthesis_hash=request.expected_synthesis_hash,
-            expected_generation=request.expected_generation,
-        )
-    except DecisionTwinPolicyError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    committed = compare_and_set_decision_case(
-        approved,
-        expected_generation=previous_generation,
-        expected_statuses={previous_status},
-    )
-    if not committed:
-        raise HTTPException(
-            status_code=409,
-            detail="Decision changed before approval; reload the current generation.",
-        )
-    autonomous_monitor = os.getenv("DECISION_TWIN_AUTONOMOUS_MONITOR")
-    if (
-        autonomous_monitor.casefold() == "true"
-        if autonomous_monitor is not None
-        else _tasks_enabled()
-    ):
-        try:
-            if _tasks_enabled():
-                _enqueue_decision_twin_monitor(approved.case_id, approved.generation)
-            else:
-                background_tasks.add_task(
-                    _record_decision_twin_demo_outcome,
-                    approved.case_id,
-                    DecisionTwinOutcomeRequest(
-                        expected_generation=approved.generation,
-                        scenario="guardrail_breach",
-                    ),
-                )
-        except Exception:
-            # Approval remains valid even if the monitor queue is temporarily
-            # unavailable. The UI keeps the explicit demo measurement fallback.
-            logger.exception(
-                "Unable to enqueue Decision Twin monitor for %s", approved.case_id
-            )
-    return approved.model_dump(mode="json")
-
-
-def _record_decision_twin_demo_outcome(
-    case_id: str, request: DecisionTwinOutcomeRequest
-) -> dict:
-    current = load_decision_case(case_id)
-    if current is None or current.tenant_id is not None:
-        raise HTTPException(status_code=404, detail="Decision case not found")
-    observation_id = f"outcome-g{current.generation}-{request.scenario}"
-    if any(item.observation_id == observation_id for item in current.outcomes):
-        return current.model_dump(mode="json")
-    plan = current.experiment_plan
-    if plan is None:
-        raise HTTPException(status_code=409, detail="Outcome requires an active experiment")
-    if request.scenario == "guardrail_breach":
-        value = plan.stop_threshold
-    else:
-        value = plan.success_threshold
-    observation = {
-        "observation_id": observation_id,
-        "metric_id": plan.primary_metric,
-        "segment": plan.target_segment,
-        "value": value,
-        "baseline": 0.0,
-        "unit": (
-            "count"
-            if plan.primary_metric == "qualified_enterprise_evidence_count"
-            else "relative_change"
-        ),
-        "observed_at": "2026-08-30T18:00:00+00:00",
-        "source_label": "BigQuery aggregate outcome fixture",
-        "content_hash": hashlib.sha256(
-            f"{observation_id}:{plan.primary_metric}:{plan.target_segment}:{value}".encode()
-        ).hexdigest(),
-    }
-    try:
-        updated = record_outcome(
-            current,
-            observation,
-            expected_generation=request.expected_generation,
-        )
-    except DecisionTwinPolicyError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    updated.events.append(
-        {
-            "event_id": f"decision-monitor-observed-g{current.generation}",
-            "action": "autonomous_experiment_monitor",
-            "outcome": updated.outcomes[-1].evaluation.verdict,
-            "generation": current.generation,
-            "source": "bigquery_aggregate_fixture",
-        }
-    )
-    committed = compare_and_set_decision_case(
-        updated,
-        expected_generation=current.generation,
-        expected_statuses={current.status},
-    )
-    if not committed:
-        raise HTTPException(
-            status_code=409,
-            detail="Decision changed before the outcome was recorded; reload it.",
-        )
-    return updated.model_dump(mode="json")
-
-
-@app.post("/api/decision-twin/{case_id}/outcomes/demo")
-def record_decision_twin_demo_outcome(
-    case_id: str, request: DecisionTwinOutcomeRequest
-) -> dict:
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Decision Twin outcome rate limit reached; retry later."
-        )
-    return _record_decision_twin_demo_outcome(case_id, request)
-
-
-@app.post("/api/decision-twin/{case_id}/monitor/run")
-def run_decision_twin_monitor(
-    case_id: str,
-    monitor_request: DecisionTwinOutcomeRequest,
-    request: Request,
-) -> dict:
-    """Process a bounded measurement from an authenticated Cloud Task."""
-    _verify_task_request(request)
-    return _record_decision_twin_demo_outcome(case_id, monitor_request)
-
-
-@app.post("/api/workflows/demo")
-def start_demo(source_id: str = "public/pricing") -> dict:
-    """Legacy deterministic fixture endpoint retained for reproducible tests."""
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Demo workflow rate limit reached; retry later."
-        )
-    definition = source_definition(source_id)
-    if definition is None:
-        raise HTTPException(status_code=422, detail="Source is not allowlisted")
-    if definition.get("dynamic") == "true":
-        raise HTTPException(
-            status_code=422,
-            detail="Operator-registered sources require a public monitor run",
-        )
-    state = workflow_store.start_demo(
-        source_id=source_id,
-        source_name=definition["name"],
-        source_category=definition.get("category"),
-        source_change_type=definition.get("change_type"),
-        source_url=definition["url"],
-        before_text=definition["before"],
-        after_text=definition["after"],
-        snapshot_label=f"Synthetic replay fixture Â· {source_id}",
-        data_mode="synthetic_demo",
-    )
-    persist_workflow(state)
-    return state.to_dict()
-
-
-@app.post("/api/jobs/demo")
-async def start_demo_job(
-    request: JobStartRequest,
-    background_tasks: BackgroundTasks,
-) -> dict:
-    tenant_id: str | None = None
-    if request.run_mode in {"monitor", "tenant_demo"}:
-        auth_resource = (
-            "monitor" if request.run_mode == "monitor" else "tenant-demo"
-        )
-        monitor_identity = _verify_approval_mode(
-            f"{auth_resource}:{request.source_id}",
-            request.operator,
-            "signed",
-            request.approval_token,
-            request.identity_token,
-            request.tenant_id,
-        )
-        tenant_id = monitor_identity["tenant_id"]
-    definition = source_definition(request.source_id, tenant_id)
-    if definition is None:
-        raise HTTPException(status_code=422, detail="Source is not allowlisted")
-    if definition.get("dynamic") == "true" and request.run_mode != "monitor":
-        raise HTTPException(
-            status_code=422,
-            detail="Operator-registered sources require run_mode=monitor",
-        )
-    is_public_demo = request.run_mode == "demo" and tenant_id is None
-    if is_public_demo:
-        # Keep the check, quota reservation, and enqueue in one process-local
-        # critical section. This closes the double-click race; the durable job
-        # claim still protects duplicate Cloud Tasks deliveries across Run
-        # instances.
-        with _public_job_lock:
-            existing = _inflight_public_job(request.source_id)
-            if existing is not None:
-                payload = _job_payload(existing)
-                payload["deduplicated"] = True
-                return payload
-            if not _reserve_agent_call(tenant_id):
-                raise _agent_rate_limit_error(
-                    "Live agent demo rate limit reached; retry later."
-                )
-            # The anonymous lane is a deterministic judge surface. Do not
-            # persist or send arbitrary caller text to Gemini; otherwise a
-            # public visitor could accidentally submit private material.
-            query = (
-                f"Inspect the allowlisted {request.source_id} change, verify the "
-                "evidence, map affected artifacts, and stop at the human approval "
-                "gate."
-            )
-            job = _start_job(
-                query=query,
-                user_id="public-demo",
-                run_mode=request.run_mode,
-                background_tasks=background_tasks,
-                tenant_id=None,
-                source_id=request.source_id,
-            )
-            return job.to_dict()
-
-    if not _reserve_agent_call(tenant_id):
-        raise _agent_rate_limit_error(
-            "Live agent demo rate limit reached; retry later."
-        )
-    query = (
-        f"{request.query.strip()} Use the exact allowlisted source_id "
-        f'"{request.source_id}". Do not choose a different source.'
-    )
-    job = _start_job(
-        query=query,
-        user_id=request.user_id,
-        run_mode=request.run_mode,
-        background_tasks=background_tasks,
-        tenant_id=tenant_id,
-        source_id=request.source_id,
-    )
-    return job.to_dict()
-
-
-@app.get("/api/jobs")
-def get_jobs(
-    limit: int = 8,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Expose bounded history while filtering tenant-bound jobs by identity."""
-    bounded_limit = max(1, min(limit, 20))
-    identity: dict[str, str] | None = None
-    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
-        if not operator or not tenant_id:
-            raise HTTPException(
-                status_code=401, detail="Signed approval is required for tenant jobs"
-            )
-        identity = _verify_approval_mode(
-            "jobs:list",
-            operator,
-            "signed",
-            approval_token,
-            identity_token,
-            tenant_id,
-        )
-    with _jobs_lock:
-        memory_jobs = list(_jobs.values())
-    candidates = _merge_durable_records(
-        memory_jobs, list_jobs, limit=bounded_limit, key=lambda item: item.job_id
-    )
-    candidates.sort(key=lambda item: item.created_at or "", reverse=True)
-    jobs = [
-        job
-        for job in candidates
-        if _visible_tenant_record(job, identity)
-    ][:bounded_limit]
-    return {"jobs": [_job_payload(job) for job in jobs]}
-
-
-@app.post("/api/scheduler/tick")
-async def scheduler_tick(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    source_id: str | None = None,
-) -> dict:
-    """Fan out one bounded historical monitor run per approved source.
-
-    A signed scheduler can pass ``source_id`` for a single canary. With no
-    query parameter, the explicit production registry is used. The fan-out is
-    intentionally capped before any model call so a bad scheduler configuration
-    cannot turn into an unbounded crawler or spend spike.
-    """
-    _verify_scheduler_request(request)
-    configured_value = os.getenv("DRIFTLINE_MONITOR_SOURCES", "all").strip()
-    if configured_value.casefold() in {"", "all"}:
-        configured_entries = scheduler_source_entries()
-    else:
-        requested_ids = [
-            item.strip() for item in configured_value.split(",") if item.strip()
-        ]
-        configured_entries = [
-            (None, item, source_definition(item) or {}) for item in requested_ids
-        ]
-    if source_id:
-        configured_entries = [
-            entry for entry in configured_entries if entry[1] == source_id.strip()
-        ]
-    max_sources = _positive_int("DRIFTLINE_MONITOR_MAX_SOURCES", 5)
-    source_entries, deferred_sources = _monitor_due_selection(
-        configured_entries,
-        max_sources=max_sources,
-        force_source_id=source_id,
-    )
-    invalid = [
-        item
-        for tenant_id, item, definition in source_entries
-        if not definition or source_definition(item, tenant_id) is None
-    ]
-    if invalid:
-        raise HTTPException(
-            status_code=422,
-            detail={"message": "Source is not allowlisted", "source_ids": invalid},
-        )
-    jobs: list[JobState] = []
-    queued_source_ids: list[str] = []
-    skipped: list[str] = []
-    in_flight: list[str] = []
-    for current_tenant_id, current_source_id, _definition in source_entries:
-        if _inflight_monitor_job_exists(current_source_id, current_tenant_id):
-            in_flight.append(current_source_id)
-            continue
-        if not _reserve_agent_call(current_tenant_id):
-            skipped.append(current_source_id)
-            continue
-        job = _start_job(
-            query=(
-                f"Monitor the historical allowlisted {current_source_id} snapshot. "
-                "Report baseline_established, unchanged, or a verified material "
-                "change; never invent an approval."
-            ),
-            user_id="driftline-scheduler",
-            run_mode="monitor",
-            background_tasks=background_tasks,
-            tenant_id=current_tenant_id,
-            source_id=current_source_id,
-        )
-        jobs.append(job)
-        queued_source_ids.append(current_source_id)
-    if not jobs and skipped:
-        raise _agent_rate_limit_error("Monitor rate limit reached; retry later.")
-    return {
-        "status": "queued",
-        "source_ids": queued_source_ids,
-        "selected_source_refs": [
-            {"tenant_id": tenant_id, "source_id": current_source_id}
-            for tenant_id, current_source_id, _definition in source_entries
-        ],
-        "jobs": [job.to_dict() for job in jobs],
-        "skipped_source_ids": skipped,
-        "in_flight_source_ids": in_flight,
-        "deferred_sources": deferred_sources,
-        # Preserve the one-job response shape for a canary invocation.
-        "job_id": jobs[0].job_id if len(jobs) == 1 else None,
-    }
-
-
-def _job_payload(job: JobState) -> dict[str, object]:
-    payload = job.to_dict()
-    if job.tenant_id is None:
-        # Anonymous demo jobs are useful for judging, but callers can submit
-        # arbitrary text. Never echo that text, raw model output, failure
-        # details, or the opaque Cloud Tasks claim into public history.
-        payload.pop("query", None)
-        payload.pop("user_id", None)
-        payload.pop("response", None)
-        payload.pop("error", None)
-        payload.pop("claim_id", None)
-        if job.status == "failed":
-            summary = "Public demo run failed; internal details are withheld."
-        elif job.status == "complete":
-            summary = "Run complete; evidence-bound workflow is available."
-        elif job.status == "needs_approval":
-            summary = "Evidence verified; waiting for human approval."
-        elif job.status == "running":
-            summary = "Agent run in progress."
-        else:
-            summary = "Awaiting durable agent execution."
-        payload["public_summary"] = summary
-    if job.workflow_id:
-        try:
-            payload["workflow"] = _resolve_workflow(job.workflow_id).to_dict()
-        except KeyError:
-            payload["workflow"] = None
-    return payload
-
-
-@app.get("/api/jobs/{job_id}")
-def get_job(
-    job_id: str,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict:
-    try:
-        job = _resolve_job(job_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    _authorize_read_tenant(
-        job,
-        resource_id=job.job_id,
-        operator=operator,
-        tenant_id=tenant_id,
-        approval_token=approval_token,
-        identity_token=identity_token,
-    )
-    return _job_payload(job)
-
-
-@app.post("/api/jobs/{job_id}/retry")
-async def retry_job(
-    job_id: str,
-    request: JobRetryRequest,
-    background_tasks: BackgroundTasks,
-) -> dict[str, object]:
-    """Queue one bounded retry for a failed tenant job.
-
-    The caller cannot replace the original query, source, tenant, or run mode.
-    Anonymous/public jobs remain packet-safe and are retried from the normal
-    public Run scan control instead of exposing a mutation endpoint.
-    """
-    try:
-        failed_job = _resolve_job(job_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Job not found") from exc
-    if failed_job.tenant_id is None:
-        raise HTTPException(
-            status_code=403,
-            detail="Public jobs can be rerun from the public scan control",
-        )
-    if failed_job.status != "failed":
-        raise HTTPException(
-            status_code=409,
-            detail="Only terminally failed jobs can be retried",
-        )
-    identity = _verify_approval_mode(
-        f"job-retry:{job_id}",
-        request.operator,
-        "signed",
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    if identity.get("tenant_id") != failed_job.tenant_id:
-        raise HTTPException(status_code=403, detail="Job tenant mismatch")
-    if source_definition(failed_job.source_id, identity["tenant_id"]) is None:
-        raise HTTPException(status_code=422, detail="Job source is no longer allowlisted")
-    # Cloud Tasks and browser retries can race across instances.  Return the
-    # existing active successor instead of spending a second agent call.
-    try:
-        with _jobs_lock:
-            recent_jobs = list(_jobs.values())
-        recent_jobs.extend(list_jobs(limit=50))
-    except Exception:
-        logger.exception("Unable to inspect retry idempotency ledger for %s", job_id)
-        recent_jobs = []
-    existing = next(
-        (
-            candidate
-            for candidate in recent_jobs
-            if candidate.retry_of == failed_job.job_id
-            and candidate.tenant_id == failed_job.tenant_id
-            and candidate.status in {"queued", "running", "needs_approval", "complete"}
-        ),
-        None,
-    )
-    if existing is not None:
-        return {
-            "status": "already_queued",
-            "retried_job_id": failed_job.job_id,
-            "job": existing.to_dict(),
-            "tenant_id": identity["tenant_id"],
-            "source_id": failed_job.source_id,
-        }
-    if not _reserve_agent_call(identity["tenant_id"]):
-        raise _agent_rate_limit_error("Tenant agent rate limit reached; retry later.")
-    retried = _start_job(
-        query=failed_job.query,
-        user_id=failed_job.user_id,
-        run_mode=failed_job.run_mode,
-        background_tasks=background_tasks,
-        tenant_id=identity["tenant_id"],
-        source_id=failed_job.source_id,
-        retry_of=failed_job.job_id,
-    )
-    return {
-        "status": "queued",
-        "retried_job_id": failed_job.job_id,
-        "job": retried.to_dict(),
-        "tenant_id": identity["tenant_id"],
-        "source_id": failed_job.source_id,
-    }
-
-
-@app.get("/api/ops/job-failures")
-def get_job_failures(
-    operator: str,
-    tenant_id: str | None = None,
-    limit: int = 50,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    """Return terminal async failures for the caller's tenant only.
-
-    Cloud Tasks removes a task after its bounded retry policy is exhausted;
-    this signed, metadata-only ledger preserves the operational signal without
-    returning prompts, source bodies, exception text, or credentials.
-    """
-    identity = _verify_approval_mode(
-        "job-failures",
-        operator,
-        "signed",
-        approval_token,
-        identity_token,
-        tenant_id,
-    )
-    failures = list_job_failures(identity["tenant_id"], limit=limit)
-    return {
-        "status": "ok",
-        "tenant_id": identity["tenant_id"],
-        "failures": failures,
-        "retention": f"bounded_{os.getenv('DRIFTLINE_RETENTION_DAYS', '30')}_days",
-        "credential_values_exposed": False,
-    }
-
-
-@app.post("/api/jobs/{job_id}/run")
-async def run_job(job_id: str, request: Request) -> dict:
-    _verify_task_request(request)
-    try:
-        _resolve_job(job_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    await _run_job(job_id)
-    payload = _job_payload(_resolve_job(job_id))
-    if payload.get("status") == "queued" and payload.get("error", "").startswith(
-        "Transient"
-    ):
-        raise HTTPException(
-            status_code=503, detail="Transient job failure; Cloud Tasks will retry"
-        )
-    return payload
-
-
-@app.post("/api/agent/run")
-async def run_agent(request: AgentRunRequest) -> dict:
-    if not request.query.strip():
-        raise HTTPException(status_code=422, detail="Query cannot be empty")
-    signed_identity: dict[str, str] | None = None
-    has_signed_fields = any(
-        value is not None
-        for value in (
-            request.operator,
-            request.tenant_id,
-            request.approval_token,
-            request.identity_token,
-        )
-    )
-    if has_signed_fields:
-        if not request.operator or not request.tenant_id:
-            raise HTTPException(
-                status_code=401,
-                detail="Signed agent execution requires operator and tenant_id",
-            )
-        signed_identity = _verify_approval_mode(
-            f"agent-run:{request.source_id}",
-            request.operator,
-            "signed",
-            request.approval_token,
-            request.identity_token,
-            request.tenant_id,
-        )
-    bound_tenant = signed_identity.get("tenant_id") if signed_identity else None
-    # A registered public URL belongs to its tenant and must never be
-    # discoverable or runnable from the anonymous lane. Resolve the source
-    # only after authenticating the optional tenant, so direct API operators
-    # receive the same real monitor path as the console and scheduler.
-    definition = source_definition(request.source_id, bound_tenant)
-    if definition is None or (
-        definition.get("dynamic") == "true" and bound_tenant is None
-    ):
-        raise HTTPException(status_code=422, detail="Source is not allowlisted")
-    if not _reserve_agent_call(bound_tenant):
-        raise _agent_rate_limit_error(
-            "Live agent demo rate limit reached; retry later."
-        )
-    if bound_tenant is None:
-        # Anonymous direct runs are a judge surface, not a general-purpose
-        # prompt proxy. Keep caller text out of Gemini and the public workflow
-        # ledger while preserving the signed tenant lane for real operators.
-        query = (
-            f"Inspect the allowlisted {request.source_id} change, verify the "
-            "evidence, map affected artifacts, and stop at the human approval "
-            "gate."
-        )
-        user_id = "public-demo"
-    else:
-        query = (
-            f"{request.query.strip()} Use the exact allowlisted source_id "
-            f'"{request.source_id}". Do not choose a different source.'
-        )
-        user_id = request.user_id
-    try:
-        if bound_tenant:
-            internal_context = _read_internal_context_for_run(bound_tenant)
-            if internal_context is not None:
-                return await run_agent_task(
-                    query,
-                    user_id,
-                    run_mode="live",
-                    tenant_id=bound_tenant,
-                    internal_context=internal_context,
-                )
-            return await run_agent_task(
-                query,
-                user_id,
-                run_mode="live",
-                tenant_id=bound_tenant,
-            )
-        return await run_agent_task(query, user_id)
-    except Exception as exc:
-        logger.exception("Live ADK execution failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Live ADK execution is unavailable; check Google Cloud credentials.",
-        ) from exc
-
-
-@app.get("/api/workflows/{workflow_id}")
-def get_workflow(
-    workflow_id: str,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict:
-    try:
-        state = _resolve_workflow(workflow_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    _authorize_read_tenant(
-        state,
-        resource_id=state.workflow_id,
-        operator=operator,
-        tenant_id=tenant_id,
-        approval_token=approval_token,
-        identity_token=identity_token,
-    )
-    return state.to_dict()
-
-
-def _require_action_actor(actor: str) -> str:
-    cleaned = actor.strip()
-    if not cleaned or any(
-        token in {"agent", "system", "gemini", "assistant"}
-        for token in cleaned.casefold().split()
-    ):
-        raise HTTPException(status_code=400, detail="A named human actor is required")
-    return cleaned
-
-
-@app.get("/api/workflows/{workflow_id}/actions")
-def get_actions(
-    workflow_id: str,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> dict[str, object]:
-    try:
-        state = _resolve_workflow(workflow_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    _authorize_read_tenant(
-        state,
-        resource_id=state.workflow_id,
-        operator=operator,
-        tenant_id=tenant_id,
-        approval_token=approval_token,
-        identity_token=identity_token,
-    )
-    return {"actions": state.action_items}
-
-
-def _action_item(state: WorkflowState, item_id: str) -> dict[str, object]:
-    item = next(
-        (entry for entry in state.action_items if entry["item_id"] == item_id), None
-    )
-    if item is None:
-        raise KeyError(f"Unknown action item: {item_id}")
-    return item
-
-
-def _action_request_is_idempotent(
-    state: WorkflowState,
-    item: dict[str, object],
-    operation: str,
-    actor: str,
-    request: ActionItemRequest,
-) -> bool:
-    """Identify safe repeats that do not create another state transition.
-
-    Rate limits protect new work, not transport retries. Keeping duplicate
-    requests quota-neutral prevents a double-click or a client retry from
-    consuming the public mutation budget while preserving the same policy
-    checks and CAS transition for every real change.
-    """
-    if state.status.value != "complete":
-        return False
-    status = item.get("status")
-    if operation == "claim":
-        return status == ActionItemStatus.CLAIMED.value and item.get("claimed_by") == actor
-    if operation == "complete":
-        return status == ActionItemStatus.COMPLETED.value and (
-            item.get("completed_by") == actor or item.get("claimed_by") == actor
-        )
-    if operation == "fail":
-        return status == ActionItemStatus.FAILED.value and (
-            item.get("failed_by") == actor
-            and item.get("failure_reason") == getattr(request, "reason", None)
-        )
-    if operation == "retry":
-        return status == ActionItemStatus.QUEUED.value and item.get("retried_by") in (
-            None,
-            actor,
-        )
-    if operation == "reverse":
-        return status == ActionItemStatus.REVERSED.value
-    return False
-
-
-def _action_event(state: WorkflowState, item_id: str, outcome: str, actor: str) -> None:
-    state.events.append(
-        {
-            "event_id": f"event-{uuid4().hex[:12]}",
-            "actor": "action_lifecycle",
-            "outcome": f"{item_id}:{outcome}",
-            "timestamp": utc_now(),
-            "action_item_id": item_id,
-            "human_actor": actor,
-        }
-    )
-    state.updated_at = utc_now()
-
-
-def _authorize_action_request(
-    workflow_id: str,
-    item_id: str,
-    request: ActionItemRequest,
-    operation: str,
-) -> dict[str, str]:
-    identity = _verify_approval_mode(
-        workflow_id,
-        request.actor,
-        request.approval_mode,
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    _authorize_workflow_tenant(workflow_id, identity)
-    cleaned_actor = _require_action_actor(request.actor)
-    state = _resolve_workflow(workflow_id)
-    item = _action_item(state, item_id)
-    if not _action_request_is_idempotent(
-        state, item, operation, cleaned_actor, request
-    ) and not _reserve_demo_mutation(identity.get("tenant_id")):
-        raise _demo_mutation_rate_limit_error(
-            "Action mutation rate limit reached for this tenant; retry later."
-        )
-    return identity
-
-
-def _action_transition(
-    workflow_id: str,
-    item_id: str,
-    request: ActionItemRequest,
-    transition: Callable[[WorkflowState, dict[str, object], str], None],
-    *,
-    operation: str,
-) -> dict:
-    """Apply one idempotent action-item transition through workflow CAS."""
-    _authorize_action_request(workflow_id, item_id, request, operation)
-    cleaned_actor = _require_action_actor(request.actor)
-
-    def apply(state: WorkflowState) -> WorkflowState:
-        if state.status.value != "complete":
-            raise PolicyViolation("Actions are available after approval")
-        transition(state, _action_item(state, item_id), cleaned_actor)
-        if state.evidence is not None:
-            state.change_card = build_change_card(
-                workflow_id=state.workflow_id,
-                evidence=state.evidence,
-                impacts=state.impacts,
-                impact_graph=state.impact_graph,
-                data_mode=state.data_mode,
-                approval=state.approval,
-                action_items=state.action_items,
-            )
-        return state
-
-    return _transition_workflow(workflow_id, "complete", apply).to_dict()
-
-
-@app.post("/api/workflows/{workflow_id}/actions/{item_id}/claim")
-def claim_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
-    try:
-
-        def transition(
-            state: WorkflowState, item: dict[str, object], actor: str
-        ) -> None:
-            if item.get("status") == ActionItemStatus.CLAIMED.value:
-                if item.get("claimed_by") == actor:
-                    return
-                raise PolicyViolation("Action item is already claimed")
-            if item.get("status") != ActionItemStatus.QUEUED.value:
-                raise PolicyViolation("Action item is not queued")
-            item.update(
-                {
-                    "status": ActionItemStatus.CLAIMED.value,
-                    "claimed_by": actor,
-                    "claimed_at": utc_now(),
-                    "attempts": int(item.get("attempts", 0)) + 1,
-                }
-            )
-            _action_event(state, item_id, "claimed", actor)
-
-        return _action_transition(
-            workflow_id, item_id, request, transition, operation="claim"
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@app.post("/api/workflows/{workflow_id}/actions/{item_id}/complete")
-def complete_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
-    try:
-
-        def transition(
-            state: WorkflowState, item: dict[str, object], actor: str
-        ) -> None:
-            if item.get("status") == ActionItemStatus.COMPLETED.value:
-                if item.get("completed_by") == actor or item.get("claimed_by") == actor:
-                    return
-                raise PolicyViolation(
-                    "Only the claiming actor can complete this action"
-                )
-            if (
-                item.get("status") != ActionItemStatus.CLAIMED.value
-                or item.get("claimed_by") != actor
-            ):
-                raise PolicyViolation(
-                    "Only the claiming actor can complete this action"
-                )
-            item.update(
-                {
-                    "status": ActionItemStatus.COMPLETED.value,
-                    "completed_by": actor,
-                    "completed_at": utc_now(),
-                }
-            )
-            _action_event(state, item_id, "completed", actor)
-
-        return _action_transition(
-            workflow_id, item_id, request, transition, operation="complete"
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@app.post("/api/workflows/{workflow_id}/actions/{item_id}/fail")
-def fail_action(workflow_id: str, item_id: str, request: ActionFailureRequest) -> dict:
-    """Record a bounded human-visible failure so a queued retry is possible."""
-    try:
-
-        def transition(
-            state: WorkflowState, item: dict[str, object], actor: str
-        ) -> None:
-            if item.get("status") == ActionItemStatus.FAILED.value:
-                if (
-                    item.get("failed_by") == actor
-                    and item.get("failure_reason") == request.reason
-                ):
-                    return
-                raise PolicyViolation("Action item is already failed")
-            if (
-                item.get("status") != ActionItemStatus.CLAIMED.value
-                or item.get("claimed_by") != actor
-            ):
-                raise PolicyViolation("Only the claiming actor can fail this action")
-            item.update(
-                {
-                    "status": ActionItemStatus.FAILED.value,
-                    "failed_by": actor,
-                    "failed_at": utc_now(),
-                    "failure_reason": request.reason,
-                }
-            )
-            _action_event(state, item_id, "failed", actor)
-
-        return _action_transition(
-            workflow_id, item_id, request, transition, operation="fail"
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@app.post("/api/workflows/{workflow_id}/actions/{item_id}/retry")
-def retry_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
-    """Requeue a failed item; repeat retries by the same actor are idempotent."""
-    try:
-
-        def transition(
-            state: WorkflowState, item: dict[str, object], actor: str
-        ) -> None:
-            if item.get("status") == ActionItemStatus.QUEUED.value:
-                if item.get("retried_by") in (None, actor):
-                    return
-                raise PolicyViolation("Action item is already queued")
-            if item.get("status") != ActionItemStatus.FAILED.value:
-                raise PolicyViolation("Only a failed action can be retried")
-            item.update(
-                {
-                    "status": ActionItemStatus.QUEUED.value,
-                    "retried_by": actor,
-                    "retried_at": utc_now(),
-                    "retry_count": int(item.get("retry_count", 0)) + 1,
-                }
-            )
-            _action_event(state, item_id, "retried", actor)
-
-        return _action_transition(
-            workflow_id, item_id, request, transition, operation="retry"
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@app.post("/api/workflows/{workflow_id}/actions/{item_id}/reverse")
-def reverse_action(workflow_id: str, item_id: str, request: ActionItemRequest) -> dict:
-    """Reversibly close an individual action item without deleting its audit."""
-    try:
-
-        def transition(
-            state: WorkflowState, item: dict[str, object], actor: str
-        ) -> None:
-            if item.get("status") == ActionItemStatus.REVERSED.value:
-                return
-            if item.get("status") not in {
-                ActionItemStatus.QUEUED.value,
-                ActionItemStatus.CLAIMED.value,
-                ActionItemStatus.COMPLETED.value,
-                ActionItemStatus.FAILED.value,
-            }:
-                raise PolicyViolation("Action item cannot be reversed")
-            item.update(
-                {
-                    "status": ActionItemStatus.REVERSED.value,
-                    "reversed_by": actor,
-                    "reversed_at": utc_now(),
-                }
-            )
-            _action_event(state, item_id, "reversed", actor)
-
-        return _action_transition(
-            workflow_id, item_id, request, transition, operation="reverse"
-        )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@app.get("/api/workflows/{workflow_id}/packet", response_class=PlainTextResponse)
-def get_packet(
-    workflow_id: str,
-    operator: str | None = None,
-    tenant_id: str | None = None,
-    approval_token: str | None = None,
-    identity_token: str | None = None,
-) -> str:
-    try:
-        state = _resolve_workflow(workflow_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    _authorize_read_tenant(
-        state,
-        resource_id=state.workflow_id,
-        operator=operator,
-        tenant_id=tenant_id,
-        approval_token=approval_token,
-        identity_token=identity_token,
-    )
-    return packet_markdown(state)
-
-
-@app.post("/api/workflows/{workflow_id}/approve")
-def approve(workflow_id: str, request: ApprovalRequest) -> dict:
-    approval_identity = _verify_approval_mode(
-        workflow_id,
-        request.approver,
-        request.approval_mode,
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    audit_actor = _audit_actor(request.approver, approval_identity)
-    _authorize_workflow_tenant(workflow_id, approval_identity)
-    if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
-        raise _demo_mutation_rate_limit_error(
-            "Workflow mutation rate limit reached for this tenant; retry later."
-        )
-    try:
-
-        def apply(current: WorkflowState) -> WorkflowState:
-            try:
-                validate_approval_choice(
-                    current,
-                    request.copilot_option_id,
-                    request.decision,
-                    request.artifact_decisions,
-                    custom_override=request.copilot_artifact_override,
-                    override_reason=request.copilot_override_reason,
-                )
-            except (ValueError, TypeError) as exc:
-                raise PolicyViolation(str(exc)) from exc
-            state = workflow_store.approve(
-                current.workflow_id,
-                audit_actor,
-                request.decision,
-                request.artifact_decisions,
-                approval_metadata={
-                    "copilot_option_id": request.copilot_option_id,
-                    "copilot_artifact_override": request.copilot_artifact_override,
-                    **(
-                        {"copilot_override_reason": request.copilot_override_reason.strip()}
-                        if request.copilot_artifact_override
-                        and request.copilot_override_reason
-                        else {}
-                    ),
-                },
-            )
-            if state.approval is not None:
-                state.approval["approval_identity"] = approval_identity
-            # Claim the whole side-effect operation durably before any
-            # connector or artifact write. Undo and reapproval reject this
-            # intermediate state across Cloud Run instances.
-            state.status = WorkflowStatus.APPROVAL_EXECUTING
-            _claim_side_effect_operation(
-                state,
-                kind="approval",
-                actor=audit_actor,
-                approval_identity=approval_identity,
-            )
-            return state
-
-        state = _transition_workflow(
-            workflow_id,
-            "needs_approval",
-            apply,
-        )
-        executing_state = copy.deepcopy(state)
-        try:
-            state = _execute_claimed_side_effects(
-                state,
-                approval_identity,
-                reverse=False,
-            )
-        except Exception as exc:
-            logger.exception("Approval operation requires reconciliation")
-            state = _mark_reconciliation_required(
-                state,
-                expected_status=WorkflowStatus.APPROVAL_EXECUTING,
-                fallback=executing_state,
-                error=exc,
-            )
-            _sync_jobs_for_workflow(workflow_id, state.status.value)
-            return state.to_dict()
-        state = _commit_workflow_transition(
-            state,
-            WorkflowStatus.APPROVAL_EXECUTING.value,
-            executing_state,
-        )
-        _sync_jobs_for_workflow(workflow_id, state.status.value)
-        return state.to_dict()
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@app.post("/api/workflows/{workflow_id}/dismiss")
-def dismiss(workflow_id: str, request: DismissRequest) -> dict:
-    approval_identity = _verify_approval_mode(
-        workflow_id,
-        request.actor,
-        request.approval_mode,
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    audit_actor = _audit_actor(request.actor, approval_identity)
-    _authorize_workflow_tenant(workflow_id, approval_identity)
-    if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
-        raise _demo_mutation_rate_limit_error(
-            "Workflow mutation rate limit reached for this tenant; retry later."
-        )
-    try:
-
-        def apply(current: WorkflowState) -> WorkflowState:
-            state = workflow_store.dismiss(
-                current.workflow_id,
-                audit_actor,
-                request.reason,
-            )
-            if state.approval is not None:
-                state.approval["approval_identity"] = approval_identity
-            return state
-
-        state = _transition_workflow(workflow_id, "needs_approval", apply)
-        _sync_jobs_for_workflow(workflow_id, state.status.value)
-        return state.to_dict()
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@app.post("/api/workflows/{workflow_id}/undo")
-def undo(workflow_id: str, request: UndoRequest) -> dict:
-    approval_identity = _verify_approval_mode(
-        workflow_id,
-        request.actor,
-        request.approval_mode,
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    audit_actor = _audit_actor(request.actor, approval_identity)
-    _authorize_workflow_tenant(workflow_id, approval_identity)
-    if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
-        raise _demo_mutation_rate_limit_error(
-            "Workflow mutation rate limit reached for this tenant; retry later."
-        )
-    try:
-
-        def apply(current: WorkflowState) -> WorkflowState:
-            if (
-                current.action_record
-                and current.action_record.get("external_write")
-                and approval_identity.get("scope") != "configured"
-            ):
-                raise PolicyViolation(
-                    "Signed approval is required to reverse configured connector writes"
-                )
-            state = workflow_store.undo(current.workflow_id, audit_actor)
-            state.events[-1]["approval_identity"] = approval_identity
-            # Claim reversal before touching any external system. A concurrent
-            # approval sees this durable state and fails closed.
-            state.status = WorkflowStatus.REVERSAL_EXECUTING
-            _claim_side_effect_operation(
-                state,
-                kind="reversal",
-                actor=audit_actor,
-                approval_identity=approval_identity,
-            )
-            return state
-
-        state = _transition_workflow(
-            workflow_id,
-            "complete",
-            apply,
-        )
-        executing_state = copy.deepcopy(state)
-        try:
-            state = _execute_claimed_side_effects(
-                state,
-                approval_identity,
-                reverse=True,
-            )
-        except Exception as exc:
-            logger.exception("Reversal operation requires reconciliation")
-            state = _mark_reconciliation_required(
-                state,
-                expected_status=WorkflowStatus.REVERSAL_EXECUTING,
-                fallback=executing_state,
-                error=exc,
-            )
-            _sync_jobs_for_workflow(workflow_id, state.status.value)
-            return state.to_dict()
-        state = _commit_workflow_transition(
-            state,
-            WorkflowStatus.REVERSAL_EXECUTING.value,
-            executing_state,
-        )
-        _sync_jobs_for_workflow(workflow_id, state.status.value)
-        return state.to_dict()
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@app.post("/api/workflows/{workflow_id}/reconcile")
-def reconcile(workflow_id: str, request: ReconcileRequest) -> dict:
-    """Retry the same durable operation after an interrupted/ambiguous attempt."""
-    actor = _require_action_actor(request.actor)
-    approval_identity = _verify_approval_mode(
-        workflow_id,
-        actor,
-        request.approval_mode,
-        request.approval_token,
-        request.identity_token,
-        request.tenant_id,
-    )
-    audit_actor = _audit_actor(actor, approval_identity)
-    _authorize_workflow_tenant(workflow_id, approval_identity)
-    if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
-        raise _demo_mutation_rate_limit_error(
-            "Workflow mutation rate limit reached for this tenant; retry later."
-        )
-    try:
-        current = _resolve_workflow(workflow_id)
-        if current.status in {
-            WorkflowStatus.APPROVAL_EXECUTING,
-            WorkflowStatus.REVERSAL_EXECUTING,
-        }:
-            # A process may terminate after the durable claim but before the
-            # exception handler can mark reconciliation_required. First move
-            # only an expired claim into that exclusive state; a second CAS
-            # below then ensures exactly one recovery attempt can execute.
-            _transition_workflow(
-                workflow_id,
-                current.status.value,
-                _expire_stale_operation_claim,
-            )
-        elif current.status != WorkflowStatus.RECONCILIATION_REQUIRED:
-            raise PolicyViolation("Workflow has no recoverable operation")
-
-        def claim(current: WorkflowState) -> WorkflowState:
-            operation = current.operation or {}
-            kind = operation.get("kind")
-            if kind not in {"approval", "reversal"}:
-                raise PolicyViolation("Workflow has no recoverable operation")
-            requires_signed = bool(
-                operation.get("scope") == "configured"
-                or (current.action_record or {}).get("external_write")
-            )
-            if requires_signed and approval_identity.get("scope") != "configured":
-                raise PolicyViolation(
-                    "Signed approval is required to reconcile configured connector writes"
-                )
-            current.operation = {
-                **operation,
-                "status": "executing",
-                "attempts": int(operation.get("attempts", 1)) + 1,
-                "last_attempt_at": utc_now(),
-                "lease_expires_at": (
-                    datetime.now(UTC)
-                    + timedelta(seconds=_operation_lease_seconds())
-                ).isoformat(),
-                "reconciled_by": audit_actor,
-            }
-            current.status = (
-                WorkflowStatus.APPROVAL_EXECUTING
-                if kind == "approval"
-                else WorkflowStatus.REVERSAL_EXECUTING
-            )
-            current.events.append(
-                {
-                    "event_id": f"evt-{uuid4().hex[:12]}",
-                    "timestamp": utc_now(),
-                    "action": "operation_reconciler",
-                    "outcome": "retry_claimed",
-                    "stage": current.stage.value,
-                    "evidence_hash": current.evidence.evidence_hash
-                    if current.evidence
-                    else None,
-                    "operation_id": operation.get("operation_id"),
-                }
-            )
-            return current
-
-        state = _transition_workflow(
-            workflow_id,
-            WorkflowStatus.RECONCILIATION_REQUIRED.value,
-            claim,
-        )
-        executing_status = state.status
-        executing_state = copy.deepcopy(state)
-        reverse = state.operation.get("kind") == "reversal"
-        try:
-            state = _execute_claimed_side_effects(
-                state,
-                approval_identity,
-                reverse=reverse,
-            )
-        except Exception as exc:
-            logger.exception("Reconciled operation remains incomplete")
-            state = _mark_reconciliation_required(
-                state,
-                expected_status=executing_status,
-                fallback=executing_state,
-                error=exc,
-            )
-            _sync_jobs_for_workflow(workflow_id, state.status.value)
-            return state.to_dict()
-        state.action_record = {
-            **(state.action_record or {}),
-            "reconciliation_required": False,
-            "operation_id": state.operation.get("operation_id"),
-        }
-        state = _commit_workflow_transition(
-            state,
-            executing_status.value,
-            executing_state,
-        )
-        _sync_jobs_for_workflow(workflow_id, state.status.value)
-        return state.to_dict()
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PolicyViolation as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-static_dir = Path(os.getenv("DRIFTLINE_STATIC_DIR", "/app/static"))
-if static_dir.is_dir():
-    app.mount("/", StaticFiles(directory=static_dir, html=True), name="console")
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éí×M6÷tèµ©hºÚn¶X§zÍYœ›ÛH×Ù]\™W×È[\Ü[››Ý][ÛœÂ‚š[\Ü\Þ[˜Ú[Âš[\Ü˜\ÙMš[\ÜÛÜBš[\Ü\ÚX‚š[\ÜXXÂš[\ÜœÛÛ‚š[\ÜÙÙÚ[™Âš[\ÜÜÂš[\Ü™Bš[\ÜÙXÜ™]Â™œ›ÛHÛÛXÝ[ÛœÈ[\Ü\]YB™œ›ÛHÛÛXÝ[ÛœË˜X˜È[\ÜØ[X›B™œ›ÛHÛÛ^˜\œÈ[\ÜÛÛ^˜\‚™œ›ÛH]][YH[\ÜUË]][YK[YY[B™œ›ÛH]Xˆ[\Ü]™œ›ÛHÝ]\ÝXÜÈ[\ÜYYX[‚™œ›ÛH™XY[™È[\ÜØÚÂ™œ›ÛH[YH[\Ü[Û›ÝÛšXÂ™œ›ÛH\[™È[\Ü[žK]\˜[™œ›ÛH\›X‹œ\œÙH[\Ü\œÙWÜ\Û\›[˜ÛÙK\›\œÙB™œ›ÛH]ZY[\Ü]ZY‚™œ›ÛH˜\Ý\H[\Ü˜XÚÙÜ›Ý[™\ÚÜË˜\ÝTK^Ù\[Û‹™\]Y\Ý™œ›ÛH˜\Ý\K›ZY]Ø\™K˜ÛÜœÈ[\ÜÓÔ”ÓZY]Ø\™B™œ›ÛH˜\Ý\Kœ™\ÜÛœÙ\È[\Ü”ÓÓ”™\ÜÛœÙKZ[•^™\ÜÛœÙK™\ÜÛœÙB™œ›ÛH˜\Ý\KœÝ]XÙš[\È[\ÜÝ]XÑš[\Â™œ›ÛHY[XÈ[\Ü˜\ÙS[Ù[ÛÛ™šYÑXÝšY[‚žNˆÈÛÝY\ÚÜÈ\ÈÜ[Û˜[›ÜˆØØ[Þ[]XÈ]™[ÜY[‚ˆœ›ÛHÛÛÙÛK˜\WØÛÜ™K™^Ù\[ÛœÈ[\Ü[™XYQ^\ÝÈ\È\ÚÐ[™XYQ^\ÝÂˆœ›ÛHÛÛÙÛK˜ÛÝY[\Ü\ÚÜ×ÝŒ‚™^Ù\[\Ü\œ›ÜŽˆÈ˜YÛXNˆ›ÈÛÝ™\ˆH^\˜Ú\ÙYÛ›H[ˆHZ[š[X[ØØ[[‹‚ˆ\ÚÜ×ÝŒˆH›Û™Bˆ\ÚÐ[™XYQ^\ÝÈH\J•\ÚÐ[™XYQ^\ÝÈ‹
+^Ù\[Û‹
+KßJB‚™œ›ÛH˜Y×Ü[[YH[\Ü[—ØYÙ[Ý\ÚÂ™œ›ÛH˜\Y˜XÝÈ[\Ü\œÚ\ÝØXÝ[Û—Ø\Y˜XÝ\œÚ\ÝÛÜ\˜][Û˜[ÛÝ]]™œ›ÛH˜ÛÛ›™XÝÜœÈ[\Ü
+ˆÛÛ™›Y[˜ÙPÛÛ™šYËˆÛÛ™›Y[˜ÙPÛÛ›™XÝÜ‹ˆÛÛ›™XÝÜ‘\œ›Ü‹ˆÚ]XÛÛ™šYËˆÚ]XÛÛ›™XÝÜ‹ˆš\˜PÛÛ™šYËˆš\˜PÛÛ›™XÝÜ‹ˆØ[\Ù›Ü˜ÙPÛÛ™šYËˆØ[\Ù›Ü˜ÙT™XYÛ›PÛY[ˆØ[\Ù›Ü˜ÙT™X]]Üš^˜][Û”™\]Z\™YˆÛXÚÐÛÛ™šYËˆÛXÚÐÛÛ›™XÝÜ‹ˆ^Ú[™ÙWÜØ[\Ù›Ü˜ÙWØÛÙKˆ^XÝ]WØÛÛ™›Y[˜ÙWÚ[™Ù™‹ˆ^XÝ]WÙÚ]X—Ú[™Ù™‹ˆ^XÝ]WÚš\˜WÚ[™Ù™‹ˆ^XÝ]WÜÛXÚ×Ú[™Ù™‹ˆ™XYÜÙXÜ™]ˆ™Yœ™\ÚÜØ[\Ù›Ü˜ÙWÝÚÙ[‹ˆ™]™\œÙWØÛÛ™›Y[˜ÙWÚ[™Ù™‹ˆ™]™\œÙWÙÚ]X—Ú[™Ù™‹ˆ™]™\œÙWÚš\˜WÚ[™Ù™‹ˆ™]™\œÙWÜÛXÚ×Ú[™Ù™‹ˆØ[\Ù›Ü˜ÙWØ]]Üš^˜][Û—Ý\›ˆØ[\Ù›Ü˜ÙWÜ™XY[™\ÜËˆÙXÜ™]Ý™\œÚ[Û—Ù›Ü‹ˆ[˜[ÜÙXÜ™]ØÜ™Y[X[ËˆÜš]WÜÙXÜ™]Ý™\œÚ[Û‹ŠB™œ›ÛH˜Ü™Y[X[Øœ›ÚÙ\ˆ[\Ü
+ˆÜ™Y[X[œ›ÚÙ\‘\œ›Ü‹ˆ[ÝÙYÛÜ\˜][ÛœËˆ›Ü›X[^™WØ[ÝÙYÛÜ\˜][ÛœËˆ™\ÛÛ™WÝ[˜[ØÜ™Y[X[ŠB™œ›ÛH™XÚ\Ú[Û—ØÛÜ[Ý[\Ü˜[Y]WØ\›Ý˜[ØÚÚXÙB™œ›ÛH™XÚ\Ú[Û—ÝÚ[ˆ[\Ü
+ˆXÚ\Ú[Û•Ú[”ÛXÞQ\œ›Ü‹ˆ\›Ý™WÙXÚ\Ú[Û—ØØ\ÙKˆ]XÚØYÙÜ™YØ]WÛY]šXÜËˆ]XÚÙXÚ\Ú[Û—Ü™XÙY[ËˆZ[Ù[[×ÙXÚ\Ú[Û—ØØ\ÙKˆZ[Ú[ZÙWÙXÚ\Ú[Û—ØØ\ÙKˆ™XÛÜ™ÛÝ]ÛÛYKŠB™œ›ÛH›X]\šX[]H[\ÜZ[ØÚ[™ÙWØØ\™›Ü›X[^™WÚ[\›˜[ØÛÛ^™œ›ÛH›Y[[ÜžH[\ÜZ[ÛY[[ÜžWÜÝ[[X\žB™œ›ÛH›[Ù[È[\ÜXÝ[Û’][TÝ]\Ë›Ø”Ý]KÛÜšÙ›ÝÔÝ]KÛÜšÙ›ÝÔÝ]\Ë]×Û›ÝÂ™œ›ÛH›][[[Ù[[\Ü
+ˆ][[[Ù[[˜]˜Z[X›Kˆ[˜[^™WÝš\ÝX[Ù]šY[˜ÙKˆÙ]Ýš\ÝX[Ù]šY[˜ÙKˆš\ÝX[Ø\ÜÙ]Øž]\ËŠB™œ›ÛHœ\œÚ\Ý[˜ÙH[\Ü
+ˆÛZ[WÚ›Ø‹ˆÛÛ\\™WØ[™ÜÙ]ÙXÚ\Ú[Û—ØØ\ÙKˆÛÛ\\™WØ[™ÜÙ]ÝÛÜšÙ›ÝËˆÛÛœÝ[YWÜØ[\Ù›Ü˜ÙWÛØ]]ÜÝ]Kˆ[]WÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[Û‹ˆ\ÝØÛÛ›™XÝÜ—Øš[™[™ÜËˆ\ÝØÛÛ›™XÝÜ—Ü›Ùš[\Ëˆ\ÝØÜ™Y[X[ØXØÙ\Ü×Ù]™[Ëˆ\ÝÙ]˜[X][ÛœËˆ\ÝÚ›Ø—Ù˜Z[\™\Ëˆ\ÝÚ›ØœËˆ\ÝÛÝ]ÛÛYWÛYX\Ý\™[Y[Ëˆ\ÝÝ[˜[Ø]Y]Ù]™[Ëˆ\ÝÝ[˜[ÛY[X™\œÚ\Ëˆ\ÝÝ[˜[ÛY[X™\œÚ\×Ù›Ü—Ù[XZ[ˆ\ÝÝÛÜšÙ›ÝÜËˆØYØÛÛ›™XÝÜ—Øš[™[™ËˆØYØÛÛ›™XÝÜ—Ü›Ùš[KˆØYØÜ™Y[X[Ù[œ›ÛY[ˆØYÙXÚ\Ú[Û—ØØ\ÙKˆØYÚ›Ø‹ˆØYÛ]\ÝÙ]˜[X][Û‹ˆØYÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[Û‹ˆØYÝ[˜[ˆØYÝ[˜[ÜÛXÞKˆØYÝ[˜[Ý\ØYÙKˆØYÝÛÜšÙ›ÝËˆ\œÚ\ÝØÛÛ›™XÝÜ—Øš[™[™Ëˆ\œÚ\ÝØÛÛ›™XÝÜ—Ü›Ùš[Kˆ\œÚ\ÝØÜ™Y[X[Ù[œ›ÛY[ˆ\œÚ\ÝÙXÚ\Ú[Û—ØØ\ÙKˆ\œÚ\ÝÙ]˜[X][Û‹ˆ\œÚ\ÝÚ›Ø‹ˆ\œÚ\ÝÚ›Ø—Ù˜Z[\™Kˆ\œÚ\ÝÛÝ]ÛÛYWÛYX\Ý\™[Y[ˆ\œÚ\ÝÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[Û‹ˆ\œÚ\ÝÜØ[\Ù›Ü˜ÙWÛØ]]ÜÝ]Kˆ\œÚ\ÝÝ[˜[ˆ\œÚ\ÝÝ[˜[Ø]Y]Ù]™[ˆ\œÚ\ÝÝ[˜[ÛY[X™\œÚ\ˆ\œÚ\ÝÝ[˜[ÜÛXÞKˆ\œÚ\ÝÝÛÜšÙ›ÝËˆ›Ýš\Ú[Û—Ý[˜[ÛY]Y]Kˆ™XÛÜ™Ý[˜[Ý\ØYÙKˆ™\Ù\™WÝ[˜[Ü˜]WÛ[Z]ˆ\]WÚ›Øœ×Ù›Ü—ÝÛÜšÙ›ÝËŠB™œ›ÛHœ›ÙXÝØ[˜[]XÜÈ[\Ü
+ˆ[˜[]XÜÔÛXÞQ\œ›Ü‹ˆ]Y\žWØYÙÜ™YØ]WÛY]šXËˆ]Y\žWÙXÚ\Ú[Û—Ü™XÙY[ËŠB™œ›ÛHœ›ÙXÝØÛÝ[˜Ú[[\Ü›ÙXÝÛÝ[˜Ú[[˜]˜Z[X›K[—Û]™WÜ›ÙXÝØÛÝ[˜Ú[™œ›ÛH˜XÙWÙ]˜[[\Ü
+ˆZ[Ü]X[]WÙš^\™Kˆ]˜[X]WÙXÚ\Ú[Û—ÝÚ[—ØØ\ÙKˆ[—Ü]X[]WÙØ]KŠB‚‚™YˆÜ™XYÝ[˜[ÜÙXÜ™]
+[˜[ÚYˆÝ‹ÙXÜ™]Û˜[YNˆÝ‹
+‹™\œÚ[ÛŽˆÝˆH›]\ÝŠHOˆÝŽ‚ˆˆˆ”™XY›ÝYÚH[˜[Y[]HÚ]ÛÛ\]Xš[]H›ÜˆØØ[˜ZÙ\Ëˆˆˆ‚ˆÜ™Y[X[ÈH[˜[ÜÙXÜ™]ØÜ™Y[X[Ê[˜[ÚY
+BˆžN‚ˆ™]\›ˆ™XYÜÙXÜ™]
+ÙXÜ™]Û˜[YK™\œÚ[Û]™\œÚ[Û‹Ü™Y[X[ÏXÜ™Y[X[ÊBˆ^Ù\\Q\œ›ÜŽ‚ˆÈÛ\ˆØØ[\ÝÝX›\ÈXØÙ\YÛ›HHÙXÜ™]˜[YKˆ\Èœ˜[˜ÚˆÈ™]™\ˆ[œÈÚ]H›ÙXÝ[ÛˆÙXÜ™]X[˜YÙ\ˆÛY[‚ˆžN‚ˆ™]\›ˆ™XYÜÙXÜ™]
+ÙXÜ™]Û˜[YK™\œÚ[Û]™\œÚ[ÛŠBˆ^Ù\\Q\œ›ÜŽ‚ˆ™]\›ˆ™XYÜÙXÜ™]
+ÙXÜ™]Û˜[YJB‚‚™YˆÝ[˜[ÜÙXÜ™]Ý™\œÚ[ÛŠ[˜[ÚYˆÝ‹ÙXÜ™]Û˜[YNˆÝŠHOˆÝŽ‚ˆÜ™Y[X[ÈH[˜[ÜÙXÜ™]ØÜ™Y[X[Ê[˜[ÚY
+BˆžN‚ˆ™]\›ˆÙXÜ™]Ý™\œÚ[Û—Ù›ÜŠÙXÜ™]Û˜[YKÜ™Y[X[ÏXÜ™Y[X[ÊBˆ^Ù\\Q\œ›ÜŽ‚ˆ™]\›ˆÙXÜ™]Ý™\œÚ[Û—Ù›ÜŠÙXÜ™]Û˜[YJB‚‚™YˆÝÜš]WÝ[˜[ÜÙXÜ™]
+[˜[ÚYˆÝ‹ÙXÜ™]Û˜[YNˆÝ‹˜[YNˆÝŠHOˆÝˆ›Û™N‚ˆÜ™Y[X[ÈH[˜[ÜÙXÜ™]ØÜ™Y[X[Ê[˜[ÚY
+BˆžN‚ˆ™]\›ˆÜš]WÜÙXÜ™]Ý™\œÚ[ÛŠÙXÜ™]Û˜[YK˜[YKÜ™Y[X[ÏXÜ™Y[X[ÊBˆ^Ù\\Q\œ›ÜŽ‚ˆ™]\›ˆÜš]WÜÙXÜ™]Ý™\œÚ[ÛŠÙXÜ™]Û˜[YK˜[YJB‚‚™œ›ÛHœÚ[][]Üˆ[\ÜÚ[][]WÜØÙ[˜\š[ÜÂ™œ›ÛHœÛÝ\˜ÙH[\Ü
+ˆÜÛÝ\˜ÙWÙ[˜X›Yˆ[œÜXÝØ[ÝÛ\ÝYÜÛÝ\˜ÙKˆ\ÝØ[ÝÛ\ÝYÜÛÝ\˜Ù\Ëˆ\ÝÜÛÝ\˜ÙWÚ\ÝÜšY\Ëˆ\ÝÜÛÝ\˜ÙWÚ\ÝÜžKˆ™YÚ\Ý\—ÛÜ\˜]Ü—ÜÛÝ\˜ÙKˆØÚY[\—ÜÛÝ\˜ÙWÙ[šY\ËˆÙ]ÛÜ\˜]Ü—ÜÛÝ\˜ÙWÜÝ]KˆÛÝ\˜ÙWÙYš[š][Û‹ˆÛÝ\˜ÙWÙYš[š][ÛœËˆÛÝ\˜ÙWÜ™YÚ\ÝžWÚX[ŠB™œ›ÛH[˜[[\Ü
+ˆÓÓ“‘PÕÔ—ÓSQTËˆš[˜Ú\[Ù›Ü—ØÛZ[\Ëˆš[˜Ú\[Ù›Ü—ÚXXËˆX›X×Ù[[×Üš[˜Ú\[ˆ[˜[ØÛÛ›™XÝÜ—ÜÙXÜ™]Û˜[YKˆ[˜[ØÜ™Y[X[Û˜[Y\ÜXÙKˆ[˜[ÛÜ\˜]Ü—ÜÚYÛš[™×ÜÙXÜ™]Û˜[YKˆ˜[Y]WØÛÛ›™XÝÜ—Û˜[YKˆ˜[Y]WØÛÛ›™XÝÜ—Ü›Ùš[Kˆ˜[Y]WÝ[˜[ÚYŠB™œ›ÛHÛÜšÙ›ÝÈ[\ÜÛXÞUš[Û][Û‹XÚÙ]ÛX\šÙÝÛ‹ÛÜšÙ›Ý×ÜÝÜ™B‚›ÙÙÙ\ˆHÙÙÚ[™Ë™Ù]ÙÙÙ\Š™šY[™K˜\HŠB˜\H˜\ÝTJ]OH‘šY[™HTH‹™\œÚ[ÛHŒŒ‹ŒŠB—Ü™\]Y\ÝØ]]ˆÛÛ^˜\–Ý\VÜÝˆ›Û™KÝˆ›Û™WWHHÛÛ^˜\Šˆ™šY[™WÜ™\]Y\ÝØ]]‹Y˜][J›Û™K›Û™JBŠB˜\˜YÛZY]Ø\™JˆÓÔ”ÓZY]Ø\™Kˆ[Ý×ÛÜšYÚ[œÏVÂˆÜšYÚ[‹œÝš\
+
+Bˆ›ÜˆÜšYÚ[ˆ[ˆÜË™Ù][ŠˆSÕÑQÓÔ’QÒS”È‹š‹ËÛØØ[ÜÝLMÌË‹ËÌLËŒŒŒNLMÌÈ‚ˆ
+KœÜ]
+‹ŠBˆYˆÜšYÚ[‹œÝš\
+
+BˆKˆ[Ý×ÛY]ÙÏVÈ‘ÑU‹”ÔÕ‹“ÔSÓ”È—Kˆ[Ý×ÚXY\œÏVÈŠˆ—KŠB‚‚\›ZY]Ø\™JšŠB˜\Þ[˜ÈYˆÙXÝ\š]WÚXY\œÊ™\]Y\Ýˆ™\]Y\ÝØ[Û™^
+N‚ˆ™\ÜÛœÙHH]ØZ]Ø[Û™^
+™\]Y\Ý
+Bˆ™\ÜÛœÙKšXY\œËœÙ]Y˜][
+–PÛÛ[U\KSÜ[ÛœÈ‹››ÜÛšY™ˆŠBˆ™\ÜÛœÙKšXY\œËœÙ]Y˜][
+–Qœ˜[YKSÜ[ÛœÈ‹‘S–HŠBˆ™\ÜÛœÙKšXY\œËœÙ]Y˜][
+”™Y™\œ™\‹TÛXÞH‹œÝšXÝ[ÜšYÚ[‹]Ú[‹XÜ›ÜÜË[ÜšYÚ[ˆŠBˆÈÙY\HØ\Xš[]H[žK[\Ý]]Üš]]]™H]™[ˆYˆH›Ý]HÜˆ\Ý™X[BˆÈZY]Ø\™HÝ\YYHœ›ØY\ˆÛXÞKˆ\È\ÈH[X™\˜]H˜Z[XÛÜÙYˆÈ[˜\šX[›ÜˆHX›XÈÛÛœÛÛK›ÝHY˜][]Ø[\œÈX^HÚY[‹‚ˆ™\ÜÛœÙKšXY\œÖÂˆ”\›Z\ÜÚ[ÛœËTÛXÞH‚ˆHH˜Ø[Y\˜OJ
+KZXÜ›ÜÛ™OJ
+KÙ[ÛØØ][ÛJ
+K^[Y[J
+K\ØJ
+H‚ˆYˆ™\]Y\Ý\›œ]œÝ\ÝÚ]
+‹Ø\KÈŠN‚ˆÈTH™\ÜÛœÙ\ÈØ[ˆÛÛZ[ˆ[˜[\ØÛÜYY]Y]HÜˆÛ™K][YHÐ]]ˆÈ[™Ù™ˆÝ]Kˆ™]™\ˆ]Hœ›ÝÜÙ\‹›ÞKÜˆÚ\™Y[\›YYX\žBˆÈ™]Z[ˆÜÙH™\ÜÛœÙ\È™^[Û™H™\]Y\Ý‚ˆ™\ÜÛœÙKšXY\œÖÈØXÚKPÛÛ›Û—HH››Ë\ÝÜ™H‚ˆ[Yˆ™\]Y\Ý\›œ]OH‹ÚX[Ž‚ˆÈX[\È[[[Û˜[HX›XÈ›ÜˆÛÝY[‹Õ\[YHÚXÚÜË]]ÂˆÈ\œÚ\Ý[˜ÙH[™\Þ[˜ËZ›Øˆ›YÜÈ\ØÜšX™HHXÝ]™H\Þ[Y[ˆÂˆÈ›Ý]Hœ›ÝÜÙ\ˆÜˆ[\›YYX\žHÙ\™HHÝ[HÛÛ›Û\[™HÝ]K‚ˆ™\ÜÛœÙKšXY\œÖÈØXÚKPÛÛ›Û—HH››Ë\ÝÜ™H‚ˆ[Yˆ™\]Y\Ý\›œ]œÝ\ÝÚ]
+‹Ø\ÜÙ]ËÈŠH[™™\ÜÛœÙKœÝ]\×ØÛÙHOHŒ‚ˆÈš]Hš[™Ù\œš[È›ÙXÝ[Ûˆ[™\ËÛÈ[[]]X›HØXÚ[™È\ÈØY™BˆÈ[™ÙY\È™\X]š\Ú]Èœ›ÛH™YÝÛ›ØY[™ÈHÛÛœÛÛHÚ[‚ˆ™\ÜÛœÙKšXY\œËœÙ]Y˜][
+ˆØXÚKPÛÛ›Û‹œX›XËX^XYÙOLÌMLÍŒ[[]]X›H‚ˆ
+Bˆ[Yˆ™\ÜÛœÙKšXY\œË™Ù]
+˜ÛÛ[]\H‹ˆŠKœÝ\ÝÚ]
+^Ú[ŠN‚ˆÈHSÚ[Ú[È]HÝ\œ™[š[™Ù\œš[Y[™H[™Ø\œšY\ÂˆÈH™[X\ÙH›ÛÙˆÚÝÛˆ[ˆHÛÛœÛÛKˆ™]˜[Y]H]Ûˆ]™\žBˆÈ˜]šYØ][ÛˆÛÈ[ˆ[™XYKY\ÞYYXˆØ[››Ý]ZY]H›ÛÝ[ˆÛ\‚ˆÈÚ[Y\ˆHÛÝY[ˆ™]š\Ú[ÛˆÚ[™Ù\Ëˆš[™Ù\œš[Y\ÜÙ]ÈÝ^BˆÈ[[]]X›HX›Ý™KÛÈ\ÈÙ\È›ÝÚ]™H\H›Ü›X[\ÜÙ]XØXÚHÚ[‹‚ˆ™\ÜÛœÙKšXY\œÖÈØXÚKPÛÛ›Û—HH››Ë\ÝÜ™H‚ˆ™\ÜÛœÙKšXY\œËœÙ]Y˜][
+ˆÛÛ[TÙXÝ\š]KTÛXÞH‹ˆ™Y˜][\Ü˜È	ÜÙ[‰ÎÈØÜš\\Ü˜È	ÜÙ[‰ÈÎ‹ËØXØÛÝ[Ë™ÛÛÙÛK˜ÛÛKÙÜÚKØÛY[È‚ˆœÝ[K\Ü˜È	ÜÙ[‰È	Ý[œØY™KZ[›[™IÈÎ‹ËØXØÛÝ[Ë™ÛÛÙÛK˜ÛÛKÙÜÚKÎÈ‚ˆœÝ[K\Ü˜ËY[[H	ÜÙ[‰È	Ý[œØY™KZ[›[™IÈÎ‹ËØXØÛÝ[Ë™ÛÛÙÛK˜ÛÛKÙÜÚKÎÈ‚ˆ™›Û\Ü˜È	ÜÙ[‰ÎÈ[YË\Ü˜È	ÜÙ[‰È]NŽÈ‚ˆ˜ÛÛ›™XÝ\Ü˜È	ÜÙ[‰ÈÎ‹ËØXØÛÝ[Ë™ÛÛÙÛK˜ÛÛKÙÜÚKÎÈœ˜[YK\Ü˜ÈÎ‹ËØXØÛÝ[Ë™ÛÛÙÛK˜ÛÛKÙÜÚKÎÈ‚ˆ™œ˜[YKX[˜Ù\ÝÜœÈ	Û›Û™IÎÈ˜\ÙK]\šH	ÜÙ[‰ÎÈ›Ü›KXXÝ[Ûˆ	ÜÙ[‰È‹ˆ
+BˆÈÛÝY[ˆ\›Z[˜]\ÈÈ™Y›Ü™H›ÜØ\™[™ÈÈ]šXÛÜ›‹ÛÈH\Ù[‚ˆÈÙY\È[ˆ[\›˜[ØÚ[YH]™[ˆ›ÜˆHX›XÈÈT“ˆHÙ\šXÙBˆÈ\È›È[Û›HX›XÈ›Ý]NÈ[Z]ÕÈ[˜ÛÛ™][Û˜[HÛÈHœ›ÝÜÙ\‚ˆÈ™]™\ˆÝÛ™Ü˜Y\ÈH\ÞYYÛÛœÛÛK‚ˆ™\ÜÛœÙKšXY\œËœÙ]Y˜][
+ˆ”ÝšXÝU˜[œÜÜTÙXÝ\š]H‹›X^XYÙOLÌMLÍŒÈ[˜ÛYTÝX‘ÛXZ[œÈ‚ˆ
+Bˆ™]\›ˆ™\ÜÛœÙB‚‚\›ZY]Ø\™JšŠB˜\Þ[˜ÈYˆÙXÝ\™WÙÙ]Ø]]
+™\]Y\Ýˆ™\]Y\ÝØ[Û™^
+N‚ˆˆˆ’ÙY\™X\™\‹ÒPPÈÜ™Y[X[ÈÝ]ÙˆT“È[™XØÙ\ÜÈÙÜË‚‚ˆ[™Ú[[Ù[È™]Z[ˆZ\ˆ^XÚ]ÚÙ[ˆšY[È›ÜˆØØ[Ø›ÛÝÝ˜\ˆÛÛ\]Xš[]K]ÜÝY™\]Y\ÝÈ™\ÛÛ™HÜ™Y[X[Èœ›ÛHXY\œÈšXHBˆ™\]Y\Ý\ØÛÜYÛÛ^ˆ™]™\ˆ™]Üš]HH]Y\žHÝš[™ÈÚ]H™X\™\ˆÚÙ[Ž‚ˆTÑÒHXØÙ\ÜÈÙÙÚ[™ÈØ[ˆ™XÛÜ™]T“™Y›Ü™HH[™Ú[[œË‚ˆˆˆ‚ˆYˆ™\]Y\Ý›Y]ÙOH‘ÑUˆ[™ÜË™Ù][Šˆ‘’Q•S‘WÔ‘R‘PÕÔUQT–WÐUU‹™˜[ÙH‚ˆ
+K˜Ø\ÙY›Û
+
+HOHYHŽ‚ˆZ\œÈH\œÙWÜ\Û
+ˆ™\]Y\ÝœØÛÜK™Ù]
+œ]Y\žWÜÝš[™È‹ˆˆŠK™XÛÙJ
+KÙY\Ø›[š×Ý˜[Y\ÏUYBˆ
+BˆÙ[œÚ]]™WÚÙ^\ÈHÈ˜\›Ý˜[ÝÚÙ[ˆ‹šY[]WÝÚÙ[ˆŸBˆYˆÚÙ^H›ÜˆÙ^KÝ˜[YH[ˆZ\œßH	ˆÙ[œÚ]]™WÚÙ^\Î‚ˆÈ]šXÛÜ›‰ÜÈXØÙ\ÜÈÙÙÙ\ˆ™XYÈH]]X›HTÑÒHØÛÜKˆ™[[Ý™BˆÈÜ™Y[X[\˜[Y]\œÈ™Y›Ü™H™]\›š[™ÈH™Z™XÝ[ÛˆÛÈBˆÈÜÝ[H]Y\žHÚÙ[ˆØ[››Ý™H™]Z[™Y[ˆH™\]Y\Ý[™K‚ˆ™\]Y\ÝœØÛÜVÈœ]Y\žWÜÝš[™È—HH\›[˜ÛÙJˆÂˆ
+Ù^K˜[YJBˆ›ÜˆÙ^K˜[YH[ˆZ\œÂˆYˆÙ^H›Ý[ˆÙ[œÚ]]™WÚÙ^\ÂˆBˆ
+K™[˜ÛÙJ
+Bˆ™]\›ˆ”ÓÓ”™\ÜÛœÙJˆÈ™]Z[Žˆ”]Y\žH]][XØ][Ûˆ\È\ØX›YÈ\ÙH™\]Y\ÝXY\œËˆŸKˆÝ]\×ØÛÙOMˆ
+Bˆ]]ÝÚÙ[ˆHÜ™\]Y\ÝØ]]œÙ]
+ˆ
+™\]Y\ÝšXY\œË™Ù]
+žYšY[™KX\›Ý˜[ŠK™\]Y\ÝšXY\œË™Ù]
+˜]]Üš^˜][ÛˆŠJBˆ
+BˆžN‚ˆ™]\›ˆ]ØZ]Ø[Û™^
+™\]Y\Ý
+Bˆš[˜[N‚ˆÜ™\]Y\ÝØ]]œ™\Ù]
+]]ÝÚÙ[ŠB‚‚˜Û\ÜÈ\›Ý˜[™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆ\›Ý™\ŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆXÚ\Ú[ÛŽˆÝˆHšY[
+Y˜][H™Ü˜[™˜]\—Ù^\Ý[™×ØÝ\ÝÛY\œÈ‹X^Û[™ÝM
+Bˆ\Y˜XÝÙXÚ\Ú[ÛœÎˆXÝÜÝ‹Ý—H›Û™HH›Û™BˆÛÜ[ÝÛÜ[Û—ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝM
+BˆÛÜ[ÝØ\Y˜XÝÛÝ™\œšYNˆ›ÛÛH˜[ÙBˆÛÜ[ÝÛÝ™\œšYWÜ™X\ÛÛŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝL
+Bˆ\›Ý˜[Û[ÙNˆ]\˜[È™[[È‹œÚYÛ™Y—HH™[[È‚ˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ[™Ô™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆXÝÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[Û[ÙNˆ]\˜[È™[[È‹œÚYÛ™Y—HH™[[È‚ˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ™XÛÛ˜Ú[T™\]Y\Ý
+[™Ô™\]Y\Ý
+N‚ˆˆˆ“˜[YYZ[X[ˆ™XÛÝ™\žH™\]Y\Ý›ÜˆH\˜X›H[\œ\YÜ\˜][Û‹ˆˆˆ‚‚‚˜Û\ÜÈXÚ\Ú[Û•Ú[\›Ý˜[™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆ\›Ý™\ŽˆÝˆHšY[
+Z[—Û[™ÝL‹X^Û[™ÝLLŒ
+BˆÜ[Û—ÚYˆ]\˜[ÈœÚ\‹œ›Û˜XÚÈ‹œÙYÛY[‹™Y™\ˆ—Bˆ^XÝYÜÞ[\Ú\×Ú\ÚˆÝˆHšY[
+]\›\ˆ—–ÌNXKY—^ÍIŠBˆ^XÝYÙÙ[™\˜][ÛŽˆ[HšY[
+ÙOLKOLŒ
+B‚‚˜Û\ÜÈXÚ\Ú[Û•Ú[’[ZÙT™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ“›Û‹XÛÛ™šY[X[HÛÛ^›ÜˆÛ™H›Ý[™YX›XÈXÚ\Ú[ÛˆXÚÙ]ˆˆˆ‚‚ˆ[Ù[ØÛÛ™šYÈHÛÛ™šYÑXÝ
+^˜OH™›Ü˜šY‹Ý—ÜÝš\ÝÚ]\ÜXÙOUYJB‚ˆ]Y\Ý[ÛŽˆÝˆHšY[
+Z[—Û[™ÝLL‹X^Û[™ÝLŽ
+BˆÝ\œ™[ØÛÛ[Z]Y[ˆÝˆHšY[
+Z[—Û[™ÝLL‹X^Û[™ÝLÌŒ
+Bˆ\™Ù[˜ÞNˆÝˆHšY[
+Z[—Û[™ÝLL‹X^Û[™ÝLÌŒ
+BˆÜÚ]]™WÜÚYÛ˜[ˆÝˆHšY[
+Z[—Û[™ÝLL‹X^Û[™ÝML
+Bˆš\Ú×ÜÚYÛ˜[ˆÝˆHšY[
+Z[—Û[™ÝLL‹X^Û[™ÝML
+BˆY™™XÝYÜÙYÛY[ˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝL‹X^Û[™ÝN
+B‚‚˜Û\ÜÈXÚ\Ú[Û•Ú[“Ý]ÛÛYT™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆ^XÝYÙÙ[™\˜][ÛŽˆ[HšY[
+ÙOLKOLŒ
+BˆØÙ[˜\š[Îˆ]\˜[È™ÝX\™˜Z[Øœ™XXÚ‹œÝXØÙ\ÜÙ[Ü™XÛÝ™\žH—HH
+ˆ™ÝX\™˜Z[Øœ™XXÚ‚ˆ
+B‚‚˜Û\ÜÈ\ÛZ\ÜÔ™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆXÝÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ™X\ÛÛŽˆÝˆHšY[
+Z[—Û[™ÝLËX^Û[™ÝL
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[Û[ÙNˆ]\˜[È™[[È‹œÚYÛ™Y—HH™[[È‚ˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈÛÛ›™XÝÜÛÛ^™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ”ÚYÛ™YÜ\˜]Üˆ™\]Y\Ý›ÜˆYÙÜ™YØ]K[Û›H[\›˜[ÛÛ^ˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈÛÛ›™XÝÜš[™[™Ô™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ“ÝÛ™\ˆ™\]Y\ÝÈ™YÚ\Ý\‹Ý™\šYžHH[˜[ÛÛ›™XÝÜˆÙXÜ™]š[™[™Ëˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[ÝÙYÛÜ\˜][ÛœÎˆ\ÝÜÝ—H›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLL
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈÛÛ›™XÝÜÜ™Y[X[[œ›ÛY[™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ“ÝÛ™\ˆ™\]Y\Ý›ÜˆHÚÜ[]™YÙXÜ™]Yœ™YHÛÛ›™XÝÜˆ[œ›ÛY[ˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[ÝÙYÛÜ\˜][ÛœÎˆ\ÝÜÝ—H›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLL
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈÛÛ›™XÝÜš[™[™Ô›Ý][Û”™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ“ÝÛ™\ˆ™\]Y\ÝÈ™YÚ[ˆH[˜[ÛÛ›™XÝÜˆÜ™Y[X[›Ý][Û‹ˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ™X\ÛÛŽˆÝˆHšY[
+Y˜][H˜Ü™Y[X[Ü›Ý][Ûˆ‹Z[—Û[™ÝLËX^Û[™ÝL
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈÛÛ›™XÝÜ”›Ùš[T™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ“ÝÛ™\‹[X[˜YÙY›Û‹\ÙXÜ™]ÛÛ›™XÝÜˆ\Ý[˜][Ûˆ›Ùš[Kˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+BˆÙ][™ÜÎˆXÝÜÝ‹Ý—HHšY[
+Y˜][Ù˜XÝÜžOYXÝ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ[˜[Y[X™\”™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ“ÝÛ™\‹[X[˜YÙY\˜X›HY[X™\œÚ\Y]Y]NÈ™]™\ˆXØÙ\ÈÜ™Y[X[Ëˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[XZ[ˆÝˆHšY[
+Z[—Û[™ÝLËX^Û[™ÝLÌŒ
+Bˆ›ÛNˆ]\˜[ÈšY]Ù\ˆ‹›Ü\˜]Üˆ‹›ÝÛ™\ˆ—HHšY]Ù\ˆ‚ˆÝ]\Îˆ]\˜[È˜XÝ]™H‹™\ØX›Y—HH˜XÝ]™H‚ˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ[˜[\›Ýš\Ú[Û”™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ“ÝÛ™\‹XÛÛ™š\›YYÛÙ\›Ýš\Ú[Ûš[™È™\]Y\ÝÈ™]™\ˆ[]\ÈÙXÜ™]Ëˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆHšY[
+Z[—Û[™ÝLËX^Û[™ÝMŒÊBˆÛÛ™š\›X][ÛŽˆÝˆHšY[
+Z[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ[˜[ÛXÞT™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ“ÝÛ™\‹[X[˜YÙY›Ý[™Y[˜[[ÝØ[˜ÙH[™™][[ÛŽÈ™]™\ˆš[[™Ëˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+BˆYÙ[ØØ[×Ü\—ÝÚ[™ÝÎˆ[HšY[
+Y˜][LLÙOLKOLL
+BˆÛÜšÙ›Ý×Û]]][Ûœ×Ü\—ÝÚ[™ÝÎˆ[HšY[
+Y˜][LÌÙOLKOLL
+BˆÛÛ›™XÝÜ—ØØ[×Ü\—ÝÚ[™ÝÎˆ[HšY[
+Y˜][MŒÙOLKOLL
+Bˆ™][[Û—Ù^\Îˆ[HšY[
+Y˜][LÌÙOLKOLÍL
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ]›Ü›U[˜[›Ýš\Ú[Û”™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ”]›Ü›KXYZ[ˆ[˜[›ÛÝÝ˜\Y]Y]NÈ™]™\ˆXØÙ\ÈÜ™Y[X[Ëˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆHšY[
+Z[—Û[™ÝLËX^Û[™ÝMŒÊBˆÝÛ™\—Ù[XZ[ˆÝˆHšY[
+Z[—Û[™ÝLËX^Û[™ÝLÌŒ
+BˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈXÝ[Û’][T™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆXÝÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[Û[ÙNˆ]\˜[È™[[È‹œÚYÛ™Y—HH™[[È‚ˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈXÝ[Û‘˜Z[\™T™\]Y\Ý
+XÝ[Û’][T™\]Y\Ý
+N‚ˆ™X\ÛÛŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝL
+B‚‚˜Û\ÜÈYÙ[[”™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆ]Y\žNˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLŒ
+Bˆ\Ù\—ÚYˆÝˆHšY[
+Y˜][H™[[Ë[Ü\˜]Üˆ‹Z[—Û[™ÝLKX^Û[™ÝLLŽ
+BˆÛÝ\˜ÙWÚYˆÝˆHšY[
+Y˜][HœX›XËÜšXÚ[™È‹Z[—Û[™ÝLKX^Û[™ÝN
+BˆÈHX›XÈYÙH][[[Û˜[HÛZ]È\ÙHšY[È[™Ý^\ÂˆÈ[˜[\ÜËˆH™X[Ü\˜]ÜˆØ[ˆÝ\HHØ[YHÚYÛ™YY[]HšY[ÂˆÈ\ÙYžHHÛÛ›™XÝÜ‹ØXÝ[Ûˆ[™\ÈÛÈQÈ^XÝ][ÛˆØ\œšY\ÈH\˜X›BˆÈ[˜[›Ý[™\žH[HØ^H[ÈÛÝ\˜ÙH[œÜXÝ[Ûˆ[™š\™\ÝÜ™HÝ]K‚ˆÜ\˜]ÜŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ]˜[X][Û”[”™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ”[ˆH]\›Z[š\ÝXÈ]X[]HÝZ]HYØZ[œÝHØY™HÛÜšÙ›ÝÈ˜XÙKˆˆˆ‚‚ˆÛÜšÙ›Ý×ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝNX^Û[™ÝLLŒ
+BˆÜ\˜]ÜŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ›Ø”Ý\™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆ]Y\žNˆÝˆHšY[
+ˆY˜][Jˆ’[œÜXÝH[ÝÛ\ÝYX›XËÜšXÚ[™ÈÚ[™ÙK™\šYžHH]šY[˜ÙK‚ˆ›X\HY™™XÝY\Y˜XÝË[™ÝÜ]H[X[ˆ\›Ý˜[Ø]Kˆ‚ˆ
+KˆZ[—Û[™ÝLKˆX^Û[™ÝLŒˆ
+Bˆ\Ù\—ÚYˆÝˆHšY[
+Y˜][H™[[Ë[Ü\˜]Üˆ‹Z[—Û[™ÝLKX^Û[™ÝLLŽ
+BˆÈ[˜[Ù[[Ø\È[ˆ]][XØ]Y[Ý[™Nˆ]™\^\ÈÛ™HÙˆBˆÈ[›™Yš^\™\È›ÝYÚH™X[QÈÛÛÜ™[˜]ÜˆÚ[H™]Z[š[™ÈBˆÈ[˜[›Ý[™\žH[™ÛÛ›™XÝÜˆ\›Ý˜[Ø]\Ëˆ]\È[X™\˜][BˆÈ\Ý[˜Ýœ›ÛH›ÝH[›Ûž[[Ý\ÈYÙH™\^H[™]™H[Ûš]Üš[™Ë‚ˆ[—Û[ÙNˆ]\˜[È™[[È‹›[Ûš]Üˆ‹[˜[Ù[[È—HH™[[È‚ˆÛÝ\˜ÙWÚYˆÝˆHšY[
+Y˜][HœX›XËÜšXÚ[™È‹Z[—Û[™ÝLKX^Û[™ÝN
+BˆÜ\˜]ÜŽˆÝˆHšY[
+Y˜][H™[[Ë[Ü\˜]Üˆ‹Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ›Ø”™]žT™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ•[˜[X]][XØ]Y™]žH™\]Y\ÝÈ™]™\ˆXØÙ\ÈH™]È]Y\žHÜˆÛÝ\˜ÙKˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈ][[[Ù[[˜[\Ú\Ô™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆ\ÜÙ]ÚYˆÝˆHšY[
+Y˜][Hœ›ÛZ\ÙKXØ\™‹Z[—Û[™ÝLKX^Û[™ÝN
+Bˆ[ÙNˆ]\˜[È›]™H‹™[[È—HH›]™H‚‚‚˜Û\ÜÈÛÝ\˜ÙSÛ˜›Ø\™[™Ô™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆÛÝ\˜ÙWÚYˆÝˆHšY[
+Z[—Û[™ÝNX^Û[™ÝN
+Bˆ˜[YNˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+BˆØ]YÛÜžNˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝN
+BˆÚ[™ÙWÝ\NˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLL
+Bˆ\›ˆÝˆHšY[
+Z[—Û[™ÝLL‹X^Û[™ÝML
+BˆÝÛ™\ŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLL
+BˆØY[˜ÙNˆÝˆHšY[
+Y˜][HŒ‹X^Û[™ÝM
+Bˆœ™\Ú™\Ü×ÜÛWÚÝ\œÎˆ[HšY[
+Y˜][MÙOLKOLMŽ
+Bˆ\œÙ\Žˆ]\˜[Èš[‹^‹œœÜÈ—HHš[‚ˆ™YÚ\Ý\™YØžNˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈÛÝ\˜ÙSY™XÞXÛT™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆ”]\ÙKÜ™\Ý[YHÛ™H[˜[[ÝÛ™YÛÝ\˜ÙHÚ]Ý]XØÙ\[™ÈÜ™Y[X[Ëˆˆˆ‚‚ˆ[˜X›Yˆ›ÛÛˆ™X\ÛÛŽˆÝˆHšY[
+Y˜][Hˆ‹X^Û[™ÝL
+BˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈÝ]ÛÛYSYX\Ý\™[Y[™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆˆˆYÙÜ™YØ]H[Ý]šY[˜ÙNÈ˜]ÈÝ\ÝÛY\ˆ^[™Y[YšY\œÈ\™H^ÛYYˆˆˆ‚‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆÛÝ\˜ÙWÝ\Nˆ]\˜[Âˆ˜Ý\ÝÛY\—Ú[\šY]È‹œ[ÝÛÙÈ‹Ú[—ÛÜÜÈ‹˜š[[™×Ü™XÛÜ™‚ˆBˆÛÚÜÛX™[ˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝN
+BˆÚ[™Ù\×ÛØœÙ\™Yˆ[HšY[
+ÙOLKOLL
+BˆÈZ[]\È\™HÝ[È›ÜˆHØœÙ\™YÚ[™ÙHÙ]›Ý\‹XÚ[™ÙH˜[Y\Ë‚ˆÈH™\›È˜\Ù[[™HØ[››Ý\ÝX›\ÚH™Y›Ü™KØY\ˆ[KÛÈ™Z™XÝ]]ˆÈH›Ý[™\žH[œÝXYÙˆ[ÝÚ[™ÈHZ\ÛXY[™È[YHØ]™Yˆ™XÛÜ™‚ˆ˜\Ù[[™WÛZ[]\Îˆ›Ø]HšY[
+ÝLOLWÌÌ
+BˆšY[™WÛZ[]\Îˆ›Ø]HšY[
+ÙOLOLWÌÌ
+Bˆ˜\Ù[[™WÛÝÛ™\—Ü™XYWÝÚ][—Ìˆ[›Û™HHšY[
+Y˜][S›Û™KÙOLOLL
+BˆšY[™WÛÝÛ™\—Ü™XYWÝÚ][—Ìˆ[›Û™HHšY[
+Y˜][S›Û™KÙOLOLL
+Bˆ˜\Ù[[™WØXÝ[Ûœ×ØÛÛ\]YÝÚ][—ÍÙˆ[›Û™HHšY[
+Y˜][S›Û™KÙOLOLL
+BˆšY[™WØXÝ[Ûœ×ØÛÛ\]YÝÚ][—ÍÙˆ[›Û™HHšY[
+Y˜][S›Û™KÙOLOLL
+Bˆ˜\Ù[[™WÜ™]™\œÙYÛÜ—Ü™[Ü[™Yˆ[›Û™HHšY[
+Y˜][S›Û™KÙOLOLL
+BˆšY[™WÜ™]™\œÙYÛÜ—Ü™[Ü[™Yˆ[›Û™HHšY[
+Y˜][S›Û™KÙOLOLL
+Bˆ™]™[YWÛYÝ\Ùˆ›Ø]›Û™HHšY[
+ˆY˜][S›Û™KÙOKLWÌÌÌOLWÌÌÌˆ
+Bˆ™][[Û—ÛYÜÝˆ›Ø]›Û™HHšY[
+Y˜][S›Û™KÙOKLLOLL
+BˆÚ[[™Û™\Ü×Ý×Ü^WÝ\Ùˆ›Ø]›Û™HHšY[
+Y˜][S›Û™KÙOLOLWÌÌ
+Bˆ]šY[˜ÙWÜ™YŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLÌ
+Bˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈØ[\Ù›Ü˜ÙPÛÛ›™XÝ™\]Y\Ý
+˜\ÙS[Ù[
+N‚ˆÜ\˜]ÜŽˆÝˆHšY[
+Z[—Û[™ÝLKX^Û[™ÝLLŒ
+Bˆ[˜[ÚYˆÝˆ›Û™HHšY[
+Y˜][S›Û™KZ[—Û[™ÝLËX^Û[™ÝMŒÊBˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝLMŠBˆY[]WÝÚÙ[ŽˆÝˆ›Û™HHšY[
+Y˜][S›Û™KX^Û[™ÝMMŠB‚‚˜Û\ÜÈØ[\Ù›Ü˜ÙRX[™\]Y\Ý
+Ø[\Ù›Ü˜ÙPÛÛ›™XÝ™\]Y\Ý
+N‚ˆ\ÜÂ‚‚™YˆÜÜÚ]]™WÚ[
+˜[YNˆÝ‹Y˜][ˆ[
+HOˆ[‚ˆžN‚ˆ˜[YHH[
+ÜË™Ù][Š˜[YKÝŠY˜][
+JJBˆ^Ù\˜[YQ\œ›ÜŽ‚ˆ™]\›ˆY˜][ˆ™]\›ˆ˜[YHYˆ˜[YHˆ[ÙHY˜][‚‚QÑS•ÓPVÐÐSÈHÜÜÚ]]™WÚ[
+‘’Q•S‘WÐQÑS•ÓPVÐÐSÈ‹L
+BˆÈ[›Ûž[[Ý\ÈYÙ\ÈÚ\™HÛ™HX›XÈ[™KÛÈÚ]™H][™HHÙ\\˜][BˆÈ›Ý[™Y[ÝØ[˜ÙKˆÙY\[™È]\Ý[˜Ýœ›ÛHÚYÛ™Y[˜[][Ý\È™]™[ÈBˆÈ\œÝÙˆ]˜[X][Ûˆ˜Y™šXÈœ›ÛHÝ\š[™È[ˆ]][XØ]Y[ÝÚ[HÝ[ˆÈ[Z][™È[˜]][XØ]YÙ[Z[šHÜ[™‚”P“P×ÐQÑS•ÓPVÐÐSÈHÜÜÚ]]™WÚ[
+‘’Q•S‘WÔP“P×ÐQÑS•ÓPVÐÐSÈ‹Œ
+BQÑS•ÕÒS‘Õ×ÔÑPÓÓ‘ÈHÜÜÚ]]™WÚ[
+‘’Q•S‘WÐQÑS•ÕÒS‘Õ×ÔÑPÓÓ‘È‹ÍŒ
+B—ØYÙ[ØØ[Ý[Y\Îˆ\]YVÙ›Ø]HH\]YJ
+B—Ý[˜[ØYÙ[ØØ[Ý[Y\ÎˆXÝÜÝ‹\]YVÙ›Ø]WHHßB—ØYÙ[ØØ[ÛØÚÈHØÚÊ
+B‚‘SS×ÓPVÓUUUSÓ”ÈHÜÜÚ]]™WÚ[
+‘’Q•S‘WÑSS×ÓPVÓUUUSÓ”È‹Ì
+B‘SS×ÕÒS‘Õ×ÔÑPÓÓ‘ÈHÜÜÚ]]™WÚ[
+‘’Q•S‘WÑSS×ÕÒS‘Õ×ÔÑPÓÓ‘È‹ÍŒ
+B—Ù[[×Û]]][Û—Ý[Y\Îˆ\]YVÙ›Ø]HH\]YJ
+B—Ý[˜[Ù[[×Û]]][Û—Ý[Y\ÎˆXÝÜÝ‹\]YVÙ›Ø]WHHßB—Ù[[×Û]]][Û—ÛØÚÈHØÚÊ
+BÓÓ“‘PÕÔ—ÓPVÐÐSÈHÜÜÚ]]™WÚ[
+‘’Q•S‘WÐÓÓ“‘PÕÔ—ÓPVÐÐSÈ‹Œ
+BÓÓ“‘PÕÔ—ÕÒS‘Õ×ÔÑPÓÓ‘ÈHÜÜÚ]]™WÚ[
+ˆ‘’Q•S‘WÐÓÓ“‘PÕÔ—ÕÒS‘Õ×ÔÑPÓÓ‘È‹ÍŒŠB—ØÛÛ›™XÝÜ—ØØ[Ý[Y\Îˆ\]YVÙ›Ø]HH\]YJ
+B—Ý[˜[ØÛÛ›™XÝÜ—ØØ[Ý[Y\ÎˆXÝÜÝ‹\]YVÙ›Ø]WHHßB—ØÛÛ›™XÝÜ—ØØ[ÛØÚÈHØÚÊ
+B“USSSÑSÓPVÐÐSÈHÜÜÚ]]™WÚ[
+‘’Q•S‘WÓUSSSÑSÓPVÐÐSÈ‹L
+B“USSSÑSÕÒS‘Õ×ÔÑPÓÓ‘ÈHÜÜÚ]]™WÚ[
+ˆ‘’Q•S‘WÓUSSSÑSÕÒS‘Õ×ÔÑPÓÓ‘È‹ÍŒŠB—Û][[[Ù[ØØ[Ý[Y\Îˆ\]YVÙ›Ø]HH\]YJ
+B—Û][[[Ù[ØØ[ÛØÚÈHØÚÊ
+B“PVÒ“Ð—ÐUSTÈHÜÜÚ]]™WÚ[
+‘’Q•S‘WÓPVÒ“Ð—ÐUSTÈ‹ÊBˆÈ[›Ûž[[Ý\È]˜[X][Ûˆ[[Y]žH\È[[[Û˜[HH™XÙ[›Ý[™YÚ[™ÝË‚ˆÈ\˜X›H™XÛÜ™È™[XZ[ˆ\[™[Û›NÈ\È™]™[È™\X]Y™\šYšY\ˆ[œÈœ›ÛBˆÈ™\Ù[[™ÈÞ[]XÈ˜Y™šXÈ\ÈYˆ]Ù\™H›ÙXÝYÜ[Û‹ˆÚYÛ™Y[˜[ˆÈšY]ÜÈÙY\Z\ˆ™\]Y\ÝY[˜[\ØÛÜY›Ý[™[œÝXY‚”P“P×ÓQU’P×ÕÒS‘ÕÈHÜÜÚ]]™WÚ[
+‘’Q•S‘WÔP“P×ÓQU’P×ÕÒS‘ÕÈ‹L
+B‚—ÜØ[\Ù›Ü˜ÙWÛØ]]ÜÝ]\ÎˆXÝÜÝ‹XÝÜÝ‹Øš™XÝWHHßB—ÜØ[\Ù›Ü˜ÙWÛØ]]ÛØÚÈHØÚÊ
+B‚—Ú›ØœÎˆXÝÜÝ‹›Ø”Ý]WHHßB—Ú›Øœ×ÛØÚÈHØÚÊ
+B—ÜX›X×Ú›Ø—ÛØÚÈHØÚÊ
+B—ÝÛÜšÙ›Ý×Ý˜[œÚ][Û—ÛØÚÈHØÚÊ
+B—Ø˜XÚÙÜ›Ý[™Ý\ÚÜÎˆÙ]Ø\Þ[˜Ú[Ë•\ÚÖÓ›Û™WWHHÙ]
+
+B‚‚™YˆÛY\™ÙWÙ\˜X›WÜ™XÛÜ™ÊˆY[[ÜžWÜ™XÛÜ™Îˆ\ÝÐ[žWKˆØY\ŽˆØ[X›VÖÚ[K\ÝÐ[žWWKˆ
+‹ˆ[Z]ˆ[ˆÙ^NˆØ[X›VÖÐ[žWKÝ—KŠHOˆ\ÝÐ[žWN‚ˆˆˆ“Y\™ÙHHÝ\œ™[[œÝ[˜ÙHÚ]\˜X›H\ÝÜžH›ÜˆÜ\˜]ÜˆY]šXÜË‚‚ˆÛÝY[ˆ[œÝ[˜Ù\È\™H[[[Û˜[H\ÜÜØX›Kˆ™XY[™ÈÛ›HHØØ[ˆØXÚHÚ[™]™\ˆ]ÛÛZ[œÈÛ™H™XÛÜ™XZÙ\È˜[YH›ÛÙ‹Y[[ÜžK[™ÜÂˆÝ[[X\šY\È[™\‹\™\ÜY\ˆHœ™\Ú[œÝ[˜ÙHÝ\Ëˆš\™\ÝÜ™H™[XZ[œÂˆHÛÝ\˜ÙHÙˆ][ˆÜÝY[ÙNÈHØØ[ÛÜHÚ[œÈ›Üˆ[ˆ[‹Y›YÚˆ˜[œÚ][Ûˆ]\È›Ýš[š\ÚY]È\˜X›HÜš]KˆH›Ý[™YØØ[ˆ˜[˜XÚÈÙY\ÈØØ[]™[ÜY[[™H˜[œÚY[š\™\ÝÜ™HÝ]YÙH\ÙY[‚ˆˆˆ‚ˆ›Ý[™YÛ[Z]HX^
+K[
+[Z]
+JBˆ\˜X›WÜ™XÛÜ™Îˆ\ÝÐ[žWHH×BˆYˆÜË™Ù][Š‘’Q•S‘WÔT”ÒTÕSÑH‹›Y[[ÜžHŠK˜Ø\ÙY›Û
+
+HOH™š\™\ÝÜ™HŽ‚ˆžN‚ˆ\˜X›WÜ™XÛÜ™ÈHØY\Š›Ý[™YÛ[Z]
+Bˆ^Ù\^Ù\[ÛŽˆÈ›ÜXNˆ“LHHY]šXÜÈ]\Ý›ÝZÙHHÛÛœÛÛHÝÛ‹‚ˆÙÙÙ\‹Ø\›š[™Ê‘\˜X›H™XÛÜ™Y\™ÙH[˜]˜Z[X›NÈ\Ú[™ÈØØ[™XÛÜ™ÈŠBˆY\™ÙYHÚÙ^J™XÛÜ™
+Nˆ™XÛÜ™›Üˆ™XÛÜ™[ˆ\˜X›WÜ™XÛÜ™ÈYˆÙ^J™XÛÜ™
+_Bˆ›Üˆ™XÛÜ™[ˆY[[ÜžWÜ™XÛÜ™Î‚ˆY[YšY\ˆHÙ^J™XÛÜ™
+BˆYˆY[YšY\Ž‚ˆY\™ÙYÚY[YšY\—HH™XÛÜ™‚ˆYˆÛÜÚÙ^J™XÛÜ™ˆ[žJHOˆÝŽ‚ˆYˆ\Ú[œÝ[˜ÙJ™XÛÜ™XÝ
+N‚ˆ™]\›ˆÝŠ™XÛÜ™™Ù]
+\]YØ]ŠHÜˆ™XÛÜ™™Ù]
+˜Ü™X]YØ]ŠHÜˆˆŠBˆ™]\›ˆÝŠˆÙ]]Š™XÛÜ™\]YØ]‹›Û™JBˆÜˆÙ]]Š™XÛÜ™˜Ü™X]YØ]‹›Û™JBˆÜˆˆ‚ˆ
+B‚ˆ™]\›ˆÛÜY
+Y\™ÙY˜[Y\Ê
+KÙ^O\ÛÜÚÙ^K™]™\œÙOUYJVÎ˜›Ý[™YÛ[Z]B‚‚™YˆÛY]šX×Ú\ÝÜžWÛ[Z]
+™\]Y\ÝYˆ[Y[]NˆXÝÜÝ‹Ý—H›Û™JHOˆ[‚ˆˆˆ›Ý[™[›Ûž[[Ý\ÈY]šXÜÈÚ]Ý]˜\œ›ÝÚ[™ÈHÚYÛ™Y[˜[šY]Ëˆˆˆ‚ˆ›Ý[™YHX^
+K[
+™\]Y\ÝY
+JBˆ™]\›ˆZ[Š›Ý[™YP“P×ÓQU’P×ÕÒS‘ÕÊHYˆY[]H\È›Û™H[ÙH›Ý[™Y‚‚™YˆÛY]šX×ÝÚ[™ÝÊY[]NˆXÝÜÝ‹Ý—H›Û™K[Z]ˆ[
+HOˆXÝÜÝ‹Øš™XÝN‚ˆ™]\›ˆÂˆœØÛÜHŽˆ
+ˆœX›X×Ü™XÙ[Ù]˜[X][Û—ÝÚ[™ÝÈ‚ˆYˆY[]H\È›Û™Bˆ[ÙHœÚYÛ™YÝ[˜[ÝÚ[™ÝÈ‚ˆ
+Kˆ›[Z]Žˆ[Z]ˆ˜\[™ÛÛ›WÚ\ÝÜžHŽˆYKˆB‚‚™YˆÜÛÝ\˜ÙWÚX[ÜÝ[[X\žJÛÝ\˜ÙWÚX[ˆ\ÝÙXÝÜÝ‹Øš™XÝWJHOˆXÝÜÝ‹[N‚ˆˆˆ”Ý[[X\š^™H]™\žHÛÝ\˜ÙHÝ]HÚ]Ý]›Ü[™È]\ÙY[˜[[šY\Ëˆˆˆ‚ˆ™]\›ˆÂˆÝ[Žˆ[ŠÛÝ\˜ÙWÚX[
+KˆšX[HŽˆÝ[J][K™Ù]
+œÝ]\ÈŠHOHšX[Hˆ›Üˆ][H[ˆÛÝ\˜ÙWÚX[
+KˆœÝ[HŽˆÝ[J][K™Ù]
+œÝ]\ÈŠHOHœÝ[Hˆ›Üˆ][H[ˆÛÝ\˜ÙWÚX[
+Kˆ›™YY×Ø˜\Ù[[™HŽˆÝ[Jˆ][K™Ù]
+œÝ]\ÈŠHOH›™YY×Ø˜\Ù[[™Hˆ›Üˆ][H[ˆÛÝ\˜ÙWÚX[ˆ
+KˆœÞ[]X×ÛÛ›HŽˆÝ[Jˆ][K™Ù]
+œÝ]\ÈŠHOHœÞ[]X×ÛÛ›Hˆ›Üˆ][H[ˆÛÝ\˜ÙWÚX[ˆ
+KˆœÛÝ\˜ÙWÙ˜Z[YŽˆÝ[Jˆ][K™Ù]
+œÝ]\ÈŠHOHœÛÝ\˜ÙWÙ˜Z[Yˆ›Üˆ][H[ˆÛÝ\˜ÙWÚX[ˆ
+Kˆœ]\ÙYŽˆÝ[J][K™Ù]
+œÝ]\ÈŠHOHœ]\ÙYˆ›Üˆ][H[ˆÛÝ\˜ÙWÚX[
+Kˆ™YHŽˆÝ[J›ÛÛ
+][K™Ù]
+˜ØY[˜ÙWÙYHŠJH›Üˆ][H[ˆÛÝ\˜ÙWÚX[
+KˆB‚‚™YˆÝš\ÚX›WÝ[˜[Ü™XÛÜ™
+™XÛÜ™ˆ[žKY[]NˆXÝÜÝ‹Ý—H›Û™JHOˆ›ÛÛ‚ˆˆˆ\HHX›XË]œË][˜[™XÛÜ™š\ÚXš[]HÛÛ˜XÝ‚‚ˆ[›Ûž[[Ý\È™\]Y\ÝÈ\™H[Z]YÈ[˜[\ÜÈ[[È™XÛÜ™ËˆÛ˜ÙHHØ[\‚ˆ\È]][XØ]Y[˜[\ÜÈ™XÛÜ™È]\Ý›Ý™HZ^Y[È][˜[	ÜÂˆÜ\˜][Û˜[ÛÝ[Îˆ^H\™H\Þ[Y[]ÚYHš^\™\Ë›ÝÝ\ÝÛY\‚ˆ]šY[˜ÙKˆHÚYÛ™Y™\]Y\Ý\™Y›Ü™H™\]Z\™\È[ˆ^XÝ[˜[X]Ú‚ˆˆˆ‚ˆ[˜[ÚYHÙ]]Š™XÛÜ™[˜[ÚY‹›Û™JBˆYˆY[]H\È›Û™N‚ˆ™]\›ˆ[˜[ÚY\È›Û™Bˆ™]\›ˆ[˜[ÚY\È›Ý›Û™H[™[˜[ÚYOHY[]K™Ù]
+[˜[ÚYŠB‚‚™YˆØÛÝ[Ü™XÛÜ™Û[Ù\Ê™XÛÜ™Îˆ\ÝÐ[žWK]šX]NˆÝŠHOˆXÝÜÝ‹[N‚ˆˆˆÛÝ[H›Ý[™Y™XÛÜ™[ÙHšY[Ú]Ý]XZÚ[™È™XÛÜ™ÛÛ[Ëˆˆˆ‚ˆÛÝ[ÎˆXÝÜÝ‹[HHßBˆ›Üˆ™XÛÜ™[ˆ™XÛÜ™Î‚ˆ[ÙHHÝŠÙ]]Š™XÛÜ™]šX]K›Û™JHÜˆ[šÛ›ÝÛˆŠBˆÛÝ[ÖÛ[ÙWHHÛÝ[Ë™Ù]
+[ÙK
+H
+ÈBˆ™]\›ˆÛÝ[Â‚‚™YˆÜ™XÛÜ™Ý[˜[Ý\ØYÙJ[˜[ÚYˆÝˆ›Û™KY]šXÎˆÝŠHOˆ›Û™N‚ˆˆˆ™\ÝYY™›ÜYÙÜ™YØ]HY]\š[™ÈY\ˆH][ÝHÛÝ\È™\Ù\™Yˆˆˆ‚ˆYˆ›Ý[˜[ÚY‚ˆ™]\›‚ˆžN‚ˆ™XÛÜ™Ý[˜[Ý\ØYÙJ[˜[ÚYY]šXÊBˆ^Ù\^Ù\[ÛŽˆÈ›ÜXNˆ“LHHY]\š[™È]\Ý›Ý]]Üš^™H^˜HÛÜšË‚ˆÙÙÙ\‹Ø\›š[™Ê•[˜[\ØYÙHYÙ\ˆ\]H˜Z[Y›Üˆ	\ËÉ\È‹[˜[ÚYY]šXÊB‚‚™YˆÝ[˜[Ü][ÝWÛ[Z]
+[˜[ÚYˆÝˆ›Û™KY]šXÎˆÝ‹˜[˜XÚÎˆ[
+HOˆ[‚ˆˆˆ”™\ÛÛ™HÛ™H[˜[	ÜÈ›Ý[™Y[ÝØ[˜ÙHÚ]Ý]ÚY[š[™ÈÛˆ˜Z[\™Kˆˆˆ‚ˆYˆ›Ý[˜[ÚY‚ˆ™]\›ˆ˜[˜XÚÂˆÛXÞWÚÙ^HHÂˆ˜YÙ[ØØ[ÈŽˆ˜YÙ[ØØ[×Ü\—ÝÚ[™ÝÈ‹ˆÛÜšÙ›Ý×Û]]][ÛœÈŽˆÛÜšÙ›Ý×Û]]][Ûœ×Ü\—ÝÚ[™ÝÈ‹ˆ˜ÛÛ›™XÝÜ—ØØ[ÈŽˆ˜ÛÛ›™XÝÜ—ØØ[×Ü\—ÝÚ[™ÝÈ‹ˆK™Ù]
+Y]šXÊBˆYˆÛXÞWÚÙ^H\È›Û™N‚ˆ™]\›ˆ˜[˜XÚÂˆžN‚ˆÛXÞHHØYÝ[˜[ÜÛXÞJ[˜[ÚYY˜][Ï^ÜÛXÞWÚÙ^Nˆ˜[˜XÚßJBˆ™]\›ˆX^
+KZ[Š[
+ÛXÞK™Ù]
+ÛXÞWÚÙ^K˜[˜XÚÊJKL
+JBˆ^Ù\^Ù\[ÛŽˆÈ›ÜXNˆ“LHH][ÝHÛÚÝ\]\Ý˜Z[ÛÜÙYÜÝY‚ˆYˆÜË™Ù][Š‘’Q•S‘WÔT”ÒTÕSÑH‹›Y[[ÜžHŠK˜Ø\ÙY›Û
+
+HOH™š\™\ÝÜ™HŽ‚ˆ™]\›ˆˆ™]\›ˆ˜[˜XÚÂ‚‚™YˆÜ™\Ù\™WÙ\˜X›WÝ[˜[ÜÛÝ
+ˆ[˜[ÚYˆÝˆ›Û™KY]šXÎˆÝ‹[Z]ˆ[Ú[™Ý×ÜÙXÛÛ™Îˆ[ŠHOˆ›ÛÛ›Û™N‚ˆˆˆ”™\Ù\™HHÚYÛ™Y[˜[ÛÝ˜[œØXÝ[Û˜[HÚ[ˆš\™\ÝÜ™H\ÈXÝ]™K‚‚ˆ›Û™HYX[œÈØØ[]™[ÜY[[ÙKÚ\™HH›ØÙ\ÜË[ØØ[XÚÙ]™[XZ[œÂˆ]]Üš]]]™KˆHš\™\ÝÜ™H\œ›Üˆ˜Z[ÈÛÜÙY[œÝXYÙˆÚ[[H[ÝÚ[™Âˆ[›Y]\™Y[˜[ÛÜšË‚ˆˆˆ‚ˆYˆ›Ý[˜[ÚY‚ˆ™]\›ˆ›Û™BˆYˆÜË™Ù][Š‘’Q•S‘WÔT”ÒTÕSÑH‹›Y[[ÜžHŠK˜Ø\ÙY›Û
+
+HOH™š\™\ÝÜ™HŽ‚ˆ™]\›ˆ›Û™BˆžN‚ˆ™]\›ˆ™\Ù\™WÝ[˜[Ü˜]WÛ[Z]
+ˆ[˜[ÚYY]šXË[Z]Ú[™Ý×ÜÙXÛÛ™Âˆ
+Bˆ^Ù\^Ù\[ÛŽ‚ˆÙÙÙ\‹™^Ù\[ÛŠ‘\˜X›H[˜[][ÝH™\Ù\˜][Ûˆ˜Z[YŠBˆ™]\›ˆ˜[ÙB‚‚™YˆÜ™\Ù\™WØYÙ[ØØ[
+[˜[ÚYˆÝˆ›Û™HH›Û™JHOˆ›ÛÛ‚ˆ˜[˜XÚ×Û[Z]HQÑS•ÓPVÐÐSÈYˆ[˜[ÚY[ÙHP“P×ÐQÑS•ÓPVÐÐSÂˆ[Z]HÝ[˜[Ü][ÝWÛ[Z]
+[˜[ÚY˜YÙ[ØØ[È‹˜[˜XÚ×Û[Z]
+BˆYˆ[Z]N‚ˆ™]\›ˆ˜[ÙBˆ\˜X›HHÜ™\Ù\™WÙ\˜X›WÝ[˜[ÜÛÝ
+ˆ[˜[ÚY˜YÙ[ØØ[È‹[Z]QÑS•ÕÒS‘Õ×ÔÑPÓÓ‘Âˆ
+BˆYˆ\˜X›H\È›Ý›Û™N‚ˆYˆ\˜X›N‚ˆÜ™XÛÜ™Ý[˜[Ý\ØYÙJ[˜[ÚY˜YÙ[ØØ[ÈŠBˆ™]\›ˆ\˜X›Bˆ›ÝÈH[Û›ÝÛšXÊ
+BˆÝ]Ù™ˆH›ÝÈHQÑS•ÕÒS‘Õ×ÔÑPÓÓ‘ÂˆÚ]ØYÙ[ØØ[ÛØÚÎ‚ˆ[Y\ÈH
+ˆÝ[˜[ØYÙ[ØØ[Ý[Y\ËœÙ]Y˜][
+[˜[ÚY\]YJ
+JBˆYˆ[˜[ÚYˆ[ÙHØYÙ[ØØ[Ý[Y\Âˆ
+BˆÚ[H[Y\È[™[Y\ÖÌHHÝ]Ù™Ž‚ˆ[Y\ËœÜY
+
+BˆYˆ[Š[Y\ÊHH[Z]‚ˆ™]\›ˆ˜[ÙBˆ[Y\Ë˜\[™
+›ÝÊBˆÜ™XÛÜ™Ý[˜[Ý\ØYÙJ[˜[ÚY˜YÙ[ØØ[ÈŠBˆ™]\›ˆYB‚‚™YˆÜ™\Ù\™WÜ›ÙXÝØÛÝ[˜Ú[ØØ[Ê
+HOˆ›ÛÛ‚ˆˆˆ”™\Ù\™HH^XÝš]™HÜXÚX[\Ý\›œÈ[™Û™HÞ[\Ú\È\›‹ˆˆˆ‚ˆ™\]Z\™YH‚ˆ[Z]HÝ[˜[Ü][ÝWÛ[Z]
+›Û™K˜YÙ[ØØ[È‹P“P×ÐQÑS•ÓPVÐÐSÊBˆ›ÝÈH[Û›ÝÛšXÊ
+BˆÝ]Ù™ˆH›ÝÈHQÑS•ÕÒS‘Õ×ÔÑPÓÓ‘ÂˆÚ]ØYÙ[ØØ[ÛØÚÎ‚ˆÚ[HØYÙ[ØØ[Ý[Y\È[™ØYÙ[ØØ[Ý[Y\ÖÌHHÝ]Ù™Ž‚ˆØYÙ[ØØ[Ý[Y\ËœÜY
+
+BˆYˆ[ŠØYÙ[ØØ[Ý[Y\ÊH
+È™\]Z\™Yˆ[Z]‚ˆ™]\›ˆ˜[ÙBˆØYÙ[ØØ[Ý[Y\Ë™^[™
+Û›Ý×H
+ˆ™\]Z\™Y
+Bˆ™]\›ˆYB‚‚™YˆÜ][ÝWÜ˜]WÛ[Z]Ù\œ›ÜŠ]Z[ˆÝ‹Ú[™Ý×ÜÙXÛÛ™Îˆ[
+HOˆ^Ù\[ÛŽ‚ˆˆˆ”™]\›ˆH›Ý[™YXXÚ[™K\™XYX›H™XÛÝ™\žHÚYÛ˜[›Üˆ][ÝHÛÜšËˆˆˆ‚ˆ™]\›ˆ^Ù\[ÛŠˆÝ]\×ØÛÙOMŽKˆ]Z[Y]Z[ˆXY\œÏ^È”™]žKPY\ˆŽˆÝŠX^
+K[
+Ú[™Ý×ÜÙXÛÛ™ÊJJ_Kˆ
+B‚‚™YˆØYÙ[Ü˜]WÛ[Z]Ù\œ›ÜŠ]Z[ˆÝŠHOˆ^Ù\[ÛŽ‚ˆ™]\›ˆÜ][ÝWÜ˜]WÛ[Z]Ù\œ›ÜŠ]Z[QÑS•ÕÒS‘Õ×ÔÑPÓÓ‘ÊB‚‚™YˆÙ[[×Û]]][Û—Ü˜]WÛ[Z]Ù\œ›ÜŠ]Z[ˆÝŠHOˆ^Ù\[ÛŽ‚ˆ™]\›ˆÜ][ÝWÜ˜]WÛ[Z]Ù\œ›ÜŠ]Z[SS×ÕÒS‘Õ×ÔÑPÓÓ‘ÊB‚‚™YˆØÛÛ›™XÝÜ—Ü˜]WÛ[Z]Ù\œ›ÜŠ]Z[ˆÝŠHOˆ^Ù\[ÛŽ‚ˆ™]\›ˆÜ][ÝWÜ˜]WÛ[Z]Ù\œ›ÜŠ]Z[ÓÓ“‘PÕÔ—ÕÒS‘Õ×ÔÑPÓÓ‘ÊB‚‚™YˆÜ™\Ù\™WÙ[[×Û]]][ÛŠ[˜[ÚYˆÝˆ›Û™HH›Û™JHOˆ›ÛÛ‚ˆ[Z]HÝ[˜[Ü][ÝWÛ[Z]
+[˜[ÚYÛÜšÙ›Ý×Û]]][ÛœÈ‹SS×ÓPVÓUUUSÓ”ÊBˆYˆ[Z]N‚ˆ™]\›ˆ˜[ÙBˆ\˜X›HHÜ™\Ù\™WÙ\˜X›WÝ[˜[ÜÛÝ
+ˆ[˜[ÚYÛÜšÙ›Ý×Û]]][ÛœÈ‹[Z]SS×ÕÒS‘Õ×ÔÑPÓÓ‘Âˆ
+BˆYˆ\˜X›H\È›Ý›Û™N‚ˆYˆ\˜X›N‚ˆÜ™XÛÜ™Ý[˜[Ý\ØYÙJ[˜[ÚYÛÜšÙ›Ý×Û]]][ÛœÈŠBˆ™]\›ˆ\˜X›Bˆ›ÝÈH[Û›ÝÛšXÊ
+BˆÝ]Ù™ˆH›ÝÈHSS×ÕÒS‘Õ×ÔÑPÓÓ‘ÂˆÚ]Ù[[×Û]]][Û—ÛØÚÎ‚ˆ[Y\ÈH
+ˆÝ[˜[Ù[[×Û]]][Û—Ý[Y\ËœÙ]Y˜][
+[˜[ÚY\]YJ
+JBˆYˆ[˜[ÚYˆ[ÙHÙ[[×Û]]][Û—Ý[Y\Âˆ
+BˆÚ[H[Y\È[™[Y\ÖÌHHÝ]Ù™Ž‚ˆ[Y\ËœÜY
+
+BˆYˆ[Š[Y\ÊHH[Z]‚ˆ™]\›ˆ˜[ÙBˆ[Y\Ë˜\[™
+›ÝÊBˆÜ™XÛÜ™Ý[˜[Ý\ØYÙJ[˜[ÚYÛÜšÙ›Ý×Û]]][ÛœÈŠBˆ™]\›ˆYB‚‚™YˆÜ™\Ù\™WØÛÛ›™XÝÜ—ØØ[
+[˜[ÚYˆÝˆ›Û™HH›Û™JHOˆ›ÛÛ‚ˆˆˆ”™\Ù\™HÛ™H›Ý[™Y^\›˜[ÛÛ›™XÝÜˆ™XY›ÜˆH[˜[ˆˆˆ‚ˆ[Z]HÝ[˜[Ü][ÝWÛ[Z]
+ˆ[˜[ÚY˜ÛÛ›™XÝÜ—ØØ[È‹ÓÓ“‘PÕÔ—ÓPVÐÐSÂˆ
+BˆYˆ[Z]N‚ˆ™]\›ˆ˜[ÙBˆ\˜X›HHÜ™\Ù\™WÙ\˜X›WÝ[˜[ÜÛÝ
+ˆ[˜[ÚY˜ÛÛ›™XÝÜ—ØØ[È‹[Z]ÓÓ“‘PÕÔ—ÕÒS‘Õ×ÔÑPÓÓ‘Âˆ
+BˆYˆ\˜X›H\È›Ý›Û™N‚ˆYˆ\˜X›N‚ˆÜ™XÛÜ™Ý[˜[Ý\ØYÙJ[˜[ÚY˜ÛÛ›™XÝÜ—ØØ[ÈŠBˆ™]\›ˆ\˜X›Bˆ›ÝÈH[Û›ÝÛšXÊ
+BˆÝ]Ù™ˆH›ÝÈHÓÓ“‘PÕÔ—ÕÒS‘Õ×ÔÑPÓÓ‘ÂˆÚ]ØÛÛ›™XÝÜ—ØØ[ÛØÚÎ‚ˆ[Y\ÈH
+ˆÝ[˜[ØÛÛ›™XÝÜ—ØØ[Ý[Y\ËœÙ]Y˜][
+[˜[ÚY\]YJ
+JBˆYˆ[˜[ÚYˆ[ÙHØÛÛ›™XÝÜ—ØØ[Ý[Y\Âˆ
+BˆÚ[H[Y\È[™[Y\ÖÌHHÝ]Ù™Ž‚ˆ[Y\ËœÜY
+
+BˆYˆ[Š[Y\ÊHH[Z]‚ˆ™]\›ˆ˜[ÙBˆ[Y\Ë˜\[™
+›ÝÊBˆÜ™XÛÜ™Ý[˜[Ý\ØYÙJ[˜[ÚY˜ÛÛ›™XÝÜ—ØØ[ÈŠBˆ™]\›ˆYB‚‚™YˆÜ™\Ù\™WÛ][[[Ù[ØØ[
+
+HOˆ[›Û™N‚ˆˆˆ”™\Ù\™HÛ™HX›XÈš\ÝX[X[˜[\Ú\ÈØ[[™™]\›ˆ™]žHÙXÛÛ™Ë‚‚ˆš\ÝX[[˜[\Ú\È\È[X™\˜][H[ÝÛ\ÝY]]Ý[Ü›ÜÜÙ\ÈBˆ™\^ÑÙ[Z[šHÛÜÝ›Ý[™\žKˆÙY\H›ØÙ\ÜË]ÚYHYÙ][™[ÛY[ÂˆÚ[ˆHš^YÚ[™ÝÈÚ[™[Ü[ˆ[œÝXYÙˆX]š[™È[HÈ™]žK[ÛÜ‚ˆÛÝY[ˆ\ÈÛÛ™šYÝ\™YÚ]Û™HX^[][H[œÝ[˜ÙKÛÈ\ÈÝX\™›Ý[™ÂˆHX›XÈ\Þ[Y[	ÜÈ›Ü›X[™\]Y\Ý]Ú]Ý]Y[™È[˜[]HÂˆHY[]KYœ™YH[[È[™K‚ˆˆˆ‚ˆ›ÝÈH[Û›ÝÛšXÊ
+BˆÝ]Ù™ˆH›ÝÈHUSSSÑSÕÒS‘Õ×ÔÑPÓÓ‘ÂˆÚ]Û][[[Ù[ØØ[ÛØÚÎ‚ˆÚ[HÛ][[[Ù[ØØ[Ý[Y\È[™Û][[[Ù[ØØ[Ý[Y\ÖÌHHÝ]Ù™Ž‚ˆÛ][[[Ù[ØØ[Ý[Y\ËœÜY
+
+BˆYˆ[ŠÛ][[[Ù[ØØ[Ý[Y\ÊHHUSSSÑSÓPVÐÐSÎ‚ˆ™]\›ˆX^
+ˆKˆ[
+ˆÛ][[[Ù[ØØ[Ý[Y\ÖÌBˆ
+ÈUSSSÑSÕÒS‘Õ×ÔÑPÓÓ‘ÂˆH›ÝÂˆ
+Bˆ
+ÈKˆ
+BˆÛ][[[Ù[ØØ[Ý[Y\Ë˜\[™
+›ÝÊBˆ™]\›ˆ›Û™B‚‚™YˆÝ\ÚÜ×Ù[˜X›Y
+
+HOˆ›ÛÛ‚ˆ™]\›ˆÜË™Ù][Š‘’Q•S‘WÕTÒÔ×ÑSP“Q‹™˜[ÙHŠK˜Ø\ÙY›Û
+
+HOHYH‚‚‚™YˆÜ™\ÛÛ™WÝÛÜšÙ›ÝÊÛÜšÙ›Ý×ÚYˆÝŠN‚ˆžN‚ˆ™]\›ˆÛÜšÙ›Ý×ÜÝÜ™K™Ù]
+ÛÜšÙ›Ý×ÚY
+Bˆ^Ù\Ù^Q\œ›ÜŽ‚ˆÝ]HHØYÝÛÜšÙ›ÝÊÛÜšÙ›Ý×ÚY
+BˆYˆÝ]H\È›Ý›Û™N‚ˆ™]\›ˆÛÜšÙ›Ý×ÜÝÜ™Kœ™\ÝÜ™JÝ]JBˆ˜Z\ÙB‚‚™YˆÙ[™›Ü˜ÙWÝÛÜšÙ›Ý×Ý[˜[
+ˆÝ]NˆÛÜšÙ›ÝÔÝ]K\›Ý˜[ÚY[]NˆXÝÜÝ‹Ý—BŠHOˆ›Û™N‚ˆˆˆ”™]™[HÚYÛ™YÜ\˜]Üˆœ›ÛHXÝ[™ÈÛˆ[›Ý\ˆ[˜[	ÜÈÛÜšÙ›ÝËˆˆˆ‚ˆØÛÜHH\›Ý˜[ÚY[]K™Ù]
+œØÛÜHŠBˆÈÙY\XØÙ\[™ÈHYØXÞH˜[YH›Üˆ\œÚ\ÝYÛØØ[Y[]Y\Ë]\ÙBˆÈH›ÙXÝ[Û‹Y˜XÚ[™È˜[YH›Üˆ[™]ÈX›XÈXÚ\Ú[ÛœË‚ˆYˆØÛÜH[ˆÂˆœX›X×Ù]˜[X][Û—ÜXÚÙ]ÛÛ›H‹ˆÈ˜XÚÝØ\™ËXÛÛ\]X›H˜[Y\È›ÜˆØØ[H\œÚ\ÝYY[]Y\Ë‚ˆœX›X×ÜXÚÙ]ÛÛ›H‹ˆœØ[™›ÞÜXÚÙ]ÛÛ›H‹ˆN‚ˆYˆÝ]K[˜[ÚY\È›Ý›Û™N‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMËˆ]Z[H•[˜[\ØÛÜYÛÜšÙ›ÝÈ™\]Z\™\ÈÚYÛ™Y\›Ý˜[‹ˆ
+Bˆ™]\›‚ˆ^XÝYÝ[˜[H\›Ý˜[ÚY[]K™Ù]
+[˜[ÚYŠBˆYˆ›Ý^XÝYÝ[˜[Üˆ›ÝÝ]K[˜[ÚY‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[HÛÜšÙ›Ý×Ý[˜[ÛZ\ÜÚ[™ÈŠBˆYˆÝ]K[˜[ÚYOH^XÝYÝ[˜[‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[HÛÜšÙ›Ý×Ý[˜[ÛZ\ÛX]ÚŠB‚‚™YˆØ]]Üš^™WÝÛÜšÙ›Ý×Ý[˜[
+ˆÛÜšÙ›Ý×ÚYˆÝ‹\›Ý˜[ÚY[]NˆXÝÜÝ‹Ý—BŠHOˆ›Û™N‚ˆžN‚ˆÝ]HHÜ™\ÛÛ™WÝÛÜšÙ›ÝÊÛÜšÙ›Ý×ÚY
+Bˆ^Ù\Ù^Q\œ›Üˆ\È^Î‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOM]Z[\ÝŠ^ÊJHœ›ÛH^ÂˆÙ[™›Ü˜ÙWÝÛÜšÙ›Ý×Ý[˜[
+Ý]K\›Ý˜[ÚY[]JB‚‚™YˆØ]]Üš^™WÜ™XYÝ[˜[
+ˆÝ]NˆÛÜšÙ›ÝÔÝ]H›Ø”Ý]Kˆ
+‹ˆ™\ÛÝ\˜ÙWÚYˆÝ‹ˆÜ\˜]ÜŽˆÝˆ›Û™Kˆ[˜[ÚYˆÝˆ›Û™Kˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™KˆY[]WÝÚÙ[ŽˆÝˆ›Û™KŠHOˆ›Û™N‚ˆˆˆ’ÙY\[˜[X›Ý[™™XYÈ™Z[™HØ[YHÚYÛ™YÜ\˜]Üˆ›Ý[™\žK‚‚ˆHX›XÈYÙHÛÛœÛÛH[X™\˜][H™XYÈ[˜[\ÜÈÞ[]XÈš^\™\Ë‚ˆH™X[[Ûš]Üˆ›Ø‹ÝÛÜšÙ›ÝËÝÙ]™\‹Ø[ˆÛÛZ[ˆÛÛ›™XÝÜ‹Y\š]™YˆY]Y]H[™]\Ý™]™\ˆ™XÛÛYH™XYX›HY\™[H™XØ]\ÙH]ÈY[YšY\ˆ\ÂˆÝY\ÜÙYˆÚYÛ™YØ[\œÈ\ÙHH^XÝØ[YHPPËÓÒQÈY[]H]\Âˆ]]][ÛœÈ[™\™HÚXÚÙYYØZ[œÝH™\ÛÝ\˜ÙH[˜[‚ˆˆˆ‚ˆYˆÝ]K[˜[ÚY\È›Û™N‚ˆ™]\›‚ˆYˆ›ÝÜ\˜]ÜˆÜˆ›Ý[˜[ÚY‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMË]Z[H•[˜[\ØÛÜY™\ÛÝ\˜ÙH™\]Z\™\ÈÚYÛ™Y\›Ý˜[‚ˆ
+BˆY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆ™\ÛÝ\˜ÙWÚYˆÜ\˜]Ü‹ˆœÚYÛ™Y‹ˆ\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[‹ˆ[˜[ÚYˆ
+BˆÙ[™›Ü˜ÙWÝÛÜšÙ›Ý×Ý[˜[
+Ý]KY[]JB‚‚™YˆÜ™\ÛÛ™WÚ›ØŠ›Ø—ÚYˆÝŠHOˆ›Ø”Ý]N‚ˆÚ]Ú›Øœ×ÛØÚÎ‚ˆ›ØˆHÚ›ØœË™Ù]
+›Ø—ÚY
+BˆYˆ›Øˆ\È›Ý›Û™N‚ˆ™]\›ˆ›Ø‚ˆ›ØˆHØYÚ›ØŠ›Ø—ÚY
+BˆYˆ›Øˆ\È›Ý›Û™N‚ˆÚ]Ú›Øœ×ÛØÚÎ‚ˆÚ›ØœÖÚ›Ø—ÚYHH›Ø‚ˆ™]\›ˆ›Ø‚ˆ˜Z\ÙHÙ^Q\œ›ÜŠˆ•[šÛ›ÝÛˆ›ØŽˆÚ›Ø—ÚYHŠB‚‚™YˆØÛZ[WÚ›Ø—Ù›Ü—Ü[Š›Ø—ÚYˆÝŠHOˆ›ÛÛ‚ˆˆˆÛZ[HH]Y]YY›Øˆ™Y›Ü™H[›ÚÚ[™ÈHYÙ[[[YK‚‚ˆH›ØÙ\ÜÈØÚÈÛÜÙ\ÈHØØ[˜XÙNÈÛZ[WÚ›Ø˜YÈH\˜X›Bˆš\™\ÝÜ™H˜[œØXÝ[Ûˆ›Üˆ\XØ]HÛÝY\ÚÜÈ[]™\šY\ÈXÜ›ÜÜÈÛÝYˆ[ˆ[œÝ[˜Ù\Ë‚ˆˆˆ‚ˆÛZ[WÚYHˆ˜ÛZ[K^Ý]ZY
+
+Kš^H‚ˆÚ]Ú›Øœ×ÛØÚÎ‚ˆžN‚ˆ›ØˆHÚ›ØœË™Ù]
+›Ø—ÚY
+HÜˆØYÚ›ØŠ›Ø—ÚY
+Bˆ^Ù\^Ù\[ÛŽ‚ˆÙÙÙ\‹™^Ù\[ÛŠ•[˜X›HÈØY›Øˆ	\È›ÜˆÛZ[Z[™È‹›Ø—ÚY
+Bˆ™]\›ˆ˜[ÙBˆYˆ›Øˆ\È›Û™N‚ˆ™]\›ˆ˜[ÙBˆYˆ›Ø‹œÝ]\ÈOHœ]Y]YYŽ‚ˆÚ›ØœÖÚ›Ø—ÚYHH›Ø‚ˆ™]\›ˆ˜[ÙBˆYˆ›ÝÛZ[WÚ›ØŠ›Ø—ÚYÛZ[WÚY
+N‚ˆ\˜X›HHØYÚ›ØŠ›Ø—ÚY
+BˆYˆ\˜X›H\È›Ý›Û™N‚ˆÚ›ØœÖÚ›Ø—ÚYHH\˜X›Bˆ™]\›ˆ˜[ÙBˆ›Ø‹œÝ]\ÈHœ[›š[™È‚ˆ›Ø‹˜ÛZ[WÚYHÛZ[WÚYˆ›Ø‹œ[—Ø][\È
+ÏHBˆ›Ø‹ÝXÚ
+
+BˆÚ›ØœÖÚ›Ø—ÚYHH›Ø‚ˆ\œÚ\ÝÚ›ØŠ›ØŠBˆ™]\›ˆYB‚‚™YˆÜÙ]Ú›ØŠ›ØŽˆ›Ø”Ý]JHOˆ›Û™N‚ˆ›Ø‹ÝXÚ
+
+BˆÚ]Ú›Øœ×ÛØÚÎ‚ˆÚ›ØœÖÚ›Ø‹š›Ø—ÚYHH›Ø‚ˆ\œÚ\ÝÚ›ØŠ›ØŠB‚‚™YˆÜÞ[˜×Ú›Øœ×Ù›Ü—ÝÛÜšÙ›ÝÊÛÜšÙ›Ý×ÚYˆÝ‹Ý]\ÎˆÝŠHOˆ›Û™N‚ˆÚ]Ú›Øœ×ÛØÚÎ‚ˆX]Ú[™ÈHÚ›Øˆ›Üˆ›Øˆ[ˆÚ›ØœË˜[Y\Ê
+HYˆ›Ø‹ÛÜšÙ›Ý×ÚYOHÛÜšÙ›Ý×ÚYBˆ›Üˆ›Øˆ[ˆX]Ú[™Î‚ˆ›Ø‹œÝ]\ÈHÝ]\ÂˆÜÙ]Ú›ØŠ›ØŠBˆ\]WÚ›Øœ×Ù›Ü—ÝÛÜšÙ›ÝÊÛÜšÙ›Ý×ÚYÝ]\ÊB‚‚™YˆÜØY™WØÛÛ›™XÝÜ—ØØ[
+ˆÜ\˜][ÛŽˆØ[X›VÖÕÛÜšÙ›ÝÔÝ]WKXÝÜÝ‹Øš™XÝWKˆÝ]\×ÚÙ^NˆÝ‹ˆÝ]NˆÛÜšÙ›ÝÔÝ]KŠHOˆXÝÜÝ‹Øš™XÝN‚ˆžN‚ˆ™]\›ˆÜ\˜][ÛŠÝ]JBˆ^Ù\
+ÛÛ›™XÝÜ‘\œ›Ü‹Ü™Y[X[œ›ÚÙ\‘\œ›ÜŠH\È^Î‚ˆÙÙÙ\‹Ø\›š[™Ê‰\ÈÛÛ›™XÝÜˆ˜Z[Yˆ	\È‹Ý]\×ÚÙ^K^ÊBˆ™]\›ˆÙˆžÜÝ]\×ÚÙ^_WÜÝ]\ÈŽˆ™˜Z[Y‹™^\›˜[ÝÜš]HŽˆ˜[Ù_B‚‚™YˆÙ[œ]Y]YWØÛÝYÝ\ÚÊ›ØŽˆ›Ø”Ý]JHOˆ›Û™N‚ˆYˆ\ÚÜ×ÝŒˆ\È›Û™N‚ˆ˜Z\ÙH[[YQ\œ›ÜŠÛÝY\ÚÜÈ\[™[˜ÞH\È[˜]˜Z[X›HŠBˆ›Ú™XÝHÜË™Ù][Š‘ÓÓÑÓWÐÓÕQÔ“Ò‘PÕŠBˆØØ][ÛˆHÜË™Ù][Š‘’Q•S‘WÕTÒ×ÓÐÐUSÓˆ‹\ËXÙ[˜[HŠBˆ]Y]YHHÜË™Ù][Š‘’Q•S‘WÕTÒ×ÔUQUQH‹™šY[™KZ›ØœÈŠBˆ\™Ù]Ý\›HÜË™Ù][Š‘’Q•S‘WÕTÒ×ÕT‘ÑUÕT“ŠBˆÙ\šXÙWØXØÛÝ[HÜË™Ù][Š‘’Q•S‘WÕTÒ×ÔÑT•’PÑWÐPÐÓÕS•ŠBˆYˆ›Ý›Ú™XÝÜˆ›Ý\™Ù]Ý\›Üˆ›ÝÙ\šXÙWØXØÛÝ[‚ˆ˜Z\ÙH[[YQ\œ›ÜŠÛÝY\ÚÜÈÛÛ™šYÝ\˜][Ûˆ\È[˜ÛÛ\]HŠB‚ˆÛY[H\ÚÜ×ÝŒ‹ÛÝY\ÚÜÐÛY[
+
+Bˆ\™[HÛY[œ]Y]YWÜ]
+›Ú™XÝØØ][Û‹]Y]YJBˆ\ÚÈH\ÚÜ×ÝŒ‹•\ÚÊˆÈH]\›Z[š\ÝXÈ\ÚÈ˜[YHXZÙ\È[ˆ[œ]Y]YH™]žHY[\Ý[ˆÛÝYˆÈ\ÚÜÈ™]\›œÈS‘PQWÑVTÕÈ›ÜˆHØ[YH›Øˆ[œÝXYÙˆÜ™X][™ÈBˆÈÙXÛÛ™[]™\žK‚ˆ˜[YOXÛY[\Ú×Ü]
+›Ú™XÝØØ][Û‹]Y]YK›Ø‹š›Ø—ÚY
+KˆÜ™\]Y\Ý]\ÚÜ×ÝŒ‹’™\]Y\Ý
+ˆÛY]Ù]\ÚÜ×ÝŒ‹’Y]Ù”ÔÕˆ\›YˆžÝ\™Ù]Ý\›œœÝš\
+	ËÉÊ_KØ\KÚ›ØœËÞÚ›Ø‹š›Ø—ÚYKÜ[ˆ‹ˆXY\œÏ^ÈÛÛ[U\HŽˆ˜\XØ][Û‹ÚœÛÛˆŸKˆ›ÙOZœÛÛ‹™[\ÊÈš›Ø—ÚYŽˆ›Ø‹š›Ø—ÚYJK™[˜ÛÙJ]‹NŠKˆÚY×ÝÚÙ[]\ÚÜ×ÝŒ‹“ÚYÕÚÙ[ŠˆÙ\šXÙWØXØÛÝ[Ù[XZ[\Ù\šXÙWØXØÛÝ[ˆ]YY[˜ÙO]\™Ù]Ý\›œœÝš\
+‹ÈŠKˆ
+Kˆ
+Kˆ
+BˆžN‚ˆÛY[˜Ü™X]WÝ\ÚÊ\™[\\™[\ÚÏ]\ÚÊBˆ^Ù\\ÚÐ[™XYQ^\ÝÎ‚ˆÙÙÙ\‹š[™›ÊˆÛÝY\ÚÈ›Üˆ	\È[™XYH^\ÝÎÈ™X][™È[œ]Y]YH\ÈÝXØÙ\ÜÈ‹›Ø‹š›Ø—ÚYˆ
+B‚‚™YˆÙ[œ]Y]YWÙXÚ\Ú[Û—ÝÚ[—Û[Ûš]ÜŠØ\ÙWÚYˆÝ‹Ù[™\˜][ÛŽˆ[
+HOˆ›Û™N‚ˆˆˆ”]Y]YHÛ™HY[\Ý[ÜÝX\›Ý˜[XÚ\Ú[ÛˆÚ[ˆYX\Ý\™[Y[ˆˆˆ‚ˆYˆ\ÚÜ×ÝŒˆ\È›Û™N‚ˆ˜Z\ÙH[[YQ\œ›ÜŠÛÝY\ÚÜÈ\[™[˜ÞH\È[˜]˜Z[X›HŠBˆ›Ú™XÝHÜË™Ù][Š‘ÓÓÑÓWÐÓÕQÔ“Ò‘PÕŠBˆØØ][ÛˆHÜË™Ù][Š‘’Q•S‘WÕTÒ×ÓÐÐUSÓˆ‹\ËXÙ[˜[HŠBˆ]Y]YHHÜË™Ù][Š‘’Q•S‘WÕTÒ×ÔUQUQH‹™šY[™KZ›ØœÈŠBˆ\™Ù]Ý\›HÜË™Ù][Š‘’Q•S‘WÕTÒ×ÕT‘ÑUÕT“ŠBˆÙ\šXÙWØXØÛÝ[HÜË™Ù][Š‘’Q•S‘WÕTÒ×ÔÑT•’PÑWÐPÐÓÕS•ŠBˆYˆ›Ý›Ú™XÝÜˆ›Ý\™Ù]Ý\›Üˆ›ÝÙ\šXÙWØXØÛÝ[‚ˆ˜Z\ÙH[[YQ\œ›ÜŠÛÝY\ÚÜÈÛÛ™šYÝ\˜][Ûˆ\È[˜ÛÛ\]HŠB‚ˆÛY[H\ÚÜ×ÝŒ‹ÛÝY\ÚÜÐÛY[
+
+Bˆ\™[HÛY[œ]Y]YWÜ]
+›Ú™XÝØØ][Û‹]Y]YJBˆ\Ú×ÚÙ^HH\ÚX‹œÚLMŠˆžØØ\ÙWÚYNžÙÙ[™\˜][ÛŸH‹™[˜ÛÙJ
+JKš^YÙ\Ý
+
+VÎŒBˆ\ÚÈH\ÚÜ×ÝŒ‹•\ÚÊˆ˜[YOXÛY[\Ú×Ü]
+ˆ›Ú™XÝØØ][Û‹]Y]YKˆ™XÚ\Ú[Û‹[[Ûš]Ü‹^Ý\Ú×ÚÙ^_H‚ˆ
+KˆÜ™\]Y\Ý]\ÚÜ×ÝŒ‹’™\]Y\Ý
+ˆÛY]Ù]\ÚÜ×ÝŒ‹’Y]Ù”ÔÕˆ\›JˆˆžÝ\™Ù]Ý\›œœÝš\
+	ËÉÊ_KØ\KÙXÚ\Ú[Û‹]Ú[‹È‚ˆˆžØØ\ÙWÚYKÛ[Ûš]Ü‹Ü[ˆ‚ˆ
+KˆXY\œÏ^ÈÛÛ[U\HŽˆ˜\XØ][Û‹ÚœÛÛˆŸKˆ›ÙOZœÛÛ‹™[\ÊˆÂˆ™^XÝYÙÙ[™\˜][ÛˆŽˆÙ[™\˜][Û‹ˆœØÙ[˜\š[ÈŽˆ™ÝX\™˜Z[Øœ™XXÚ‹ˆBˆ
+K™[˜ÛÙJ]‹NŠKˆÚY×ÝÚÙ[]\ÚÜ×ÝŒ‹“ÚYÕÚÙ[ŠˆÙ\šXÙWØXØÛÝ[Ù[XZ[\Ù\šXÙWØXØÛÝ[ˆ]YY[˜ÙO]\™Ù]Ý\›œœÝš\
+‹ÈŠKˆ
+Kˆ
+Kˆ
+BˆžN‚ˆÛY[˜Ü™X]WÝ\ÚÊ\™[\\™[\ÚÏ]\ÚÊBˆ^Ù\\ÚÐ[™XYQ^\ÝÎ‚ˆÙÙÙ\‹š[™›Êˆ‘XÚ\Ú[Ûˆ[Ûš]Üˆ›Üˆ	\ÈÙ[™\˜][Ûˆ	\È[™XYH^\ÝÈ‹ˆØ\ÙWÚYˆÙ[™\˜][Û‹ˆ
+B‚‚™YˆÝ™\šYžWÝ\Ú×Ü™\]Y\Ý
+™\]Y\Ýˆ™\]Y\Ý
+HOˆ›Û™N‚ˆYˆ›ÝÝ\ÚÜ×Ù[˜X›Y
+
+N‚ˆ™]\›‚ˆ]]Üš^˜][ÛˆH™\]Y\ÝšXY\œË™Ù]
+˜]]Üš^˜][Ûˆ‹ˆŠBˆ^XÝYØ]YY[˜ÙHHÜË™Ù][Š‘’Q•S‘WÕTÒ×ÕT‘ÑUÕT“‹ˆŠKœœÝš\
+‹ÈŠBˆ^XÝYÙ[XZ[HÜË™Ù][Š‘’Q•S‘WÕTÒ×ÔÑT•’PÑWÐPÐÓÕS•‹ˆŠBˆYˆ›Ý]]Üš^˜][Û‹œÝ\ÝÚ]
+™X\™\ˆŠHÜˆ›Ý^XÝYØ]YY[˜ÙN‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMK]Z[H•\ÚÈY[]H\È™\]Z\™YŠBˆžN‚ˆœ›ÛHÛÛÙÛK˜]]˜[œÜÜœ™\]Y\ÝÈ[\Ü™\]Y\Ý\ÈÛÛÙÛT™\]Y\Ýˆœ›ÛHÛÛÙÛK›Ø]]ˆ[\ÜYÝÚÙ[‚‚ˆÛZ[\ÈHYÝÚÙ[‹™\šYžWÛØ]]—ÝÚÙ[Šˆ]]Üš^˜][Û‹œ™[[Ý™\™Yš^
+™X\™\ˆŠKœÝš\
+
+KˆÛÛÙÛT™\]Y\Ý
+
+Kˆ]YY[˜ÙOY^XÝYØ]YY[˜ÙKˆ
+Bˆ^Ù\^Ù\[Ûˆ\È^ÎˆÈ˜YÛXNˆ›ÈÛÝ™\ˆHÚÙ[ˆ™\šYšXØ][Ûˆ\ÈÛÝY[Û›K‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMK]Z[H’[˜[Y\ÚÈY[]HŠHœ›ÛH^ÂˆYˆ^XÝYÙ[XZ[[™ÛZ[\Ë™Ù]
+™[XZ[ŠHOH^XÝYÙ[XZ[‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[H•[™^XÝY\ÚÈY[]HŠB‚‚™YˆÝ™\šYžWÜØÚY[\—Ü™\]Y\Ý
+™\]Y\Ýˆ™\]Y\Ý
+HOˆ›Û™N‚ˆˆˆ•™\šYžHHYXØ]YÛÝYØÚY[\ˆY[]H™Y›Ü™H[Ûš]ÜˆXÚÜËˆˆˆ‚ˆ]]Üš^˜][ÛˆH™\]Y\ÝšXY\œË™Ù]
+˜]]Üš^˜][Ûˆ‹ˆŠBˆ^XÝYØ]YY[˜ÙHHÜË™Ù][Š‘’Q•S‘WÔÐÒQST—ÐUQQSÑH‹ˆŠKœœÝš\
+‹ÈŠBˆ^XÝYÙ[XZ[HÜË™Ù][Š‘’Q•S‘WÔÐÒQST—ÔÑT•’PÑWÐPÐÓÕS•‹ˆŠBˆYˆ›Ý]]Üš^˜][Û‹œÝ\ÝÚ]
+™X\™\ˆŠHÜˆ›Ý^XÝYØ]YY[˜ÙN‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMK]Z[H”ØÚY[\ˆY[]H\È™\]Z\™YŠBˆžN‚ˆœ›ÛHÛÛÙÛK˜]]˜[œÜÜœ™\]Y\ÝÈ[\Ü™\]Y\Ý\ÈÛÛÙÛT™\]Y\Ýˆœ›ÛHÛÛÙÛK›Ø]]ˆ[\ÜYÝÚÙ[‚‚ˆÛZ[\ÈHYÝÚÙ[‹™\šYžWÛØ]]—ÝÚÙ[Šˆ]]Üš^˜][Û‹œ™[[Ý™\™Yš^
+™X\™\ˆŠKœÝš\
+
+KˆÛÛÙÛT™\]Y\Ý
+
+Kˆ]YY[˜ÙOY^XÝYØ]YY[˜ÙKˆ
+Bˆ^Ù\^Ù\[Ûˆ\È^ÎˆÈ˜YÛXNˆ›ÈÛÝ™\ˆHÚÙ[ˆ™\šYšXØ][Ûˆ\ÈÛÝY[Û›K‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMK]Z[H’[˜[YØÚY[\ˆY[]H‚ˆ
+Hœ›ÛH^ÂˆYˆ^XÝYÙ[XZ[[™ÛZ[\Ë™Ù]
+™[XZ[ŠHOH^XÝYÙ[XZ[‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[H•[™^XÝYØÚY[\ˆY[]HŠB‚‚™YˆÝ™\šYžWØ\›Ý˜[Û[ÙJˆÛÜšÙ›Ý×ÚYˆÝ‹ˆXÝÜŽˆÝ‹ˆ[ÙNˆÝ‹ˆÚÙ[ŽˆÝˆ›Û™KˆY[]WÝÚÙ[ŽˆÝˆ›Û™HH›Û™Kˆ™\]Y\ÝYÝ[˜[ÚYˆÝˆ›Û™HH›Û™KŠHOˆXÝÜÝ‹Ý—N‚ˆˆˆ›Ý[™X›XÈXÚ\Ú[ÛœÈÈ[ˆ^XÚ][[ÈÜˆÚYÛ™Y\›Ý˜[[ÙK‚‚ˆHX›XÈÛÛœÛÛH[[[Û˜[H[œÈ[ˆ[[Ø[ÙH[™Ü™X]\ÂˆXÚÙ][Û›HÝ]]ËˆHÛÛ™šYÝ\™YÜ\˜]Üˆ[™HØ[ˆ\ÙHHÛÛÙÛHÒQÂˆY[]H›ÜˆH[ÝÛ\ÝYÜ\˜]Üˆ[XZ[Üˆ[ˆPPÈÚÙ[ˆÙ[™\˜]Yˆœ›ÛHHYXØ]Y\›Ý˜[ÙXÜ™]\È[ˆ\ÛÛ]Yœ™XZËYÛ\ÜÈ]Âˆ[œÚYÛ™YX›XÈ˜[Y\È\™H™Z™XÝY™Y›Ü™HHÛÜšÙ›ÝÈÛXÞH[™Ú[™H[œË‚ˆˆˆ‚ˆXY\—Ø\›Ý˜[XY\—ÚY[]HHÜ™\]Y\ÝØ]]™Ù]
+
+BˆÚÙ[ˆHÚÙ[ˆÜˆXY\—Ø\›Ý˜[ˆY[]WÝÚÙ[ˆHY[]WÝÚÙ[ˆÜˆXY\—ÚY[]BˆÛÛ™šYÝ\™YHÜË™Ù][Š‘’Q•S‘WÐT“ÕSÓSÑH‹™[[ÈŠK˜Ø\ÙY›Û
+
+BˆÚYÛ™YÙ[˜X›YH
+ˆÜË™Ù][Š‘’Q•S‘WÔÒQÓ‘QÐT“ÕS×ÑSP“Q‹™˜[ÙHŠK˜Ø\ÙY›Û
+
+HOHYH‚ˆ
+BˆÈÙY\HX›XÈYÙHÛÛœÛÛH[ˆ[[È[ÙHÚ[H[ÝÚ[™ÈHÙ\\˜][BˆÈÚYÛ™YÜ\˜]Üˆ[™HÈ^\˜Ú\ÙHÛÛ™šYÝ\™YÛÛ›™XÝÜœËˆH\Þ[Y[ˆÈÛÛ™šYÝ\™Y\ÈÚYÛ™Y™[XZ[œÈÝšXÝ[™™]™\ˆXØÙ\È[[È\›Ý˜[Ë‚ˆYˆÛÛ™šYÝ\™YOHœÚYÛ™Yˆ[™[ÙHOHœÚYÛ™YŽ‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[H\›Ý˜[[ÙH\È›Ý[˜X›YŠBˆYˆ[ÙHOHœÚYÛ™Yˆ[™ÛÛ™šYÝ\™YOHœÚYÛ™Yˆ[™›ÝÚYÛ™YÙ[˜X›Y‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[H”ÚYÛ™Y\›Ý˜[\È›Ý[˜X›YŠBˆYˆ[ÙHOH™[[Èˆ[™ÛÛ™šYÝ\™YOH™[[ÈŽ‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[H\›Ý˜[[ÙH\È›Ý[˜X›YŠBˆÛX[™YHXÝÜ‹œÝš\
+
+BˆYˆ[ÙHOH™[[ÈŽ‚ˆš[˜Ú\[HX›X×Ù[[×Üš[˜Ú\[
+
+Bˆ™]\›ˆÂˆ›[ÙHŽˆ™[[È‹ˆšY[]HŽˆ›˜[YYÙ[[×ØXÝÜˆ‹ˆœØÛÜHŽˆœX›X×Ù]˜[X][Û—ÜXÚÙ]ÛÛ›H‹ˆ[˜[ÚYŽˆš[˜Ú\[[˜[ÚYˆœ›ÛHŽˆš[˜Ú\[œ›ÛKˆBˆYˆY[]WÝÚÙ[Ž‚ˆ]YY[˜ÙHHÜË™Ù][Š‘’Q•S‘WÑÓÓÑÓWÓÔTUÔ—ÐUQQSÑH‹ˆŠKœÝš\
+
+BˆYˆ›Ý]YY[˜ÙN‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMË]Z[H‘ÛÛÙÛHÜ\˜]ÜˆY[]H\È›Ý[˜X›Y‚ˆ
+BˆžN‚ˆÛZ[\ÈHÝ™\šYžWÙÛÛÙÛWÚY[]WØÛZ[\ÊY[]WÝÚÙ[‹]YY[˜ÙJBˆ^Ù\^Ù\[Ûˆ\È^ÎˆÈ˜YÛXNˆ›ÈÛÝ™\ˆHÛÛÙÛK[Û›H[[YH]‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMK]Z[H’[˜[YÛÛÙÛHÜ\˜]ÜˆY[]H‚ˆ
+Hœ›ÛH^Âˆ[XZ[HÝŠÛZ[\Ë™Ù]
+™[XZ[‹ˆŠJK˜Ø\ÙY›Û
+
+Bˆ[ÝÙYHÂˆ][KœÝš\
+
+K˜Ø\ÙY›Û
+
+Bˆ›Üˆ][H[ˆÜË™Ù][Š‘’Q•S‘WÓÔTUÔ—ÑSPRSÈ‹ˆŠKœÜ]
+‹ŠBˆYˆ][KœÝš\
+
+BˆBˆYˆ[ÝÙY[™[XZ[›Ý[ˆ[ÝÙY‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMË]Z[H‘ÛÛÙÛHÜ\˜]Üˆ\È›Ý[ÝÛ\ÝY‚ˆ
+BˆžN‚ˆš[˜Ú\[Hš[˜Ú\[Ù›Ü—ØÛZ[\ÊˆÝXš™XÝ\ÝŠÛZ[\Ë™Ù]
+œÝXˆ‹ˆŠJKˆ[XZ[Y[XZ[ˆ™\]Y\ÝYÝ[˜[ÚY\™\]Y\ÝYÝ[˜[ÚYˆ
+Bˆ^Ù\
+˜[YQ\œ›Ü‹\›Z\ÜÚ[Û‘\œ›ÜŠH\È^Î‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[\ÝŠ^ÊJHœ›ÛH^ÂˆYˆ›Ýš[˜Ú\[˜Ø[Š›Ü\˜]ÜˆŠN‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMË]Z[H•[˜[›ÛHØ[››Ý\™›Ü›H\ÈÜ\˜][Ûˆ‚ˆ
+Bˆ™]\›ˆÂˆ›[ÙHŽˆœÚYÛ™Y‹ˆšY[]HŽˆ™ÛÛÙÛWÛÚY×ÛÜ\˜]Üˆ‹ˆœØÛÜHŽˆ˜ÛÛ™šYÝ\™Y‹ˆœÝXš™XÝŽˆÝŠÛZ[\Ë™Ù]
+œÝXˆ‹ˆŠJKˆ™[XZ[Žˆ[XZ[ˆ[˜[ÚYŽˆš[˜Ú\[[˜[ÚYˆœ›ÛHŽˆš[˜Ú\[œ›ÛKˆBˆÈ›ÙXÝ[Ûˆ[˜[[™\ÈÚÝ[\ÙHÚÜ[]™YÛÛÙÛHÒQÈY[]Y\ËˆÈ›ÝH™\^XX›Hœ™XZËYÛ\ÜÈ™X\™\ˆ˜[YKˆÙY\HPPÈ]]˜Z[X›BˆÈÛ›HÚ[ˆ[ˆÜ\˜]Üˆ^XÚ]HÜÈ[È]
+ØØ[Ø›ÛÝÝ˜\Üˆ[‚ˆÈ[˜ÚY[[˜›ÛÚÊK[™˜Z[ÛÜÙYÚ[ˆH\Þ[Y[™\]Z\™\ÈÒQË‚ˆYˆ
+ˆÜË™Ù][Š‘’Q•S‘WÔ‘TURT‘WÑÓÓÑÓWÓÔTUÔ—ÒQS•UH‹™˜[ÙHŠK˜Ø\ÙY›Û
+
+BˆOHYH‚ˆ
+N‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMKˆ]Z[H‘ÛÛÙÛHÜ\˜]ÜˆY[]H\È™\]Z\™Y›Üˆ\È\Þ[Y[‹ˆ
+BˆÈH\Þ[Y[]ÚYHÚYÛ™\ˆ\È™]Z[™YÛ›H\È[ˆ^XÚ]ÛÛ\]Xš[]BˆÈ˜[˜XÚËˆØXTÈ\Þ[Y[ÈØ[ˆÙ]H]\›Z[š\ÝXË[™œ˜\ÝXÝ\™K[ÝÛ™YˆÈ\‹][˜[ÙXÜ™]™Yš^[™™\]Z\™H]™\žHœ™XZËYÛ\ÜÈ™\]Y\ÝÈ\ÙHBˆÈ[˜[	ÜÈÝÛˆÚYÛ™\‹ˆÒQÈ™[XZ[œÈ™Y™\œ™Y›Üˆ›Ü›X[Ü\˜]Üˆ˜Y™šXË‚ˆ[˜[Ù›Ü—ÜÚYÛš[™ÈH™\]Y\ÝYÝ[˜[ÚYÜˆÜË™Ù][Šˆ‘’Q•S‘WÑQUSÕSS•ÒQ‹™šY[™KY[[È‚ˆ
+BˆžN‚ˆ[˜[Ù›Ü—ÜÚYÛš[™ÈH˜[Y]WÝ[˜[ÚY
+[˜[Ù›Ü—ÜÚYÛš[™ÊBˆ^Ù\˜[YQ\œ›Üˆ\È^Î‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[H[˜[ÚYÚ[˜[YŠHœ›ÛH^ÂˆÙXÜ™]Hˆ‚ˆ[˜[ÜÚYÛš[™×Ü™Yš^HÜË™Ù][Šˆ‘’Q•S‘WÕSS•ÔÒQÓ’S‘×ÔÑPÔ‘UÔ‘Q’V‹ˆ‚ˆ
+KœÝš\
+
+Bˆ™\]Z\™WÝ[˜[ÜÚYÛ™\ˆH
+ˆÜË™Ù][Š‘’Q•S‘WÔ‘TURT‘WÕSS•ÔÒQÓ’S‘×ÔÑPÔ‘UÈ‹™˜[ÙHŠK˜Ø\ÙY›Û
+
+BˆOHYH‚ˆ
+BˆYˆ[˜[ÜÚYÛš[™×Ü™Yš^‚ˆžN‚ˆÙXÜ™]HÜ™XYÝ[˜[ÜÙXÜ™]
+ˆ[˜[Ù›Ü—ÜÚYÛš[™Ëˆ[˜[ÛÜ\˜]Ü—ÜÚYÛš[™×ÜÙXÜ™]Û˜[YJˆ[˜[Ù›Ü—ÜÚYÛš[™Ë[˜[ÜÚYÛš[™×Ü™Yš^ˆ
+Kˆ
+KœÝš\
+
+Bˆ^Ù\
+ÛÛ›™XÝÜ‘\œ›Ü‹˜[YQ\œ›ÜŠN‚ˆYˆ™\]Z\™WÝ[˜[ÜÚYÛ™\Ž‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMK]Z[H•[˜[ÚYÛš[™ÈÙXÜ™]\È[˜]˜Z[X›H‚ˆ
+Hœ›ÛH›Û™BˆYˆ›ÝÙXÜ™][™›Ý™\]Z\™WÝ[˜[ÜÚYÛ™\Ž‚ˆÙXÜ™]HÜË™Ù][Š‘’Q•S‘WÐT“ÕSÔÒQÓ’S‘×ÔÑPÔ‘U‹ˆŠBˆYˆ›ÝÙXÜ™]Üˆ›ÝÚÙ[Ž‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMK]Z[H”ÚYÛ™Y\›Ý˜[\È™\]Z\™YŠBˆY\ÜØYÙHHˆžÝÛÜšÙ›Ý×ÚYNžØÛX[™YH‹™[˜ÛÙJ
+Bˆ^XÝYHXXË›™]ÊÙXÜ™]™[˜ÛÙJ
+KY\ÜØYÙK\ÚX‹œÚLMŠKš^YÙ\Ý
+
+BˆYˆ›ÝXXË˜ÛÛ\\™WÙYÙ\Ý
+ÚÙ[‹^XÝY
+N‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMK]Z[H’[˜[YÚYÛ™Y\›Ý˜[ŠBˆžN‚ˆš[˜Ú\[Hš[˜Ú\[Ù›Ü—ÚXXÊ™\]Y\ÝYÝ[˜[ÚY
+Bˆ^Ù\
+˜[YQ\œ›Ü‹\›Z\ÜÚ[Û‘\œ›ÜŠH\È^Î‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[\ÝŠ^ÊJHœ›ÛH^Âˆ™]\›ˆÂˆ›[ÙHŽˆœÚYÛ™Y‹ˆšY[]HŽˆœÚYÛ™YÛÜ\˜]Üˆ‹ˆœØÛÜHŽˆ˜ÛÛ™šYÝ\™Y‹ˆ[˜[ÚYŽˆš[˜Ú\[[˜[ÚYˆœ›ÛHŽˆš[˜Ú\[œ›ÛKˆB‚‚™YˆØ]Y]ØXÝÜŠXÝÜŽˆÝ‹\›Ý˜[ÚY[]NˆXÝÜÝ‹Ý—JHOˆÝŽ‚ˆˆˆš[™ÒQÈ]Y]]šX][ÛˆÈHY[]H]ÚYÛ™YH™\]Y\Ýˆˆˆ‚ˆYˆ\›Ý˜[ÚY[]K™Ù]
+šY[]HŠHOH™ÛÛÙÛWÛÚY×ÛÜ\˜]ÜˆŽ‚ˆ[XZ[H\›Ý˜[ÚY[]K™Ù]
+™[XZ[‹ˆŠKœÝš\
+
+BˆYˆ›Ý[XZ[‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMK]Z[H‘ÛÛÙÛHÜ\˜]ÜˆY[]H\È[˜ÛÛ\]H‚ˆ
+Bˆ™]\›ˆ[XZ[ˆ™]\›ˆXÝÜ‹œÝš\
+
+B‚‚™YˆÝ™\šYžWÜ]›Ü›WÛÜ\˜]ÜŠY[]WÝÚÙ[ŽˆÝˆ›Û™JHOˆXÝÜÝ‹Ý—N‚ˆˆˆ•™\šYžHHÙ\\˜]H]›Ü›KXYZ[ˆÒQÈ›Ý[™\žH›Üˆ[˜[›ÛÝÝ˜\ˆˆˆ‚ˆ]YY[˜ÙHHÜË™Ù][Š‘’Q•S‘WÑÓÓÑÓWÓÔTUÔ—ÐUQQSÑH‹ˆŠKœÝš\
+
+BˆYˆ›ÝY[]WÝÚÙ[ˆÜˆ›Ý]YY[˜ÙN‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMK]Z[H”]›Ü›HY[]H\È™\]Z\™YŠBˆžN‚ˆÛZ[\ÈHÝ™\šYžWÙÛÛÙÛWÚY[]WØÛZ[\ÊY[]WÝÚÙ[‹]YY[˜ÙJBˆ^Ù\^Ù\[Ûˆ\È^ÎˆÈ˜YÛXNˆ›ÈÛÝ™\ˆHÛÛÙÛK[Û›H[[YH]‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMK]Z[H’[˜[Y]›Ü›HY[]HŠHœ›ÛH^Âˆ[XZ[HÝŠÛZ[\Ë™Ù]
+™[XZ[‹ˆŠJKœÝš\
+
+K˜Ø\ÙY›Û
+
+Bˆ[ÝÙYHÂˆ][KœÝš\
+
+K˜Ø\ÙY›Û
+
+Bˆ›Üˆ][H[ˆÜË™Ù][Š‘’Q•S‘WÔU“Ô“WÓÔTUÔ—ÑSPRSÈ‹ˆŠKœÜ]
+‹ŠBˆYˆ][KœÝš\
+
+BˆBˆYˆ›Ý[XZ[Üˆ[XZ[›Ý[ˆ[ÝÙY‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[H”]›Ü›HÜ\˜]Üˆ\È›Ý[ÝÛ\ÝYŠBˆ™]\›ˆÂˆšY[]HŽˆ™ÛÛÙÛWÛÚY×Ü]›Ü›WÛÜ\˜]Üˆ‹ˆœÝXš™XÝŽˆÝŠÛZ[\Ë™Ù]
+œÝXˆ‹ˆŠJKˆ™[XZ[Žˆ[XZ[ˆB‚‚™YˆÝ™\šYžWÙÛÛÙÛWÚY[]WØÛZ[\ÊˆY[]WÝÚÙ[ŽˆÝˆ›Û™K]YY[˜ÙNˆÝ‚ŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ•™\šYžHHÛÛÙÛHÒQÈY[]HÛ˜ÙK[˜ÛY[™ÈH[˜[\ØY™HÛZ[\Ë‚‚ˆ\È[\ˆ\ÈÚ\™YžHH[˜[Ù[XÝÜˆ[™ÚYÛ™YÜ\˜]Üˆ›Ý]\ÈÛÂˆ›Ý\ÙHHØ[YH]YY[˜ÙK\ÜÝY\‹^\žK[™™\šYšYYY[XZ[ÚXÚÜËˆ]ˆ[[[Û˜[H™]\›œÈÛZ[\ÈÛ›H[ˆY[[ÜžNÈ›ÈÚÙ[ˆ\È\œÚ\ÝY‚ˆˆˆ‚ˆYˆ›ÝY[]WÝÚÙ[ˆÜˆ›Ý]YY[˜ÙN‚ˆ˜Z\ÙH˜[YQ\œ›ÜŠ™ÛÛÙÛWÚY[]WÜ™\]Z\™YŠBˆœ›ÛHÛÛÙÛK˜]]˜[œÜÜœ™\]Y\ÝÈ[\Ü™\]Y\Ý\ÈÛÛÙÛT™\]Y\Ýˆœ›ÛHÛÛÙÛK›Ø]]ˆ[\ÜYÝÚÙ[‚‚ˆÛZ[\ÈHYÝÚÙ[‹™\šYžWÛØ]]—ÝÚÙ[ŠˆY[]WÝÚÙ[‹œ™[[Ý™\™Yš^
+™X\™\ˆŠKœÝš\
+
+KˆÛÛÙÛT™\]Y\Ý
+
+Kˆ]YY[˜ÙOX]YY[˜ÙKˆ
+Bˆ\ÜÝY\ˆHÝŠÛZ[\Ë™Ù]
+š\ÜÈ‹ˆŠJBˆYˆ\ÜÝY\ˆ›Ý[ˆÈ˜XØÛÝ[Ë™ÛÛÙÛK˜ÛÛH‹šÎ‹ËØXØÛÝ[Ë™ÛÛÙÛK˜ÛÛHŸN‚ˆ˜Z\ÙH˜[YQ\œ›ÜŠ™ÛÛÙÛWÚY[]WÚ\ÜÝY\—Ú[˜[YŠBˆ[XZ[HÝŠÛZ[\Ë™Ù]
+™[XZ[‹ˆŠJKœÝš\
+
+K˜Ø\ÙY›Û
+
+BˆYˆ›Ý[XZ[ÜˆÛZ[\Ë™Ù]
+™[XZ[Ý™\šYšYYŠH\È˜[ÙN‚ˆ˜Z\ÙH˜[YQ\œ›ÜŠ™ÛÛÙÛWÚY[]WÙ[XZ[Ý[™\šYšYYŠBˆYˆ›ÝÝŠÛZ[\Ë™Ù]
+œÝXˆ‹ˆŠJKœÝš\
+
+N‚ˆ˜Z\ÙH˜[YQ\œ›ÜŠ™ÛÛÙÛWÚY[]WÜÝXš™XÝÛZ\ÜÚ[™ÈŠBˆ™]\›ˆÛZ[\Â‚‚—ÐÓÓ“‘PÕÔ—ÒS‘Ñ‘”Îˆ\VÂˆ\VÂˆÝ‹ˆØ[X›VÖÕÛÜšÙ›ÝÔÝ]WKXÝÜÝ‹Øš™XÝWKˆØ[X›VÖÕÛÜšÙ›ÝÔÝ]WKXÝÜÝ‹Øš™XÝWKˆKˆ‹‹‹—HH
+ˆ
+šš\˜H‹^XÝ]WÚš\˜WÚ[™Ù™‹™]™\œÙWÚš\˜WÚ[™Ù™ŠKˆ
+˜ÛÛ™›Y[˜ÙH‹^XÝ]WØÛÛ™›Y[˜ÙWÚ[™Ù™‹™]™\œÙWØÛÛ™›Y[˜ÙWÚ[™Ù™ŠKˆ
+œÛXÚÈ‹^XÝ]WÜÛXÚ×Ú[™Ù™‹™]™\œÙWÜÛXÚ×Ú[™Ù™ŠKˆ
+™Ú]Xˆ‹^XÝ]WÙÚ]X—Ú[™Ù™‹™]™\œÙWÙÚ]X—Ú[™Ù™ŠKŠB‚‚™YˆÜ™\\™YØÛÛ›™XÝÜ—Ú[™›Ê
+HOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”™]\›ˆ[ˆÛ™\ÝXÚÙ][Û›H™\Ý[›ÜˆHX›XÈ[[È[™K‚‚ˆÛÛ›™XÝÜˆÛÛ™šYÝ\˜][Ûˆ\È[[[Û˜[H›Ý[›ÝYÚÈ]]Üš^™HHÜš]N‚ˆÛ›HHÚYÛ™YÜ\˜]Üˆ\›Ý˜[Ø[ˆÜ›ÜÜÈ]›Ý[™\žKˆ\È›ÝXÝÈBˆX›XÈ[[È]™[ˆYˆÜ™Y[X[È\™H™\Ù[[ˆH\ÛÛ]Y\Þ[Y[‚ˆˆˆ‚ˆ™\Ý[ˆXÝÜÝ‹Øš™XÝHHßBˆ›Üˆ˜[YKËÈ[ˆÐÓÓ“‘PÕÔ—ÒS‘Ñ‘”Î‚ˆ™\Ý[ÙˆžÛ˜[Y_WÜÝ]\È—HHœ™\\™YÛÛ›H‚ˆ™\Ý[ÙˆžÛ˜[Y_WÜ™\\™YÛÛ›H—HHYBˆ™\Ý[ÙˆžÛ˜[Y_WÙ^\›˜[ÝÜš]H—HH˜[ÙBˆ™]\›ˆ™\Ý[‚‚™YˆØÛÛ›™XÝÜ—Ú[™Ù™—Ú[™›ÊˆÝ]NˆÛÜšÙ›ÝÔÝ]Kˆ\›Ý˜[ÚY[]NˆXÝÜÝ‹Ý—Kˆ
+‹ˆ™]™\œÙNˆ›ÛÛH˜[ÙKŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ‘^XÝ]HÛ›HHÚYÛ™YÛÜšÙ›ÝÉÜÈ^XÚ]HX\YÛÛ›™XÝÜœË‚‚ˆHÛÛ›™XÝÜˆ™Z[™ÈÛÛ™šYÝ\™Y›ÜˆH[˜[\È›Ý]Ù[ˆ\›Z\ÜÚ[ÛˆÈ˜[‚ˆÝ]]™\žHXÚÙ]È]›ÝšY\‹ˆH[\XÝÜ˜\\ÈHÛÝ\˜ÙHÙˆ]ˆ›ÜˆHÝ\œ™[\›Ý˜[ˆ›ÜØ\™ÛÜšÈ\ÈÙ[Û›HÈ\Ý[˜][ÛœÈÚÝÛ‚ˆ[ˆ[YÜ˜][Û—Ý\™Ù]Øˆ\š[™È™]™\œØ[™]Z[ˆÛÛ\]Xš[]HÚ]ˆÛ\ˆXÝ[Ûˆ™XÛÜ™ÈžH™]™\œÚ[™È[žHÛÛ›™XÝÜˆ]XÝX[H™XÛÜ™Y[‚ˆ^\›˜[Üš]K]™[ˆYˆ]YØXÞHÛÜšÙ›ÝÈY›Ý^ÜÙHH\™Ù][‚ˆ]ÈÜšYÚ[˜[Ü˜\‚ˆˆˆ‚ˆYˆ\›Ý˜[ÚY[]K™Ù]
+œØÛÜHŠHOH˜ÛÛ™šYÝ\™YŽ‚ˆ™]\›ˆÜ™\\™YØÛÛ›™XÝÜ—Ú[™›Ê
+BˆÙ[XÝYHÂˆÝŠ\™Ù]™Ù]
+œÞ\Ý[H‹ˆŠJK˜Ø\ÙY›Û
+
+Bˆ›Üˆ\™Ù][ˆÝ]Kš[YÜ˜][Û—Ý\™Ù]ÂˆYˆ\Ú[œÝ[˜ÙJ\™Ù]XÝ
+BˆBˆXÝ[ÛˆHÝ]K˜XÝ[Û—Ü™XÛÜ™ÜˆßBˆ™\Ý[ˆXÝÜÝ‹Øš™XÝHHßBˆ›Üˆ˜[YK^XÝ]K[™È[ˆÐÓÓ“‘PÕÔ—ÒS‘Ñ‘”Î‚ˆÝ]\×ÚÙ^HHˆžÛ˜[Y_WÜÝ]\È‚ˆ^\›˜[ÚÙ^HHˆžÛ˜[Y_WÙ^\›˜[ÝÜš]H‚ˆš[Ü—ÜÝ]\ÈHÝŠXÝ[Û‹™Ù]
+Ý]\×ÚÙ^KˆŠJK˜Ø\ÙY›Û
+
+BˆÛÛ\]YÜÝ]\Ù\ÈH
+ˆÈœ™]™\œÙYŸHYˆ™]™\œÙH[ÙHÈ˜Ü™X]Y‹œ™]\ÙY‹œ™XXÝ]˜]YŸBˆ
+BˆYˆš[Ü—ÜÝ]\È[ˆÛÛ\]YÜÝ]\Ù\Î‚ˆ™\Ý[\]JˆÂˆÙ^Nˆ˜[YBˆ›ÜˆÙ^K˜[YH[ˆXÝ[Û‹š][\Ê
+BˆYˆÙ^KœÝ\ÝÚ]
+ˆžÛ˜[Y_WÈŠBˆBˆ
+Bˆ™\Ý[Ù^\›˜[ÚÙ^WHH›ÛÛ
+XÝ[Û‹™Ù]
+^\›˜[ÚÙ^KYJJBˆ™\Ý[È™^\›˜[ÝÜš]H—HHYBˆÛÛ[YBˆYˆ™]™\œÙN‚ˆÚÝ[Ü[ˆH›ÛÛ
+XÝ[Û‹™Ù]
+^\›˜[ÚÙ^JJHÜˆš[Ü—ÜÝ]\È[ˆÂˆ˜Ü™X]Y‹ˆœ™]\ÙY‹ˆœ™XXÝ]˜]Y‹ˆBˆ[ÙN‚ˆÚÝ[Ü[ˆH˜[YK˜Ø\ÙY›Û
+
+H[ˆÙ[XÝYˆYˆ›ÝÚÝ[Ü[Ž‚ˆ™\Ý[ÜÝ]\×ÚÙ^WHH››ÝÜÙ[XÝY‚ˆ™\Ý[ÙˆžÛ˜[Y_WÜ™\\™YÛÛ›H—HHYBˆ™\Ý[Ù^\›˜[ÚÙ^WHH˜[ÙBˆÛÛ[YBˆÜ\˜][ÛˆH[™ÈYˆ™]™\œÙH[ÙH^XÝ]BˆÛÛ›™XÝÜ—Ü™\Ý[HÜØY™WØÛÛ›™XÝÜ—ØØ[
+Ü\˜][Û‹˜[YKÝ]JBˆÛÛ›™XÝÜ—Ù^\›˜[ÝÜš]HH›ÛÛ
+ÛÛ›™XÝÜ—Ü™\Ý[™Ù]
+™^\›˜[ÝÜš]H‹˜[ÙJJBˆ™\Ý[\]JˆÂˆÙ^Nˆ˜[YBˆ›ÜˆÙ^K˜[YH[ˆÛÛ›™XÝÜ—Ü™\Ý[š][\Ê
+BˆYˆÙ^HOH™^\›˜[ÝÜš]H‚ˆBˆ
+Bˆ™\Ý[Ù^\›˜[ÚÙ^WHHÛÛ›™XÝÜ—Ù^\›˜[ÝÜš]Bˆ™\Ý[È™^\›˜[ÝÜš]H—HH›ÛÛ
+™\Ý[™Ù]
+™^\›˜[ÝÜš]H‹˜[ÙJJHÜˆÛÛ›™XÝÜ—Ù^\›˜[ÝÜš]Bˆ™]\›ˆ™\Ý[‚‚™YˆØÛZ[WÜÚYWÙY™™XÝÛÜ\˜][ÛŠˆÝ]NˆÛÜšÙ›ÝÔÝ]Kˆ
+‹ˆÚ[™ˆ]\˜[È˜\›Ý˜[‹œ™]™\œØ[—KˆXÝÜŽˆÝ‹ˆ\›Ý˜[ÚY[]NˆXÝÜÝ‹Ý—KŠHOˆ›Û™N‚ˆˆˆ]XÚHÜ™Y[X[Yœ™YH\˜X›HÛZ[H™Y›Ü™H[žHÚYHY™™XÝ™YÚ[œËˆˆˆ‚ˆ›Ý×Ý˜[YHH]][YK››ÝÊUÊBˆ›ÝÈH›Ý×Ý˜[YKš\ÛÙ›Ü›X]
+
+BˆÝ]K›Ü\˜][ÛˆHÂˆ›Ü\˜][Û—ÚYŽˆˆ›Ü^Ý]ZY
+
+Kš^H‹ˆšÚ[™ŽˆÚ[™ˆœÝ]\ÈŽˆ™^XÝ][™È‹ˆ™Ù[™\˜][ÛˆŽˆKˆ˜][\ÈŽˆKˆ˜XÝÜˆŽˆXÝÜ‹ˆœØÛÜHŽˆ\›Ý˜[ÚY[]K™Ù]
+œØÛÜH‹œX›X×Ù[[ÈŠKˆ[˜[ÚYŽˆ\›Ý˜[ÚY[]K™Ù]
+[˜[ÚYŠKˆ™]šY[˜ÙWÚ\ÚŽˆÝ]K™]šY[˜ÙK™]šY[˜ÙWÚ\ÚYˆÝ]K™]šY[˜ÙH[ÙH›Û™KˆœÝ\YØ]Žˆ›ÝËˆ›\ÝØ][\Ø]Žˆ›ÝËˆ›X\ÙWÙ^\™\×Ø]Žˆ
+ˆ›Ý×Ý˜[YH
+È[YY[JÙXÛÛ™ÏWÛÜ\˜][Û—ÛX\ÙWÜÙXÛÛ™Ê
+JBˆ
+Kš\ÛÙ›Ü›X]
+
+KˆB‚‚™YˆÛÜ\˜][Û—ÛX\ÙWÜÙXÛÛ™Ê
+HOˆ[‚ˆˆˆ’ÙY\HÛZ[H^Û\Ú]™H™^[Û™HÛÝY[ˆ™\]Y\Ý[Y[Ý]ˆˆˆ‚ˆžN‚ˆÛÛ™šYÝ\™YH[
+ÜË™Ù][Š‘’Q•S‘WÓÔTUSÓ—ÓPTÑWÔÑPÓÓ‘È‹ŒÍŒŠJBˆ^Ù\˜[YQ\œ›ÜŽ‚ˆÛÛ™šYÝ\™YHÍŒˆ™]\›ˆX^
+ÌÌZ[ŠÛÛ™šYÝ\™YL
+JB‚‚™YˆÛÜ\˜][Û—ÛX\ÙWÙ^\™Y
+ˆÜ\˜][ÛŽˆXÝÜÝ‹Øš™XÝK
+‹›ÝÎˆ]][YH›Û™HH›Û™BŠHOˆ›ÛÛ‚ˆˆˆ‘˜Z[ÛÜÙY[›\ÜÈH\˜X›HÛZ[HØ\œšY\ÈH˜[Y[\ÙYX\ÙKˆˆˆ‚ˆ˜]×Ù^\žHHÜ\˜][Û‹™Ù]
+›X\ÙWÙ^\™\×Ø]ŠBˆYˆ›Ý˜]×Ù^\žN‚ˆ™]\›ˆ˜[ÙBˆžN‚ˆ^\žHH]][YK™œ›ÛZ\ÛÙ›Ü›X]
+ÝŠ˜]×Ù^\žJJBˆ^Ù\˜[YQ\œ›ÜŽ‚ˆ™]\›ˆ˜[ÙBˆYˆ^\žKš[™›È\È›Û™N‚ˆ™]\›ˆ˜[ÙBˆ™]\›ˆ^\žHH
+›ÝÈÜˆ]][YK››ÝÊUÊJB‚‚™YˆÙ^\™WÜÝ[WÛÜ\˜][Û—ØÛZ[JÝ]NˆÛÜšÙ›ÝÔÝ]JHOˆÛÜšÙ›ÝÔÝ]N‚ˆˆˆ•\›ˆH\™XÜ˜\ÚÜœ[ˆ[ÈHÜ™[˜\žH^Û\Ú]™H™XÛÝ™\žH[™Kˆˆˆ‚ˆYˆÝ]KœÝ]\È›Ý[ˆÂˆÛÜšÙ›ÝÔÝ]\ËT“ÕSÑVPÕUS‘ËˆÛÜšÙ›ÝÔÝ]\Ë”‘U‘T”ÐSÑVPÕUS‘ËˆN‚ˆ˜Z\ÙHÛXÞUš[Û][ÛŠ•ÛÜšÙ›ÝÈÜ\˜][Ûˆ\È›Ý]ØZ][™ÈX\ÙH™XÛÝ™\žHŠBˆYˆ›ÝÛÜ\˜][Û—ÛX\ÙWÙ^\™Y
+Ý]K›Ü\˜][ÛˆÜˆßJN‚ˆ˜Z\ÙHÛXÞUš[Û][ÛŠ•ÛÜšÙ›ÝÈÜ\˜][Ûˆ\ÈÝ[XÝ]™NÈ™]žHY\ˆ]ÈX\ÙHŠBˆÝ]K›Ü\˜][ÛˆHÂˆ
+ŠœÝ]K›Ü\˜][Û‹ˆœÝ]\ÈŽˆœ™XÛÛ˜Ú[X][Û—Ü™\]Z\™Y‹ˆ›\ÝÙ\œ›Ü—ØÛÙHŽˆ›Ü\˜][Û—ÛX\ÙWÙ^\™Y‹ˆ›\ÝÙ˜Z[YØ]Žˆ]×Û›ÝÊ
+KˆBˆÝ]K˜XÝ[Û—Ü™XÛÜ™HÂˆ
+ŠŠÝ]K˜XÝ[Û—Ü™XÛÜ™ÜˆßJKˆœ™XÛÛ˜Ú[X][Û—Ü™\]Z\™YŽˆYKˆ›Ü\˜][Û—ÚYŽˆÝ]K›Ü\˜][Û‹™Ù]
+›Ü\˜][Û—ÚYŠKˆBˆÝ]KœÝ]\ÈHÛÜšÙ›ÝÔÝ]\Ë”‘PÓÓÒSPUSÓ—Ô‘TURT‘QˆÝ]K™]™[Ë˜\[™
+ˆÂˆ™]™[ÚYŽˆˆ™]^Ý]ZY
+
+Kš^ÎŒL—_H‹ˆ[Y\Ý[\Žˆ]×Û›ÝÊ
+Kˆ˜XÝ[ÛˆŽˆ›Ü\˜][Û—Ü™XÛÛ˜Ú[\ˆ‹ˆ›Ý]ÛÛYHŽˆ™^\™YØÛZ[WÜ™XÛÝ™\™Y‹ˆœÝYÙHŽˆÝ]KœÝYÙK˜[YKˆ™]šY[˜ÙWÚ\ÚŽˆÝ]K™]šY[˜ÙK™]šY[˜ÙWÚ\ÚYˆÝ]K™]šY[˜ÙH[ÙH›Û™Kˆ›Ü\˜][Û—ÚYŽˆÝ]K›Ü\˜][Û‹™Ù]
+›Ü\˜][Û—ÚYŠKˆBˆ
+Bˆ™]\›ˆÝ]B‚‚™YˆÙ^XÝ]WØÛZ[YYÜÚYWÙY™™XÝÊˆÝ]NˆÛÜšÙ›ÝÔÝ]Kˆ\›Ý˜[ÚY[]NˆXÝÜÝ‹Ý—Kˆ
+‹ˆ™]™\œÙNˆ›ÛÛŠHOˆÛÜšÙ›ÝÔÝ]N‚ˆˆˆ”[ˆHY[\Ý[ÛÛ›™XÝÜˆ
+È\Y˜XÝ[™H›ÜˆHÛZ[YYÜ\˜][Û‹ˆˆˆ‚ˆYˆÝ]K˜XÝ[Û—Ü™XÛÜ™\È›Ý›Û™H[™›Ý™]™\œÙN‚ˆÝ]K˜XÝ[Û—Ü™XÛÜ™È[˜[ÚY—HH\›Ý˜[ÚY[]VÈ[˜[ÚY—BˆÛÛ›™XÝÜ—Ú[™›ÈHØÛÛ›™XÝÜ—Ú[™Ù™—Ú[™›ÊˆÝ]Kˆ\›Ý˜[ÚY[]Kˆ™]™\œÙO\™]™\œÙKˆ
+Bˆ^\›˜[ÜÞ\Ý[\×ØÚ[™ÙYH[žJˆÛÛ›™XÝÜ—Ú[™›Ë™Ù]
+ˆžÛ˜[Y_WÙ^\›˜[ÝÜš]H‹˜[ÙJBˆÜˆÛÛ›™XÝÜ—Ú[™›Ë™Ù]
+™^\›˜[ÝÜš]H‹˜[ÙJBˆ›Üˆ˜[YKËÈ[ˆÐÓÓ“‘PÕÔ—ÒS‘Ñ‘”Âˆ
+BˆÈ\œÚ\ÝÛÛ™š\›YY\‹XÛÛ›™XÝÜˆÝ]ÛÛY\ÈÛˆHÛZ[YYÝ]H™Y›Ü™HBˆÈ]\ˆÛÛ›™XÝÜˆ˜Z[\™H[\œÈ™XÛÛ˜Ú[X][Û‹ˆH^Ù\[Ûˆ[™\‚ˆÈÛÛ[Z]È\È]]]YÛ˜\ÚÝÛÈH™]žHØ[ˆ™]\ÙHÛÛ\]YÜš]\ÂˆÈ[œÝXYÙˆ™\X][™È[K‚ˆÝ]K˜XÝ[Û—Ü™XÛÜ™HÂˆ
+ŠŠÝ]K˜XÝ[Û—Ü™XÛÜ™ÜˆßJKˆ
+Š˜ÛÛ›™XÝÜ—Ú[™›Ëˆ™^\›˜[ÝÜš]WØ]]Üš^™YŽˆ\›Ý˜[ÚY[]K™Ù]
+œØÛÜHŠHOH˜ÛÛ™šYÝ\™Y‹ˆ™^\›˜[ÝÜš]HŽˆ^\›˜[ÜÞ\Ý[\×ØÚ[™ÙYˆ™^\›˜[ÜÞ\Ý[\×ØÚ[™ÙYŽˆ^\›˜[ÜÞ\Ý[\×ØÚ[™ÙYˆBˆYˆ[žJˆÙ^K™[™ÝÚ]
+—ÜÝ]\ÈŠH[™˜[YHOH™˜Z[Y‚ˆ›ÜˆÙ^K˜[YH[ˆÛÛ›™XÝÜ—Ú[™›Ëš][\Ê
+Bˆ
+N‚ˆ˜Z\ÙHÛÛ›™XÝÜ‘\œ›ÜŠHÙ[XÝYÛÛ›™XÝÜˆ™[XZ[œÈ[˜]˜Z[X›HŠBˆ\Y˜XÝÚÚ[™Hœ›Û˜XÚÈˆYˆ™]™\œÙH[ÙH˜XÝ]™H‚ˆÝÜ˜YÙWÚ[™›ÈH\œÚ\ÝØXÝ[Û—Ø\Y˜XÝ
+Ý]KÚ[™X\Y˜XÝÚÚ[™
+BˆÜ\˜][Û˜[Ú[™›ÈH\œÚ\ÝÛÜ\˜][Û˜[ÛÝ]]
+Ý]KÚ[™X\Y˜XÝÚÚ[™
+BˆÝ]K˜XÝ[Û—Ü™XÛÜ™HÂˆ
+ŠŠÝ]K˜XÝ[Û—Ü™XÛÜ™ÜˆßJKˆ
+ŠœÝÜ˜YÙWÚ[™›Ëˆ
+Š›Ü\˜][Û˜[Ú[™›Ëˆ›Ü\˜][Û˜[ÜÚYWÙY™™XÝŽˆÜ\˜][Û˜[Ú[™›Ë™Ù]
+ˆ›Ü\˜][Û˜[ÜÝ]\È‹››ÝØÛÛ™šYÝ\™Y‚ˆ
+KˆBˆÝ]K›Ü\˜][ÛˆHÂˆ
+ŠœÝ]K›Ü\˜][Û‹ˆœÝ]\ÈŽˆ˜ÛÛ\]Y‹ˆ˜ÛÛ\]YØ]Žˆ]×Û›ÝÊ
+Kˆ›\ÝÙ\œ›Ü—ØÛÙHŽˆ›Û™KˆBˆÝ]K™]™[Ë˜\[™
+ˆÂˆ™]™[ÚYŽˆˆ™]^Ý]ZY
+
+Kš^ÎŒL—_H‹ˆ[Y\Ý[\Žˆ]×Û›ÝÊ
+Kˆ˜XÝ[ÛˆŽˆ›Ü\˜][Û—Ù^XÝ]Üˆ‹ˆ›Ý]ÛÛYHŽˆ›Ü\˜][Û—ØÛÛ\]Y‹ˆœÝYÙHŽˆÝ]KœÝYÙK˜[YKˆ™]šY[˜ÙWÚ\ÚŽˆÝ]K™]šY[˜ÙK™]šY[˜ÙWÚ\ÚYˆÝ]K™]šY[˜ÙH[ÙH›Û™Kˆ›Ü\˜][Û—ÚYŽˆÝ]K›Ü\˜][Û‹™Ù]
+›Ü\˜][Û—ÚYŠKˆ˜][\ÈŽˆÝ]K›Ü\˜][Û‹™Ù]
+˜][\È‹JKˆBˆ
+BˆÝ]KœÝ]\ÈH
+ˆÛÜšÙ›ÝÔÝ]\Ë“‘QQ×ÐT“ÕSYˆ™]™\œÙH[ÙHÛÜšÙ›ÝÔÝ]\ËÓÓTUBˆ
+Bˆ™]\›ˆÝ]B‚‚™YˆÛX\š×Ü™XÛÛ˜Ú[X][Û—Ü™\]Z\™Y
+ˆÝ]NˆÛÜšÙ›ÝÔÝ]Kˆ
+‹ˆ^XÝYÜÝ]\ÎˆÛÜšÙ›ÝÔÝ]\Ëˆ˜[˜XÚÎˆÛÜšÙ›ÝÔÝ]Kˆ\œ›ÜŽˆ^Ù\[Û‹ŠHOˆÛÜšÙ›ÝÔÝ]N‚ˆˆˆ”\œÚ\Ý[ˆ[XšYÝ[Ý\ËÚ[\œ\YÝ]ÛÛYHÚ]Ý]XZÚ[™È\œ›Üˆ]Z[Ëˆˆˆ‚ˆÝ]K›Ü\˜][ÛˆHÂˆ
+ŠœÝ]K›Ü\˜][Û‹ˆœÝ]\ÈŽˆœ™XÛÛ˜Ú[X][Û—Ü™\]Z\™Y‹ˆ›\ÝÙ\œ›Ü—ØÛÙHŽˆ\J\œ›ÜŠK—×Û˜[YW×Ëˆ›\ÝÙ˜Z[YØ]Žˆ]×Û›ÝÊ
+KˆBˆÝ]K˜XÝ[Û—Ü™XÛÜ™HÂˆ
+ŠŠÝ]K˜XÝ[Û—Ü™XÛÜ™ÜˆßJKˆœ™XÛÛ˜Ú[X][Û—Ü™\]Z\™YŽˆYKˆ›Ü\˜][Û—ÚYŽˆÝ]K›Ü\˜][Û‹™Ù]
+›Ü\˜][Û—ÚYŠKˆBˆÝ]KœÝ]\ÈHÛÜšÙ›ÝÔÝ]\Ë”‘PÓÓÒSPUSÓ—Ô‘TURT‘QˆÝ]K™]™[Ë˜\[™
+ˆÂˆ™]™[ÚYŽˆˆ™]^Ý]ZY
+
+Kš^ÎŒL—_H‹ˆ[Y\Ý[\Žˆ]×Û›ÝÊ
+Kˆ˜XÝ[ÛˆŽˆ›Ü\˜][Û—Ü™XÛÛ˜Ú[\ˆ‹ˆ›Ý]ÛÛYHŽˆœ™XÛÛ˜Ú[X][Û—Ü™\]Z\™Y‹ˆœÝYÙHŽˆÝ]KœÝYÙK˜[YKˆ™]šY[˜ÙWÚ\ÚŽˆÝ]K™]šY[˜ÙK™]šY[˜ÙWÚ\ÚYˆÝ]K™]šY[˜ÙH[ÙH›Û™Kˆ›Ü\˜][Û—ÚYŽˆÝ]K›Ü\˜][Û‹™Ù]
+›Ü\˜][Û—ÚYŠKˆBˆ
+Bˆ™]\›ˆØÛÛ[Z]ÝÛÜšÙ›Ý×Ý˜[œÚ][ÛŠˆÝ]Kˆ^XÝYÜÝ]\Ë˜[YKˆ˜[˜XÚËˆ
+B‚‚™YˆØÛÛ›™XÝÜ—ØÛÛ^Ú[™›Ê[˜[ÚYˆÝŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”™XYš^Y[\›˜[ØÛÜ\È[™™]\›ˆYÙÜ™YØ]HY]Y]HÛ›K‚‚ˆ\È[™H\È[X™\˜][H[™\[™[Ùˆ\›Ý˜[][YHÜš]\ËˆH˜YÜ‚ˆ[˜]˜Z[X›HÛÛ›™XÝÜˆ›ÙXÙ\È[ˆ^XÚ]Ý]\È˜]\ˆ[ˆ\X[˜]Âˆ™XÛÜ™Ë[™›ÈÛÛ›™XÝÜˆ™XÙZ]™\È\Ù\‹\Ý\YY]Ë”SÚ[›™[QËˆÜˆ™\ÜÚ]ÜžH˜[Y\Ë‚ˆˆˆ‚ˆYš[š][ÛœÎˆ\VÝ\VÜÝ‹Ø[X›VÖ×KØš™XÝKÝ—K‹‹—HH
+ˆ
+šš\˜H‹[X™Nˆš\˜PÛÛ›™XÝÜŠš\˜PÛÛ™šYË™œ›ÛWÙ[Š[˜[ÚY
+JKœ™XYØÛÛ^ÜÝ[[X\žJ
+Kœ™XYÛÛ›WÜ›Ú™XÝŠKˆ
+˜ÛÛ™›Y[˜ÙH‹[X™NˆÛÛ™›Y[˜ÙPÛÛ›™XÝÜŠÛÛ™›Y[˜ÙPÛÛ™šYË™œ›ÛWÙ[Š[˜[ÚY
+JKœ™XYØÛÛ^ÜÝ[[X\žJ
+Kœ™XYÛÛ›WÜÜXÙHŠKˆ
+œÛXÚÈ‹[X™NˆÛXÚÐÛÛ›™XÝÜŠÛXÚÐÛÛ™šYË™œ›ÛWÙ[Š[˜[ÚY
+JKœ™XYØÛÛ^ÜÝ[[X\žJ
+Kœ™XYÛÛ›WØÚ[›™[ŠKˆ
+™Ú]Xˆ‹[X™NˆÚ]XÛÛ›™XÝÜŠÚ]XÛÛ™šYË™œ›ÛWÙ[Š[˜[ÚY
+JKœ™XYØÛÛ^ÜÝ[[X\žJ
+Kœ™XYÛÛ›WÜ™\ÜÚ]ÜžHŠKˆ
+œØ[\Ù›Ü˜ÙH‹[X™NˆÜØ[\Ù›Ü˜ÙWØÛÛ^Ú[™›Ê[˜[ÚY
+Kœ™XYÛÛ›WØÜ›HŠKˆ
+Bˆ™\Ý[ˆXÝÜÝ‹Øš™XÝHHßBˆ›Üˆ˜[YKÜ\˜][Û‹ØÛÜH[ˆYš[š][ÛœÎ‚ˆ[˜X›YHÜË™Ù][Šˆ‘’Q•S‘WÞÛ˜[YK\\Š
+_WÑSP“Q‹™˜[ÙHŠK˜Ø\ÙY›Û
+
+HOHYH‚ˆYˆ›Ý[˜X›Y‚ˆ™\Ý[Û˜[YWHHÂˆœÝ]\ÈŽˆ››ÝØÛÛ™šYÝ\™Y‹ˆ›[ÙHŽˆœ™\\™YÛÛ›H‹ˆœØÛÜHŽˆØÛÜKˆ™^\›˜[Ü™XYŽˆ˜[ÙKˆœ™YXÝ[ÛˆŽˆ˜YÙÜ™YØ]WÛY]Y]WÛÛ›H‹ˆBˆÛÛ[YBˆžN‚ˆÝ[[X\žHHÜ\˜][ÛŠ
+Bˆ™\Ý[Û˜[YWHHÂˆ
+ŠœÝ[[X\žKˆÈHÛÛ›™XÝÜˆX^H™H[˜X›Y]H\Þ[Y[]™[Ú[HBˆÈ[˜[\ÈÝ[]ØZ][™ÈÐ]]ˆ™\Ù\™H]Û™\ÝˆÈ\‹][˜[Ý]H[œÝXYÙˆ\›š[™ÈHY]Y]K[Û›H™\Ý[ˆÈ[ÈH˜[ÙH^\›˜[\™XYÛZ[K‚ˆ™^\›˜[Ü™XYŽˆÝ[[X\žK™Ù]
+™^\›˜[Ü™XY‹YJKˆBˆ^Ù\ÛÛ›™XÝÜ‘\œ›Üˆ\È^Î‚ˆÙÙÙ\‹Ø\›š[™Ê‰\ÈÛÛ^™XY˜Z[Yˆ	\È‹˜[YK^ÊBˆ™\Ý[Û˜[YWHHÂˆœÝ]\ÈŽˆ™˜Z[Y‹ˆ›[ÙHŽˆœ™XYÛÛ›WØÛÛ^‹ˆœØÛÜHŽˆØÛÜKˆ™^\›˜[Ü™XYŽˆ˜[ÙKˆœ™X\ÛÛˆŽˆÝŠ^ÊKˆœ™YXÝ[ÛˆŽˆ˜YÙÜ™YØ]WÛY]Y]WÛÛ›H‹ˆBˆ™]\›ˆ™\Ý[‚‚™YˆÜ™XYÚ[\›˜[ØÛÛ^Ù›Ü—Ü[Š[˜[ÚYˆÝˆ›Û™JHOˆXÝÜÝ‹Øš™XÝH›Û™N‚ˆˆˆ”™XY[™›Ü›X[^™HYÙÜ™YØ]H[˜[ÛÛ^›ÜˆÛ™HÚYÛ™Y[‹‚‚ˆHÛÛ^Ý[[X\žH[™Ú[\È[[[Û˜[H™\]Y\Ý\ØÛÜY]HÚYÛ™YˆÛÜšÙ›ÝÈ[ˆ™YYÈHØ[YH›Ý[™YY]Y]H]XÚYÈ]ÈÚ[™ÙHØ\™ÛÂˆÜ\˜]ÜœÈØ[ˆXÝÛˆ™\šYšYYÛÜšÛØY^ÜÝ\™KˆÙY\\ÈÙX[H˜Z[ˆÛÜÙYˆ›È[˜[›ÈÛÛ›™XÝÜˆ][ÝKÛÛ›™XÝÜˆ˜Z[\™KÜˆ›È™\šYšYYˆ™XYYX[œÈ›ÈÛÛ^\È\ÜÙYÈQÈÜˆ\œÚ\ÝY‚ˆˆˆ‚ˆYˆ›Ý[˜[ÚYÜˆ›ÝÜ™\Ù\™WØÛÛ›™XÝÜ—ØØ[
+[˜[ÚY
+N‚ˆ™]\›ˆ›Û™BˆžN‚ˆÛÛ^H›Ü›X[^™WÚ[\›˜[ØÛÛ^
+ØÛÛ›™XÝÜ—ØÛÛ^Ú[™›Ê[˜[ÚY
+JBˆ^Ù\^Ù\[Ûˆ\È^ÎˆÈ›ÜXNˆ“LHHÛÛ›™XÝÜˆ™XYÈ˜Z[ÛÜÙY‚ˆÙÙÙ\‹Ø\›š[™ÊˆYÙÜ™YØ]HÛÛ›™XÝÜˆÛÛ^[˜]˜Z[X›H›ÜˆÚYÛ™Y[Žˆ	\È‹ˆ\J^ÊK—×Û˜[YW×Ëˆ
+Bˆ™]\›ˆ›Û™BˆYˆ[
+ÛÛ^™Ù]
+™\šYšYYØÛÛ›™XÝÜ—ØÛÝ[‹
+JHN‚ˆ™]\›ˆ›Û™Bˆ™]\›ˆÛÛ^‚‚™YˆÝ˜[œÚ][Û—ÝÛÜšÙ›ÝÊˆÛÜšÙ›Ý×ÚYˆÝ‹ˆ^XÝYÜÝ]\ÎˆÝ‹ˆ˜[œÚ][ÛŽˆØ[X›VÖÕÛÜšÙ›ÝÔÝ]WKÛÜšÙ›ÝÔÝ]WKŠHOˆÛÜšÙ›ÝÔÝ]N‚ˆˆˆ”[ˆÛ™HÛXÞH˜[œÚ][Ûˆ[™ÛÛ[Z]]Ú]H\˜X›HÐTËˆˆˆ‚ˆÚ]ÝÛÜšÙ›Ý×Ý˜[œÚ][Û—ÛØÚÎ‚ˆÝ]HHÜ™\ÛÛ™WÝÛÜšÙ›ÝÊÛÜšÙ›Ý×ÚY
+Bˆ™]š[Ý\ÈHÛÜK™Y\ÛÜJÝ]JBˆ™\Ý[H˜[œÚ][ÛŠÝ]JBˆYˆ›ÝÛÛ\\™WØ[™ÜÙ]ÝÛÜšÙ›ÝÊ™\Ý[^XÝYÜÝ]\ÊN‚ˆÈ™\ÝÜ™H\È›ØÙ\ÜÈœ›ÛH\˜X›H]Y\ˆHÜ›ÜÜËZ[œÝ[˜ÙBˆÈ˜XÙK˜]\ˆ[ˆX]š[™ÈHØØ[H]]]Y][˜ÛÛ[Z]Y[‹‚ˆ\˜X›HHØYÝÛÜšÙ›ÝÊÛÜšÙ›Ý×ÚY
+BˆYˆ\˜X›H\È›Ý›Û™N‚ˆÛÜšÙ›Ý×ÜÝÜ™Kœ™\ÝÜ™J\˜X›JBˆ[ÙN‚ˆÛÜšÙ›Ý×ÜÝÜ™Kœ™\ÝÜ™J™]š[Ý\ÊBˆ˜Z\ÙHÛXÞUš[Û][ÛŠ•ÛÜšÙ›ÝÈÚ[™ÙYÛÛ˜Ý\œ™[NÈ™]žHHXÚ\Ú[ÛˆŠBˆ™]\›ˆ™\Ý[‚‚™YˆØÛÛ[Z]ÝÛÜšÙ›Ý×Ý˜[œÚ][ÛŠˆÝ]NˆÛÜšÙ›ÝÔÝ]Kˆ^XÝYÜÝ]\ÎˆÝ‹ˆ˜[˜XÚÎˆÛÜšÙ›ÝÔÝ]KŠHOˆÛÜšÙ›ÝÔÝ]N‚ˆˆˆ‘š[š\ÚH\˜X›HÜ\˜][ÛˆÚ]Ý]]™\ˆX›\Ú[™ÈÝ[HØØ[]ˆˆˆ‚ˆYˆÛÛ\\™WØ[™ÜÙ]ÝÛÜšÙ›ÝÊÝ]K^XÝYÜÝ]\ÊN‚ˆÛÜšÙ›Ý×ÜÝÜ™Kœ™\ÝÜ™JÝ]JBˆ™]\›ˆÝ]Bˆ\˜X›HHØYÝÛÜšÙ›ÝÊÝ]KÛÜšÙ›Ý×ÚY
+BˆÛÜšÙ›Ý×ÜÝÜ™Kœ™\ÝÜ™J\˜X›HYˆ\˜X›H\È›Ý›Û™H[ÙH˜[˜XÚÊBˆ˜Z\ÙHÛXÞUš[Û][ÛŠˆ•ÛÜšÙ›ÝÈÜ\˜][ÛˆÚ[™ÙYÛÛ˜Ý\œ™[NÈ\˜X›HÝ]HØ\È™[ØYY‚ˆ
+B‚‚™YˆÜ™XÛÝ™\—ÛÜœ[™YÝÛÜšÙ›ÝÊ›ØŽˆ›Ø”Ý]JHOˆÛÜšÙ›ÝÔÝ]H›Û™N‚ˆˆˆ‘š[™HÛÜšÙ›ÝÈÜ™X]YžHH\X[[ˆÙˆ\ÈÛÝ\˜ÙH›Ø‹‚‚ˆÛÝ\˜ÙH[œÜXÝ[ÛˆÜš]\È]È\[™[Û›HØœÙ\˜][Ûˆ[™ÛÜšÙ›ÝÈ™Y›Ü™BˆH[Ù[	ÜÈÜ[Û˜[›ÛÝË]\Ø[˜[\Ú\È\›œËˆYˆH˜[œÚY[[Ù[\œ›Ü‚ˆ\[œÈY\ˆ]Üš]KH™^›Ý[™Y™]žHØ[ˆÝ\Ú\ÙHY˜[˜ÙHBˆÛÝ\˜ÙH˜\Ù[[™H[™YHH™X[\›Ý˜[ÛÜšËˆX]ÚÛ›HH™XÙ[ˆÛÜšÙ›ÝÈ›ÜˆHØ[YH[˜[[™^XÝÛÝ\˜ÙK[ˆ]HØ[\ˆ]XÚˆ]ÈH\˜X›H›Ø‹‚ˆˆˆ‚ˆØ[™Y]\Îˆ\ÝÕÛÜšÙ›ÝÔÝ]WHH×BˆÚ]ÝÛÜšÙ›Ý×Ý˜[œÚ][Û—ÛØÚÎ‚ˆØ[™Y]\Ë™^[™
+ÛÜšÙ›Ý×ÜÝÜ™K—Ü[œË˜[Y\Ê
+JBˆØ[™Y]\Ë™^[™
+\ÝÝÛÜšÙ›ÝÜÊ[Z]ML
+JBˆ[š\]YNˆXÝÜÝ‹ÛÜšÙ›ÝÔÝ]WHHÂˆÝ]KÛÜšÙ›Ý×ÚYˆÝ]H›ÜˆÝ]H[ˆØ[™Y]\ÂˆBˆX]Ú[™ÈHÂˆÝ]Bˆ›ÜˆÝ]H[ˆ[š\]YK˜[Y\Ê
+BˆYˆÝ]K[˜[ÚYOH›Ø‹[˜[ÚYˆ[™Ý]K™]šY[˜ÙH\È›Ý›Û™Bˆ[™Ý]K™]šY[˜ÙKœÛÝ\˜ÙWÚYOH›Ø‹œÛÝ\˜ÙWÚYˆ[™Ý]K˜Ü™X]YØ]H›Ø‹˜Ü™X]YØ]ˆBˆX]Ú[™ËœÛÜ
+Ù^O[[X™HÝ]NˆÝ]K˜Ü™X]YØ]™]™\œÙOUYJBˆ™]\›ˆX]Ú[™ÖÌHYˆX]Ú[™È[ÙH›Û™B‚‚˜\Þ[˜ÈYˆÜ[—Ú›ØŠ›Ø—ÚYˆÝŠHOˆ›Û™N‚ˆYˆ›ÝØÛZ[WÚ›Ø—Ù›Ü—Ü[Š›Ø—ÚY
+N‚ˆÙÙÙ\‹š[™›Ê’›Øˆ	\ÈØ\È[™XYHÛZ[YYÜˆÛÛ\]Y‹›Ø—ÚY
+Bˆ™]\›‚ˆ›ØˆHÜ™\ÛÛ™WÚ›ØŠ›Ø—ÚY
+BˆžN‚ˆ›Ý[™Ü]Y\žHH
+ˆ›Ø‹œ]Y\žBˆYˆ‰ÜÛÝ\˜ÙWÚYžÚ›Ø‹œÛÝ\˜ÙWÚYH‰È[ˆ›Ø‹œ]Y\žBˆ[ÙH‰ÞÚ›Ø‹œ]Y\ž_H\ÙHH^XÝ[ÝÛ\ÝYÛÝ\˜ÙWÚYžÚ›Ø‹œÛÝ\˜ÙWÚYH‹‰Âˆ
+Bˆ[\›˜[ØÛÛ^H
+ˆÜ™XYÚ[\›˜[ØÛÛ^Ù›Ü—Ü[Š›Ø‹[˜[ÚY
+BˆYˆ›Ø‹[˜[ÚY[™›Ø‹œ[—Û[ÙH[ˆÈ[˜[Ù[[È‹›[Ûš]ÜˆŸBˆ[ÙH›Û™Bˆ
+BˆYˆ›Ø‹œ[—Û[ÙHOH™[[Èˆ[™›Ø‹[˜[ÚY\È›Û™N‚ˆ™\Ý[H]ØZ][—ØYÙ[Ý\ÚÊ›Ý[™Ü]Y\žK›Ø‹\Ù\—ÚY
+Bˆ[Yˆ›Ø‹[˜[ÚY\È›Û™N‚ˆ™\Ý[H]ØZ][—ØYÙ[Ý\ÚÊ›Ý[™Ü]Y\žK›Ø‹\Ù\—ÚY›Ø‹œ[—Û[ÙJBˆ[Yˆ[\›˜[ØÛÛ^\È›Ý›Û™N‚ˆ™\Ý[H]ØZ][—ØYÙ[Ý\ÚÊˆ›Ý[™Ü]Y\žKˆ›Ø‹\Ù\—ÚYˆ›Ø‹œ[—Û[ÙKˆ[˜[ÚYZ›Ø‹[˜[ÚYˆ[\›˜[ØÛÛ^Z[\›˜[ØÛÛ^ˆ
+Bˆ[ÙN‚ˆ™\Ý[H]ØZ][—ØYÙ[Ý\ÚÊˆ›Ý[™Ü]Y\žKˆ›Ø‹\Ù\—ÚYˆ›Ø‹œ[—Û[ÙKˆ[˜[ÚYZ›Ø‹[˜[ÚYˆ
+BˆÈ™\Ù\™HH]\›Z[š\ÝXÈÛÝ\˜ÙH\ÜÜÚ][ÛˆÛˆH\˜X›H›Ø‹ˆÈ]™[ˆÚ[ˆ›ÈÛÜšÙ›ÝÈ\ÈÜ™X]Y›ÜˆH˜\Ù[[™KÛ›Ë[ÜØœÙ\˜][Û‹‚ˆÈ\ÈÙY\È[Ûš]Üˆ][]HÙ\\˜]Hœ›ÛHH\Þ[˜Ú›Û›Ý\È›Ø‚ˆÈY™XÞXÛNˆÛÛ\]X[Û™H\È›Ý[›ÝYÚÈ^Z[ˆÚ]\[™Y‚ˆ›Ø‹œÛÝ\˜ÙWÜÝ]\ÈHÝŠ™\Ý[™Ù]
+œÛÝ\˜ÙWÜÝ]\ÈŠJHYˆ™\Ý[™Ù]
+œÛÝ\˜ÙWÜÝ]\ÈŠH[ÙH›Û™BˆYˆ˜Ú[™ÙWÙ]XÝYˆ[ˆ™\Ý[‚ˆ›Ø‹˜Ú[™ÙWÙ]XÝYH›ÛÛ
+™\Ý[™Ù]
+˜Ú[™ÙWÙ]XÝYŠJBˆÛÜšÙ›Ý×ÚYH™\Ý[™Ù]
+ÛÜšÙ›Ý×ÚYŠBˆYˆ›ÝÛÜšÙ›Ý×ÚY‚ˆYˆ™\Ý[™Ù]
+˜Ú[™ÙWÙ]XÝYŠH\È˜[ÙHÜˆ™\Ý[™Ù]
+ˆœÛÝ\˜ÙWÜÝ]\È‚ˆ
+H[ˆÂˆ˜˜\Ù[[™WÙ\ÝX›\ÚY‹ˆ[˜Ú[™ÙY‹ˆN‚ˆ›Ø‹œÝ]\ÈH˜ÛÛ\]H‚ˆ›Ø‹›[Ù[H™\Ý[™Ù]
+›[Ù[ŠBˆ›Ø‹™^XÝ][Û—Û[ÙHH™\Ý[™Ù]
+™^XÝ][Û—Û[ÙHŠBˆ›Ø‹ÛÛØØ[ÈH™\Ý[™Ù]
+ÛÛØØ[È‹×JBˆ›Ø‹™]™[ØÛÝ[H[
+™\Ý[™Ù]
+™]™[ØÛÝ[‹
+JBˆYˆ™\Ý[™Ù]
+œÛÝ\˜ÙWÜÝ]\ÈŠHOHœÛÝ\˜ÙWÙ™]ÚÙ˜Z[YŽ‚ˆÈH™]ÚÝ]YÙH\ÈH\˜X›H[Ûš]Üˆ\ÜÜÚ][Û‹›ÝBˆÈX]\šX[Ú[™ÙH[™›Ý[ˆQÈ˜Z[\™KˆÙY\H›Ø‚ˆÈÛÛ\]HÛÈHØÚY[\ˆØ[ˆ™]žHÛˆØY[˜ÙKÚ[BˆÈXZÚ[™ÈHÜ\˜]Ü‹Y˜XÚ[™ÈÝ]ÛÛYH[˜[XšYÝ[Ý\È[œÝXYˆÈÙˆ›Üœ›ÝÚ[™ÈH[Ù[	ÜÈÙ[™\šXÈ›ËXÚ[™ÙHÛÜ™[™Ë‚ˆ›Ø‹œ™\ÜÛœÙHH
+ˆ”ÛÝ\˜ÙH™]Ú˜Z[YÈ›ÈÛÜšÙ›ÝÈØ\ÈÜ™X]Yˆ‚ˆ•H›Ý[™YØÚY[\ˆÚ[™]žH\ÈÛÝ\˜ÙKˆ‚ˆ
+Bˆ[ÙN‚ˆ›Ø‹œ™\ÜÛœÙHH
+ˆ™\Ý[™Ù]
+œ™\ÜÛœÙHŠBˆÜˆ“›ÈX]\šX[ÛÝ\˜ÙHÚ[™ÙHØ\È›Ý[™ˆ‚ˆ
+Bˆ›Ø‹™\œ›ÜˆH›Û™BˆÜÙ]Ú›ØŠ›ØŠBˆ™]\›‚ˆ˜Z\ÙH[[YQ\œ›ÜŠYÙ[ÛÛ\]YÚ]Ý]Ü™X][™ÈHÛÜšÙ›ÝÈŠBˆÝ]HHÜ™\ÛÛ™WÝÛÜšÙ›ÝÊÛÜšÙ›Ý×ÚY
+BˆÝ]K˜YÙ[Ý˜XÙHH™\Ý[™Ù]
+˜YÙ[Ý˜XÙHŠBˆ\œÚ\ÝÝÛÜšÙ›ÝÊÝ]JBˆ›Ø‹œÝ]\ÈH
+ˆ›™YY×Ø\›Ý˜[‚ˆYˆÝ]KœÝ]\Ë˜[YHOH›™YY×Ø\›Ý˜[‚ˆ[ÙHÝ]KœÝ]\Ë˜[YBˆ
+Bˆ›Ø‹ÛÜšÙ›Ý×ÚYHÛÜšÙ›Ý×ÚYˆ›Ø‹›[Ù[H™\Ý[™Ù]
+›[Ù[ŠBˆ›Ø‹™^XÝ][Û—Û[ÙHH™\Ý[™Ù]
+™^XÝ][Û—Û[ÙHŠBˆ›Ø‹ÛÛØØ[ÈH™\Ý[™Ù]
+ÛÛØØ[È‹×JBˆ›Ø‹™]™[ØÛÝ[H[
+™\Ý[™Ù]
+™]™[ØÛÝ[‹
+JBˆ›Ø‹œ™\ÜÛœÙHH™\Ý[™Ù]
+œ™\ÜÛœÙH‹ˆŠBˆ›Ø‹™\œ›ÜˆH›Û™Bˆ^Ù\^Ù\[Ûˆ\È^Î‚ˆ™XÛÝ™\™YHÜ™XÛÝ™\—ÛÜœ[™YÝÛÜšÙ›ÝÊ›ØŠBˆYˆ™XÛÝ™\™Y\È›Ý›Û™N‚ˆ™XÛÝ™\™Y˜YÙ[Ý˜XÙHHÂˆ
+ŠŠ™XÛÝ™\™Y˜YÙ[Ý˜XÙHÜˆßJKˆ™^XÝ][Û—Û[ÙHŽˆ™ÛÛÙÛWØYÈ‹ˆ™XÚ\Ú[Û—ØÛÜ[ÝŽˆÂˆ›[ÙHŽˆ[˜]˜Z[X›H‹ˆœ™X\ÛÛˆŽˆ•˜[œÚY[[Ù[˜Z[\™NÈ™\[ˆHØØ[ˆ™Y›Ü™H\›Ý˜[ˆ‹ˆKˆBˆ\œÚ\ÝÝÛÜšÙ›ÝÊ™XÛÝ™\™Y
+Bˆ›Ø‹ÛÜšÙ›Ý×ÚYH™XÛÝ™\™YÛÜšÙ›Ý×ÚYˆ›Ø‹œÝ]\ÈH
+ˆ›™YY×Ø\›Ý˜[‚ˆYˆ™XÛÝ™\™YœÝ]\Ë˜[YHOH›™YY×Ø\›Ý˜[‚ˆ[ÙH™XÛÝ™\™YœÝ]\Ë˜[YBˆ
+Bˆ›Ø‹›[Ù[H›Ø‹›[Ù[ÜˆÜË™Ù][Š“SÑSÓSQH‹™Ù[Z[šKLËKY›\ÚŠBˆ›Ø‹™^XÝ][Û—Û[ÙHH›Ø‹™^XÝ][Û—Û[ÙHÜˆ™ÛÛÙÛWØYÈ‚ˆ›Ø‹œ™\ÜÛœÙHH
+ˆ‘]šY[˜ÙHØ\\™YÈHÛÜšÙ›ÝÈØ\È™\Ù\™YY\ˆH›Ý[™Y‚ˆ˜YÙ[™]žKˆ[X[ˆ\›Ý˜[\ÈÝ[™\]Z\™Yˆ‚ˆ
+Bˆ›Ø‹™\œ›ÜˆH›Û™BˆÜÙ]Ú›ØŠ›ØŠBˆÙÙÙ\‹Ø\›š[™Êˆ”™XÛÝ™\™YÛÜšÙ›ÝÈ	\È›Üˆ\X[HÛÛ\]Y›Øˆ	\ÈY\ˆ	\È‹ˆ™XÛÝ™\™YÛÜšÙ›Ý×ÚYˆ›Ø‹š›Ø—ÚYˆ\J^ÊK—×Û˜[YW×Ëˆ
+Bˆ™]\›‚ˆÈHX›XÈYÙHÛÛœÛÛH\È[ˆ^XÚ]HÞ[]XËY[]KYœ™YBˆÈ[™KˆÙY\]™]šY]ØX›HÚ[ˆH™X[Ù[Z[šH\›ˆ\È[\Ü˜\š[BˆÈ][ÝK[[Z]YÜˆ[˜]˜Z[X›KÚ[HX]š[™ÈÚYÛ™YÛ[Ûš]Üˆ[œÂˆÈ˜Z[XÛÜÙYˆH˜[˜XÚÈ\ÈX™[Y[ˆH\˜X›H›Øˆ[™ˆÈÛÜšÙ›ÝÈ™XÛÜ™ÎÈ]™]™\ˆÛZ[\ÈHÙ[Z[šH^XÝ][ÛˆØØÝ\œ™Y‚ˆYˆØÛÛ\]WÙ[[×Ù˜[˜XÚÊ›Ø‹^ÊN‚ˆ›Ø‹œÛÝ\˜ÙWÜÝ]\ÈH˜Ú[™ÙY‚ˆ›Ø‹˜Ú[™ÙWÙ]XÝYHYBˆÜÙ]Ú›ØŠ›ØŠBˆ™]\›‚ˆÙÙÙ\‹™^Ù\[ÛŠ\Þ[˜ÈšY[™H›Øˆ˜Z[YŠBˆYˆ›Ø‹œ[—Ø][\ÈPVÒ“Ð—ÐUSTÎ‚ˆÈ™]\›š[™ÈH™]šXX›HÝ]H]ÈÛÝY\ÚÜÈ™Y[]™\ˆHØ[YBˆÈ]\›Z[š\ÝXÈ\ÚËˆH\˜X›HÛZ[H\ÈÛX\™YÛ›HY\ˆBˆÈ˜Z[Y][\\È™Y[ˆ™XÛÜ™YÛÈH\XØ]H[]™\žHØ[››ÝˆÈ[ˆÛÛ˜Ý\œ™[HÚ]H™]žK‚ˆ›Ø‹œÝ]\ÈHœ]Y]YY‚ˆ›Ø‹˜ÛZ[WÚYH›Û™Bˆ›Ø‹™\œ›ÜˆH
+ˆˆ•˜[œÚY[YÙ[˜Z[\™NÈ™]žHÚ›Ø‹œ[—Ø][\ßKÞÓPVÒ“Ð—ÐUSTßKˆ‚ˆ
+Bˆ[ÙN‚ˆ›Ø‹œÝ]\ÈH™˜Z[Y‚ˆ›Ø‹™\œ›ÜˆH•HYÙ[›Øˆ˜Z[YY\ˆ›Ý[™Y™]šY\Ëˆ‚ˆžN‚ˆ\œÚ\ÝÚ›Ø—Ù˜Z[\™JˆÂˆš›Ø—ÚYŽˆ›Ø‹š›Ø—ÚYˆÛÜšÙ›Ý×ÚYŽˆ›Ø‹ÛÜšÙ›Ý×ÚYˆ[˜[ÚYŽˆ›Ø‹[˜[ÚYˆ˜][\ÈŽˆ›Ø‹œ[—Ø][\Ëˆ™˜Z[YØ]Žˆ]×Û›ÝÊ
+KˆBˆ
+Bˆ^Ù\^Ù\[ÛŽ‚ˆÙÙÙ\‹™^Ù\[ÛŠ•[˜X›HÈ\œÚ\Ý\›Z[˜[˜Z[\™H›Üˆ	\È‹›Ø‹š›Ø—ÚY
+BˆÜÙ]Ú›ØŠ›ØŠB‚‚™YˆØÛÛ\]WÙ[[×Ù˜[˜XÚÊ›ØŽˆ›Ø”Ý]K\œ›ÜŽˆ^Ù\[ÛŠHOˆ›ÛÛ‚ˆˆˆÜ™X]HH›Ý[™YÞ[]XÈ™\^HÚ[ˆHX›XÈ[[ÉÜÈQÈ\›ˆ˜Z[Ë‚‚ˆ\È\È[[[Û˜[H˜\œ›ÝÎˆÛ›H[˜[\ÜÈ[[Ø›ØœÈÚ]BˆÝ]XÈ[ÝÛ\ÝYÛÝ\˜ÙHØ[ˆ\ÙH]ˆÚYÛ™Y[˜[›ØœÈ[™[Ûš]Ü‚ˆ[œÈ]\ÝÝ\™˜XÙHH™X[˜Z[\™H[œÝXYÙˆY[™È[ˆ[˜]˜Z[X›BˆÙ[Z[šKØÛÛ›™XÝÜˆ^XÝ][Ûˆ™Z[™Þ[]XÈÝ]K‚ˆˆˆ‚ˆYˆ›Ø‹œ[—Û[ÙHOH™[[ÈˆÜˆ›Ø‹[˜[ÚY\È›Ý›Û™N‚ˆ™]\›ˆ˜[ÙBˆX]ÚH™KœÙX\˜Ú
+‰Ø[ÝÛ\ÝYÛÝ\˜ÙWÚYŠ×ˆ—JÊH‰Ë›Ø‹œ]Y\žJBˆÛÝ\˜ÙWÚYHX]Ú™Ü›Ý\
+JHYˆX]Ú[ÙHœX›XËÜšXÚ[™È‚ˆYš[š][ÛˆHÛÝ\˜ÙWÙYš[š][ÛŠÛÝ\˜ÙWÚY
+BˆYˆ›ÝYš[š][ÛˆÜˆYš[š][Û‹™Ù]
+™[˜[ZXÈŠHOHYHŽ‚ˆ™]\›ˆ˜[ÙBˆÝ]HHÛÜšÙ›Ý×ÜÝÜ™KœÝ\Ù[[ÊˆÛÝ\˜ÙWÚY\ÛÝ\˜ÙWÚYˆÛÝ\˜ÙWÛ˜[YOYYš[š][Û–È›˜[YH—KˆÛÝ\˜ÙWØØ]YÛÜžOYYš[š][Û‹™Ù]
+˜Ø]YÛÜžHŠKˆÛÝ\˜ÙWØÚ[™ÙWÝ\OYYš[š][Û‹™Ù]
+˜Ú[™ÙWÝ\HŠKˆÛÝ\˜ÙWÝ\›YYš[š][Û–È\›—Kˆ™Y›Ü™WÝ^YYš[š][Û–È˜™Y›Ü™H—KˆY\—Ý^YYš[š][Û–È˜Y\ˆ—KˆÛ˜\ÚÝÛX™[Yˆ”Þ[]XÈ™\^Hš^\™H0­ÈÜÛÝ\˜ÙWÚYH‹ˆ]WÛ[ÙOHœÞ[]X×Ù[[È‹ˆ
+Bˆ\œÚ\ÝÝÛÜšÙ›ÝÊÝ]JBˆ›Ø‹œÝ]\ÈH›™YY×Ø\›Ý˜[‚ˆ›Ø‹ÛÜšÙ›Ý×ÚYHÝ]KÛÜšÙ›Ý×ÚYˆ›Ø‹›[Ù[HœÞ[]XÈ‚ˆ›Ø‹™^XÝ][Û—Û[ÙHH™]\›Z[š\ÝX×Ù[[×Ù˜[˜XÚÈ‚ˆ›Ø‹ÛÛØØ[ÈH×Bˆ›Ø‹™]™[ØÛÝ[Hˆ›Ø‹œ™\ÜÛœÙHH
+ˆ‘Ù[Z[šHØ\È[\Ü˜\š[H[˜]˜Z[X›NÈ\È\ÈHX™[YÞ[]XÈ‚ˆœ™\^HÛÈH\›Ý˜[[™]šY[˜ÙHÛÜšÙ›ÝÈ™[XZ[œÈ™]šY]ØX›Kˆ‚ˆ
+Bˆ›Ø‹™\œ›ÜˆH›Û™BˆÙÙÙ\‹Ø\›š[™Êˆ‘[[ÈQÈ[˜]˜Z[X›NÈÙ\™YX™[YÞ[]XÈ™\^H
+	\ÊH‹ˆ\J\œ›ÜŠK—×Û˜[YW×Ëˆ
+Bˆ™]\›ˆYB‚‚™YˆÜØÚY[WÛØØ[Ú›ØŠ›ØŽˆ›Ø”Ý]JHOˆ›Û™N‚ˆ\ÚÈH\Þ[˜Ú[Ë˜Ü™X]WÝ\ÚÊÜ[—Ú›ØŠ›Ø‹š›Ø—ÚY
+JBˆØ˜XÚÙÜ›Ý[™Ý\ÚÜË˜Y
+\ÚÊBˆ\ÚË˜YÙÛ™WØØ[˜XÚÊØ˜XÚÙÜ›Ý[™Ý\ÚÜË™\ØØ\™
+B‚‚™YˆÜÝ\Ú›ØŠˆ
+‹ˆ]Y\žNˆÝ‹ˆ\Ù\—ÚYˆÝ‹ˆ[—Û[ÙNˆÝ‹ˆ˜XÚÙÜ›Ý[™Ý\ÚÜÎˆ˜XÚÙÜ›Ý[™\ÚÜËˆ[˜[ÚYˆÝˆ›Û™HH›Û™KˆÛÝ\˜ÙWÚYˆÝˆHœX›XËÜšXÚ[™È‹ˆ™]žWÛÙŽˆÝˆ›Û™HH›Û™KŠHOˆ›Ø”Ý]N‚ˆ›ØˆH›Ø”Ý]Jˆ›Ø—ÚYYˆš›Ø‹^Ý]ZY
+
+Kš^ÎŒL—_H‹ˆ]Y\žO\]Y\žKˆ\Ù\—ÚY]\Ù\—ÚYˆ[˜[ÚY][˜[ÚYˆ[—Û[ÙO\[—Û[ÙKˆÛÝ\˜ÙWÚY\ÛÝ\˜ÙWÚYˆ™]žWÛÙ\™]žWÛÙ‹ˆ
+BˆÜÙ]Ú›ØŠ›ØŠBˆžN‚ˆYˆÝ\ÚÜ×Ù[˜X›Y
+
+N‚ˆÙ[œ]Y]YWØÛÝYÝ\ÚÊ›ØŠBˆ[ÙN‚ˆ˜XÚÙÜ›Ý[™Ý\ÚÜË˜YÝ\ÚÊÜ[—Ú›Ø‹›Ø‹š›Ø—ÚY
+Bˆ^Ù\^Ù\[ÛŽ‚ˆÙÙÙ\‹™^Ù\[ÛŠ•[˜X›HÈ[œ]Y]YH\Þ[˜ÈšY[™H›ØˆŠBˆ›Ø‹œÝ]\ÈH™˜Z[Y‚ˆ›Ø‹™\œ›ÜˆH
+ˆ\Þ[˜È^XÝ][Ûˆ\È›ÝÛÛ™šYÝ\™YˆÚXÚÈHÛÝY\ÚÜÈ\Þ[Y[ˆ‚ˆ
+BˆÜÙ]Ú›ØŠ›ØŠBˆ™]\›ˆ›Ø‚‚‚™YˆÚ[™›YÚÛ[Ûš]Ü—Ú›Ø—Ù^\ÝÊˆÛÝ\˜ÙWÚYˆÝ‹ˆ[˜[ÚYˆÝˆ›Û™KŠHOˆ›ÛÛ‚ˆˆˆ”™]\›ˆÚ]\ˆ\ÈÛÝ\˜ÙH[™XYH\È[ˆXÝ]™H[Ûš]Üˆ›Ø‹‚‚ˆØÚY[\ˆ[]™\žH\È][X\Ý[Û˜ÙKˆÚXÚÚ[™È›ÝH[œÝ[˜ÙHØXÚH[™ˆH\˜X›H›ØˆYÙ\ˆ™]™[ÈH\XØ]HXÚÈ
+ÜˆHÙXÛÛ™ÛÝY[‚ˆ[œÝ[˜ÙJHœ›ÛH][˜Ú[™È[›Ý\ˆ[Ù[Ø[›ÜˆHØ[YHÛÝ\˜ÙK‚ˆˆˆ‚ˆžN‚ˆÚ]Ú›Øœ×ÛØÚÎ‚ˆØ[™Y]\ÈH\Ý
+Ú›ØœË˜[Y\Ê
+JBˆØ[™Y]\Ë™^[™
+\ÝÚ›ØœÊ[Z]ML
+JBˆ^Ù\^Ù\[ÛŽ‚ˆÈHYÙ\ˆÝ]YÙH]\Ý›ÝXZÙHHØÚY[\ˆ˜[ˆÝ][˜›Ý[™YÛÜšË‚ˆÙÙÙ\‹™^Ù\[ÛŠ•[˜X›HÈ[œÜXÝ[‹Y›YÚ[Ûš]Üˆ›ØœÈŠBˆ™]\›ˆYBˆ™]\›ˆ[žJˆ›Ø‹œ[—Û[ÙHOH›[Ûš]Üˆ‚ˆ[™›Ø‹œÛÝ\˜ÙWÚYOHÛÝ\˜ÙWÚYˆ[™›Ø‹[˜[ÚYOH[˜[ÚYˆ[™›Ø‹œÝ]\È[ˆÈœ]Y]YY‹œ[›š[™ÈŸBˆ›Üˆ›Øˆ[ˆØ[™Y]\Âˆ
+B‚‚™YˆÛ[Ûš]Ü—ÙYWÜÙ[XÝ[ÛŠˆ[šY\Îˆ\ÝÝ\VÜÝˆ›Û™KÝ‹XÝÜÝ‹Ý—WWKˆ
+‹ˆX^ÜÛÝ\˜Ù\Îˆ[ˆ›Ü˜ÙWÜÛÝ\˜ÙWÚYˆÝˆ›Û™HH›Û™KŠHOˆ\VÂˆ\ÝÝ\VÜÝˆ›Û™KÝ‹XÝÜÝ‹Ý—WWKˆ\ÝÙXÝÜÝ‹Øš™XÝWK—N‚ˆˆˆ”Ù[XÝ›Ý[™YYH[Ûš]ÜˆÛÜšÈÚ]Ý]Ý\š[™È[˜[ÛÝ\˜Ù\Ë‚‚ˆHØÚY[\ˆ[œÈ[Ü™HÙ[ˆ[ˆX[žHÛÝ\˜ÙHØY[˜Ù\ËˆÛ›HÛÝ\˜Ù\ÂˆÚÜÙH\[™[Û›HYÙ\ˆØ^\È™YY×Ø˜\Ù[[™XÝ[XˆÛÝ\˜ÙWÙ˜Z[YÜˆÚÜÙHØY[˜ÙHXY[™H\È\œš]™YÚÝ[ÛÛœÝ[YHBˆ[Ù[Ø[ˆYH[šY\È\™H[ˆ[\›X]™YžH[˜[XÚÙ]ÛÈBˆ[›™YX›XÈš^\™\ÈØ[››Ý[Û›ÜÛ^™HHØ\Ú[ˆX[žH[˜[È\™Bˆ™YÚ\Ý\™YˆHX[X[H™\]Y\ÝYØ[˜\žHž\\ÜÙ\ÈYHš[\š[™È]Ý[ˆ™\ÜXÝÈH\™ÛÝ\˜ÙHØ\‚ˆˆˆ‚ˆ›Ý[™YÛX^HX^
+KX^ÜÛÝ\˜Ù\ÊBˆYˆ›Ü˜ÙWÜÛÝ\˜ÙWÚY‚ˆÙ[XÝYHÂˆ[žH›Üˆ[žH[ˆ[šY\ÈYˆ[žVÌWHOH›Ü˜ÙWÜÛÝ\˜ÙWÚYœÝš\
+
+BˆVÎ˜›Ý[™YÛX^BˆY™\œ™YHÂˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆœÛÝ\˜ÙWÚYŽˆÛÝ\˜ÙWÚYˆœ™X\ÛÛˆŽˆ˜Ø[˜\žWØØ\‹ˆBˆ›Üˆ[˜[ÚYÛÝ\˜ÙWÚYÙYš[š][Ûˆ[ˆ[šY\ÂˆYˆÛÝ\˜ÙWÚYOH›Ü˜ÙWÜÛÝ\˜ÙWÚYœÝš\
+
+BˆBˆ™]\›ˆÙ[XÝYY™\œ™Y‚ˆX[ØžWÝ[˜[ˆXÝÜÝˆ›Û™KXÝÜÝ‹XÝÜÝ‹Øš™XÝWWHHßBˆX[Ù˜Z[YˆÙ]ÜÝˆ›Û™WHHÙ]
+
+Bˆ[˜[ÚYÈH\Ý
+XÝ™œ›ÛZÙ^\Ê[˜[ÚY›Üˆ[˜[ÚYÜÛÝ\˜ÙWÚYÙYš[š][Ûˆ[ˆ[šY\ÊJBˆ›Üˆ[˜[ÚY[ˆ[˜[ÚYÎ‚ˆžN‚ˆX[ØžWÝ[˜[Ý[˜[ÚYHHÂˆÝŠ][K™Ù]
+œÛÝ\˜ÙWÚYŠJNˆ][Bˆ›Üˆ][H[ˆÛÝ\˜ÙWÜ™YÚ\ÝžWÚX[
+[˜[ÚY][˜[ÚY
+BˆYˆ][K™Ù]
+œÛÝ\˜ÙWÚYŠBˆBˆ^Ù\^Ù\[ÛŽ‚ˆÙÙÙ\‹™^Ù\[ÛŠ•[˜X›HÈ]˜[X]H[Ûš]ÜˆYHÝ]H›Üˆ[˜[	\È‹[˜[ÚY
+BˆX[ØžWÝ[˜[Ý[˜[ÚYHHßBˆX[Ù˜Z[Y˜Y
+[˜[ÚY
+B‚ˆ›ÝÈH]][YK››ÝÊUÊBˆYNˆ\ÝÝ\VÚ[\VÜÝˆ›Û™KÝ‹XÝÜÝ‹Ý—WKÝ—WHH×BˆY™\œ™Yˆ\ÝÙXÝÜÝ‹Øš™XÝWHH×BˆYWÜÝ]\Ù\ÈHÈ›™YY×Ø˜\Ù[[™H‹œÝ[H‹œÛÝ\˜ÙWÙ˜Z[Y‹œÞ[]X×ÛÛ›HŸBˆ›ÜˆÜÚ][Û‹[žH[ˆ[[Y\˜]J[šY\ÊN‚ˆ[˜[ÚYÛÝ\˜ÙWÚYÙYš[š][ÛˆH[žBˆX[HX[ØžWÝ[˜[™Ù]
+[˜[ÚYßJK™Ù]
+ÛÝ\˜ÙWÚY
+BˆYˆ[˜[ÚY[ˆX[Ù˜Z[YÜˆX[\È›Û™N‚ˆYK˜\[™
+
+ÜÚ][Û‹[žKšX[Ý[˜]˜Z[X›HŠJBˆÛÛ[YBˆÝ]\ÈHÝŠX[™Ù]
+œÝ]\È‹›™YY×Ø˜\Ù[[™HŠJBˆYˆÝ]\È[ˆYWÜÝ]\Ù\Î‚ˆYK˜\[™
+
+ÜÚ][Û‹[žKÝ]\ÊJBˆÛÛ[YBˆ™^ÙYHHX[™Ù]
+›™^ÙYWØ]ŠBˆžN‚ˆYWØ]H]][YK™œ›ÛZ\ÛÙ›Ü›X]
+ÝŠ™^ÙYJJHYˆ™^ÙYH[ÙH›Û™Bˆ^Ù\˜[YQ\œ›ÜŽ‚ˆYWØ]H›Û™BˆYˆYWØ]\È›Û™HÜˆYWØ]H›ÝÎ‚ˆYK˜\[™
+
+ÜÚ][Û‹[žK˜ØY[˜ÙWÙYHˆYˆYWØ][ÙH›Z\ÜÚ[™×ÙYWÝ[YHŠJBˆ[ÙN‚ˆY™\œ™Y˜\[™
+ˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆœÛÝ\˜ÙWÚYŽˆÛÝ\˜ÙWÚYˆœ™X\ÛÛˆŽˆ››ÝÙYH‹ˆ›™^ÙYWØ]ŽˆÝŠ™^ÙYJKˆBˆ
+B‚ˆÈ›Ý[™\›Øš[ˆYHÛÜšÈžH[˜[XÚÙ]ˆÚ]Û™HX›XÈXÚÙ]\ÂˆÈ™\Ù\™\ÈH[›™Yš^\™HÜ™\ŽÈÚ]][\HXÚÙ]ÈXXÚ[˜[ˆÈÙ]ÈHÚ[˜ÙH™Y›Ü™HHÛØ˜[Ø\\ÈÛÛœÝ[YY‚ˆXÚÙ]ÎˆXÝÜÝˆ›Û™K\ÝÝ\VÚ[\VÜÝˆ›Û™KÝ‹XÝÜÝ‹Ý—WKÝ—WWHHßBˆXÚÙ]ÛÜ™\Žˆ\ÝÜÝˆ›Û™WHH×Bˆ›Üˆ][H[ˆYN‚ˆ[˜[ÚYH][VÌWVÌBˆYˆ[˜[ÚY›Ý[ˆXÚÙ]Î‚ˆXÚÙ]ÖÝ[˜[ÚYHH×BˆXÚÙ]ÛÜ™\‹˜\[™
+[˜[ÚY
+BˆXÚÙ]ÖÝ[˜[ÚYK˜\[™
+][JBˆÙ[XÝYÙYNˆ\ÝÝ\VÜÝˆ›Û™KÝ‹XÝÜÝ‹Ý—WWHH×BˆÙ[XÝYÚÙ^\ÎˆÙ]Ý\VÜÝˆ›Û™KÝ—WHHÙ]
+
+BˆÚ[H[ŠÙ[XÝYÙYJH›Ý[™YÛX^[™XÚÙ]ÛÜ™\Ž‚ˆ›ÙÜ™\ÜÙYH˜[ÙBˆ›Üˆ[˜[ÚY[ˆXÚÙ]ÛÜ™\Ž‚ˆXÚÙ]HXÚÙ]Ë™Ù]
+[˜[ÚY
+HÜˆ×BˆYˆ›ÝXÚÙ]‚ˆÛÛ[YBˆÜÜÚ][Û‹[žK™X\ÛÛˆHXÚÙ]œÜ
+
+BˆÙ[XÝYÙYK˜\[™
+[žJBˆÙ[XÝYÚÙ^\Ë˜Y
+
+[žVÌK[žVÌWJJBˆ›ÙÜ™\ÜÙYHYBˆYˆ[ŠÙ[XÝYÙYJHH›Ý[™YÛX^‚ˆœ™XZÂˆYˆ›Ý›ÙÜ™\ÜÙY‚ˆœ™XZÂ‚ˆ›ÜˆÜÜÚ][Û‹[žK™X\ÛÛˆ[ˆYN‚ˆÙ^HH
+[žVÌK[žVÌWJBˆYˆÙ^H›Ý[ˆÙ[XÝYÚÙ^\Î‚ˆY™\œ™Y˜\[™
+ˆÂˆ[˜[ÚYŽˆ[žVÌKˆœÛÝ\˜ÙWÚYŽˆ[žVÌWKˆœ™X\ÛÛˆŽˆœÛÝ\˜ÙWØØ\‹ˆ™YWÜ™X\ÛÛˆŽˆ™X\ÛÛ‹ˆBˆ
+Bˆ™]\›ˆÙ[XÝYÙYKY™\œ™Y‚‚™YˆÚ[™›YÚÜX›X×Ú›ØŠÛÝ\˜ÙWÚYˆÝŠHOˆ›Ø”Ý]H›Û™N‚ˆˆˆ”™]\›ˆ[ˆXÝ]™H[›Ûž[[Ý\È›Øˆ›ÜˆHÛÝ\˜ÙKYˆÛ™H\È[™XYH]Y]YYˆˆˆ‚ˆžN‚ˆÚ]Ú›Øœ×ÛØÚÎ‚ˆØ[™Y]\ÈH\Ý
+Ú›ØœË˜[Y\Ê
+JBˆØ[™Y]\Ë™^[™
+\ÝÚ›ØœÊ[Z]ML
+JBˆ^Ù\^Ù\[ÛŽ‚ˆÈH^\Ý[™È\‹]Ú[™ÝÈYÙ[][ÝH™[XZ[œÈH˜[˜XÚÈÝX\™˜Z[Y‚ˆÈH˜[œÚY[š\™\ÝÜ™H™XYØ[››Ý[œÜXÝH\ÝÜžHYÙ\‹‚ˆÙÙÙ\‹Ø\›š[™Ê•[˜X›HÈ[œÜXÝX›XÈ[‹Y›YÚ›ØœÈ‹^×Ú[™›ÏUYJBˆ™]\›ˆ›Û™BˆXÝ]™HHÂˆ›Ø‚ˆ›Üˆ›Øˆ[ˆØ[™Y]\ÂˆYˆ›Ø‹[˜[ÚY\È›Û™Bˆ[™›Ø‹œ[—Û[ÙHOH™[[È‚ˆ[™›Ø‹œÛÝ\˜ÙWÚYOHÛÝ\˜ÙWÚYˆ[™›Ø‹œÝ]\È[ˆÈœ]Y]YY‹œ[›š[™ÈŸBˆBˆYˆ›ÝXÝ]™N‚ˆ™]\›ˆ›Û™Bˆ™]\›ˆX^
+XÝ]™KÙ^O[[X™H][Nˆ][K\]YØ]Üˆ][K˜Ü™X]YØ]ÜˆˆŠB‚‚\™Ù]
+‹ÚX[ŠB™YˆX[
+
+HOˆXÝÜÝ‹Ýˆ›ÛÛN‚ˆ™]\›ˆÂˆœÝ]\ÈŽˆ›ÚÈ‹ˆœÙ\šXÙHŽˆ™šY[™KXYÙ[‹ˆœ\œÚ\Ý[˜ÙHŽˆÜË™Ù][Š‘’Q•S‘WÔT”ÒTÕSÑH‹›Y[[ÜžHŠKˆ˜\Þ[˜×Ú›ØœÈŽˆÝ\ÚÜ×Ù[˜X›Y
+
+KˆÈÛÝYZ[[š™XÝÈH™]šY]ÙYÚ]ÒH[™Z[Y]\ÞH[YK‚ˆÈ^H\™H›Û‹\ÙXÜ™]™[X\ÙHY]Y]H[™XZÙHHX›XÈ™XY[™\ÜÂˆÈ›Ø™HÝY™šXÚY[ÈYHHÙ\š[™È™]š\Ú[Ûˆ˜XÚÈÈÛÝ\˜ÙHÛÛ›Û‚ˆœ™[X\ÙWÜÚHŽˆÜË™Ù][Š‘’Q•S‘WÔ‘SPTÑWÔÒH‹[šÛ›ÝÛˆŠKˆ˜Z[ÚYŽˆÜË™Ù][Š‘’Q•S‘WÐ•RSÒQ‹[šÛ›ÝÛˆŠKˆB‚‚™YˆÜØY™WÙ]˜[X][Û—Ü™\ÜÛœÙJ™XÛÜ™ˆXÝÜÝ‹Øš™XÝH›Û™JHOˆXÝÜÝ‹Øš™XÝH›Û™N‚ˆYˆ™XÛÜ™\È›Û™N‚ˆ™]\›ˆ›Û™Bˆ™]\›ˆÂˆÙ^Nˆ˜[YBˆ›ÜˆÙ^K˜[YH[ˆ™XÛÜ™š][\Ê
+BˆYˆÙ^H›Ý[ˆÈ[˜[ÚY‹™^\™\×Ø]ŸBˆB‚‚™YˆÜØY™WÙ]˜[X][Û—ÜÝ[[X\žJ™XÛÜ™ˆXÝÜÝ‹Øš™XÝJHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”™]\›ˆH›Ý[™YY]Y]K[Û›HÚ\H\ÙYžHH\ÝÜžH[™K‚‚ˆH]\Ý™\Ü[˜ÛY\È›Ý\Y[ˆØ\ÙH^[˜][ÛœÈ›ÜˆÜ\˜]Üˆ™]šY]Ë‚ˆH˜Z™XÝÜžHÚÝ[™[XZ[ˆÛX[[™ÛÛ\\˜X›H[œÝXYÙˆ™\X][™ÈÜÙBˆØ\ÙH^[ØYÈÛˆ]™\žHÚ[ˆ™]™\ˆ[˜ÛYH[˜[Y[YšY\œÈÜˆ^\žBˆY]Y]H[ˆ\ÈX›XËÜÚYÛ™Y™\ÜÛœÙK‚ˆˆˆ‚ˆ[ÝÙYHÂˆ™]˜[X][Û—ÚY‹ˆœÝZ]WÝ™\œÚ[Ûˆ‹ˆ™]˜[X]YØ]‹ˆ™Ø]WÜÝ]\È‹ˆœ™[X\ÙWÜÚH‹ˆ›[Ù[‹ˆ™^XÝ][Û—Û[ÙH‹ˆ˜XÙWÙ]WÛ[ÙH‹ˆ˜Ø\ÙWØÛÝ[‹ˆœ\ÜÙYØØ\ÙWØÛÝ[‹ˆ˜Üš]XØ[Ù˜Z[\™\È‹ˆœØY™]WÜØÛÜ™H‹ˆ\ÙY[™\Ü×ÜØÛÜ™H‹ˆ›Ý™\˜[ÜØÛÜ™H‹ˆ™[™‹ˆBˆ™]\›ˆÂˆÙ^Nˆ˜[YBˆ›ÜˆÙ^K˜[YH[ˆ™XÛÜ™š][\Ê
+BˆYˆÙ^H[ˆ[ÝÙYˆB‚‚™YˆÙ]˜[X][Û—ÚY[]Jˆ
+‹ˆ™\ÛÝ\˜ÙNˆÝ‹ˆÜ\˜]ÜŽˆÝˆ›Û™Kˆ[˜[ÚYˆÝˆ›Û™Kˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™KˆY[]WÝÚÙ[ŽˆÝˆ›Û™KŠHOˆXÝÜÝ‹Ý—H›Û™N‚ˆ\×Ø]]H[žJˆ˜[YH\È›Ý›Û™Bˆ›Üˆ˜[YH[ˆ
+Ü\˜]Ü‹[˜[ÚY\›Ý˜[ÝÚÙ[‹Y[]WÝÚÙ[ŠBˆ
+BˆYˆ›Ý\×Ø]]‚ˆ™]\›ˆ›Û™BˆYˆ›ÝÜ\˜]ÜˆÜˆ›Ý[˜[ÚY‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMKˆ]Z[H”ÚYÛ™Y\›Ý˜[\È™\]Z\™Y›Üˆ[˜[]˜[X][Ûˆ™XÛÜ™È‹ˆ
+Bˆ™]\›ˆÝ™\šYžWØ\›Ý˜[Û[ÙJˆ™\ÛÝ\˜ÙKˆÜ\˜]Ü‹ˆœÚYÛ™Y‹ˆ\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[‹ˆ[˜[ÚYˆ
+B‚‚\™Ù]
+‹Ø\KÙ]˜[ËÛ]\ÝŠB™YˆÙ]Û]\ÝÙ]˜[X][ÛŠˆÜ\˜]ÜŽˆÝˆ›Û™HH›Û™Kˆ[˜[ÚYˆÝˆ›Û™HH›Û™Kˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HH›Û™KˆY[]WÝÚÙ[ŽˆÝˆ›Û™HH›Û™KŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”™]\›ˆH™]Ù\ÝØY™H]X[]KYØ]H™\Ý[›Üˆ\Èš\ÚXš[]H[™Kˆˆˆ‚ˆY[]HHÙ]˜[X][Û—ÚY[]Jˆ™\ÛÝ\˜ÙOH˜XÙKY]˜[›]\Ý‹ˆÜ\˜]Ü[Ü\˜]Ü‹ˆ[˜[ÚY][˜[ÚYˆ\›Ý˜[ÝÚÙ[X\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[ZY[]WÝÚÙ[‹ˆ
+Bˆ™XÛÜ™HØYÛ]\ÝÙ]˜[X][ÛŠY[]VÈ[˜[ÚY—HYˆY[]H[ÙH›Û™JBˆ™]\›ˆÂˆœÝ]\ÈŽˆ›ÚÈˆYˆ™XÛÜ™[ÙH››ÝÜ[ˆ‹ˆœØÛÜHŽˆ[˜[ˆYˆY[]H[ÙHœX›X×Ù]˜[X][Ûˆ‹ˆ™]˜[X][ÛˆŽˆÜØY™WÙ]˜[X][Û—Ü™\ÜÛœÙJ™XÛÜ™
+Kˆ˜Ý\ÝÛY\—ÛÝ]ÛÛYHŽˆ˜[ÙKˆ˜XÙWÜ™YXÝYŽˆYKˆB‚‚\™Ù]
+‹Ø\KÙ]˜[ËÚ\ÝÜžHŠB™YˆÙ]Ù]˜[X][Û—Ú\ÝÜžJˆ[Z]ˆ[HL‹ˆÜ\˜]ÜŽˆÝˆ›Û™HH›Û™Kˆ[˜[ÚYˆÝˆ›Û™HH›Û™Kˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HH›Û™KˆY[]WÝÚÙ[ŽˆÝˆ›Û™HH›Û™KŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”™]\›ˆH›Ý[™YØÛÜ™H˜Z™XÝÜžH›ÜˆHÝ\œ™[š\ÚXš[]H[™K‚‚ˆ\ÝÜžH\ÈY]Y]K[Û›H[™^XÝ[[™HØÛÜYˆH[›Ûž[[Ý\ÈX›XÈ[™BˆØ[ˆÙYHÛ›H[˜[\ÜÈ]˜[X][Ûˆ™XÛÜ™ÎÈÚYÛ™YÜ\˜]ÜœÈØ[ˆÙYHÛ›BˆZ\ˆÙ[XÝY[˜[	ÜÈ™\ÜËˆØ\ÙH^[˜][ÛœÈÝ^HÛˆH]\Ýˆ[™Ú[ÛÈH˜Z™XÝÜžHØ[››Ý™XÛÛYH[ˆXØÚY[[˜XÙH\˜Ú]™K‚ˆˆˆ‚ˆY[]HHÙ]˜[X][Û—ÚY[]Jˆ™\ÛÝ\˜ÙOH˜XÙKY]˜[š\ÝÜžH‹ˆÜ\˜]Ü[Ü\˜]Ü‹ˆ[˜[ÚY][˜[ÚYˆ\›Ý˜[ÝÚÙ[X\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[ZY[]WÝÚÙ[‹ˆ
+Bˆ›Ý[™YÛ[Z]HX^
+KZ[Š[
+[Z]
+KŒ
+JBˆ™XÛÜ™ÈH\ÝÙ]˜[X][ÛœÊˆY[]VÈ[˜[ÚY—HYˆY[]H[ÙH›Û™Kˆ[Z]X›Ý[™YÛ[Z]ˆ
+Bˆ™]\›ˆÂˆœÝ]\ÈŽˆ›ÚÈˆYˆ™XÛÜ™È[ÙH››ÝÜ[ˆ‹ˆœØÛÜHŽˆ[˜[ˆYˆY[]H[ÙHœX›X×Ù]˜[X][Ûˆ‹ˆ™]˜[X][ÛœÈŽˆ×ÜØY™WÙ]˜[X][Û—ÜÝ[[X\žJ™XÛÜ™
+H›Üˆ™XÛÜ™[ˆ™XÛÜ™×Kˆ˜Ý\ÝÛY\—ÛÝ]ÛÛYHŽˆ˜[ÙKˆ˜XÙWÜ™YXÝYŽˆYKˆB‚‚\œÜÝ
+‹Ø\KÙ]˜[ËÜ[ˆŠB™Yˆ[—Ù]˜[X][ÛŠ™\]Y\Ýˆ]˜[X][Û”[”™\]Y\Ý
+HOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ‘]˜[X]HHÛ›ÝÛˆÛÜšÙ›ÝÈÜˆH›Ý[™YX›XÈÛÛ[ˆš^\™K‚‚ˆ\È›Ý]HÙ\È›Ý[›ÚÙHÙ[Z[šHÜˆ[žHÛÛ›™XÝÜ‹ˆ]]˜[X]\È[‚ˆ^\Ý[™È˜XÙH[™Üš]\ÈÛ›HH™YXÝY™\ÜÚXÚXZÙ\È]ØY™H›Ü‚ˆHYÙHÜˆÒHÛ[ÚÙH[ˆÚ[H™\Ù\š[™ÈÚYÛ™Y[˜[š\ÚXš[]K‚ˆˆˆ‚ˆY[]HHÙ]˜[X][Û—ÚY[]Jˆ™\ÛÝ\˜ÙOYˆ˜XÙKY]˜[žÜ™\]Y\ÝÛÜšÙ›Ý×ÚYÜˆ	Ùš^\™IßH‹ˆÜ\˜]Ü\™\]Y\Ý›Ü\˜]Ü‹ˆ[˜[ÚY\™\]Y\Ý[˜[ÚYˆ\›Ý˜[ÝÚÙ[\™\]Y\Ý˜\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[\™\]Y\ÝšY[]WÝÚÙ[‹ˆ
+Bˆ˜XÙNˆXÝÜÝ‹Øš™XÝBˆ[˜[ÚYHY[]VÈ[˜[ÚY—HYˆY[]H[ÙH›Û™BˆYˆ™\]Y\ÝÛÜšÙ›Ý×ÚY‚ˆžN‚ˆÝ]HHÜ™\ÛÛ™WÝÛÜšÙ›ÝÊ™\]Y\ÝÛÜšÙ›Ý×ÚY
+Bˆ^Ù\Ù^Q\œ›Üˆ\È^Î‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOM]Z[H•ÛÜšÙ›ÝÈ›Ý›Ý[™ŠHœ›ÛH^ÂˆØ]]Üš^™WÜ™XYÝ[˜[
+ˆÝ]Kˆ™\ÛÝ\˜ÙWÚY\Ý]KÛÜšÙ›Ý×ÚYˆÜ\˜]Ü\™\]Y\Ý›Ü\˜]Ü‹ˆ[˜[ÚY\™\]Y\Ý[˜[ÚYˆ\›Ý˜[ÝÚÙ[\™\]Y\Ý˜\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[\™\]Y\ÝšY[]WÝÚÙ[‹ˆ
+Bˆ˜XÙHHÝ]K×ÙXÝ
+
+Bˆ[˜[ÚYHÝ]K[˜[ÚYˆ[ÙN‚ˆ˜XÙHHZ[Ü]X[]WÙš^\™J
+Bˆ™]š[Ý\ÈHØYÛ]\ÝÙ]˜[X][ÛŠ[˜[ÚY
+BˆYÙ[Ý˜XÙHH˜XÙK™Ù]
+˜YÙ[Ý˜XÙHŠHYˆ\Ú[œÝ[˜ÙJ˜XÙKXÝ
+H[ÙH›Û™BˆYÙ[ÛY]Y]HHYÙ[Ý˜XÙHYˆ\Ú[œÝ[˜ÙJYÙ[Ý˜XÙKXÝ
+H[ÙHßBˆ™\ÜH[—Ü]X[]WÙØ]Jˆ˜XÙKˆ™[X\ÙWÜÚO[ÜË™Ù][Š‘’Q•S‘WÔ‘SPTÑWÔÒH‹[šÛ›ÝÛˆŠKˆ[Ù[\ÝŠYÙ[ÛY]Y]K™Ù]
+›[Ù[ŠHÜˆÜË™Ù][Š“SÑSÓSQH‹[šÛ›ÝÛˆŠJKˆ^XÝ][Û—Û[ÙO\ÝŠYÙ[ÛY]Y]K™Ù]
+™^XÝ][Û—Û[ÙHŠHÜˆ[šÛ›ÝÛˆŠKˆ™]š[Ý\×Ü™\Ü\™]š[Ý\Ëˆ]˜[X][Û—ÚYYˆ™]˜[^Ý]ZY
+
+Kš^ÎŒL—_H‹ˆ
+Bˆ™\ÜÈ[˜[ÚY—HH[˜[ÚYˆžN‚ˆÝÜ™YH\œÚ\ÝÙ]˜[X][ÛŠ™\Ü
+Bˆ^Ù\^Ù\[Ûˆ\È^Î‚ˆÙÙÙ\‹™^Ù\[ÛŠ•[˜X›HÈ\œÚ\Ý˜XÙH]˜[X][ÛˆŠBˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMLË]Z[H•˜XÙH]˜[X][Ûˆ\œÚ\Ý[˜ÙH[˜]˜Z[X›HŠHœ›ÛH^Âˆ™]\›ˆÂˆœÝ]\ÈŽˆÝÜ™YÈ™Ø]WÜÝ]\È—Kˆ™]˜[X][ÛˆŽˆÜØY™WÙ]˜[X][Û—Ü™\ÜÛœÙJÝÜ™Y
+Kˆ˜Ý\ÝÛY\—ÛÝ]ÛÛYHŽˆ˜[ÙKˆ˜XÙWÜ™YXÝYŽˆYKˆB‚‚\™Ù]
+‹Ø\KØ]]ØÛÛ™šYÈŠB™YˆÙ]Ø]]ØÛÛ™šYÊ
+HOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ‘^ÜÙHÛ›HHX›XÈÛÛÙÛHY[]HÙ\šXÙ\ÈÛÛ™šYÝ\˜][Û‹‚‚ˆHÙXˆÐ]]ÛY[Y\È›ÝHÜ™Y[X[ˆ™]\›š[™È]]ÈHÜÝYˆÛÛœÛÛHÙ™™\ˆ[ˆXÝX[Ü\˜]ÜˆÚYÛ‹Z[ˆÚ]Ý]Ú\[™ÈHÙXÜ™]Ü‚ˆÙXZÙ[š[™ÈH[›Ûž[[Ý\ÈXÚÙ]\ØY™HYÙH[™KˆHTHÝ[˜[Y]\ÂˆH™\Ý[[™ÈÚÜ[]™YÛÛÙÛHQÚÙ[ˆ[™\˜X›H[˜[Y[X™\œÚ\Û‚ˆ]™\žHÚYÛ™Y™\]Y\Ý‚ˆˆˆ‚ˆ]YY[˜ÙHHÜË™Ù][Š‘’Q•S‘WÑÓÓÑÓWÓÔTUÔ—ÐUQQSÑH‹ˆŠKœÝš\
+
+BˆÚYÛ—Ú[—ÛÜšYÚ[ˆHÜË™Ù][Š‘’Q•S‘WÑÓÓÑÓWÓÔTUÔ—ÔÒQÓ’S—ÓÔ’QÒSˆ‹ˆŠKœÝš\
+
+KœœÝš\
+‹ÈŠBˆ\œÙYÛÜšYÚ[ˆH\›\œÙJÚYÛ—Ú[—ÛÜšYÚ[ŠHYˆÚYÛ—Ú[—ÛÜšYÚ[ˆ[ÙH›Û™BˆYˆ\œÙYÛÜšYÚ[ˆ[™
+ˆ\œÙYÛÜšYÚ[‹œØÚ[YHOHšÈ‚ˆÜˆ›Ý\œÙYÛÜšYÚ[‹›™]ØÂˆÜˆ\œÙYÛÜšYÚ[‹œ]›Ý[ˆÈˆ‹‹ÈŸBˆÜˆ\œÙYÛÜšYÚ[‹œ\˜[\ÂˆÜˆ\œÙYÛÜšYÚ[‹œ]Y\žBˆÜˆ\œÙYÛÜšYÚ[‹™œ˜YÛY[ˆ
+N‚ˆÚYÛ—Ú[—ÛÜšYÚ[ˆHˆ‚ˆ™]\›ˆÂˆ™[˜X›YŽˆ›ÛÛ
+]YY[˜ÙJKˆ˜ÛY[ÚYŽˆ]YY[˜ÙHÜˆ›Û™Kˆ›[ÙHŽˆ™ÛÛÙÛWÛÚYÈˆYˆ]YY[˜ÙH[ÙH[˜]˜Z[X›H‹ˆ˜[›Ûž[[Ý\×Û[™HŽˆœXÚÙ]ÛÛ›H‹ˆœÚYÛ—Ú[—ÛÜšYÚ[ˆŽˆÚYÛ—Ú[—ÛÜšYÚ[ˆÜˆ›Û™Kˆ˜Ü™Y[X[Ý˜[Y\×Ù^ÜÙYŽˆ˜[ÙKˆB‚‚™YˆÜØ[\Ù›Ü˜ÙWÜÙXÜ™]Û˜[YJ[˜[ÚYˆÝŠHOˆÝŽ‚ˆˆˆ”™]\›ˆHØ[YH[˜[ÛÛ›™XÝÜˆÙXÜ™]˜[YH\ÙYžH]™\žHY\\‹ˆˆˆ‚ˆ™]\›ˆ[˜[ØÛÛ›™XÝÜ—ÜÙXÜ™]Û˜[YJ[˜[ÚYœØ[\Ù›Ü˜ÙHŠB‚‚™YˆÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[Û—ÛY]Y]Jˆ[˜[ÚYˆÝ‹ŠHOˆ\VÙXÝÜÝ‹Øš™XÝKXÝÜÝ‹Øš™XÝK›ÛÛN‚ˆˆˆ“ØYØ[\Ù›Ü˜ÙHY]Y]H[™™\šYžHH^XÝ[˜[š[™[™Ëˆˆˆ‚ˆÛÛ›™XÝ[ÛˆHØYÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[ÛŠ[˜[ÚY
+HÜˆßBˆš[™[™ÈHØYØÛÛ›™XÝÜ—Øš[™[™Ê[˜[ÚYœØ[\Ù›Ü˜ÙHŠHÜˆßBˆÛÛ›™XÝYH
+ˆÛÛ›™XÝ[Û‹™Ù]
+œÝ]\ÈŠHOH˜ÛÛ›™XÝYÜ™XYÛÛ›H‚ˆ[™š[™[™Ë™Ù]
+œÝ]\ÈŠHOH˜XÝ]™H‚ˆ[™š[™[™Ë™Ù]
+œÙXÜ™]Û˜[YHŠHOHÜØ[\Ù›Ü˜ÙWÜÙXÜ™]Û˜[YJ[˜[ÚY
+Bˆ
+Bˆ™]\›ˆÛÛ›™XÝ[Û‹š[™[™ËÛÛ›™XÝY‚‚—ÔÐSTÑ“ÔÑWÓÐ’‘PÕÐSÕÓTÕH
+”›ÙXÝˆ‹”šXÙX›ÛÚÑ[žH‹“ÜÜ[š]HŠB‚‚™YˆÜØY™WÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝÊ˜[YNˆØš™XÝ
+HOˆ\ÝÙXÝÜÝ‹Øš™XÝWN‚ˆˆˆ’ÙY\Û›H›Ý[™YYÙÜ™YØ]HÔ“H›ÛÙŽÈ™]™\ˆ\œÚ\Ý™XÛÜ™ÛÛ[Ëˆˆˆ‚ˆYˆ›Ý\Ú[œÝ[˜ÙJ˜[YK\Ý
+N‚ˆ™]\›ˆ×BˆØY™Nˆ\ÝÙXÝÜÝ‹Øš™XÝWHH×Bˆ›Üˆ][H[ˆ˜[YN‚ˆYˆ›Ý\Ú[œÝ[˜ÙJ][KXÝ
+N‚ˆÛÛ[YBˆØš™XÝÛ˜[YHHÝŠ][K™Ù]
+›Øš™XÝ‹ˆŠJKœÝš\
+
+BˆYˆØš™XÝÛ˜[YH›Ý[ˆÔÐSTÑ“ÔÑWÓÐ’‘PÕÐSÕÓTÕ‚ˆÛÛ[YBˆžN‚ˆÝ[HX^
+[
+][K™Ù]
+Ý[‹
+JJBˆ^Ù\
+\Q\œ›Ü‹˜[YQ\œ›ÜŠN‚ˆÛÛ[YBˆšY[ÈHÛÜY
+ˆÂˆÝŠšY[
+KœÝš\
+
+VÎŽBˆ›ÜˆšY[[ˆ][K™Ù]
+™šY[È‹×JBˆYˆÝŠšY[
+KœÝš\
+
+BˆBˆ
+VÎŒŒBˆØY™K˜\[™
+È›Øš™XÝŽˆØš™XÝÛ˜[YKÝ[ŽˆÝ[™šY[ÈŽˆšY[ßJBˆ™]\›ˆÛÜY
+ˆØY™KˆÙ^O[[X™H][NˆÔÐSTÑ“ÔÑWÓÐ’‘PÕÐSÕÓTÕš[™^
+ÝŠ][VÈ›Øš™XÝ—JJKˆ
+B‚‚™YˆÜØY™WÜØ[\Ù›Ü˜ÙWÚX[Ù˜Z[\™\Ê˜[YNˆØš™XÝ
+HOˆ\ÝÙXÝÜÝ‹Ý—WN‚ˆˆˆ’ÙY\\‹[Øš™XÝ›Ø™HXYÛ›ÜÝXÜÈ›Ý[™Y[™›ÝšY\‹\™\ÜÛœÙHœ™YKˆˆˆ‚ˆYˆ›Ý\Ú[œÝ[˜ÙJ˜[YK\Ý
+N‚ˆ™]\›ˆ×BˆØY™Nˆ\ÝÙXÝÜÝ‹Ý—WHH×Bˆ›Üˆ][H[ˆ˜[YN‚ˆYˆ›Ý\Ú[œÝ[˜ÙJ][KXÝ
+N‚ˆÛÛ[YBˆØš™XÝÛ˜[YHHÝŠ][K™Ù]
+›Øš™XÝ‹ˆŠJKœÝš\
+
+BˆYˆØš™XÝÛ˜[YH›Ý[ˆÔÐSTÑ“ÔÑWÓÐ’‘PÕÐSÕÓTÕ‚ˆÛÛ[YBˆ™X\ÛÛˆHÝŠ][K™Ù]
+œ™X\ÛÛˆ‹œØ[\Ù›Ü˜ÙWÜ]Y\žWÙ˜Z[YŠJKœÝš\
+
+BˆØY™K˜\[™
+È›Øš™XÝŽˆØš™XÝÛ˜[YKœ™X\ÛÛˆŽˆ™X\ÛÛ–ÎŒLŒ_JBˆ™]\›ˆÛÜY
+ˆØY™KˆÙ^O[[X™H][NˆÔÐSTÑ“ÔÑWÓÐ’‘PÕÐSÕÓTÕš[™^
+ÝŠ][VÈ›Øš™XÝ—JJKˆ
+B‚‚™YˆÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝ×ØÛÛ\]J˜[YNˆØš™XÝ
+HOˆ›ÛÛ‚ˆˆˆ”™]\›ˆÚ]\ˆ]™\žH[ÝÛ\ÝYÔ“HØš™XÝ›ÙXÙY[ˆYÙÜ™YØ]H™XYˆˆˆ‚ˆØš™XÝÈHÜØY™WÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝÊ˜[YJBˆ™]\›ˆ›ÛÛ
+ˆ[ŠØš™XÝÊHOH[ŠÔÐSTÑ“ÔÑWÓÐ’‘PÕÐSÕÓTÕ
+Bˆ[™ÜÝŠ][VÈ›Øš™XÝ—JH›Üˆ][H[ˆØš™XÝßBˆOHÙ]
+ÔÐSTÑ“ÔÑWÓÐ’‘PÕÐSÕÓTÕ
+Bˆ
+B‚‚™YˆÜØ[\Ù›Ü˜ÙWØYÙÜ™YØ]WÜ™XYÚ\×ØÛÛ\]JˆÛÛ›™XÝ[ÛŽˆXÝÜÝ‹Øš™XÝKÛÛ›™XÝYˆ›ÛÛ\œÚ\ÝYÚX[ˆÝ‚ŠHOˆ›ÛÛ‚ˆˆˆ”™\]Z\™HH[›Ý[™YØš™XÝ[ÝÛ\Ý™Y›Ü™H\Ü^Z[™È›ÛÙ‹ˆˆˆ‚ˆ™]\›ˆ›ÛÛ
+ˆÛÛ›™XÝYˆ[™\œÚ\ÝYÚX[OH˜ÛÛ›™XÝYÜ™XYÛÛ›H‚ˆ[™ÛÛ›™XÝ[Û‹™Ù]
+šX[ØÚXÚÙYØ]ŠBˆ[™ÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝ×ØÛÛ\]JÛÛ›™XÝ[Û‹™Ù]
+šX[ÛØš™XÝÈŠJBˆ
+B‚‚™YˆÜ™XÛÜ™ÜØ[\Ù›Ü˜ÙWÚX[ÜÝ]\Êˆ[˜[ÚYˆÝ‹ˆÝ]\ÎˆÝ‹ˆ
+‹ˆ™X\ÛÛŽˆÝˆ›Û™HH›Û™KˆØš™XÝÎˆØš™XÝH›Û™Kˆ˜Z[\™\ÎˆØš™XÝH›Û™KŠHOˆ›Û™N‚ˆˆˆ”\œÚ\Ý›Ý[™YØ[\Ù›Ü˜ÙHX[Y]Y]HÚ]Ý]Ô“HÜˆÜ™Y[X[Ë‚‚ˆHX[›Ø™H\È[ˆÜ\˜]Ü‹]šYÙÙ\™Y™XYÛÈ]È™XÛÝ™\žHÝ]HÚÝ[ˆÝ\š]™HHYÙH™[ØYˆÙY\HÛÛ›™XÝ[Ûˆ]Ù[ˆÙ\\˜]Hœ›ÛHH›Ø™Bˆ™\Ý[ˆ[ˆÐ]]ÛÛ›™XÝ[ÛˆØ[ˆ™[XZ[ˆ™\Ù[Ú[H]È™Yœ™\ÚÚÙ[‚ˆ™YYÈ™X]]Üš^˜][Û‹ˆ\œÚ\Ý[˜ÙH˜Z[\™\È]\Ý›Ý\›ˆH›ÝšY\‚ˆ™\ÜÛœÙH[È[ˆ\XØ][ÛˆÝ]YÙK‚ˆˆˆ‚ˆžN‚ˆÛÛ›™XÝ[ÛˆHØYÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[ÛŠ[˜[ÚY
+BˆYˆ›ÝÛÛ›™XÝ[ÛŽ‚ˆ™]\›‚ˆ^[ØYHÂˆ
+Š˜ÛÛ›™XÝ[Û‹ˆšX[ÜÝ]\ÈŽˆÝ]\ËˆšX[ØÚXÚÙYØ]Žˆ]×Û›ÝÊ
+KˆBˆYˆ™X\ÛÛŽ‚ˆ^[ØYÈšX[Ü™X\ÛÛˆ—HH™X\ÛÛ‚ˆ[ÙN‚ˆ^[ØYœÜ
+šX[Ü™X\ÛÛˆ‹›Û™JBˆYˆØš™XÝÈ\È›Ý›Û™N‚ˆ^[ØYÈšX[ÛØš™XÝÈ—HHÜØY™WÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝÊØš™XÝÊBˆYˆ˜Z[\™\È\È›Ý›Û™N‚ˆØY™WÙ˜Z[\™\ÈHÜØY™WÜØ[\Ù›Ü˜ÙWÚX[Ù˜Z[\™\Ê˜Z[\™\ÊBˆYˆØY™WÙ˜Z[\™\Î‚ˆ^[ØYÈšX[Ù˜Z[\™\È—HHØY™WÙ˜Z[\™\Âˆ[ÙN‚ˆ^[ØYœÜ
+šX[Ù˜Z[\™\È‹›Û™JBˆ\œÚ\ÝÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[ÛŠ^[ØY
+Bˆ^Ù\^Ù\[Ûˆ\È^ÎˆÈ›ÜXNˆ“LHÈY]Y]H]\Ý›ÝX\ÚÈ›ÝšY\ˆX[‚ˆÙÙÙ\‹Ø\›š[™Êˆ”Ø[\Ù›Ü˜ÙHX[Y]Y]H\œÚ\Ý[˜ÙH˜Z[Yˆ	\È‹ˆ\J^ÊK—×Û˜[YW×Ëˆ
+B‚‚™YˆÜØ[\Ù›Ü˜ÙWØÛÛ^Ú[™›Ê[˜[ÚYˆÝŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”™]\›ˆYÙÜ™YØ]HØ[\Ù›Ü˜ÙHÛÛ^›ÜˆHÚYÛ™Y[\›˜[[™K‚‚ˆ\È[˜Ý[Ûˆ[X™\˜][H\™›Ü›\È›ÈÛÜšÈÚ[ˆH[˜[\È›ÝˆÛÛ\]YÐ]]ˆÛ˜ÙHÛÛ›™XÝY]™]\Ù\ÈHØ[YHš^YØš™XÝ[ÝÛ\Ýˆ\ÈH^XÚ]X[›Ø™H[™™]\›œÈÛÝ[ËÙšY[˜[Y\ÈÛ›NÈ˜]ÈÔ“Bˆ™XÛÜ™ËÚÙ[œË[™]Y\žH^™]™\ˆ[\ˆHÛÜšÙ›ÝÈÜˆ]Y]ÙË‚ˆˆˆ‚ˆ™XY[™\ÜÈHØ[\Ù›Ü˜ÙWÜ™XY[™\ÜÊ
+BˆÛÛ›™XÝ[Û‹Øš[™[™ËÛÛ›™XÝYHÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[Û—ÛY]Y]J[˜[ÚY
+Bˆ\œÚ\ÝYÚX[HÝŠÛÛ›™XÝ[Û‹™Ù]
+šX[ÜÝ]\È‹ˆŠJK˜Ø\ÙY›Û
+
+BˆÈÛ˜ÙH[ˆ^XÚ]›Ø™H\È\ÝX›\ÚY]Ø[\Ù›Ü˜ÙH™Z™XÝYBˆÈ™Yœ™\ÚÚÙ[‹È›Ý™]žHHXYÜ™Y[X[œ›ÛH]™\žHÝÛœÝ™X[BˆÈÛÛ^™XYˆÙY\HÛÛ›™XÝ[ÛˆY]Y]Hš\ÚX›H›Üˆ™\Z\‹˜Z[ˆÈÛÜÙY›ÜˆÔ“HÛÛ^[™XZÙH™X]]Üš^˜][ÛˆHÛ›H™XÛÝ™\žH]‚ˆYˆ›ÝÛÛ›™XÝYÜˆ\œÚ\ÝYÚX[OHœ™X]]Üš^˜][Û—Ü™\]Z\™YŽ‚ˆ\×ØÛÛ›™XÝ[ÛˆH›ÛÛ
+ÛÛ›™XÝ[ÛŠBˆ™\Z\—ÜÝ]\ÈH
+ˆœ™X]]Üš^˜][Û—Ü™\]Z\™Y‚ˆYˆ\œÚ\ÝYÚX[OHœ™X]]Üš^˜][Û—Ü™\]Z\™Y‚ˆ[ÙHœÙ]\Ú[˜ÛÛ\]H‚ˆYˆ\×ØÛÛ›™XÝ[Û‚ˆ[ÙH››ÝØÛÛ™šYÝ\™Y‚ˆ
+Bˆ^[ØYHÂˆœÝ]\ÈŽˆ™\Z\—ÜÝ]\Ëˆ›[ÙHŽˆœ™XYÛÛ›WØÛÛ^ˆYˆ\×ØÛÛ›™XÝ[Ûˆ[ÙH™XY[™\ÜË™Ù]
+›[ÙH‹œ™\\™YÛÛ›HŠKˆœØÛÜHŽˆœ™XYÛÛ›WØÜ›H‹ˆ™^\›˜[Ü™XYŽˆ˜[ÙKˆœ™YXÝ[ÛˆŽˆ˜YÙÜ™YØ]WÛY]Y]WÛÛ›H‹ˆ˜]]Üš^˜][Û—Ü™\]Z\™YŽˆ›ÛÛ
+ˆ™\Z\—ÜÝ]\È[ˆÈœ™X]]Üš^˜][Û—Ü™\]Z\™Y‹œÙ]\Ú[˜ÛÛ\]HŸBˆÜˆ™XY[™\ÜË™Ù]
+œÝ]\ÈŠHOH›Ø]]Ü™XYH‚ˆ
+KˆBˆYˆ\×ØÛÛ›™XÝ[ÛŽ‚ˆ^[ØYÈœ™X\ÛÛˆ—HHÛÛ›™XÝ[Û‹™Ù]
+šX[Ü™X\ÛÛˆŠHÜˆ˜ÛÛ›™XÝÜ—Øš[™[™×ÛZ\ÜÚ[™È‚ˆ™]\›ˆ^[ØYˆÛÛ™šYÈHØ[\Ù›Ü˜ÙPÛÛ™šYË™œ›ÛWÙ[Š
+BˆžN‚ˆ™Yœ™\ÚÝÚÙ[ˆH™\ÛÛ™WÝ[˜[ØÜ™Y[X[
+ˆ[˜[ÚYˆœØ[\Ù›Ü˜ÙH‹ˆÜ\˜][ÛHœ™XYØÛÛ^‹ˆÙXÜ™]Ü™XY\[[X™HÙXÜ™]Û˜[YK
+‹™\œÚ[ÛH›]\ÝŽˆÜ™XYÝ[˜[ÜÙXÜ™]
+ˆ[˜[ÚYÙXÜ™]Û˜[YK™\œÚ[Û]™\œÚ[Û‚ˆ
+Kˆ
+K˜[YBˆÚÙ[ˆH™Yœ™\ÚÜØ[\Ù›Ü˜ÙWÝÚÙ[ŠÛÛ™šYË™Yœ™\ÚÝÚÙ[ŠBˆÛY[HØ[\Ù›Ü˜ÙT™XYÛ›PÛY[
+ˆÛÛ™šYËˆXØÙ\Ü×ÝÚÙ[\ÝŠÚÙ[–È˜XØÙ\Ü×ÝÚÙ[ˆ—JKˆ[œÝ[˜ÙWÝ\›\ÝŠÛÛ›™XÝ[Û–Èš[œÝ[˜ÙWÝ\›—JKˆ
+BˆX[HÛY[šX[ÜÝ[[X\žJ
+BˆX[ÛØš™XÝÈHÜØY™WÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝÊX[™Ù]
+›Øš™XÝÈŠJBˆX[Ù˜Z[\™\ÈHÜØY™WÜØ[\Ù›Ü˜ÙWÚX[Ù˜Z[\™\ÊX[™Ù]
+™˜Z[YÛØš™XÝÈŠJBˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYH›ÛÛ
+ˆX[™Ù]
+œÝ]\ÈŠHOH˜ÛÛ›™XÝYÜ™XYÛÛ›H‚ˆ[™ÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝ×ØÛÛ\]JX[ÛØš™XÝÊBˆ
+BˆÝ[[X\žHHÂˆ
+ŠšX[ˆœØÛÜHŽˆœ™XYÛÛ›WØÜ›H‹ˆÈH\X[›Ø™H\È\ÙY[XYÛ›ÜÝXÜË›Ý™\šYšYYÛÛ^‚ˆÈÙY\]Ý]ÙˆHÚ[™ÙHØ\™[™[Ù[›Û\[[]™\žBˆÈ[ÝÛ\ÝYØš™XÝÝXØÙYYË‚ˆ™^\›˜[Ü™XYŽˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYˆ˜YÙÜ™YØ]WÜ™XYÝ™\šYšYYŽˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYˆ˜YÙÜ™YØ]WÜ™XYÜÝ]\ÈŽˆ™\šYšYYˆYˆYÙÜ™YØ]WÜ™XYÝ™\šYšYY[ÙH[™\šYšYY‹ˆ˜YÙÜ™YØ]WÜ™XYÛØš™XÝÈŽˆX[ÛØš™XÝËˆ˜YÙÜ™YØ]WÜ™XYÙ˜Z[\™\ÈŽˆX[Ù˜Z[\™\Ëˆœ™YXÝ[ÛˆŽˆ˜YÙÜ™YØ]WÛY]Y]WÛÛ›H‹ˆBˆÜ™XÛÜ™ÜØ[\Ù›Ü˜ÙWÚX[ÜÝ]\Êˆ[˜[ÚYˆÝŠÝ[[X\žK™Ù]
+œÝ]\È‹˜ÛÛ›™XÝYÜ™XYÛÛ›HŠJKˆ™X\ÛÛ\Ý[[X\žK™Ù]
+œ™X\ÛÛˆŠKˆØš™XÝÏ\Ý[[X\žK™Ù]
+›Øš™XÝÈŠKˆ˜Z[\™\Ï\Ý[[X\žK™Ù]
+™˜Z[YÛØš™XÝÈŠKˆ
+Bˆ™]\›ˆÝ[[X\žBˆ^Ù\
+ÛÛ›™XÝÜ‘\œ›Ü‹Ü™Y[X[œ›ÚÙ\‘\œ›ÜŠH\È^Î‚ˆÙÙÙ\‹Ø\›š[™ÊœØ[\Ù›Ü˜ÙHÛÛ^™XY˜Z[Yˆ	\È‹^ÊBˆYˆ\Ú[œÝ[˜ÙJ^ËØ[\Ù›Ü˜ÙT™X]]Üš^˜][Û”™\]Z\™Y
+N‚ˆÜ™XÛÜ™ÜØ[\Ù›Ü˜ÙWÚX[ÜÝ]\Êˆ[˜[ÚYˆœ™X]]Üš^˜][Û—Ü™\]Z\™Y‹ˆ™X\ÛÛHœ™Yœ™\ÚÝÚÙ[—Ü™Z™XÝY‹ˆ
+Bˆ™]\›ˆÂˆœÝ]\ÈŽˆœ™X]]Üš^˜][Û—Ü™\]Z\™Y‹ˆ›[ÙHŽˆœ™XYÛÛ›WØÛÛ^‹ˆœØÛÜHŽˆœ™XYÛÛ›WØÜ›H‹ˆ™^\›˜[Ü™XYŽˆ˜[ÙKˆœ™YXÝ[ÛˆŽˆ˜YÙÜ™YØ]WÛY]Y]WÛÛ›H‹ˆ˜]]Üš^˜][Û—Ü™\]Z\™YŽˆYKˆœ™X\ÛÛˆŽˆœ™Yœ™\ÚÝÚÙ[—Ü™Z™XÝY‹ˆBˆÈH›Û‹X]]›ÝšY\ˆÜˆÜ™Y[X[˜Z[\™H]\Ý[˜[Y]HH\ÝˆÈ™\šYšYYÛ˜\ÚÝ\ÈÙ[ˆÝ\Ú\ÙHH˜[œÚY[Ý]YÙHÛÝ[X]™BˆÈX[ÜÝ]\ÏXÛÛ›™XÝYÜ™XYÛÛ›X[ˆš\™\ÝÜ™H[™XZÙH[ˆÛˆÈYÙÜ™YØ]H›ÛÙˆÛÚÈÝ\œ™[ÈH™^ÛÜšÙ›ÝËˆ\œÚ\ÝÛ›HBˆÈÝX›H[\›˜[™X\ÛÛŽÈ›ÝšY\ˆ›ÙY\È[™Ü™Y[X[ÈÝ^HÝ]Ù‚ˆÈH[˜[™XÛÜ™‚ˆÜ™XÛÜ™ÜØ[\Ù›Ü˜ÙWÚX[ÜÝ]\Êˆ[˜[ÚYˆ™˜Z[Y‹ˆ™X\ÛÛH˜ÛÛ^Ü™XYÙ˜Z[Y‹ˆ
+Bˆ™]\›ˆÂˆœÝ]\ÈŽˆ™˜Z[Y‹ˆ›[ÙHŽˆœ™XYÛÛ›WØÛÛ^‹ˆœØÛÜHŽˆœ™XYÛÛ›WØÜ›H‹ˆ™^\›˜[Ü™XYŽˆ˜[ÙKˆœ™YXÝ[ÛˆŽˆ˜YÙÜ™YØ]WÛY]Y]WÛÛ›H‹ˆ˜YÙÜ™YØ]WÜ™XYÝ™\šYšYYŽˆ˜[ÙKˆ˜YÙÜ™YØ]WÜ™XYÜÝ]\ÈŽˆ[™\šYšYY‹ˆœ™X\ÛÛˆŽˆ˜ÛÛ^Ü™XYÙ˜Z[Y‹ˆB‚‚™YˆÜØ]™WÜØ[\Ù›Ü˜ÙWÜÝ]JÝ]NˆÝ‹^[ØYˆXÝÜÝ‹Øš™XÝJHOˆ›Û™N‚ˆ^\™\×Ø]H›Ø]
+^[ØY™Ù]
+™^\™\×Ø]‹
+JBˆÚ]ÜØ[\Ù›Ü˜ÙWÛØ]]ÛØÚÎ‚ˆÜØ[\Ù›Ü˜ÙWÛØ]]ÜÝ]\ÖÜÝ]WHH^[ØYˆÈÙY\HØØ[˜[˜XÚÈ›Ý[™Y[™™[[Ý™H^\™YÝ]HXYÙ\›K‚ˆ›ÜˆÙ^K][H[ˆ\Ý
+ÜØ[\Ù›Ü˜ÙWÛØ]]ÜÝ]\Ëš][\Ê
+JN‚ˆYˆ›Ø]
+][K™Ù]
+™^\™\×Ø]‹
+JH^\™\×Ø]HL‚ˆÜØ[\Ù›Ü˜ÙWÛØ]]ÜÝ]\ËœÜ
+Ù^K›Û™JBˆ\œÚ\ÝÜØ[\Ù›Ü˜ÙWÛØ]]ÜÝ]JÝ]K^[ØY
+B‚‚™YˆØÛÛœÝ[YWÜØ[\Ù›Ü˜ÙWÜÝ]JÝ]NˆÝŠHOˆXÝÜÝ‹Øš™XÝH›Û™N‚ˆÚ]ÜØ[\Ù›Ü˜ÙWÛØ]]ÛØÚÎ‚ˆ^[ØYHÜØ[\Ù›Ü˜ÙWÛØ]]ÜÝ]\ËœÜ
+Ý]K›Û™JBˆ\˜X›HHÛÛœÝ[YWÜØ[\Ù›Ü˜ÙWÛØ]]ÜÝ]JÝ]JBˆÈš\™\ÝÜ™H\È]]Üš]]]™H[ˆHÜÝY\Þ[Y[ˆ™]™\ˆ™\Ý\œ™XÝBˆÈÛÛœÝ[YYÙ[]YÐ]]Ý]Hœ›ÛH[›Ý\ˆ[œÝ[˜ÙIÜÈØØ[Y[[ÜžK‚ˆ™\Ý[H
+ˆ\˜X›BˆYˆÜË™Ù][Š‘’Q•S‘WÔT”ÒTÕSÑH‹›Y[[ÜžHŠK˜Ø\ÙY›Û
+
+HOH™š\™\ÝÜ™H‚ˆ[ÙH\˜X›HÜˆ^[ØYˆ
+BˆYˆ›Ý™\Ý[Üˆ›Ø]
+™\Ý[™Ù]
+™^\™\×Ø]‹
+JH]][YK››ÝÊUÊK[Y\Ý[\
+
+N‚ˆ™]\›ˆ›Û™Bˆ™]\›ˆ™\Ý[‚‚\™Ù]
+‹Ø\KØÛÛ›™XÝÜœËÜØ[\Ù›Ü˜ÙKÜÝ]\ÈŠB™YˆØ[\Ù›Ü˜ÙWÜÝ]\ÊˆÜ\˜]ÜŽˆÝ‹ˆ[˜[ÚYˆÝˆ›Û™HH›Û™Kˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HH›Û™KˆY[]WÝÚÙ[ŽˆÝˆ›Û™HH›Û™KŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”™]\›ˆÛ™H[˜[	ÜÈØ[\Ù›Ü˜ÙHÛÛ›™XÝ[ÛˆY]Y]HÚ]Ý]Ü™Y[X[Ë‚‚ˆ\È\È[X™\˜][HÙ\\˜]Hœ›ÛHHX[›Ø™NˆÜ[š[™ÈÙ][™ÜÈ]\Ýˆ›ÝXZÙHHØ[\Ù›Ü˜ÙH™]ÛÜšÈØ[Üˆ™Yœ™\ÚH›ÝšY\ˆÚÙ[‹ˆHœ›ÝÜÙ\‚ˆØ[ˆ\ÙHH™]\›™YÝ]HÈÙ™™\ˆ[ˆ^XÚ]Ð]][™Ù™‹Ú[HBˆYÙÜ™YØ]HX[XÝ[Ûˆ™[XZ[œÈHÙ\\˜][H]Y]X›HÜ\˜]ÜˆÛXÚË‚ˆˆˆ‚ˆY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆœØ[\Ù›Ü˜ÙK\Ý]\È‹ˆÜ\˜]Ü‹ˆœÚYÛ™Y‹ˆ\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[‹ˆ[˜[ÚYˆ
+BˆØY™WÝ[˜[HY[]VÈ[˜[ÚY—Bˆ™]\›ˆÜØ[\Ù›Ü˜ÙWÜÝ]\×Ü^[ØY
+ØY™WÝ[˜[
+B‚‚™YˆÜØ[\Ù›Ü˜ÙWÜÝ]\×Ü^[ØY
+[˜[ÚYˆÝŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆZ[ÚYÛ™YØ[\Ù›Ü˜ÙHÝ]\Ë[˜ÛY[™ÈH\ÝYÙÜ™YØ]K\™XY›ÛÙ‹ˆˆˆ‚ˆ™XY[™\ÜÈHØ[\Ù›Ü˜ÙWÜ™XY[™\ÜÊ
+BˆÛÛ›™XÝ[Û‹š[™[™ËÛÛ›™XÝYHÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[Û—ÛY]Y]J[˜[ÚY
+Bˆ\×ØÛÛ›™XÝ[ÛˆH›ÛÛ
+ÛÛ›™XÝ[ÛŠBˆ[œÝ[˜ÙWÝ\›HÝŠÛÛ›™XÝ[Û‹™Ù]
+š[œÝ[˜ÙWÝ\›‹ˆŠJKœœÝš\
+‹ÈŠBˆÜÝ˜[YHH\›\œÙJ[œÝ[˜ÙWÝ\›
+KšÜÝ˜[YHYˆ[œÝ[˜ÙWÝ\›[ÙH›Û™Bˆ\œÚ\ÝYÚX[HÝŠÛÛ›™XÝ[Û‹™Ù]
+šX[ÜÝ]\È‹ˆŠJK˜Ø\ÙY›Û
+
+BˆÝ]\ÈH
+ˆœ™X]]Üš^˜][Û—Ü™\]Z\™Y‚ˆYˆ\×ØÛÛ›™XÝ[Ûˆ[™\œÚ\ÝYÚX[OHœ™X]]Üš^˜][Û—Ü™\]Z\™Y‚ˆ[ÙHœÙ]\Ú[˜ÛÛ\]H‚ˆYˆ\×ØÛÛ›™XÝ[Ûˆ[™›ÝÛÛ›™XÝYˆ[ÙH˜ÛÛ›™XÝYÜ™XYÛÛ›H‚ˆYˆÛÛ›™XÝYˆ[ÙH™XY[™\ÜË™Ù]
+œÝ]\È‹››ÝØÛÛ™šYÝ\™YŠBˆ
+BˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYHÜØ[\Ù›Ü˜ÙWØYÙÜ™YØ]WÜ™XYÚ\×ØÛÛ\]JˆÛÛ›™XÝ[Û‹ÛÛ›™XÝY\œÚ\ÝYÚX[ˆ
+BˆYÙÜ™YØ]WÜ™XYÜÝ]\ÈH
+ˆ™\šYšYY‚ˆYˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYˆ[ÙH[™\šYšYY‚ˆYˆÛÛ›™XÝY[™\œÚ\ÝYÚX[OH˜ÛÛ›™XÝYÜ™XYÛÛ›H‚ˆ[ÙHœÙ]\Ú[˜ÛÛ\]H‚ˆYˆÝ]\ÈOHœÙ]\Ú[˜ÛÛ\]H‚ˆ[ÙH\œÚ\ÝYÚX[Üˆ››ÝÜ[ˆ‚ˆ
+Bˆ™]\›ˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆ˜ÛÛ›™XÝÜˆŽˆœØ[\Ù›Ü˜ÙH‹ˆœÝ]\ÈŽˆÝ]\Ëˆ›[ÙHŽˆœ™XYÛÛ›WØÛÛ^ˆYˆ\×ØÛÛ›™XÝ[Ûˆ[ÙH™XY[™\ÜË™Ù]
+›[ÙH‹œ™\\™YÛÛ›HŠKˆ™^\›˜[ÝÜš]HŽˆ˜[ÙKˆœØÛÜHŽˆ™XY[™\ÜË™Ù]
+œØÛÜH‹œ™XYÛÛ›WØÛÛ^ŠKˆ˜[ÝÙYÛØš™XÝÈŽˆ™XY[™\ÜË™Ù]
+˜[ÝÙYÛØš™XÝÈ‹È”›ÙXÝˆ‹”šXÙX›ÛÚÑ[žH‹“ÜÜ[š]H—JKˆ˜]]Üš^˜][Û—Ü™\]Z\™YŽˆ›ÛÛ
+ˆÝ]\È[ˆÈœ™X]]Üš^˜][Û—Ü™\]Z\™Y‹œÙ]\Ú[˜ÛÛ\]HŸBˆÜˆ›ÝÛÛ›™XÝY[™™XY[™\ÜË™Ù]
+œÝ]\ÈŠHOH›Ø]]Ü™XYH‚ˆ
+KˆÈHÝ[HÛÛ›™XÝ[Ûˆ™XÛÜ™]\Ý›ÝÛÚÈZÙHH\ØX›HÔ“Hš[™[™Ë‚ˆÈÙY\H™\Z\ˆÝ]H^XÚ]ÛÈÜ\˜]ÜœÈÛ›ÝÈH™^XÝ[Ûˆ\ÂˆÈÐ]]™X]]Üš^˜][Û‹›ÝHÙ[™\šXÈÙ][™ÜÈ™Yœ™\Ú‚ˆœÙ]\ÜÝ]HŽˆ
+ˆ˜š[™[™×ØXÝ]™H‚ˆYˆÛÛ›™XÝYˆ[ÙH˜š[™[™×ÛZ\ÜÚ[™È‚ˆYˆ\×ØÛÛ›™XÝ[Û‚ˆ[ÙH››ÝØÛÛ›™XÝY‚ˆ
+Kˆš[œÝ[˜ÙWÚÜÝ˜[YHŽˆÜÝ˜[YKˆ˜ÛÛ›™XÝYØ]ŽˆÛÛ›™XÝ[Û‹™Ù]
+˜ÛÛ›™XÝYØ]ŠHYˆ\×ØÛÛ›™XÝ[Ûˆ[ÙH›Û™Kˆ˜š[™[™×ÜÝ]\ÈŽˆš[™[™Ë™Ù]
+œÝ]\ÈŠHYˆš[™[™È[ÙH›Û™Kˆ™\šYšYYØ]Žˆš[™[™Ë™Ù]
+™\šYšYYØ]ŠHYˆÛÛ›™XÝY[ÙH›Û™KˆšX[ØÚXÚÙYØ]ŽˆÛÛ›™XÝ[Û‹™Ù]
+šX[ØÚXÚÙYØ]ŠHYˆ\×ØÛÛ›™XÝ[Ûˆ[ÙH›Û™KˆšX[Ü™X\ÛÛˆŽˆÛÛ›™XÝ[Û‹™Ù]
+šX[Ü™X\ÛÛˆŠHYˆ\×ØÛÛ›™XÝ[Ûˆ[ÙH›Û™Kˆ˜YÙÜ™YØ]WÜ™XYÝ™\šYšYYŽˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYˆ˜YÙÜ™YØ]WÜ™XYÜÝ]\ÈŽˆYÙÜ™YØ]WÜ™XYÜÝ]\Ëˆ˜YÙÜ™YØ]WÜ™XYÝ™\šYšYYØ]Žˆ
+ˆÛÛ›™XÝ[Û‹™Ù]
+šX[ØÚXÚÙYØ]ŠBˆYˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYˆ[ÙH›Û™Bˆ
+Kˆ˜YÙÜ™YØ]WÜ™XYÛØš™XÝÈŽˆÜØY™WÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝÊˆÛÛ›™XÝ[Û‹™Ù]
+šX[ÛØš™XÝÈŠBˆ
+Kˆ˜YÙÜ™YØ]WÜ™XYÙ˜Z[\™\ÈŽˆÜØY™WÜØ[\Ù›Ü˜ÙWÚX[Ù˜Z[\™\ÊˆÛÛ›™XÝ[Û‹™Ù]
+šX[Ù˜Z[\™\ÈŠBˆ
+Kˆ˜YÙÜ™YØ]WÜ™XYÜ™X\ÛÛˆŽˆÛÛ›™XÝ[Û‹™Ù]
+šX[Ü™X\ÛÛˆŠBˆÜˆ
+˜ÛÛ›™XÝÜ—Øš[™[™×ÛZ\ÜÚ[™ÈˆYˆÝ]\ÈOHœÙ]\Ú[˜ÛÛ\]Hˆ[ÙH›Û™JBˆÜˆ
+˜[ÝÛ\ÝÚ[˜ÛÛ\]HˆYˆYÙÜ™YØ]WÜ™XYÜÝ]\ÈOH[™\šYšYYˆ[ÙH›Û™JKˆ›™^ÜÝ\Žˆ
+ˆ”™X]]Üš^™HØ[\Ù›Ü˜ÙH™XY[Û›HXØÙ\ÜÎÈHØ[˜XÚÈÚ[™\[ˆ[™YHYÙÜ™YØ]H]Y\šY\È™Y›Ü™HXÝ]˜][™ÈH[˜[š[™[™Ëˆ‚ˆYˆÝ]\ÈOHœ™X]]Üš^˜][Û—Ü™\]Z\™Y‚ˆ[ÙH”™XÛÛ›™XÝØ[\Ù›Ü˜ÙH™XY[Û›HXØÙ\ÜÈÈ™XZ[HZ\ÜÚ[™È[˜[š[™[™Ë[ˆ[ˆHYÙÜ™YØ]H™XY›Ø™Kˆ‚ˆYˆÝ]\ÈOHœÙ]\Ú[˜ÛÛ\]H‚ˆ[ÙH”[ˆH^XÚ]YÙÜ™YØ]H™XY›Ø™H™Y›Ü™H\Ú[™ÈÔ“HÛÛ^ˆ‚ˆYˆÝ]\ÈOH˜ÛÛ›™XÝYÜ™XYÛÛ›Hˆ[™›ÝYÙÜ™YØ]WÜ™XYÝ™\šYšYYˆ[ÙH›Û™Bˆ
+Kˆ˜Ü™Y[X[Ý˜[Y\×Ù^ÜÙYŽˆ˜[ÙKˆB‚‚\œÜÝ
+‹Ø\KØÛÛ›™XÝÜœËÜØ[\Ù›Ü˜ÙKÜÝ\ŠB™YˆÝ\ÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[ÛŠ™\]Y\ÝˆØ[\Ù›Ü˜ÙPÛÛ›™XÝ™\]Y\Ý
+HOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”Ý\H[˜[\ØÛÜYØ[\Ù›Ü˜ÙHÐ]]]]Üš^˜][Û‹XÛÙH›ÝËˆˆˆ‚ˆY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆœØ[\Ù›Ü˜ÙKXÛÛ›™XÝ‹ˆ™\]Y\Ý›Ü\˜]Ü‹ˆœÚYÛ™Y‹ˆ™\]Y\Ý˜\›Ý˜[ÝÚÙ[‹ˆ™\]Y\ÝšY[]WÝÚÙ[‹ˆ™\]Y\Ý[˜[ÚYˆ
+BˆYˆY[]K™Ù]
+œ›ÛHŠHOH›ÝÛ™\ˆŽ‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[H•[˜[ÝÛ™\ˆ›ÛH\È™\]Z\™YŠBˆÛÛ™šYÈHØ[\Ù›Ü˜ÙPÛÛ™šYË™œ›ÛWÙ[Š
+BˆžN‚ˆÛÛ™šYË˜[Y]WÛØ]]
+
+Bˆ[˜[ÚYHY[]VÈ[˜[ÚY—BˆÝ]HHÙXÜ™]ËÚÙ[—Ý\›ØY™JÌŠBˆÈØ[\Ù›Ü˜ÙH[™›Ü˜Ù\ÈÐÑHÛˆ\È^\›˜[ÛY[\ˆÙY\BˆÈ™\šYšY\ˆ[ˆH^\š[™ÈÙ\™\‹\ÚYHÝ]H™XÛÜ™ÈÛ›HHÌM‚ˆÈÚ[[™ÙH\ÈÙ[›ÝYÚHœ›ÝÜÙ\‹‚ˆÛÙWÝ™\šYšY\ˆHÙXÜ™]ËÚÙ[—Ý\›ØY™J
+BˆÛÙWØÚ[[™ÙHH
+ˆ˜\ÙM\›ØY™WØ[˜ÛÙJˆ\ÚX‹œÚLMŠÛÙWÝ™\šYšY\‹™[˜ÛÙJ˜\ØÚZHŠJK™YÙ\Ý
+
+Bˆ
+BˆœœÝš\
+ˆHŠBˆ™XÛÙJ˜\ØÚZHŠBˆ
+BˆÜØ]™WÜØ[\Ù›Ü˜ÙWÜÝ]JˆÝ]KˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆ›Ü\˜]ÜˆŽˆ™\]Y\Ý›Ü\˜]Ü‹œÝš\
+
+KˆœÝXš™XÝŽˆY[]K™Ù]
+œÝXš™XÝ‹ˆŠKˆ™[XZ[ŽˆY[]K™Ù]
+™[XZ[‹ˆŠKˆ™^\™\×Ø]Žˆ]][YK››ÝÊUÊK[Y\Ý[\
+
+H
+ÈŒˆ˜ÛÙWÝ™\šYšY\ˆŽˆÛÙWÝ™\šYšY\‹ˆKˆ
+Bˆ™]\›ˆÂˆœÝ]\ÈŽˆ˜]]Üš^˜][Û—Ü™\]Z\™Y‹ˆ[˜[ÚYŽˆ[˜[ÚYˆ˜]]Üš^™WÝ\›ŽˆØ[\Ù›Ü˜ÙWØ]]Üš^˜][Û—Ý\›
+ˆÛÛ™šYËÝ]KÛÙWØÚ[[™ÙOXÛÙWØÚ[[™ÙBˆ
+Kˆ™^\™\×Ú[—ÜÙXÛÛ™ÈŽˆŒˆœØÛÜ\ÈŽˆÛÛ™šYËœØÛÜKœÜ]
+
+Kˆ™\ØÛÜÝ\™HŽˆ•HØ[˜XÚÈÝÜ™\ÈÛ›HH[˜[\ØÛÜY™Yœ™\Ú]ÚÙ[ˆ™Y™\™[˜ÙH[ˆÙXÜ™]X[˜YÙ\ŽÈ›ÈØ[\Ù›Ü˜ÙH™XÛÜ™È\™HÛÜYYˆ‹ˆBˆ^Ù\
+ÛÛ›™XÝÜ‘\œ›Ü‹˜[YQ\œ›ÜŠH\È^Î‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMLË]Z[\ÝŠ^ÊJHœ›ÛH^Â‚‚\™Ù]
+‹Ø\KØÛÛ›™XÝÜœËÜØ[\Ù›Ü˜ÙKÛØ]]ØØ[˜XÚÈŠB™YˆØ[\Ù›Ü˜ÙWÛØ]]ØØ[˜XÚÊˆÛÙNˆÝˆ›Û™HH›Û™KˆÝ]NˆÝˆ›Û™HH›Û™Kˆ\œ›ÜŽˆÝˆ›Û™HH›Û™KŠHOˆ™\ÜÛœÙN‚ˆˆˆÛÛœÝ[YHHÛ™K][YHØ[˜XÚÈ[™\œÚ\ÝÛ›HØY™HÛÛ›™XÝ[ÛˆY]Y]Kˆˆˆ‚ˆYˆ\œ›ÜŽ‚ˆ™]\›ˆZ[•^™\ÜÛœÙJˆ”Ø[\Ù›Ü˜ÙH]]Üš^˜][ÛˆØ\ÈXÛ[™Yˆ‹Ý]\×ØÛÙOMˆ
+BˆYˆ›ÝÛÙHÜˆ›ÝÝ]N‚ˆ™]\›ˆZ[•^™\ÜÛœÙJ”Ø[\Ù›Ü˜ÙHØ[˜XÚÈ\È[˜ÛÛ\]Kˆ‹Ý]\×ØÛÙOM
+BˆØ[˜XÚ×ÜÝ]HHØÛÛœÝ[YWÜØ[\Ù›Ü˜ÙWÜÝ]JÝ]JBˆYˆØ[˜XÚ×ÜÝ]H\È›Û™N‚ˆ™]\›ˆZ[•^™\ÜÛœÙJˆ”Ø[\Ù›Ü˜ÙH]]Üš^˜][Ûˆ^\™YÜˆØ\È[™XYH\ÙYˆ‹Ý]\×ØÛÙOMˆ
+BˆÛÛ™šYÈHØ[\Ù›Ü˜ÙPÛÛ™šYË™œ›ÛWÙ[Š
+BˆžN‚ˆ™\Ý[H^Ú[™ÙWÜØ[\Ù›Ü˜ÙWØÛÙJˆÛÛ™šYËˆÛÙKˆÛÙWÝ™\šYšY\\ÝŠØ[˜XÚ×ÜÝ]K™Ù]
+˜ÛÙWÝ™\šYšY\ˆ‹ˆŠJKˆ
+BˆXØÙ\Ü×ÝÚÙ[ˆHÝŠ™\Ý[™Ù]
+˜XØÙ\Ü×ÝÚÙ[ˆ‹ˆŠJBˆ™Yœ™\ÚÝÚÙ[ˆHÝŠ™\Ý[™Ù]
+œ™Yœ™\ÚÝÚÙ[ˆ‹ˆŠJBˆ[œÝ[˜ÙWÝ\›HÝŠ™\Ý[™Ù]
+š[œÝ[˜ÙWÝ\›‹ˆŠJKœœÝš\
+‹ÈŠBˆYˆ›ÝXØÙ\Ü×ÝÚÙ[ˆÜˆ›Ý™Yœ™\ÚÝÚÙ[ˆÜˆ›Ý[œÝ[˜ÙWÝ\›‚ˆ˜Z\ÙHÛÛ›™XÝÜ‘\œ›ÜŠœØ[\Ù›Ü˜ÙWÜ™Yœ™\ÚÝÚÙ[—ÛZ\ÜÚ[™ÈŠBˆ[˜[ÚYH˜[Y]WÝ[˜[ÚY
+ÝŠØ[˜XÚ×ÜÝ]VÈ[˜[ÚY—JJBˆ[˜[HØYÝ[˜[
+[˜[ÚY
+BˆYˆÝŠ
+[˜[ÜˆßJK™Ù]
+œÝ]\È‹ˆŠJK˜Ø\ÙY›Û
+
+HOH˜XÝ]™HŽ‚ˆ˜Z\ÙHÛÛ›™XÝÜ‘\œ›ÜŠœØ[\Ù›Ü˜ÙWÝ[˜[Ú[˜XÝ]™HŠB‚ˆÈÈÛ™H›Ý[™YYÙÜ™YØ]H™XYÚ]HÚÜ[]™YXØÙ\ÜÈÚÙ[‚ˆÈ™Y›Ü™H\œÚ\Ý[™ÈH™Yœ™\ÚÚÙ[ˆÜˆXÝ]˜][™ÈHš[™[™Ëˆ\ÂˆÈXZÙ\ÈHÐ]]Ø[˜XÚÈ]Ù[ˆH™X[™\šYšXØ][ÛˆØ]H[œÝXYÙ‚ˆÈ™\Ü[™È˜ÛÛ›™XÝYˆ›ÜˆHÜ™Y[X[]\È™]™\ˆ™XYÔ“K‚ˆX[HØ[\Ù›Ü˜ÙT™XYÛ›PÛY[
+ˆÛÛ™šYËˆXØÙ\Ü×ÝÚÙ[XXØÙ\Ü×ÝÚÙ[‹ˆ[œÝ[˜ÙWÝ\›Z[œÝ[˜ÙWÝ\›ˆ
+KšX[ÜÝ[[X\žJ
+BˆYˆX[™Ù]
+œÝ]\ÈŠHOH˜ÛÛ›™XÝYÜ™XYÛÛ›HŽ‚ˆ˜Z\ÙHÛÛ›™XÝÜ‘\œ›ÜŠœØ[\Ù›Ü˜ÙWØYÙÜ™YØ]WÜ™XYÝ[™\šYšYYŠBˆX[ÛØš™XÝÈHÜØY™WÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝÊX[™Ù]
+›Øš™XÝÈŠJBˆYˆ
+ˆ[ŠX[ÛØš™XÝÊHOH[ŠÔÐSTÑ“ÔÑWÓÐ’‘PÕÐSÕÓTÕ
+BˆÜˆÜÝŠ][VÈ›Øš™XÝ—JH›Üˆ][H[ˆX[ÛØš™XÝßBˆOHÙ]
+ÔÐSTÑ“ÔÑWÓÐ’‘PÕÐSÕÓTÕ
+Bˆ
+N‚ˆ˜Z\ÙHÛÛ›™XÝÜ‘\œ›ÜŠœØ[\Ù›Ü˜ÙWØYÙÜ™YØ]WÜ™XYÝ[™\šYšYYŠB‚ˆÙXÜ™]Û˜[YHHÜØ[\Ù›Ü˜ÙWÜÙXÜ™]Û˜[YJ[˜[ÚY
+BˆÙXÜ™]Ý™\œÚ[ÛˆHÝÜš]WÝ[˜[ÜÙXÜ™]
+[˜[ÚYÙXÜ™]Û˜[YK™Yœ™\ÚÝÚÙ[ŠHÜˆ›]\Ý‚ˆš[™[™ÈH\œÚ\ÝØÛÛ›™XÝÜ—Øš[™[™ÊˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆ˜ÛÛ›™XÝÜˆŽˆœØ[\Ù›Ü˜ÙH‹ˆœÙXÜ™]Û˜[YHŽˆÙXÜ™]Û˜[YKˆœÝ]\ÈŽˆ˜XÝ]™H‹ˆœØÛÜHŽˆ[˜[Ø›Ý[™ÛØ]]Ü™Yœ™\ÚÝÚÙ[ˆ‹ˆ˜Ü™Y[X[ÚYŽˆˆ˜Ü™Y^Ý[˜[ÚYK\Ø[\Ù›Ü˜ÙH‹ˆœÙXÜ™]Ø˜XÚÙ[™Žˆ™ÛÛÙÛWÜÙXÜ™]ÛX[˜YÙ\ˆ‹ˆœÙXÜ™]Ü™Y™\™[˜ÙWÜØÛÜHŽˆ™^XÝÝ[˜[ØÛÛ›™XÝÜ—ÜÙXÜ™]‹ˆÈØ[\Ù›Ü˜ÙH\È[X™\˜][H™XY[Û›KˆÈ›Ý[š\š]BˆÈÛÛ\]Xš[]H[[YXØÛÜH\ÙYžHÛ\ˆÛÛ›™XÝÜœÎÂˆÈHÐ]]Ø[˜XÚÈ]\ÝZ[Û›HHÛÛ˜Ü™]HÜ\˜][Û‚ˆÈH™XY›Ø™HØ[ˆ™\]Y\Ý‚ˆ˜[ÝÙYÛÜ\˜][ÛœÈŽˆ›Ü›X[^™WØ[ÝÙYÛÜ\˜][ÛœÊˆœØ[\Ù›Ü˜ÙH‹Y˜][Hœ™XYÛÛ›H‚ˆ
+Kˆ›X\ÙWÜÙXÛÛ™ÈŽˆÌˆœÙXÜ™]Ý™\œÚ[ÛˆŽˆÙXÜ™]Ý™\œÚ[Û‹ˆ™\šYšYYØ]Žˆ]×Û›ÝÊ
+Kˆ˜ÛÛ™šYÝ\™YØžHŽˆØ[˜XÚ×ÜÝ]K™Ù]
+™[XZ[‹ˆŠHÜˆœØ[\Ù›Ü˜ÙWÛØ]]‹ˆ\]YØ]Žˆ]×Û›ÝÊ
+KˆBˆ
+Bˆ\œÚ\ÝÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[ÛŠˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆš[œÝ[˜ÙWÝ\›Žˆ[œÝ[˜ÙWÝ\›ˆœÙXÜ™]Û˜[YHŽˆÙXÜ™]Û˜[YKˆœØÛÜ\ÈŽˆÛÛ™šYËœØÛÜKœÜ]
+
+KˆœÝ]\ÈŽˆ˜ÛÛ›™XÝYÜ™XYÛÛ›H‹ˆ˜ÛÛ›™XÝYØ]Žˆ]×Û›ÝÊ
+Kˆ›Ü\˜]Ü—Ù[XZ[ŽˆØ[˜XÚ×ÜÝ]K™Ù]
+™[XZ[‹ˆŠKˆšX[ÜÝ]\ÈŽˆ˜ÛÛ›™XÝYÜ™XYÛÛ›H‹ˆšX[ØÚXÚÙYØ]Žˆ]×Û›ÝÊ
+KˆšX[ÛØš™XÝÈŽˆX[ÛØš™XÝËˆBˆ
+Bˆ\œÚ\ÝÝ[˜[Ø]Y]Ù]™[
+ˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆ™]™[Ý\HŽˆœØ[\Ù›Ü˜ÙWØÛÛ›™XÝYÜ™XYÛÛ›H‹ˆ˜ÛÛ›™XÝÜˆŽˆœØ[\Ù›Ü˜ÙH‹ˆœÝ]\ÈŽˆ˜XÝ]™H‹ˆœÙXÜ™]Û˜[YHŽˆš[™[™ÖÈœÙXÜ™]Û˜[YH—Kˆ˜YÙÜ™YØ]WÜ™XYÝ™\šYšYYŽˆYKˆ˜YÙÜ™YØ]WÜ™XYÛØš™XÝÈŽˆX[ÛØš™XÝËˆ˜XÝÜˆŽˆØ[˜XÚ×ÜÝ]K™Ù]
+™[XZ[‹ˆŠHÜˆœØ[\Ù›Ü˜ÙWÛØ]]‹ˆBˆ
+Bˆ™]\›ˆZ[•^™\ÜÛœÙJˆ”Ø[\Ù›Ü˜ÙHÛÛ›™XÝYÈšY[™H[ˆ™XY[Û›H[ÙNÈYÙÜ™YØ]H™XY™\šYšYYˆ[ÝHØ[ˆÛÜÙH\ÈX‹ˆ‚ˆ
+Bˆ^Ù\
+ÛÛ›™XÝÜ‘\œ›Ü‹˜[YQ\œ›ÜŠH\È^Î‚ˆÙÙÙ\‹Ø\›š[™Ê”Ø[\Ù›Ü˜ÙHÐ]]Ø[˜XÚÈ˜Z[Yˆ	\È‹ÝŠ^ÊJBˆYˆÝŠ^ÊHOHœØ[\Ù›Ü˜ÙWØYÙÜ™YØ]WÜ™XYÝ[™\šYšYYŽ‚ˆ™]\›ˆZ[•^™\ÜÛœÙJˆ”Ø[\Ù›Ü˜ÙH]]Üš^˜][ÛˆÝXØÙYYY]H™YK[Øš™XÝYÙÜ™YØ]H™XYY›Ý\ÜËˆÚXÚÈ›ÙXÝ‹šXÙX›ÛÚÑ[žK[™ÜÜ[š]H™XY\›Z\ÜÚ[ÛœË[ˆ™XÛÛ›™XÝˆ‹ˆÝ]\×ØÛÙOMLËˆ
+Bˆ™]\›ˆZ[•^™\ÜÛœÙJˆ‘šY[™HÛÝ[›Ýš[š\ÚØ[\Ù›Ü˜ÙHÙ]\ˆ›Ýš\Ú[ÛˆH[˜[ÙXÜ™]X[˜YÙ\ˆÙXÜ™][™™]žKˆ‹ˆÝ]\×ØÛÙOMLËˆ
+B‚‚\œÜÝ
+‹Ø\KØÛÛ›™XÝÜœËÜØ[\Ù›Ü˜ÙKÚX[ŠB™YˆØ[\Ù›Ü˜ÙWÚX[
+™\]Y\ÝˆØ[\Ù›Ü˜ÙRX[™\]Y\Ý
+HOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”[ˆYÙÜ™YØ]K[Û›H™XY›Ø™\È›ÜˆH]][XØ]Y[˜[ˆˆˆ‚ˆY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆœØ[\Ù›Ü˜ÙKZX[‹ˆ™\]Y\Ý›Ü\˜]Ü‹ˆœÚYÛ™Y‹ˆ™\]Y\Ý˜\›Ý˜[ÝÚÙ[‹ˆ™\]Y\ÝšY[]WÝÚÙ[‹ˆ™\]Y\Ý[˜[ÚYˆ
+BˆYˆ›ÝÜ™\Ù\™WØÛÛ›™XÝÜ—ØØ[
+Y[]VÈ[˜[ÚY—JN‚ˆ˜Z\ÙHØÛÛ›™XÝÜ—Ü˜]WÛ[Z]Ù\œ›ÜŠÛÛ›™XÝÜˆ™XY][ÝH™XXÚYÈ™]žH]\‹ˆŠBˆ[˜[ÚYHY[]VÈ[˜[ÚY—BˆÛÛ›™XÝ[Û‹Øš[™[™ËÛÛ›™XÝYHÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[Û—ÛY]Y]J[˜[ÚY
+BˆYˆ
+ˆ›ÝÛÛ›™XÝYˆ
+N‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMK]Z[H”Ø[\Ù›Ü˜ÙH\È›ÝÛÛ›™XÝY›Üˆ\È[˜[‚ˆ
+BˆÛÛ™šYÈHØ[\Ù›Ü˜ÙPÛÛ™šYË™œ›ÛWÙ[Š
+BˆžN‚ˆÙÙÙ\‹Ø\›š[™Êˆ”Ø[\Ù›Ü˜ÙHX[Ü™Y[X[™\ÛÛ™\ˆY[]H[ÙOI\È‹ˆÜË™Ù][Š‘’Q•S‘WÕSS•ÔÑPÔ‘UÒQS•UWÓSÑH‹™\™XÝŠKˆ
+Bˆ™Yœ™\ÚÝÚÙ[ˆH™\ÛÛ™WÝ[˜[ØÜ™Y[X[
+ˆ[˜[ÚYˆœØ[\Ù›Ü˜ÙH‹ˆÜ\˜][ÛHœ™XYØÛÛ^‹ˆÙXÜ™]Ü™XY\[[X™HÙXÜ™]Û˜[YK
+‹™\œÚ[ÛH›]\ÝŽˆÜ™XYÝ[˜[ÜÙXÜ™]
+ˆ[˜[ÚYÙXÜ™]Û˜[YK™\œÚ[Û]™\œÚ[Û‚ˆ
+Kˆ
+K˜[YBˆÚÙ[ˆH™Yœ™\ÚÜØ[\Ù›Ü˜ÙWÝÚÙ[ŠÛÛ™šYË™Yœ™\ÚÝÚÙ[ŠBˆÛY[HØ[\Ù›Ü˜ÙT™XYÛ›PÛY[
+ˆÛÛ™šYËˆXØÙ\Ü×ÝÚÙ[\ÝŠÚÙ[–È˜XØÙ\Ü×ÝÚÙ[ˆ—JKˆ[œÝ[˜ÙWÝ\›\ÝŠÛÛ›™XÝ[Û–Èš[œÝ[˜ÙWÝ\›—JKˆ
+Bˆ™\Ý[HÛY[šX[ÜÝ[[X\žJ
+Bˆ™\Ý[ÛØš™XÝÈHÜØY™WÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝÊ™\Ý[™Ù]
+›Øš™XÝÈŠJBˆ™\Ý[Ù˜Z[\™\ÈHÜØY™WÜØ[\Ù›Ü˜ÙWÚX[Ù˜Z[\™\Ê™\Ý[™Ù]
+™˜Z[YÛØš™XÝÈŠJBˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYH›ÛÛ
+ˆ™\Ý[™Ù]
+œÝ]\ÈŠHOH˜ÛÛ›™XÝYÜ™XYÛÛ›H‚ˆ[™ÜØ[\Ù›Ü˜ÙWÚX[ÛØš™XÝ×ØÛÛ\]J™\Ý[ÛØš™XÝÊBˆ
+BˆÜ™XÛÜ™ÜØ[\Ù›Ü˜ÙWÚX[ÜÝ]\Êˆ[˜[ÚYˆÝŠ™\Ý[™Ù]
+œÝ]\È‹˜ÛÛ›™XÝYÜ™XYÛÛ›HŠJKˆ™X\ÛÛ\™\Ý[™Ù]
+œ™X\ÛÛˆŠKˆØš™XÝÏ\™\Ý[ÛØš™XÝËˆ˜Z[\™\Ï\™\Ý[Ù˜Z[\™\Ëˆ
+Bˆ™]\›ˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆ
+Šœ™\Ý[ˆ›Øš™XÝÈŽˆ™\Ý[ÛØš™XÝËˆ™˜Z[YÛØš™XÝÈŽˆ™\Ý[Ù˜Z[\™\Ëˆ˜YÙÜ™YØ]WÜ™XYÝ™\šYšYYŽˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYˆ˜YÙÜ™YØ]WÜ™XYÜÝ]\ÈŽˆ™\šYšYYˆYˆYÙÜ™YØ]WÜ™XYÝ™\šYšYY[ÙH[™\šYšYY‹ˆ™^\›˜[Ü™XYŽˆYÙÜ™YØ]WÜ™XYÝ™\šYšYYˆ™^\›˜[ÝÜš]HŽˆ˜[ÙKˆBˆ^Ù\
+ÛÛ›™XÝÜ‘\œ›Ü‹Ü™Y[X[œ›ÚÙ\‘\œ›ÜŠH\È^Î‚ˆÈÙY\HX›XÈ™\ÜÛœÙH[X™\˜][HÙ[™\šXË]™\Ù\™HBˆÈ^Ù\[ÛˆÛ\ÜÈÚZ[ˆ[ˆÙÜÈÛÈ[ˆÜ\˜]ÜˆØ[ˆ\Ý[™ÝZ\Ú[‚ˆÈ\ÛÛ]YÙXÜ™]X[˜YÙ\‹ÒPSH˜Z[\™Hœ›ÛH[ˆ\Ý™X[HØ[\Ù›Ü˜ÙBˆÈ˜Z[\™HÚ]Ý]]™\ˆÙÙÚ[™ÈHÜ™Y[X[Üˆ›ÝšY\ˆ™\ÜÛœÙK‚ˆÚZ[Žˆ\ÝÜÝ—HH×BˆÝ\œÛÜŽˆ˜\ÙQ^Ù\[Ûˆ›Û™HH^ÂˆÙY[ŽˆÙ]Ú[HHÙ]
+
+BˆÚ[HÝ\œÛÜˆ\È›Ý›Û™H[™Y
+Ý\œÛÜŠH›Ý[ˆÙY[ˆ[™[ŠÚZ[ŠH‚ˆÙY[‹˜Y
+Y
+Ý\œÛÜŠJBˆÚZ[‹˜\[™
+\JÝ\œÛÜŠK—×Û˜[YW×ÊBˆÝ\œÛÜˆHÝ\œÛÜ‹—×ØØ]\ÙW×ÈÜˆÝ\œÛÜ‹—×ØÛÛ^×Âˆ›ÛÝÙ]Z[Hˆ‚ˆYˆ^Ë—×ØØ]\ÙW×È\È›Ý›Û™N‚ˆ›ÛÝH^Ë—×ØØ]\ÙW×ÂˆÚ[H›ÛÝ—×ØØ]\ÙW×È\È›Ý›Û™H[™›ÛÝ—×ØØ]\ÙW×È\È›Ý›ÛÝ‚ˆ›ÛÝH›ÛÝ—×ØØ]\ÙW×ÂˆÈÛÛÙÛHTH\›Z\ÜÚ[Ûˆ\œ›ÜœÈ[˜ÛYHH[šYY\›Z\ÜÚ[Ûˆ[™ˆÈ™\ÛÝ\˜ÙK]™]™\ˆH™X\™\ˆ˜[YKˆ[˜Ø]HH]Z[ÂˆÈÙY\ÙÜÈ›Ý[™Y[™]›ÚYXÚÚ[™È›ÝšY\ˆ™\ÜÛœÙH›ÙY\Ë‚ˆ›ÛÝÙ]Z[HÝŠ›ÛÝ
+VÎŒÌŒKœ™\XÙJ—ˆ‹ˆŠBˆÙÙÙ\‹Ø\›š[™Êˆ”Ø[\Ù›Ü˜ÙHX[›Ø™H˜Z[Yˆ	\È
+^Ù\[Û—ØÚZ[I\È]Z[I\ÊH‹ˆÝŠ^ÊKˆˆOˆ‹š›Ú[ŠÚZ[ŠKˆ›ÛÝÙ]Z[ˆ
+BˆYˆ\Ú[œÝ[˜ÙJ^ËØ[\Ù›Ü˜ÙT™X]]Üš^˜][Û”™\]Z\™Y
+N‚ˆÜ™XÛÜ™ÜØ[\Ù›Ü˜ÙWÚX[ÜÝ]\Êˆ[˜[ÚYˆœ™X]]Üš^˜][Û—Ü™\]Z\™Y‹ˆ™X\ÛÛHœ™Yœ™\ÚÝÚÙ[—Ü™Z™XÝY‹ˆ
+Bˆ™]\›ˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆœÝ]\ÈŽˆœ™X]]Üš^˜][Û—Ü™\]Z\™Y‹ˆ›[ÙHŽˆœ™XYÛÛ›WØÛÛ^‹ˆœØÛÜHŽˆœ™XYÛÛ›WØÛÛ^‹ˆ˜[ÝÙYÛØš™XÝÈŽˆÈ”›ÙXÝˆ‹”šXÙX›ÛÚÑ[žH‹“ÜÜ[š]H—Kˆ™^\›˜[Ü™XYŽˆ˜[ÙKˆ™^\›˜[ÝÜš]HŽˆ˜[ÙKˆ˜]]Üš^˜][Û—Ü™\]Z\™YŽˆYKˆœ™X\ÛÛˆŽˆœ™Yœ™\ÚÝÚÙ[—Ü™Z™XÝY‹ˆBˆÈÛX\ˆ[žH™]š[Ý\ÛH™\šYšYY›ÛÙˆÚ[ˆH›Û‹X]]›Ø™H˜Z[Ë‚ˆÈHÛÛ›™XÝ[Ûˆ™[XZ[œÈ™\Z\˜X›K]›ÈÝ[HYÙÜ™YØ]HÛ˜\ÚÝˆÈX^HÛÛ[YHÈÜ›Ý[™HÛÜšÙ›ÝÈY\ˆ\È˜Z[Y™XY‚ˆÜ™XÛÜ™ÜØ[\Ù›Ü˜ÙWÚX[ÜÝ]\Êˆ[˜[ÚYˆ™˜Z[Y‹ˆ™X\ÛÛHœ™XYÜ›Ø™WÙ˜Z[Y‹ˆ
+Bˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMLË]Z[H”Ø[\Ù›Ü˜ÙH™XY›Ø™H˜Z[Y‚ˆ
+Hœ›ÛH^Â‚‚\™[]J‹Ø\KØÛÛ›™XÝÜœËÜØ[\Ù›Ü˜ÙHŠB™Yˆ\ØÛÛ›™XÝÜØ[\Ù›Ü˜ÙJ™\]Y\ÝˆØ[\Ù›Ü˜ÙPÛÛ›™XÝ™\]Y\Ý
+HOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”™]›ÚÙHšY[™IÜÈÛÛ›™XÝ[ÛˆY]Y]NÈÚÙ[ˆ[][ÛˆÝ^\È™XÛÝ™\˜X›Kˆˆˆ‚ˆY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆœØ[\Ù›Ü˜ÙKY\ØÛÛ›™XÝ‹ˆ™\]Y\Ý›Ü\˜]Ü‹ˆœÚYÛ™Y‹ˆ™\]Y\Ý˜\›Ý˜[ÝÚÙ[‹ˆ™\]Y\ÝšY[]WÝÚÙ[‹ˆ™\]Y\Ý[˜[ÚYˆ
+BˆYˆY[]K™Ù]
+œ›ÛHŠHOH›ÝÛ™\ˆŽ‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMË]Z[H•[˜[ÝÛ™\ˆ›ÛH\È™\]Z\™YŠBˆ[˜[ÚYHY[]VÈ[˜[ÚY—Bˆš[™[™ÈHØYØÛÛ›™XÝÜ—Øš[™[™Ê[˜[ÚYœØ[\Ù›Ü˜ÙHŠBˆYˆš[™[™Î‚ˆ\œÚ\ÝØÛÛ›™XÝÜ—Øš[™[™ÊˆÂˆ
+Š˜š[™[™Ëˆ[˜[ÚYŽˆ[˜[ÚYˆ˜ÛÛ›™XÝÜˆŽˆœØ[\Ù›Ü˜ÙH‹ˆœÝ]\ÈŽˆœ™]›ÚÙY‹ˆœ™]›ÚÙYØ]Žˆ]×Û›ÝÊ
+Kˆœ™]›ÚÙYØžHŽˆY[]K™Ù]
+™[XZ[ŠHÜˆY[]K™Ù]
+šY[]HŠKˆBˆ
+Bˆ[]WÜØ[\Ù›Ü˜ÙWØÛÛ›™XÝ[ÛŠ[˜[ÚY
+Bˆ\œÚ\ÝÝ[˜[Ø]Y]Ù]™[
+ˆÂˆ[˜[ÚYŽˆ[˜[ÚYˆ™]™[Ý\HŽˆœØ[\Ù›Ü˜ÙWÙ\ØÛÛ›™XÝY‹ˆ˜ÛÛ›™XÝÜˆŽˆœØ[\Ù›Ü˜ÙH‹ˆœÝ]\ÈŽˆœ™]›ÚÙY‹ˆœÙXÜ™]Û˜[YHŽˆ
+š[™[™ÈÜˆßJK™Ù]
+œÙXÜ™]Û˜[YH‹ÜØ[\Ù›Ü˜ÙWÜÙXÜ™]Û˜[YJ[˜[ÚY
+JKˆ˜XÝÜˆŽˆY[]K™Ù]
+™[XZ[ŠHÜˆY[]K™Ù]
+šY[]HŠKˆBˆ
+Bˆ™]\›ˆÂˆœÝ]\ÈŽˆ™\ØÛÛ›™XÝY‹ˆ[˜[ÚYŽˆ[˜[ÚYˆ™›ÛÝ×Ý\Žˆ”™]›ÚÙHHšY[™H\[ˆØ[\Ù›Ü˜ÙH[™[]HH[˜[ÙXÜ™]\š[™ÈÙ™˜›Ø\™[™Ëˆ‹ˆB‚‚\™Ù]
+‹Ø\KÜÛÝ\˜Ù\ÈŠB™YˆÙ]ÜÛÝ\˜Ù\ÊˆÜ\˜]ÜŽˆÝˆ›Û™HH›Û™Kˆ[˜[ÚYˆÝˆ›Û™HH›Û™Kˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HH›Û™KˆY[]WÝÚÙ[ŽˆÝˆ›Û™HH›Û™KŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ‘^ÜÙHX›XÈš^\™\ÈÜˆHØ[\‰ÜÈÚYÛ™Y[˜[™YÚ\ÝžKˆˆˆ‚ˆY[]NˆXÝÜÝ‹Ý—H›Û™HH›Û™BˆYˆ[žJ˜[YH\È›Ý›Û™H›Üˆ˜[YH[ˆ
+Ü\˜]Ü‹[˜[ÚY\›Ý˜[ÝÚÙ[‹Y[]WÝÚÙ[ŠJN‚ˆYˆ›ÝÜ\˜]ÜˆÜˆ›Ý[˜[ÚY‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMK]Z[H”ÚYÛ™Y\›Ý˜[\È™\]Z\™Y›Üˆ[˜[ÛÝ\˜Ù\È‚ˆ
+BˆY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆœÛÝ\˜Ù\Î›\Ý‹ˆÜ\˜]Ü‹ˆœÚYÛ™Y‹ˆ\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[‹ˆ[˜[ÚYˆ
+Bˆ›Ý[™Ý[˜[HY[]K™Ù]
+[˜[ÚYŠHYˆY[]H[ÙH›Û™Bˆ™]\›ˆÂˆœÛÝ\˜Ù\ÈŽˆ\ÝØ[ÝÛ\ÝYÜÛÝ\˜Ù\Êˆ›Ý[™Ý[˜[[˜ÛYWÙ\ØX›YZY[]H\È›Ý›Û™Bˆ
+BˆB‚‚\œÜÝ
+‹Ø\KÛÜ\˜]Ü‹ÜÛÝ\˜Ù\ÈŠB™YˆÛ˜›Ø\™ÛÜ\˜]Ü—ÜÛÝ\˜ÙJ™\]Y\ÝˆÛÝ\˜ÙSÛ˜›Ø\™[™Ô™\]Y\Ý
+HOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆYÛ™H^XÝX›XÈÛÝ\˜ÙH›ÝYÚ[ˆ]][XØ]YÜ\˜]Üˆ[™Kˆˆˆ‚ˆ\›Ý˜[ÚY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆˆœÛÝ\˜ÙK[Û˜›Ø\™[™ÎžÜ™\]Y\ÝœÛÝ\˜ÙWÚYH‹ˆ™\]Y\Ýœ™YÚ\Ý\™YØžKˆœÚYÛ™Y‹ˆ™\]Y\Ý˜\›Ý˜[ÝÚÙ[‹ˆ™\]Y\ÝšY[]WÝÚÙ[‹ˆ™\]Y\Ý[˜[ÚYˆ
+BˆžN‚ˆYš[š][ÛˆH™YÚ\Ý\—ÛÜ\˜]Ü—ÜÛÝ\˜ÙJˆÛÝ\˜ÙWÚY\™\]Y\ÝœÛÝ\˜ÙWÚYˆ˜[YO\™\]Y\Ý›˜[YKˆØ]YÛÜžO\™\]Y\Ý˜Ø]YÛÜžKˆÚ[™ÙWÝ\O\™\]Y\Ý˜Ú[™ÙWÝ\Kˆ\›\™\]Y\Ý\›ˆÝÛ™\\™\]Y\Ý›ÝÛ™\‹ˆØY[˜ÙO\™\]Y\Ý˜ØY[˜ÙKˆœ™\Ú™\Ü×ÜÛWÚÝ\œÏ\™\]Y\Ý™œ™\Ú™\Ü×ÜÛWÚÝ\œËˆ\œÙ\\™\]Y\Ýœ\œÙ\‹ˆ™YÚ\Ý\™YØžO\™\]Y\Ýœ™YÚ\Ý\™YØžKˆ[˜[ÚYX\›Ý˜[ÚY[]VÈ[˜[ÚY—Kˆ
+Bˆ^Ù\˜[YQ\œ›Üˆ\È^Î‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMŒ‹]Z[\ÝŠ^ÊJHœ›ÛH^ÂˆÈ›ÙXÝ[ÛˆÛ˜›Ø\™[™ÈÚÝ[›Ý™H]H^XÝT“\È™XYX›H[™ˆÈ\ÝX›\Ú]Èš\œÝ\[™[Û›H˜\Ù[[™H[ˆHØ[YHÜ\˜]ÜˆXÝ[Û‹‚ˆÈÙY\ØØ[ÜÞ[]XÈ\Ý[ÙHY]Y]K[Û›K[™™]™\ˆ\›ˆH™]ÚˆÈ˜Z[\™H[ÈH˜[ÙHÚ[™ÙNˆ[œÜXÝØ[ÝÛ\ÝYÜÛÝ\˜ÙH™]\›œÈ[‚ˆÈ^XÚ]ÛÝ\˜ÙWÙ™]ÚÙ˜Z[Y™\Ý[›ÜˆHØÚY[\ˆÈ™]žK‚ˆ˜\Ù[[™NˆXÝÜÝ‹Øš™XÝH›Û™HH›Û™BˆYˆÜË™Ù][Š‘’Q•S‘WÔÓÕTÑWÓSÑH‹œÞ[]XÈŠK˜Ø\ÙY›Û
+
+HOHœX›XÈŽ‚ˆ˜\Ù[[™HH[œÜXÝØ[ÝÛ\ÝYÜÛÝ\˜ÙJˆ™\]Y\ÝœÛÝ\˜ÙWÚYˆ[˜[ÚYX\›Ý˜[ÚY[]VÈ[˜[ÚY—Kˆ›Ü˜ÙWÜ™\^OQ˜[ÙKˆ
+Bˆ™]\›ˆÂˆœÝ]\ÈŽˆœ™YÚ\Ý\™Y‹ˆœÛÝ\˜ÙHŽˆÂˆÙ^Nˆ˜[YBˆ›ÜˆÙ^K˜[YH[ˆYš[š][Û‹š][\Ê
+BˆYˆÙ^H›Ý[ˆÈœ™YÚ\Ý\™YØžH‹œ™YÚ\Ý\™YØ]ŸBˆKˆ˜\›Ý˜[ÚY[]HŽˆ\›Ý˜[ÚY[]Kˆ˜˜\Ù[[™HŽˆ˜\Ù[[™Kˆ›™^ÜÝ\Žˆ
+ˆ”ØÚY[\ˆ[Ûš]Üš[™È\ÈXÝ]™NÈHš\œÝ˜\Ù[[™HØ\È\ÝX›\ÚYˆ‚ˆYˆ˜\Ù[[™H[™˜\Ù[[™K™Ù]
+œÝ]\ÈŠHOH˜˜\Ù[[™WÙ\ÝX›\ÚY‚ˆ[ÙH”ØÚY[\ˆÚ[™]žH\ÈÛÝ\˜ÙH[[H›Ý[™Y˜\Ù[[™H\È\ÝX›\ÚYˆ‚ˆYˆ˜\Ù[[™H[™˜\Ù[[™K™Ù]
+œÝ]\ÈŠHOHœÛÝ\˜ÙWÙ™]ÚÙ˜Z[Y‚ˆ[ÙH‘[˜X›HX›XÈÛÝ\˜ÙH[ÙK[ˆ[ˆHÚYÛ™Y[Ûš]ÜˆXÚÈÈ\ÝX›\ÚH˜\Ù[[™Kˆ‚ˆ
+KˆB‚‚\œÜÝ
+‹Ø\KÛÜ\˜]Ü‹ÜÛÝ\˜Ù\ËÞÜÛÝ\˜ÙWÚYœ]KÛY™XÞXÛHŠB™Yˆ\]WÛÜ\˜]Ü—ÜÛÝ\˜ÙWÛY™XÞXÛJˆÛÝ\˜ÙWÚYˆÝ‹™\]Y\ÝˆÛÝ\˜ÙSY™XÞXÛT™\]Y\ÝŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”]\ÙHÜˆ™\Ý[YHÛ™H^XÝ[˜[[ÝÛ™YÛÝ\˜ÙK‚‚ˆ\È›Ý]H™]™\ˆÚ[™Ù\ÈH\[™[Û›H]šY[˜ÙHYÙ\ˆ[™™]™\ˆXØÙ\ÂˆHT“ÜˆÛÛ›™XÝÜˆÜ™Y[X[ˆHØÚY[\ˆÙY\ÈHØ[YH\˜X›HÝ]Bˆ[™ÚÚ\È]\ÙYÛÝ\˜Ù\È[[[ˆ^XÚ]ÚYÛ™Y™\Ý[YK‚ˆˆˆ‚ˆY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆˆœÛÝ\˜ÙK[Y™XÞXÛNžÜÛÝ\˜ÙWÚYNžÉÜ™\Ý[YIÈYˆ™\]Y\Ý™[˜X›Y[ÙH	Ü]\ÙIßH‹ˆ™\]Y\Ý›Ü\˜]Ü‹ˆœÚYÛ™Y‹ˆ™\]Y\Ý˜\›Ý˜[ÝÚÙ[‹ˆ™\]Y\ÝšY[]WÝÚÙ[‹ˆ™\]Y\Ý[˜[ÚYˆ
+Bˆ™]š[Ý\ÈHÛÝ\˜ÙWÙYš[š][ÛŠˆÛÝ\˜ÙWÚYY[]VÈ[˜[ÚY—K[˜ÛYWÙ\ØX›YUYBˆ
+BˆYˆ™]š[Ý\È\È›Û™HÜˆ™]š[Ý\Ë™Ù]
+™[˜[ZXÈŠHOHYHŽ‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOM]Z[H•[˜[ÛÝ\˜ÙH\È›Ý™YÚ\Ý\™YŠBˆ™]š[Ý\×Ù[˜X›YHÜÛÝ\˜ÙWÙ[˜X›Y
+™]š[Ý\Ë™Ù]
+™[˜X›Y‹YJJBˆžN‚ˆ\]YHÙ]ÛÜ\˜]Ü—ÜÛÝ\˜ÙWÜÝ]JˆÛÝ\˜ÙWÚY\ÛÝ\˜ÙWÚYˆ[˜[ÚYZY[]VÈ[˜[ÚY—Kˆ[˜X›Y\™\]Y\Ý™[˜X›YˆXÝÜZY[]K™Ù]
+™[XZ[ŠHÜˆY[]K™Ù]
+šY[]H‹œÚYÛ™YÛÜ\˜]ÜˆŠKˆ™X\ÛÛ\™\]Y\Ýœ™X\ÛÛ‹ˆ
+Bˆ^Ù\˜[YQ\œ›Üˆ\È^Î‚ˆ˜Z\ÙH^Ù\[ÛŠÝ]\×ØÛÙOMŒ‹]Z[\ÝŠ^ÊJHœ›ÛH^ÂˆÚ[™ÙYH\]Y™Ù]
+›Y™XÞXÛWØÚ[™ÙYŠHOHYH‚ˆ]Y]Ù]™[ˆXÝÜÝ‹Øš™XÝH›Û™HH›Û™BˆYˆÚ[™ÙY‚ˆžN‚ˆ]Y]Ù]™[H\œÚ\ÝÝ[˜[Ø]Y]Ù]™[
+ˆÂˆ[˜[ÚYŽˆY[]VÈ[˜[ÚY—Kˆ™]™[Ý\HŽˆ
+ˆœÛÝ\˜ÙWÜ™\Ý[YYˆYˆ™\]Y\Ý™[˜X›Y[ÙHœÛÝ\˜ÙWÜ]\ÙY‚ˆ
+KˆœÛÝ\˜ÙWÚYŽˆÛÝ\˜ÙWÚYˆœÝ]\ÈŽˆ˜XÝ]™HˆYˆ™\]Y\Ý™[˜X›Y[ÙHœ]\ÙY‹ˆœ™]š[Ý\×Ù[˜X›YŽˆ™]š[Ý\×Ù[˜X›Yˆ™[˜X›YŽˆ™\]Y\Ý™[˜X›Yˆœ™X\ÛÛˆŽˆ™\]Y\Ýœ™X\ÛÛ‹œÝš\
+
+VÎŒKˆ˜XÝÜˆŽˆY[]K™Ù]
+™[XZ[ŠHÜˆY[]K™Ù]
+šY[]H‹œÚYÛ™YÛÜ\˜]ÜˆŠKˆœ›ÛHŽˆY[]K™Ù]
+œ›ÛH‹›Ü\˜]ÜˆŠKˆBˆ
+Bˆ^Ù\^Ù\[Ûˆ\È^Î‚ˆ›Û˜XÚ×Ü™X\ÛÛˆHÝŠˆ™]š[Ý\Ë™Ù]
+œ]\ÙWÜ™X\ÛÛˆŠBˆÜˆ]Y]\œÚ\Ý[˜ÙH˜Z[YÈÛÝ\˜ÙH™[XZ[œÈ]\ÙYˆ‚ˆ
+BˆžN‚ˆÙ]ÛÜ\˜]Ü—ÜÛÝ\˜ÙWÜÝ]JˆÛÝ\˜ÙWÚY\ÛÝ\˜ÙWÚYˆ[˜[ÚYZY[]VÈ[˜[ÚY—Kˆ[˜X›Y\™]š[Ý\×Ù[˜X›YˆXÝÜH›Y™XÞXÛK\›Û˜XÚÈ‹ˆ™X\ÛÛ\›Û˜XÚ×Ü™X\ÛÛ‹ˆ
+Bˆ^Ù\^Ù\[ÛŽ‚ˆÙÙÙ\‹™^Ù\[ÛŠ•[˜X›HÈ›Û˜XÚÈÛÝ\˜ÙHY™XÞXÛH›Üˆ	\È‹ÛÝ\˜ÙWÚY
+Bˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMLËˆ]Z[H”ÛÝ\˜ÙHY™XÞXÛH]Y]\È[˜]˜Z[X›NÈ›ÈY™XÞXÛHÚ[™ÙHØ\È™]Z[™Y‹ˆ
+Hœ›ÛH^ÂˆØY™WÜÛÝ\˜ÙHHÂˆÙ^Nˆ˜[YBˆ›ÜˆÙ^K˜[YH[ˆ\]Yš][\Ê
+BˆYˆÙ^Bˆ›Ý[ˆÈœ™YÚ\Ý\™YØžH‹œ™YÚ\Ý\™YØ]‹›Y™XÞXÛWØÚ[™ÙYŸBˆBˆ™]\›ˆÂˆœÝ]\ÈŽˆ
+ˆœ™\Ý[YY‚ˆYˆ™\]Y\Ý™[˜X›Y[™Ú[™ÙYˆ[ÙHœ]\ÙY‚ˆYˆ›Ý™\]Y\Ý™[˜X›Y[™Ú[™ÙYˆ[ÙH[˜Ú[™ÙY‚ˆ
+KˆœÛÝ\˜ÙHŽˆØY™WÜÛÝ\˜ÙKˆ˜]Y]Ù]™[Žˆ]Y]Ù]™[ˆœØÚY[\—ÙY™™XÝŽˆ
+ˆ“[Ûš]Üš[™È™\Ý[Y\ÈÛˆH™^YHØÚY[\ˆXÚËˆ‚ˆYˆ™\]Y\Ý™[˜X›Y[™Ú[™ÙYˆ[ÙH“›È™]È™]ÚÜˆ[Ù[›ØˆÚ[™HØÚY[YÚ[H]\ÙYˆ‚ˆYˆ›Ý™\]Y\Ý™[˜X›Y[™Ú[™ÙYˆ[ÙH“›ÈY™XÞXÛHÚ[™ÙHØ\È™YYYˆ‚ˆ
+KˆB‚‚\™Ù]
+‹Ø\KÛ[Ûš]Ü‹Ü™YÚ\ÝžHŠB™YˆÙ]Û[Ûš]Ü—Ü™YÚ\ÝžJˆÜ\˜]ÜŽˆÝˆ›Û™HH›Û™Kˆ[˜[ÚYˆÝˆ›Û™HH›Û™Kˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HH›Û™KˆY[]WÝÚÙ[ŽˆÝˆ›Û™HH›Û™KŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ”™]\›ˆÛÝ\˜ÙHœ™\Ú™\ÜÈ[™[ÝÛ\ÝX[Ú]Ý]™]Ú[™ÈÛÝ\˜Ù\Ëˆˆˆ‚ˆY[]NˆXÝÜÝ‹Ý—H›Û™HH›Û™BˆYˆ[žJ˜[YH\È›Ý›Û™H›Üˆ˜[YH[ˆ
+Ü\˜]Ü‹[˜[ÚY\›Ý˜[ÝÚÙ[‹Y[]WÝÚÙ[ŠJN‚ˆYˆ›ÝÜ\˜]ÜˆÜˆ›Ý[˜[ÚY‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMK]Z[H”ÚYÛ™Y\›Ý˜[\È™\]Z\™Y›Üˆ[Ûš]Üˆ™YÚ\ÝžH‚ˆ
+BˆY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆ›[Ûš]Ü‹\™YÚ\ÝžH‹ˆÜ\˜]Ü‹ˆœÚYÛ™Y‹ˆ\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[‹ˆ[˜[ÚYˆ
+BˆÛÝ\˜Ù\ÈHÛÝ\˜ÙWÜ™YÚ\ÝžWÚX[
+ˆ[˜[ÚYZY[]K™Ù]
+[˜[ÚYŠHYˆY[]H[ÙH›Û™Kˆ[˜ÛYWÙ\ØX›YZY[]H\È›Ý›Û™Kˆ
+Bˆ™]\›ˆÂˆ˜\[™ÛÛ›HŽˆYKˆ™Ù[™\˜]YØ]Žˆ]×Û›ÝÊ
+KˆœÛÝ\˜Ù\ÈŽˆÛÝ\˜Ù\ËˆœÝ[[X\žHŽˆÜÛÝ\˜ÙWÚX[ÜÝ[[X\žJÛÝ\˜Ù\ÊKˆB‚‚\™Ù]
+‹Ø\KÛÜËÜÝ[[X\žHŠB™YˆÙ]ÛÜ×ÜÝ[[X\žJˆÜ\˜]ÜŽˆÝˆ›Û™HH›Û™Kˆ[˜[ÚYˆÝˆ›Û™HH›Û™Kˆ\›Ý˜[ÝÚÙ[ŽˆÝˆ›Û™HH›Û™KˆY[]WÝÚÙ[ŽˆÝˆ›Û™HH›Û™KŠHOˆXÝÜÝ‹Øš™XÝN‚ˆˆˆ‘^ÜÙH›Ý[™YÜ\˜]ÜˆX[Ú]Ý]Ü›ÜÜË][˜[™XÛÜ™ÛÝ[Ëˆˆˆ‚ˆY[]NˆXÝÜÝ‹Ý—H›Û™HH›Û™BˆYˆ[žJ˜[YH\È›Ý›Û™H›Üˆ˜[YH[ˆ
+Ü\˜]Ü‹[˜[ÚY\›Ý˜[ÝÚÙ[‹Y[]WÝÚÙ[ŠJN‚ˆYˆ›ÝÜ\˜]ÜˆÜˆ›Ý[˜[ÚY‚ˆ˜Z\ÙH^Ù\[ÛŠˆÝ]\×ØÛÙOMK]Z[H”ÚYÛ™Y\›Ý˜[\È™\]Z\™Y›Üˆ[˜[Y]šXÜÈ‚ˆ
+BˆY[]HHÝ™\šYžWØ\›Ý˜[Û[ÙJˆ›ÜÎœÝ[[X\žH‹ˆÜ\˜]Ü‹ˆœÚYÛ™Y‹ˆ\›Ý˜[ÝÚÙ[‹ˆY[]WÝÚÙ[‹ˆ[˜[ÚYˆ
+BˆÚ]Ú›Øœ×ÛØÚÎ‚ˆ›Ø—Ü™XÛÜ™ÈH\Ý
+Ú›ØœË˜[Y\Ê
+JBˆY]šX×Û[Z]HÛY]šX×Ú\ÝÜžWÛ[Z]
+ŒY[]JBˆ›ØœÈHÂˆ›Ø‚ˆ›Üˆ›Øˆ[ˆÛY\™ÙWÙ\˜X›WÜ™XÛÜ™Êˆ›Ø—Ü™XÛÜ™Ë\ÝÚ›ØœË[Z][Y]šX×Û[Z]Ù^O[[X™H][Nˆ][Kš›Ø—ÚYˆ
+BˆYˆÝš\ÚX›WÝ[˜[Ü™XÛÜ™
+›Ø‹Y[]JBˆBˆÛÜšÙ›Ý×Ü™XÛÜ™ÈH\Ý
+ÛÜšÙ›Ý×ÜÝÜ™K—Ü[œË˜[Y\Ê
+JBˆÛÜšÙ›ÝÜÈHÂˆÝ]Bˆ›ÜˆÝ]H[ˆÛY\™ÙWÙ\˜X›WÜ™XÛÜ™ÊˆÛÜšÙ›Ý×Ü™XÛÜ™Ëˆ\ÝÝÛÜšÙ›ÝÜËˆ[Z][Y]šX×Û[Z]ˆÙ^O[[X™H][Nˆ][KÛÜšÙ›Ý×ÚYˆ
+BˆYˆÝš\ÚX›WÝ[˜[Ü™XÛÜ™
+Ý]KY[]JBˆBˆÛÝ\˜ÙWÚX[HÛÝ\˜ÙWÜ™YÚ\ÝžWÚX[
+ˆ[˜[ÚYZY[]K™Ù]
+[˜[ÚYŠHYˆY[]H[ÙH›Û™Kˆ[˜ÛYWÙ\ØX›YZY[]H\È›Ý›Û™Kˆ
+BˆÛÝ\˜ÙWÚX[ÜÝ[[X\žHHÜÛÝ\˜ÙWÚX[ÜÝ[[X\žJÛÝ\˜ÙWÚX[
+Bˆ›Ø—Ù˜Z[\™\ÈH
+ˆ\ÝÚ›Ø—Ù˜Z[\™\ÊY[]VÈ[˜[ÚY—K[Z]LŒ
+BˆYˆY[]H\È›Ý›Û™Bˆ[ÙH×Bˆ
+BˆÛÛ›™XÝÜ—Û˜[Y\ÈH
+šš\˜H‹˜ÛÛ™›Y[˜ÙH‹œÛXÚÈ‹™Ú]XˆŠBˆ™]\›ˆÂˆ™Ù[™\˜]YØ]Žˆ]×Û›ÝÊ
+Kˆ[[Y]žWÝÚ[™ÝÈŽˆÛY]šX×ÝÚ[™ÝÊY[]KY]šX×Û[Z]
+Kˆœ›Ú™XÝÚYŽˆÜË™Ù][Š‘ÓÓÑÓWÐÓÕQÔ“Ò‘PÕ‹›ØØ[ŠKˆœ\œÚ\Ý[˜ÙHŽˆÜË™Ù][Š‘’Q•S‘WÔT”ÒTÕSÑH‹›Y[[ÜžHŠKˆ˜\Þ[˜×Ú›ØœÈŽˆÝ\ÚÜ×Ù[˜X›Y
+
+Kˆ›[Ù[ŽˆÜË™Ù][Š“SÑSÓSQH‹™Ù[Z[šKLËKY›\ÚŠKˆ™ÝX\™˜Z[ÈŽˆÂˆ˜YÙ[ÛX^ØØ[ÈŽˆQÑS•ÓPVÐÐSËˆœX›X×ØYÙ[ÛX^ØØ[ÈŽˆP“P×ÐQÑS•ÓPVÐÐSËˆ˜YÙ[ÝÚ[™Ý×ÜÙXÛÛ™ÈŽˆQÑS•ÕÒS‘Õ×ÔÑPÓÓ‘Ëˆ™[[×ÛX^Û]]][ÛœÈŽˆSS×ÓPVÓUUUSÓ”Ëˆ˜ÛÛ›™XÝÜ—ÛX^ØØ[ÈŽˆÓÓ“‘PÕÔ—ÓPVÐÐSËˆ˜ÛÛ›™XÝÜ—ÝÚ[™Ý×ÜÙXÛÛ™ÈŽˆÓÓ“‘PÕÔ—ÕÒS‘Õ×ÔÑPÓÓ‘Ëˆ›][[[Ù[ÛX^ØØ[ÈŽˆUSSSÑSÓPVÐÐSËˆ›][[[Ù[ÝÚ[™Ý×ÜÙXÛÛ™ÈŽˆUSSSÑSÕÒS‘Õ×ÔÑPÓÓ‘Ëˆ›[Ûš]Ü—ÛX^ÜÛÝ\˜Ù\ÈŽˆÜÜÚ]]™WÚ[
+‘’Q•S‘WÓSÓ’UÔ—ÓPVÔÓÕTÑTÈ‹JKˆ[˜[Ü][ÝWÙ[™›Ü˜Ù[Y[Žˆ
+ˆ™š\™\ÝÜ™WÝ˜[œØXÝ[Ûˆ‚ˆYˆÜË™Ù][Š‘’Q•S‘WÔT”ÒTÕSÑH‹›Y[[ÜžHŠK˜Ø\ÙY›Û
+
+BˆOH™š\™\ÝÜ™H‚ˆ[ÙHœ›ØÙ\Ü×ÛØØ[‚ˆ
+KˆÈX›XÈÝ[[X\šY\È[X™\˜][HÛZ][˜[ÛXÞNÈÚYÛ™YˆÈÜ\˜]ÜœÈ™XÙZ]™HÛ›HZ\ˆÝÛˆ›Ý[™YÛÛ›Û\[™H˜[Y\Ë‚ˆ[˜[ÜÛXÞHŽˆ
+ˆØYÝ[˜[ÜÛXÞJY[]VÈ[˜[ÚY—JBˆYˆY[]H\È›Ý›Û™Bˆ[ÙH›Û™Bˆ
+KˆKˆ˜\›Ý˜[ÜÙXÝ\š]HŽˆÂˆœX›X×Ù[[×ÜXÚÙ]ÛÛ›HŽˆYKˆ˜ÛÛ™šYÝ\™YÛ[ÙHŽˆÜË™Ù][Š‘’Q•S‘WÐT“ÕSÓSÑH‹™[[ÈŠKˆœÚYÛ™YØ\›Ý˜[×Ù[˜X›YŽˆÜË™Ù][Šˆ‘’Q•S‘WÔÒQÓ‘QÐT“ÕS×ÑSP“Q‹™˜[ÙH‚ˆ
+K˜Ø\ÙY›Û
+
+BˆOHYH‹ˆ™ÛÛÙÛWÛÚY×ÛÜ\˜]Ü—Ù[˜X›YŽˆ›ÛÛ
+ˆÜË™Ù][Š‘’Q•S‘WÑÓÓÑÓWÓÔTUÔ—ÐUQQSÑH‹ˆŠKœÝš\
+
+Bˆ
+Kˆ™^\›˜[ÝÜš]\×Ü™\]Z\™WÜÚYÛ™YŽˆYKˆ˜Ü™Y[X[Û[Ù[ŽˆÂˆ[˜[Ø›Ý[™ŽˆYKˆ›YØXÞWÙÛØ˜[Ù˜[˜XÚÈŽˆÜË™Ù][Šˆ‘’Q•S‘WÐSÕ×ÓQÐPÖWÑÓÐSÐÓÓ“‘PÕÔ—ÔÑPÔ‘UÈ‹™˜[ÙH‚ˆ
+K˜Ø\ÙY›Û
+
+BˆOHYH‹ˆ˜š[™[™×Ü›Ý]HŽˆ‹Ø\KØÛÛ›™XÝÜœËÞØÛÛ›™XÝÜŸKØš[™[™È‹ˆ›Y]Y]WØÛÛXÝ[ÛˆŽˆ™šY[™WØÛÛ›™XÝÜ—Øš[™[™ÜÈ‹ˆ˜Ø[›ÛšXØ[Øš[™[™×Ü]Žˆ™šY[™WÝ[˜[ËÞÝ[˜[KØÜ™Y[X[ËÞØÛÛ›™XÝÜŸH‹ˆ›˜[Y\ÜXÙWÜØÚ[XWÝ™\œÚ[ÛˆŽˆKˆ›˜[Y\ÜXÙWÛZYÜ˜][ÛˆŽˆœØÜš\ËÛZYÜ˜]WÝ[˜[ØÜ™Y[X[Øš[™[™ÜËœH‹ˆœÝšXÝÛ˜[Y\ÜXÙWÜ™\]Z\™YŽˆÜË™Ù][Šˆ‘’Q•S‘WÔ‘TURT‘WÕSS•ÐÔ‘QS•PSÓSQTÔPÑH‹™˜[ÙH‚ˆ
+K˜Ø\ÙY›Û
+
+BˆOHYH‹ˆ˜œ›ÚÙ\—Ú[™[ÜžWÜ›Ý]HŽˆ‹Ø\KØÛÛ›™XÝÜœËØÜ™Y[X[È‹ˆ˜œ›ÚÙ\—ØXØÙ\Ü×Ü›Ý]HŽˆ‹Ø\KØÛÛ›™XÝÜœËØÜ™Y[X[ËØXØÙ\ÜÈ‹ˆ˜œ›ÚÙ\—ØXØÙ\Ü×ØÛÛXÝ[ÛˆŽˆ™šY[™WØÜ™Y[X[ØXØÙ\Ü×Ù]™[È‹ˆœ™\ÛÛ][ÛˆŽˆœÚÜÛ]™YÝ[˜[ÜØÛÜYÛX\ÙH‹ˆ›X\ÙWÜÙXÛÛ™ÈŽˆÌˆ›Ü\˜][Û—ÜØÛÜ\ÈŽˆÂˆÛÛ›™XÝÜŽˆ[ÝÙYÛÜ\˜][ÛœÊÛÛ›™XÝÜŠBˆ›ÜˆÛÛ›™XÝÜˆ[ˆÛÜY
+ˆ
+šš\˜H‹˜ÛÛ™›Y[˜ÙH‹œÛXÚÈ‹™Ú]Xˆ‹œØ[\Ù›Ü˜ÙHŠBˆ
+BˆKˆœ›Ùš[WÜ›Ý]HŽˆ‹Ø\KØÛÛ›™XÝÜœËÞØÛÛ›™XÝÜŸKÜ›Ùš[H‹ˆœ›Ùš[WØÛÛXÝ[ÛˆŽˆ™šY[™WÝ[˜[ØÛÛ›™XÝÜ—Ü›Ùš[\È‹ˆ™\Þ[Y[Ý\™Ù]Ù˜[˜XÚÈŽˆÜË™Ù][Šˆ‘’Q•S‘WÐSÕ×ÑTÖSQS•ÐÓÓ“‘PÕÔ—ÕT‘ÑUÑSPÒÈ‹ˆ™˜[ÙH‹ˆ
+K˜Ø\ÙY›Û
+
+BˆOHYH‹ˆ[˜[ØÛÛXÝ[ÛˆŽˆ™šY[™WÝ[˜[È‹ˆ›Y[X™\œÚ\ØÛÛXÝ[ÛˆŽˆ™šY[™WÝ[˜[ÛY[X™\œÚ\È‹ˆKˆ[˜[Ø]]ŽˆÂˆÈÜÝYš\™\ÝÜ™HY[X™\œÚ\™XÛÜ™È\™H]]Üš]]]™KˆBˆÈÝ]XÈ[š\›Û›Y[X\[™È\ÈÛ›HHØØ[Ø›ÛÝÝ˜\ˆÈÛÛ\]Xš[]H][™]\Ý›Ý™H™\]Z\™Y›Üˆ™]È[˜[Ë‚ˆ˜ÛÛ™šYÝ\™YŽˆ
+ˆÜË™Ù][Š‘’Q•S‘WÔT”ÒTÕSÑH‹›Y[[ÜžHŠK˜Ø\ÙY›Û
+
+BˆOH™š\™\ÝÜ™H‚ˆÜˆ›ÛÛ
+ÜË™Ù][Š‘’Q•S‘WÕSS•ÓQSP‘T”È‹ˆŠKœÝš\
+
+JBˆ
+Kˆ›Y[X™\œÚ\ÜÛÝ\˜ÙHŽˆ
+ˆ™š\™\ÝÜ™H‚ˆYˆÜË™Ù][Š‘’Q•S‘WÔT”ÒTÕSÑH‹›Y[[ÜžHŠK˜Ø\ÙY›Û
+
+BˆOH™š\™\ÝÜ™H‚ˆ[ÙH™[š\›Û›Y[Ø›ÛÝÝ˜\‚ˆ
+KˆœÝ]X×ÛÜ\˜]Ü—Ø[ÝÛ\ÝŽˆ›ÛÛ
+ˆÜË™Ù][Š‘’Q•S‘WÓÔTUÔ—ÑSPRSÈ‹ˆŠKœÝš\
+
+Bˆ
+Kˆ™\˜X›WÛY[X™\œÚ\ÈŽˆYKˆ™Y˜][Ý[˜[ŽˆÜË™Ù][Šˆ‘’Q•S‘WÑQUSÕSS•ÒQ‹™šY[™KY[[È‚ˆ
+Kˆœ›ÛWÛ[Ù[ŽˆÈšY]Ù\ˆ‹›Ü\˜]Üˆ‹›ÝÛ™\ˆ—KˆKˆKˆš›ØœÈŽˆÂˆÝ[Žˆ[Š›ØœÊKˆ™XYÛ]\™YŽˆ[Š›Ø—Ù˜Z[\™\ÊKˆ˜žWÜÝ]\ÈŽˆÂˆÝ]\ÎˆÝ[J›Ø‹œÝ]\ÈOHÝ]\È›Üˆ›Øˆ[ˆ›ØœÊBˆ›ÜˆÝ]\È[ˆÚ›Ø‹œÝ]\È›Üˆ›Øˆ[ˆ›ØœßBˆKˆKˆÛÜšÙ›ÝÜÈŽˆÂˆÝ[Žˆ[ŠÛÜšÙ›ÝÜÊKˆ˜žWÜÝ]\ÈŽˆÂˆÝ]\ÎˆÝ[JÝ]KœÝ]\Ë˜[YHOHÝ]\È›ÜˆÝ]H[ˆÛÜšÙ›ÝÜÊBˆ›ÜˆÝ]\È[ˆÜÝ]KœÝ]\Ë˜[YH›ÜˆÝ]H[ˆÛÜšÙ›ÝÜßBˆKˆKˆ˜ÛÛ›™XÝÜœÈŽˆÂˆ˜[YNˆÜË™Ù][Šˆ‘’Q•S‘WÞÛ˜[YK\\Š
+_WÑSP“Q‹™˜[ÙHŠK˜Ø\ÙY›Û
+
+BˆOHYH‚ˆ›Üˆ˜[YH[ˆÛÛ›™XÝÜ—Û˜[Y\ÂˆKˆÈX›XÈX[Ý^\È›ÝšY\‹XÛÛ™šYÝ\˜][Û‹[Û›KˆÛ˜ÙH[ˆÜ\˜]Üˆ\ÂˆÈÚYÛ™Y[ÈH[˜[Ý\™˜XÙH][˜[	ÜÈ\œÚ\ÝYYÙÜ™YØ]K\™XYˆÈ›ÛÙˆ[œÝXYö÷{h‘éì¶»§q«^tµ½¹±ä(€€€…¹Ñ¡¥ÌÍÕµµ…ÉäÉ•ÍÁ½¹Í”¥ÌÉ•ÅÕ•ÍÐµÍ½Á•¸Í•Á…É…Ñ”Í¥¹•Ý½É­™±½Ü(€€€ÉÕ¸µ…ä…ÑÑ… Ñ¡”Í…µ”¹½Éµ…±¥é•ÁÉ½©•Ñ¥½¸Ñ¼¥ÑÌ¡…¹”…É…¹(€€€‰½Õ¹‘•µ½‘•°ÁÉ½Ù•¹…¹”ìÉ…ÜÉ•½É‘Ì…¹É•‘•¹Ñ¥…±Ì¹•Ù•ÈÉ½ÍÌÑ¡…Ð(€€€Í•…´¸(€€€€ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰½¹¹•Ñ½Èµ½¹Ñ•áÐµÍÕµµ…Éäˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¹½Ð}É•Í•ÉÙ•}½¹¹•Ñ½É}…±°¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤è(€€€€€€€É…¥Í”}½¹¹•Ñ½É}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È ‰½¹¹•Ñ½ÈÉ•…ÅÕ½Ñ„É•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ¤(€€€ÍÕµµ…É¥•Ì€ô}½¹¹•Ñ½É}½¹Ñ•áÑ}¥¹™¼¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰½¬ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰É½±”ˆè¥‘•¹Ñ¥Ñål‰É½±”‰t°(€€€€€€€€‰•¹•É…Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€‰½¹Ñ•áÑ}½¹ÑÉ…Ðˆèì(€€€€€€€€€€€€‰ÁÕÉÁ½Í”ˆè€‰É½Õ¹‘½Ý¹ÍÑÉ•…´¥µÁ…ÐÁ±…¹¹¥¹œÝ¥Ñ ‰½Õ¹‘•¥¹Ñ•É¹…°Ý½É­±½…½¹Ñ•áÐˆ°(€€€€€€€€€€€€‰É•‘…Ñ¥½¸ˆè€‰…É•…Ñ•}µ•Ñ…‘…Ñ…}½¹±äˆ°(€€€€€€€€€€€€‰Á•ÉÍ¥ÍÑ•ˆè…±Í”°(€€€€€€€€€€€€‰É•Ñ•¹Ñ¥½¸ˆè€‰É•ÅÕ•ÍÐµÍ½Á•ì¹¼Í½ÕÉ”‰½‘¥•Ì½Èµ•ÍÍ…”Ñ•áÐÉ•Ñ…¥¹•ˆ°(€€€€€€€€€€€€‰ÕÍ•É}¥¹ÁÕÑ}Í½Á”ˆè€‰¹½¹”ì½¹¹•Ñ½ÈÑ…É•ÑÌ½µ”½¹±ä™É½´Ñ¡”…±±•ÈÌ‘ÕÉ…‰±”Ñ•¹…¹ÐÁÉ½™¥±”ˆ°(€€€€€€€ô°(€€€€€€€€‰½¹¹•Ñ½ÉÌˆèÍÕµµ…É¥•Ì°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½½¹¹•Ñ½ÉÌ½í½¹¹•Ñ½Éô½‰¥¹‘¥¹œˆ¤)‘•˜É•¥ÍÑ•É}½¹¹•Ñ½É}‰¥¹‘¥¹œ (€€€½¹¹•Ñ½ÈèÍÑÈ°É•ÅÕ•ÍÐè½¹¹•Ñ½É	¥¹‘¥¹I•ÅÕ•ÍÐ(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•¥ÍÑ•È½¹”‘•Ñ•Éµ¥¹¥ÍÑ¥ŒÑ•¹…¹ÐM•É•Ð5…¹…•È‰¥¹‘¥¹œ¸((€€€Q¡”ÉÕ¹Ñ¥µ”¹•Ù•È…•ÁÑÌ„Í•É•ÐÙ…±Õ”½È…É‰¥ÑÉ…ÉäÍ•É•Ð¹…µ”¸¸(€€€¥¹™É…ÍÑÉÕÑÕÉ”½Á•É…Ñ½ÈÁÉ”µÁÉ½Ù¥Í¥½¹ÌÑ¡”‘•Ñ•Éµ¥¹¥ÍÑ¥ŒÍ•É•Ð°Ñ¡•¸Ñ¡¥Ì(€€€Í¥¹•½Ý¹•ÈÉ½ÕÑ”Ù•É¥™¥•ÌÑ¡…Ð¥Ð¥ÌÉ•…‘…‰±”…¹…Ñ¥Ù…Ñ•ÌÑ¡”‰¥¹‘¥¹œ¸(€€€€ˆˆˆ(€€€ÑÉäè(€€€€€€€Í…™•}½¹¹•Ñ½È€ôÙ…±¥‘…Ñ•}½¹¹•Ñ½É}¹…µ”¡½¹¹•Ñ½È¤(€€€•á•ÁÐY…±Õ•ÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€˜‰½¹¹•Ñ½Èµ‰¥¹‘¥¹œéíÍ…™•}½¹¹•Ñ½Éôˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€Ñ•¹…¹Ñ}¥€ô¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€ÑÉäè(€€€€€€€Í½Á•‘}½Á•É…Ñ¥½¹Ì€ô¹½Éµ…±¥é•}…±±½Ý•‘}½Á•É…Ñ¥½¹Ì (€€€€€€€€€€€Í…™•}½¹¹•Ñ½È°É•ÅÕ•ÍÐ¹…±±½Ý•‘}½Á•É…Ñ¥½¹Ì(€€€€€€€€¤(€€€•á•ÁÐÉ•‘•¹Ñ¥…±	É½­•ÉÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€Í•É•Ñ}¹…µ”€ôÑ•¹…¹Ñ}½¹¹•Ñ½É}Í•É•Ñ}¹…µ”¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È¤(€€€•á¥ÍÑ¥¹}‰¥¹‘¥¹œ€ô±½…‘}½¹¹•Ñ½É}‰¥¹‘¥¹œ¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È¤½Èíô(€€€ÍÑ…ÑÕÌ€ô€‰…Ñ¥Ù”ˆ(€€€Í•É•Ñ}Ù•ÉÍ¥½¸€ô€‰±…Ñ•ÍÐˆ(€€€ÑÉäè(€€€€€€€¥˜¹½Ð}É•…‘}Ñ•¹…¹Ñ}Í•É•Ð¡Ñ•¹…¹Ñ}¥°Í•É•Ñ}¹…µ”¤¹ÍÑÉ¥À ¤è(€€€€€€€€€€€ÍÑ…ÑÕÌ€ô€‰Á•¹‘¥¹}Í•É•Ðˆ(€€€€€€€•±Í”è(€€€€€€€€€€€€ŒA¥¸Ñ¡”‰¥¹‘¥¹œÑ¼Ñ¡”•á…ÐM•É•Ð5…¹…•ÈÙ•ÉÍ¥½¸É•Í½±Ù•…Ð(€€€€€€€€€€€€ŒÙ•É¥™¥…Ñ¥½¸Ñ¥µ”¸%˜„±½…°•µÕ±…Ñ½È½Ñ•ÍÐ‘½Õ‰±”…¹¹½Ð(€€€€€€€€€€€€Œ•áÁ½Í”„½¹É•Ñ”Ù•ÉÍ¥½¸°±…Ñ•ÍÑ€É•µ…¥¹Ì…¸•áÁ±¥¥Ð(€€€€€€€€€€€€Œ½µÁ…Ñ¥‰¥±¥Ñäµ…É­•È…¹Ñ¡”¹•áÐ½Ý¹•ÈÙ•É¥™¥…Ñ¥½¸…¸Á¥¸¥Ð¸(€€€€€€€€€€€ÑÉäè(€€€€€€€€€€€€€€€Í•É•Ñ}Ù•ÉÍ¥½¸€ô}Ñ•¹…¹Ñ}Í•É•Ñ}Ù•ÉÍ¥½¸¡Ñ•¹…¹Ñ}¥°Í•É•Ñ}¹…µ”¤(€€€€€€€€€€€•á•ÁÐ½¹¹•Ñ½ÉÉÉ½Èè(€€€€€€€€€€€€€€€Í•É•Ñ}Ù•ÉÍ¥½¸€ô€‰±…Ñ•ÍÐˆ(€€€•á•ÁÐ½¹¹•Ñ½ÉÉÉ½Èè(€€€€€€€ÍÑ…ÑÕÌ€ô€‰Á•¹‘¥¹}Í•É•Ðˆ(€€€Á•ÉÍ¥ÍÑ}Ñ•¹…¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€‰ÁÉ½Ù¥Í¥½¹¥¹œˆè€‰½Ý¹•É}½¹¹•Ñ½É}‰¥¹‘¥¹œˆ°(€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€ô(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤è(€€€€€€€Á•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥À (€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€€€€€‰•µ…¥°ˆè¥‘•¹Ñ¥Ñål‰•µ…¥°‰t°(€€€€€€€€€€€€€€€€‰É½±”ˆè¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ°€‰½Ý¹•Èˆ¤°(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€€€€€‰Í½ÕÉ”ˆè€‰Ù•É¥™¥•‘}½Á•É…Ñ½É}‰¥¹‘¥¹œˆ°(€€€€€€€€€€€ô(€€€€€€€€¤(€€€‰¥¹‘¥¹œ€ôÁ•ÉÍ¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹œ (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÍ•É•Ñ}¹…µ”°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆèÍÑ…ÑÕÌ°(€€€€€€€€€€€€‰Í½Á”ˆè€‰Ñ•¹…¹Ñ}‰½Õ¹‘}½¹¹•Ñ½É}É•‘•¹Ñ¥…°ˆ°(€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}¥ˆè•á¥ÍÑ¥¹}‰¥¹‘¥¹œ¹•Ð ‰É•‘•¹Ñ¥…±}¥ˆ¤(€€€€€€€€€€€½È˜‰É•µíÑ•¹…¹Ñ}¥‘ôµíÍ…™•}½¹¹•Ñ½Éôˆ°(€€€€€€€€€€€€‰Í•É•Ñ}‰…­•¹ˆè€‰½½±•}Í•É•Ñ}µ…¹…•Èˆ°(€€€€€€€€€€€€‰Í•É•Ñ}É•™•É•¹•}Í½Á”ˆè€‰•á…Ñ}Ñ•¹…¹Ñ}½¹¹•Ñ½É}Í•É•Ðˆ°(€€€€€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹ÌˆèÍ½Á•‘}½Á•É…Ñ¥½¹Ì°(€€€€€€€€€€€€‰±•…Í•}Í•½¹‘Ìˆè€ÌÀÀ°(€€€€€€€€€€€€‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆèÍ•É•Ñ}Ù•ÉÍ¥½¸°(€€€€€€€€€€€€‰Ù•É¥™¥•‘}…ÐˆèÕÑ}¹½Ü ¤¥˜ÍÑ…ÑÕÌ€ôô€‰…Ñ¥Ù”ˆ•±Í”9½¹”°(€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€ô(€€€€¤(€€€…Õ‘¥Ñ}•Ù•¹Ð€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€ (€€€€€€€€€€€€€€€€‰½¹¹•Ñ½É}‰¥¹‘¥¹}…Ñ¥Ù…Ñ•ˆ(€€€€€€€€€€€€€€€¥˜ÍÑ…ÑÕÌ€ôô€‰…Ñ¥Ù”ˆ(€€€€€€€€€€€€€€€•±Í”€‰½¹¹•Ñ½É}‰¥¹‘¥¹}Á•¹‘¥¹œˆ(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆèÍÑ…ÑÕÌ°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÍ•É•Ñ}¹…µ”°(€€€€€€€€€€€€‰…Ñ½Èˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆèÍÑ…ÑÕÌ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÍ•É•Ñ}¹…µ”°(€€€€€€€€‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆè‰¥¹‘¥¹œ¹•Ð (€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆ°(€€€€€€€€€€€Ñ•¹…¹Ñ}É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È¤(€€€€€€€€€€€¥˜½Ì¹•Ñ•¹Ø ‰==1}1=U}AI=)Pˆ¤(€€€€€€€€€€€•±Í”9½¹”°(€€€€€€€€¤°(€€€€€€€€‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆè‰¥¹‘¥¹œ¹•Ð ‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆ°€‰±…Ñ•ÍÐˆ¤°(€€€€€€€€‰Ù•É¥™¥•‘}…Ðˆè‰¥¹‘¥¹œ¹•Ð ‰Ù•É¥™¥•‘}…Ðˆ¤°(€€€€€€€€‰Í½Á”ˆè‰¥¹‘¥¹l‰Í½Á”‰t°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•}…•ÁÑ•ˆè…±Í”°(€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆè…Õ‘¥Ñ}•Ù•¹Ñl‰•Ù•¹Ñ}¥‰t°(€€€€€€€€‰¹•áÑ}ÍÑ•Àˆè€ (€€€€€€€€€€€€‰	¥¹‘¥¹œ¥Ì…Ñ¥Ù”ì½¹¹•Ñ½È…±±ÌÝ¥±°ÕÍ”Ñ¡¥ÌÑ•¹…¹ÐÍ•É•Ð¸ˆ(€€€€€€€€€€€¥˜ÍÑ…ÑÕÌ€ôô€‰…Ñ¥Ù”ˆ(€€€€€€€€€€€•±Í”€‰AÉ½Ù¥Í¥½¸Ñ¡”‘•Ñ•Éµ¥¹¥ÍÑ¥ŒÍ•É•Ð°Ñ¡•¸É•Á•…ÐÑ¡¥ÌÍ¥¹•½Ý¹•ÈÉ•ÅÕ•ÍÐ¸ˆ(€€€€€€€€¤°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½½¹¹•Ñ½ÉÌ½í½¹¹•Ñ½Éô½É•‘•¹Ñ¥…°µ•¹É½±±µ•¹Ðˆ¤)‘•˜ÍÑ…ÉÑ}½¹¹•Ñ½É}É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ð (€€€½¹¹•Ñ½ÈèÍÑÈ°É•ÅÕ•ÍÐè½¹¹•Ñ½ÉÉ•‘•¹Ñ¥…±¹É½±±µ•¹ÑI•ÅÕ•ÍÐ(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰MÑ…ÉÐ„Í¡½ÉÐµ±¥Ù•Ñ•¹…¹ÐÉ•‘•¹Ñ¥…°•¹É½±±µ•¹Ð¡…¹‘½™˜¸((€€€Q¡”É•ÍÁ½¹Í”¥Ì¥¹Ñ•¹Ñ¥½¹…±±ä„ÁÉ½Ù¥Í¥½¹¥¹œ½¹ÑÉ…Ð°¹½Ð„É•‘•¹Ñ¥…°(€€€ÕÁ±½…™½É´¸Q¡”½Ý¹•ÈÁÉ½Ù¥Í¥½¹ÌÑ¡”•á…Ð‘•Ñ•Éµ¥¹¥ÍÑ¥ŒM•É•Ð5…¹…•È(€€€Í•É•Ð½ÕÐ½˜‰…¹°Ñ¡•¸½µÁ±•Ñ•ÌÑ¡¥Ì•¹É½±±µ•¹ÐÑ¼Ù•É¥™ä…¹…Ñ¥Ù…Ñ”(€€€Ñ¡”‰¥¹‘¥¹œ¸9•ÜÍ•ÍÍ¥½¹Ì‘•™…Õ±ÐÑ¼É•…µ½¹±ä½Á•É…Ñ¥½¹ÌÍ¼‘½Ý¹ÍÑÉ•…´(€€€ÝÉ¥Ñ•ÌÉ•ÅÕ¥É”…¸•áÁ±¥¥Ð½Ý¹•ÈÍ½Á”É…¹Ð¸(€€€€ˆˆˆ(€€€ÑÉäè(€€€€€€€Í…™•}½¹¹•Ñ½È€ôÙ…±¥‘…Ñ•}½¹¹•Ñ½É}¹…µ”¡½¹¹•Ñ½È¤(€€€€€€€Í½Á•‘}½Á•É…Ñ¥½¹Ì€ô¹½Éµ…±¥é•}…±±½Ý•‘}½Á•É…Ñ¥½¹Ì (€€€€€€€€€€€Í…™•}½¹¹•Ñ½È°É•ÅÕ•ÍÐ¹…±±½Ý•‘}½Á•É…Ñ¥½¹Ì°‘•™…Õ±Ðô‰É•…‘}½¹±äˆ(€€€€€€€€¤(€€€•á•ÁÐ€¡Y…±Õ•ÉÉ½È°É•‘•¹Ñ¥…±	É½­•ÉÉÉ½È¤…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€˜‰É•‘•¹Ñ¥…°µ•¹É½±±µ•¹ÐéíÍ…™•}½¹¹•Ñ½Éôˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€Ñ•¹…¹Ñ}¥€ô¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€•á¥ÍÑ¥¹œ€ô±½…‘}½¹¹•Ñ½É}‰¥¹‘¥¹œ¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È¤(€€€¥˜•á¥ÍÑ¥¹œ…¹ÍÑÈ¡•á¥ÍÑ¥¹œ¹•Ð ‰ÍÑ…ÑÕÌˆ°€ˆˆ¤¤¹…Í•™½± ¤€ôô€‰…Ñ¥Ù”ˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀä°(€€€€€€€€€€€‘•Ñ…¥°ô‰½¹¹•Ñ½É}‰¥¹‘¥¹}…Ñ¥Ù•}ÕÍ•}É½Ñ…Ñ¥½¸ˆ°(€€€€€€€€¤(€€€É•…Ñ•‘}…Ð€ô‘…Ñ•Ñ¥µ”¹¹½Ü¡UQ¤(€€€•áÁ¥É•Í}…Ð€ôÉ•…Ñ•‘}…Ð¹Ñ¥µ•ÍÑ…µÀ ¤€¬€äÀÀ(€€€•¹É½±±µ•¹Ñ}¥€ô˜‰•¹É½±°µíÕÕ¥Ð ¤¹¡•áôˆ(€€€Í•É•Ñ}¹…µ”€ôÑ•¹…¹Ñ}½¹¹•Ñ½É}Í•É•Ñ}¹…µ”¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È¤(€€€•¹É½±±µ•¹Ð€ôÁ•ÉÍ¥ÍÑ}É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰•¹É½±±µ•¹Ñ}¥ˆè•¹É½±±µ•¹Ñ}¥°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ý…¥Ñ¥¹}Í•É•Ðˆ°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÍ•É•Ñ}¹…µ”°(€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆè€ (€€€€€€€€€€€€€€€Ñ•¹…¹Ñ}É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È¤(€€€€€€€€€€€€€€€¥˜½Ì¹•Ñ•¹Ø ‰==1}1=U}AI=)Pˆ¤(€€€€€€€€€€€€€€€•±Í”9½¹”(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹ÌˆèÍ½Á•‘}½Á•É…Ñ¥½¹Ì°(€€€€€€€€€€€€‰É•ÅÕ•ÍÑ•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€€€€€€‰É•…Ñ•‘}…ÐˆèÉ•…Ñ•‘}…Ð¹¥Í½™½Éµ…Ð ¤°(€€€€€€€€€€€€‰•áÁ¥É•Í}…Ðˆè‘…Ñ•Ñ¥µ”¹™É½µÑ¥µ•ÍÑ…µÀ¡•áÁ¥É•Í}…Ð°UQ¤¹¥Í½™½Éµ…Ð ¤°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…ÐˆèÉ•…Ñ•‘}…Ð¹¥Í½™½Éµ…Ð ¤°(€€€€€€€ô(€€€€¤(€€€…Õ‘¥Ñ}•Ù•¹Ð€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€‰É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ñ}ÍÑ…ÉÑ•ˆ°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰•¹É½±±µ•¹Ñ}¥ˆè•¹É½±±µ•¹Ñ}¥°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ý…¥Ñ¥¹}Í•É•Ðˆ°(€€€€€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹ÌˆèÍ½Á•‘}½Á•É…Ñ¥½¹Ì°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÍ•É•Ñ}¹…µ”°(€€€€€€€€€€€€‰…Ñ½Èˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè•¹É½±±µ•¹Ñl‰ÍÑ…ÑÕÌ‰t°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€‰•¹É½±±µ•¹Ñ}¥ˆè•¹É½±±µ•¹Ñ}¥°(€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÍ•É•Ñ}¹…µ”°(€€€€€€€€‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆè•¹É½±±µ•¹Ð¹•Ð ‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆ¤°(€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹ÌˆèÍ½Á•‘}½Á•É…Ñ¥½¹Ì°(€€€€€€€€‰•áÁ¥É•Í}…Ðˆè•¹É½±±µ•¹Ñl‰•áÁ¥É•Í}…Ð‰t°(€€€€€€€€‰•áÁ¥É•Í}¥¹}Í•½¹‘Ìˆè€äÀÀ°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•}•áÁ½Í•ˆè…±Í”°(€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆè…Õ‘¥Ñ}•Ù•¹Ñl‰•Ù•¹Ñ}¥‰t°(€€€€€€€€‰¹•áÑ}ÍÑ•Àˆè€ (€€€€€€€€€€€€‰AÉ½Ù¥Í¥½¸„Ù•ÉÍ¥½¸¥¸Ñ¡¥Ì•á…ÐÑ•¹…¹ÐÍ•É•Ð½ÕÐ½˜‰…¹°Ñ¡•¸€ˆ(€€€€€€€€€€€€‰…±°Ñ¡”•¹É½±±µ•¹Ð½µÁ±•Ñ¥½¸É½ÕÑ”¸Q¡”É•ÅÕ•ÍÐ¹•Ù•È…•ÁÑÌ„Ñ½­•¸Ù…±Õ”¸ˆ(€€€€€€€€¤°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½½¹¹•Ñ½ÉÌ½í½¹¹•Ñ½Éô½É•‘•¹Ñ¥…°µ•¹É½±±µ•¹Ð½í•¹É½±±µ•¹Ñ}¥‘ô½½µÁ±•Ñ”ˆ¤)‘•˜½µÁ±•Ñ•}½¹¹•Ñ½É}É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ð (€€€½¹¹•Ñ½ÈèÍÑÈ°(€€€•¹É½±±µ•¹Ñ}¥èÍÑÈ°(€€€É•ÅÕ•ÍÐè½¹¹•Ñ½É	¥¹‘¥¹I•ÅÕ•ÍÐ°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰Y•É¥™ä…¸½ÕÐµ½˜µ‰…¹Í•É•Ð…¹…Ñ½µ¥…±±ä…Ñ¥Ù…Ñ”¥ÑÌÑ•¹…¹Ð‰¥¹‘¥¹œ¸ˆˆˆ(€€€ÑÉäè(€€€€€€€Í…™•}½¹¹•Ñ½È€ôÙ…±¥‘…Ñ•}½¹¹•Ñ½É}¹…µ”¡½¹¹•Ñ½È¤(€€€•á•ÁÐY…±Õ•ÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€˜‰É•‘•¹Ñ¥…°µ•¹É½±±µ•¹Ðµ½µÁ±•Ñ”éíÍ…™•}½¹¹•Ñ½Éôéí•¹É½±±µ•¹Ñ}¥‘ôˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€Ñ•¹…¹Ñ}¥€ô¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€•¹É½±±µ•¹Ð€ô±½…‘}É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ð¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È°•¹É½±±µ•¹Ñ}¥¤(€€€¥˜•¹É½±±µ•¹Ð¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ñ}¹½Ñ}™½Õ¹ˆ¤(€€€¥˜ÍÑÈ¡•¹É½±±µ•¹Ð¹•Ð ‰ÍÑ…ÑÕÌˆ°€ˆˆ¤¤¹…Í•™½± ¤€ôô€‰½µÁ±•Ñ•ˆè(€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰•¹É½±±µ•¹Ñ}¥ˆè•¹É½±±µ•¹Ñ}¥°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆè•¹É½±±µ•¹Ð¹•Ð ‰Í•É•Ñ}¹…µ”ˆ¤°(€€€€€€€€€€€€‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆè•¹É½±±µ•¹Ð¹•Ð ‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆ°€‰±…Ñ•ÍÐˆ¤°(€€€€€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹Ìˆè•¹É½±±µ•¹Ð¹•Ð ‰…±±½Ý•‘}½Á•É…Ñ¥½¹Ìˆ°mt¤°(€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•}•áÁ½Í•ˆè…±Í”°(€€€€€€€€€€€€‰…±É•…‘å}½µÁ±•Ñ•ˆèQÉÕ”°(€€€€€€€ô(€€€ÑÉäè(€€€€€€€•áÁ¥Éä€ô‘…Ñ•Ñ¥µ”¹™É½µ¥Í½™½Éµ…Ð¡ÍÑÈ¡•¹É½±±µ•¹Ð¹•Ð ‰•áÁ¥É•Í}…Ðˆ°€ˆˆ¤¤¤(€€€•á•ÁÐY…±Õ•ÉÉ½Èè(€€€€€€€•áÁ¥Éä€ô‘…Ñ•Ñ¥µ”¹µ¥¸¹É•Á±…”¡Ñé¥¹™¼õUQ¤(€€€¥˜•áÁ¥Éä€ðô‘…Ñ•Ñ¥µ”¹¹½Ü¡UQ¤è(€€€€€€€•áÁ¥É•€ôÁ•ÉÍ¥ÍÑ}É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ð (€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€¨©•¹É½±±µ•¹Ð°(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰•áÁ¥É•ˆ°(€€€€€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€ô(€€€€€€€€¤(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÄÀ°(€€€€€€€€€€€‘•Ñ…¥°õì(€€€€€€€€€€€€€€€€‰•ÉÉ½Èˆè€‰É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ñ}•áÁ¥É•ˆ°(€€€€€€€€€€€€€€€€‰•¹É½±±µ•¹Ñ}¥ˆè•áÁ¥É•‘l‰•¹É½±±µ•¹Ñ}¥‰t°(€€€€€€€€€€€ô°(€€€€€€€€¤(€€€Í•É•Ñ}¹…µ”€ôÑ•¹…¹Ñ}½¹¹•Ñ½É}Í•É•Ñ}¹…µ”¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È¤(€€€ÑÉäè(€€€€€€€¥˜¹½Ð}É•…‘}Ñ•¹…¹Ñ}Í•É•Ð¡Ñ•¹…¹Ñ}¥°Í•É•Ñ}¹…µ”¤¹ÍÑÉ¥À ¤è(€€€€€€€€€€€É…¥Í”½¹¹•Ñ½ÉÉÉ½È ‰É•‘•¹Ñ¥…±}•µÁÑäˆ¤(€€€€€€€ÑÉäè(€€€€€€€€€€€Í•É•Ñ}Ù•ÉÍ¥½¸€ô}Ñ•¹…¹Ñ}Í•É•Ñ}Ù•ÉÍ¥½¸¡Ñ•¹…¹Ñ}¥°Í•É•Ñ}¹…µ”¤(€€€€€€€•á•ÁÐ½¹¹•Ñ½ÉÉÉ½Èè(€€€€€€€€€€€Í•É•Ñ}Ù•ÉÍ¥½¸€ô€‰±…Ñ•ÍÐˆ(€€€•á•ÁÐ½¹¹•Ñ½ÉÉÉ½Èè(€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ý…¥Ñ¥¹}Í•É•Ðˆ°(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰•¹É½±±µ•¹Ñ}¥ˆè•¹É½±±µ•¹Ñ}¥°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÍ•É•Ñ}¹…µ”°(€€€€€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹Ìˆè•¹É½±±µ•¹Ð¹•Ð ‰…±±½Ý•‘}½Á•É…Ñ¥½¹Ìˆ°mt¤°(€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•}•áÁ½Í•ˆè…±Í”°(€€€€€€€€€€€€‰¹•áÑ}ÍÑ•Àˆè€‰‘„Ù•ÉÍ¥½¸Ñ¼Ñ¡”•á…ÐÑ•¹…¹ÐÍ•É•Ð°Ñ¡•¸É•ÑÉä½µÁ±•Ñ¥½¸¸ˆ°(€€€€€€€ô(€€€ÑÉäè(€€€€€€€Í½Á•‘}½Á•É…Ñ¥½¹Ì€ô¹½Éµ…±¥é•}…±±½Ý•‘}½Á•É…Ñ¥½¹Ì (€€€€€€€€€€€Í…™•}½¹¹•Ñ½È°(€€€€€€€€€€€±¥ÍÐ¡•¹É½±±µ•¹Ð¹•Ð ‰…±±½Ý•‘}½Á•É…Ñ¥½¹Ìˆ¤½Èmt¤°(€€€€€€€€€€€‘•™…Õ±Ðô‰É•…‘}½¹±äˆ°(€€€€€€€€¤(€€€•á•ÁÐÉ•‘•¹Ñ¥…±	É½­•ÉÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°ô‰É•‘•¹Ñ¥…±}Í½Á•}¥¹Ù…±¥ˆ¤™É½´•áŒ(€€€¹½Ü€ôÕÑ}¹½Ü ¤(€€€‰¥¹‘¥¹œ€ôÁ•ÉÍ¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹œ (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÍ•É•Ñ}¹…µ”°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€‰Í½Á”ˆè€‰Ñ•¹…¹Ñ}‰½Õ¹‘}½¹¹•Ñ½É}É•‘•¹Ñ¥…°ˆ°(€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}¥ˆè˜‰É•µíÑ•¹…¹Ñ}¥‘ôµíÍ…™•}½¹¹•Ñ½Éôˆ°(€€€€€€€€€€€€‰Í•É•Ñ}‰…­•¹ˆè€‰½½±•}Í•É•Ñ}µ…¹…•Èˆ°(€€€€€€€€€€€€‰Í•É•Ñ}É•™•É•¹•}Í½Á”ˆè€‰•á…Ñ}Ñ•¹…¹Ñ}½¹¹•Ñ½É}Í•É•Ðˆ°(€€€€€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹ÌˆèÍ½Á•‘}½Á•É…Ñ¥½¹Ì°(€€€€€€€€€€€€‰±•…Í•}Í•½¹‘Ìˆè€ÌÀÀ°(€€€€€€€€€€€€‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆèÍ•É•Ñ}Ù•ÉÍ¥½¸°(€€€€€€€€€€€€‰•¹É½±±µ•¹Ñ}¥ˆè•¹É½±±µ•¹Ñ}¥°(€€€€€€€€€€€€‰Ù•É¥™¥•‘}…Ðˆè¹½Ü°(€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…Ðˆè¹½Ü°(€€€€€€€ô(€€€€¤(€€€½µÁ±•Ñ•€ôÁ•ÉÍ¥ÍÑ}É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ð (€€€€€€€ì(€€€€€€€€€€€€¨©•¹É½±±µ•¹Ð°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰½µÁ±•Ñ•ˆ°(€€€€€€€€€€€€‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆèÍ•É•Ñ}Ù•ÉÍ¥½¸°(€€€€€€€€€€€€‰½µÁ±•Ñ•‘}…Ðˆè¹½Ü°(€€€€€€€€€€€€‰½µÁ±•Ñ•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…Ðˆè¹½Ü°(€€€€€€€ô(€€€€¤(€€€…Õ‘¥Ñ}•Ù•¹Ð€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€‰É•‘•¹Ñ¥…±}•¹É½±±µ•¹Ñ}½µÁ±•Ñ•ˆ°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰•¹É½±±µ•¹Ñ}¥ˆè•¹É½±±µ•¹Ñ}¥°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÍ•É•Ñ}¹…µ”°(€€€€€€€€€€€€‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆèÍ•É•Ñ}Ù•ÉÍ¥½¸°(€€€€€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹ÌˆèÍ½Á•‘}½Á•É…Ñ¥½¹Ì°(€€€€€€€€€€€€‰…Ñ½Èˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè‰¥¹‘¥¹l‰ÍÑ…ÑÕÌ‰t°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€‰•¹É½±±µ•¹Ñ}¥ˆè½µÁ±•Ñ•‘l‰•¹É½±±µ•¹Ñ}¥‰t°(€€€€€€€€‰Í•É•Ñ}¹…µ”ˆè‰¥¹‘¥¹l‰Í•É•Ñ}¹…µ”‰t°(€€€€€€€€‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆè‰¥¹‘¥¹œ¹•Ð ‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆ°€‰±…Ñ•ÍÐˆ¤°(€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹ÌˆèÍ½Á•‘}½Á•É…Ñ¥½¹Ì°(€€€€€€€€‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆè‰¥¹‘¥¹œ¹•Ð ‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆ¤°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•}•áÁ½Í•ˆè…±Í”°(€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆè…Õ‘¥Ñ}•Ù•¹Ñl‰•Ù•¹Ñ}¥‰t°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½½¹¹•Ñ½ÉÌ½í½¹¹•Ñ½Éô½‰¥¹‘¥¹œ½É•Ù½­”ˆ¤)‘•˜É•Ù½­•}½¹¹•Ñ½É}‰¥¹‘¥¹œ (€€€½¹¹•Ñ½ÈèÍÑÈ°É•ÅÕ•ÍÐè½¹¹•Ñ½É	¥¹‘¥¹I•ÅÕ•ÍÐ(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•Ù½­”½¹”Ñ•¹…¹Ð‰¥¹‘¥¹œÝ¥Ñ¡½ÕÐ‘•±•Ñ¥¹œ½ÈÉ•ÑÕÉ¹¥¹œ¥ÑÌÍ•É•Ð¸ˆˆˆ(€€€ÑÉäè(€€€€€€€Í…™•}½¹¹•Ñ½È€ôÙ…±¥‘…Ñ•}½¹¹•Ñ½É}¹…µ”¡½¹¹•Ñ½È¤(€€€•á•ÁÐY…±Õ•ÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€˜‰½¹¹•Ñ½Èµ‰¥¹‘¥¹œµÉ•Ù½­”éíÍ…™•}½¹¹•Ñ½Éôˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€Ñ•¹…¹Ñ}¥€ô¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€‰¥¹‘¥¹œ€ô±½…‘}½¹¹•Ñ½É}‰¥¹‘¥¹œ¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È¤(€€€¥˜‰¥¹‘¥¹œ¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰½¹¹•Ñ½É}‰¥¹‘¥¹}¹½Ñ}™½Õ¹ˆ¤(€€€É•Ù½­•€ôÁ•ÉÍ¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹œ (€€€€€€€ì(€€€€€€€€€€€€¨©‰¥¹‘¥¹œ°(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰É•Ù½­•ˆ°(€€€€€€€€€€€€‰É•Ù½­•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€€‰É•Ù½­•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€…Õ‘¥Ñ}•Ù•¹Ð€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€‰½¹¹•Ñ½É}‰¥¹‘¥¹}É•Ù½­•ˆ°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰É•Ù½­•ˆ°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÉ•Ù½­•‘l‰Í•É•Ñ}¹…µ”‰t°(€€€€€€€€€€€€‰…Ñ½Èˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰É•Ù½­•ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÉ•Ù½­•‘l‰Í•É•Ñ}¹…µ”‰t°(€€€€€€€€‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆèÉ•Ù½­•¹•Ð ‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆ¤°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•}•áÁ½Í•ˆè…±Í”°(€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆè…Õ‘¥Ñ}•Ù•¹Ñl‰•Ù•¹Ñ}¥‰t°(€€€€€€€€‰™½±±½Ý}ÕÀˆè€ (€€€€€€€€€€€€‰I•Ù½­”Ñ¡”ÁÉ½Ù¥‘•ÈÑ½­•¸…¹‘¥Í…‰±”½ÈÉ½Ñ…Ñ”Ñ¡”M•É•Ð5…¹…•È€ˆ(€€€€€€€€€€€€‰Ù•ÉÍ¥½¸‘ÕÉ¥¹œ½™™‰½…É‘¥¹œìÉ”µÉÕ¸Ñ¡”Í¥¹•½Ý¹•È‰¥¹‘¥¹œÉ½ÕÑ”€ˆ(€€€€€€€€€€€€‰½¹±ä…™Ñ•È„É•Á±…•µ•¹ÐÍ•É•Ð¥ÌÉ•…‘ä¸ˆ(€€€€€€€€¤°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½½¹¹•Ñ½ÉÌ½í½¹¹•Ñ½Éô½‰¥¹‘¥¹œ½É½Ñ…Ñ”ˆ¤)‘•˜É½Ñ…Ñ•}½¹¹•Ñ½É}‰¥¹‘¥¹œ (€€€½¹¹•Ñ½ÈèÍÑÈ°É•ÅÕ•ÍÐè½¹¹•Ñ½É	¥¹‘¥¹I½Ñ…Ñ¥½¹I•ÅÕ•ÍÐ(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰	•¥¸…¸½Ý¹•Èµ½¹ÑÉ½±±•É•‘•¹Ñ¥…°É½Ñ…Ñ¥½¸Ý¥Ñ¡½ÕÐ…•ÁÑ¥¹œ„Í•É•Ð¸((€€€I½Ñ…Ñ¥½¸¥Ì„ÑÝ¼µÍÑ•À½¹ÑÉ½°µÁ±…¹”½Á•É…Ñ¥½¸èÑ¡¥Ì•¹‘Á½¥¹Ðµ½Ù•ÌÑ¡”(€€€‰¥¹‘¥¹œÑ¼É½Ñ…Ñ¥½¹}Á•¹‘¥¹€Í¼½¹¹•Ñ½È…±±Ì™…¥°±½Í•°Ñ¡•¸…¸(€€€¥¹™É…ÍÑÉÕÑÕÉ”½Á•É…Ñ½È…‘‘Ì„¹•ÜÙ•ÉÍ¥½¸Ñ¼Ñ¡”‘•Ñ•Éµ¥¹¥ÍÑ¥ŒM•É•Ð(€€€5…¹…•ÈÍ•É•Ð…¹É•Á•…ÑÌÑ¡”¹½Éµ…°‰¥¹‘¥¹œÙ•É¥™¥…Ñ¥½¸É½ÕÑ”¸€Q¡”(€€€ÉÕ¹Ñ¥µ”¹•Ù•ÈÉ••¥Ù•Ì½ÈÉ•ÑÕÉ¹Ì„É•‘•¹Ñ¥…°Ù…±Õ”¸(€€€€ˆˆˆ(€€€ÑÉäè(€€€€€€€Í…™•}½¹¹•Ñ½È€ôÙ…±¥‘…Ñ•}½¹¹•Ñ½É}¹…µ”¡½¹¹•Ñ½È¤(€€€•á•ÁÐY…±Õ•ÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€˜‰½¹¹•Ñ½Èµ‰¥¹‘¥¹œµÉ½Ñ…Ñ”éíÍ…™•}½¹¹•Ñ½Éôˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€Ñ•¹…¹Ñ}¥€ô¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€‰¥¹‘¥¹œ€ô±½…‘}½¹¹•Ñ½É}‰¥¹‘¥¹œ¡Ñ•¹…¹Ñ}¥°Í…™•}½¹¹•Ñ½È¤(€€€¥˜‰¥¹‘¥¹œ¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰½¹¹•Ñ½É}‰¥¹‘¥¹}¹½Ñ}™½Õ¹ˆ¤(€€€ÕÉÉ•¹Ñ}ÍÑ…ÑÕÌ€ôÍÑÈ¡‰¥¹‘¥¹œ¹•Ð ‰ÍÑ…ÑÕÌˆ°€ˆˆ¤¤¹…Í•™½± ¤(€€€¥˜ÕÉÉ•¹Ñ}ÍÑ…ÑÕÌ¹½Ð¥¸ì‰…Ñ¥Ù”ˆ°€‰É½Ñ…Ñ¥½¹}Á•¹‘¥¹œ‰ôè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀä°(€€€€€€€€€€€‘•Ñ…¥°ô‰½¹¹•Ñ½É}‰¥¹‘¥¹}¹½Ñ}É½Ñ…Ñ…‰±”ˆ°(€€€€€€€€¤(€€€¥˜ÕÉÉ•¹Ñ}ÍÑ…ÑÕÌ€ôô€‰É½Ñ…Ñ¥½¹}Á•¹‘¥¹œˆ…¹‰¥¹‘¥¹œ¹•Ð ‰É½Ñ…Ñ¥½¹}¥ˆ¤è(€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰É½Ñ…Ñ¥½¹}Á•¹‘¥¹œˆ°(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰É½Ñ…Ñ¥½¹}¥ˆè‰¥¹‘¥¹l‰É½Ñ…Ñ¥½¹}¥‰t°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆè‰¥¹‘¥¹l‰Í•É•Ñ}¹…µ”‰t°(€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆè‰¥¹‘¥¹œ¹•Ð ‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆ¤°(€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•}•áÁ½Í•ˆè…±Í”°(€€€€€€€€€€€€‰…±É•…‘å}Á•¹‘¥¹œˆèQÉÕ”°(€€€€€€€€€€€€‰¹•áÑ}ÍÑ•Àˆè€ (€€€€€€€€€€€€€€€€‰‘„É•Á±…•µ•¹ÐÙ•ÉÍ¥½¸Ñ¼Ñ¡¥Ì‘•Ñ•Éµ¥¹¥ÍÑ¥ŒM•É•Ð5…¹…•ÈÍ•É•Ð°€ˆ(€€€€€€€€€€€€€€€€‰Ñ¡•¸É•Á•…ÐÑ¡”Í¥¹•½Ý¹•È‰¥¹‘¥¹œÉ•ÅÕ•ÍÐÑ¼Ù•É¥™ä…¹É•…Ñ¥Ù…Ñ”¥Ð¸ˆ(€€€€€€€€€€€€¤°(€€€€€€€ô(€€€¹½Ü€ôÕÑ}¹½Ü ¤(€€€É½Ñ…Ñ¥½¹}¥€ô˜‰É½Ñ…Ñ¥½¸µíÕÕ¥Ð ¤¹¡•áôˆ(€€€Á•¹‘¥¹œ€ôÁ•ÉÍ¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹œ (€€€€€€€ì(€€€€€€€€€€€€¨©‰¥¹‘¥¹œ°(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰É½Ñ…Ñ¥½¹}Á•¹‘¥¹œˆ°(€€€€€€€€€€€€‰É½Ñ…Ñ¥½¹}¥ˆèÉ½Ñ…Ñ¥½¹}¥°(€€€€€€€€€€€€‰É½Ñ…Ñ¥½¹}É•…Í½¸ˆèÉ•ÅÕ•ÍÐ¹É•…Í½¸¹ÍÑÉ¥À ¤°(€€€€€€€€€€€€‰É½Ñ…Ñ¥½¹}ÍÑ…ÉÑ•‘}…Ðˆè¹½Ü°(€€€€€€€€€€€€‰É½Ñ…Ñ¥½¹}ÍÑ…ÉÑ•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…Ðˆè¹½Ü°(€€€€€€€ô(€€€€¤(€€€…Õ‘¥Ñ}•Ù•¹Ð€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€‰½¹¹•Ñ½É}‰¥¹‘¥¹}É½Ñ…Ñ¥½¹}É•ÅÕ•ÍÑ•ˆ°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰É½Ñ…Ñ¥½¹}Á•¹‘¥¹œˆ°(€€€€€€€€€€€€‰É½Ñ…Ñ¥½¹}¥ˆèÉ½Ñ…Ñ¥½¹}¥°(€€€€€€€€€€€€‰É•…Í½¸ˆèÉ•ÅÕ•ÍÐ¹É•…Í½¸¹ÍÑÉ¥À ¤°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÁ•¹‘¥¹l‰Í•É•Ñ}¹…µ”‰t°(€€€€€€€€€€€€‰…Ñ½Èˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰É½Ñ…Ñ¥½¹}Á•¹‘¥¹œˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€‰É½Ñ…Ñ¥½¹}¥ˆèÉ½Ñ…Ñ¥½¹}¥°(€€€€€€€€‰Í•É•Ñ}¹…µ”ˆèÁ•¹‘¥¹l‰Í•É•Ñ}¹…µ”‰t°(€€€€€€€€‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆèÁ•¹‘¥¹œ¹•Ð ‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆ¤°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•}•áÁ½Í•ˆè…±Í”°(€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆè…Õ‘¥Ñ}•Ù•¹Ñl‰•Ù•¹Ñ}¥‰t°(€€€€€€€€‰¹•áÑ}ÍÑ•Àˆè€ (€€€€€€€€€€€€‰‘„É•Á±…•µ•¹ÐÙ•ÉÍ¥½¸Ñ¼Ñ¡¥Ì‘•Ñ•Éµ¥¹¥ÍÑ¥ŒM•É•Ð5…¹…•ÈÍ•É•Ð°€ˆ(€€€€€€€€€€€€‰Ñ¡•¸É•Á•…ÐÑ¡”Í¥¹•½Ý¹•È‰¥¹‘¥¹œÉ•ÅÕ•ÍÐÑ¼Ù•É¥™ä…¹É•…Ñ¥Ù…Ñ”¥Ð¸ˆ(€€€€€€€€¤°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½½¹¹•Ñ½ÉÌ½í½¹¹•Ñ½Éô½ÁÉ½™¥±”ˆ¤)‘•˜É•¥ÍÑ•É}½¹¹•Ñ½É}ÁÉ½™¥±” (€€€½¹¹•Ñ½ÈèÍÑÈ°É•ÅÕ•ÍÐè½¹¹•Ñ½ÉAÉ½™¥±•I•ÅÕ•ÍÐ(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰A•ÉÍ¥ÍÐ½¹”Ñ•¹…¹ÐÌ‰½Õ¹‘•°¹½¸µÍ•É•Ð½¹¹•Ñ½È‘•ÍÑ¥¹…Ñ¥½¸¸ˆˆˆ(€€€ÑÉäè(€€€€€€€Í…™•}½¹¹•Ñ½È€ôÙ…±¥‘…Ñ•}½¹¹•Ñ½É}¹…µ”¡½¹¹•Ñ½È¤(€€€€€€€Í•ÑÑ¥¹Ì€ôÙ…±¥‘…Ñ•}½¹¹•Ñ½É}ÁÉ½™¥±”¡Í…™•}½¹¹•Ñ½È°É•ÅÕ•ÍÐ¹Í•ÑÑ¥¹Ì¤(€€€•á•ÁÐY…±Õ•ÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€˜‰½¹¹•Ñ½ÈµÁÉ½™¥±”éíÍ…™•}½¹¹•Ñ½Éôˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€Ñ•¹…¹Ñ}¥€ô¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€ÁÉ½™¥±”€ôÁ•ÉÍ¥ÍÑ}½¹¹•Ñ½É}ÁÉ½™¥±” (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰Í•ÑÑ¥¹ÌˆèÍ•ÑÑ¥¹Ì°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€ô(€€€€¤(€€€…Õ‘¥Ñ}•Ù•¹Ð€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€‰½¹¹•Ñ½É}ÁÉ½™¥±•}ÕÁ‘…Ñ•ˆ°(€€€€€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€€€€€‰Í•ÑÑ¥¹}­•åÌˆèÍ½ÉÑ•¡Í•ÑÑ¥¹Ì¤°(€€€€€€€€€€€€‰…Ñ½Èˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€‰Í•ÑÑ¥¹ÌˆèÁÉ½™¥±•l‰Í•ÑÑ¥¹Ì‰t°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}…•ÁÑ•ˆè…±Í”°(€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆè…Õ‘¥Ñ}•Ù•¹Ñl‰•Ù•¹Ñ}¥‰t°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½½¹¹•Ñ½ÉÌ½í½¹¹•Ñ½Éô½ÁÉ½™¥±”ˆ¤)‘•˜•Ñ}½¹¹•Ñ½É}ÁÉ½™¥±” (€€€½¹¹•Ñ½ÈèÍÑÈ°(€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸Ñ¡”…±±•ÈÌ¹½¸µÍ•É•ÐÁÉ½™¥±”°¹•Ù•È„É•‘•¹Ñ¥…°Ù…±Õ”¸ˆˆˆ(€€€ÑÉäè(€€€€€€€Í…™•}½¹¹•Ñ½È€ôÙ…±¥‘…Ñ•}½¹¹•Ñ½É}¹…µ”¡½¹¹•Ñ½È¤(€€€•á•ÁÐY…±Õ•ÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€˜‰½¹¹•Ñ½ÈµÁÉ½™¥±”µÉ•…éíÍ…™•}½¹¹•Ñ½Éôˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€ÁÉ½™¥±”€ô±½…‘}½¹¹•Ñ½É}ÁÉ½™¥±”¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°Í…™•}½¹¹•Ñ½È¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰½¹¹•Ñ½ÈˆèÍ…™•}½¹¹•Ñ½È°(€€€€€€€€‰ÍÑ…ÑÕÌˆè€¡ÁÉ½™¥±”½Èíô¤¹•Ð ‰ÍÑ…ÑÕÌˆ°€‰¹½Ñ}½¹™¥ÕÉ•ˆ¤°(€€€€€€€€‰Í•ÑÑ¥¹Ìˆè€¡ÁÉ½™¥±”½Èíô¤¹•Ð ‰Í•ÑÑ¥¹Ìˆ°íô¤°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½Ñ•¹…¹ÑÌˆ¤)‘•˜•Ñ}Ñ•¹…¹Ñ}µ•Ñ…‘…Ñ„ (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸µ•Ñ…‘…Ñ„™½ÈÑ¡”…±±•ÈÌÑ•¹…¹Ð°¹•Ù•ÈÉ•‘•¹Ñ¥…±Ì½ÈÍ•É•ÑÌ¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰Ñ•¹…¹Ðµµ•Ñ…‘…Ñ„ˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€Ñ•¹…¹Ð€ô±½…‘}Ñ•¹…¹Ð¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤½Èì(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰‰½½ÑÍÑÉ…Á}Á•¹‘¥¹œˆ°(€€€ô((€€€‰¥¹‘¥¹Ì€ô±¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹Ì¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤(€€€ÁÉ½™¥±•Ì€ô±¥ÍÑ}½¹¹•Ñ½É}ÁÉ½™¥±•Ì¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤(€€€µ•µ‰•ÉÍ¡¥ÁÌ€ô±¥ÍÑ}Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥ÁÌ¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰Ñ•¹…¹Ðˆèì(€€€€€€€€€€€­•äèÙ…±Õ”(€€€€€€€€€€€™½È­•ä°Ù…±Õ”¥¸Ñ•¹…¹Ð¹¥Ñ•µÌ ¤(€€€€€€€€€€€¥˜­•ä¹½Ð¥¸ì‰Ñ½­•¸ˆ°€‰Í•É•Ñ}Ù…±Õ”ˆ°€‰…•ÍÍ}Ñ½­•¸ˆ°€‰É•™É•Í¡}Ñ½­•¸‰ô(€€€€€€€ô°(€€€€€€€€‰É½±”ˆè¥‘•¹Ñ¥Ñål‰É½±”‰t°(€€€€€€€€‰½¹¹•Ñ½É}‰¥¹‘¥¹}½Õ¹Ðˆè±•¸¡‰¥¹‘¥¹Ì¤°(€€€€€€€€‰½¹¹•Ñ½É}ÁÉ½™¥±•}½Õ¹Ðˆè±•¸¡ÁÉ½™¥±•Ì¤°(€€€€€€€€‰µ•µ‰•ÉÍ¡¥Á}½Õ¹Ðˆè±•¸¡µ•µ‰•ÉÍ¡¥ÁÌ¤°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½Ñ•¹…¹ÑÌ½…Ù…¥±…‰±”ˆ¤)‘•˜•Ñ}…Ù…¥±…‰±•}Ñ•¹…¹ÑÌ¡¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰1¥ÍÐÑ¡”…±±•ÈÌ…Ñ¥Ù”Ñ•¹…¹Ðµ•µ‰•ÉÍ¡¥ÁÌ™½È„Ñ•¹…¹ÐÍÝ¥Ñ¡•È¸((€€€Q¡¥Ì¥ÌÑ¡”½¹±ä¥‘•¹Ñ¥Ñäµ½¹±äÑ•¹…¹Ð‘¥Í½Ù•ÉäÉ½ÕÑ”¸%Ð‘½•Ì¹½Ð…•ÁÐ„(€€€Ñ•¹…¹ÐÍ•±•Ñ½È°!5Ñ½­•¸°½È½Á•É…Ñ½ÈµÍÕÁÁ±¥••µ…¥°°…¹¥ÐÉ•ÑÕÉ¹Ì(€€€µ•µ‰•ÉÍ¡¥Àµ•Ñ…‘…Ñ„½¹±ä¸ÕÍ•ÈÝ¥Ñ ½¹”…Ñ¥Ù”µ•µ‰•ÉÍ¡¥À…¸½µ¥Ð„(€€€Ñ•¹…¹ÐÍ•±•Ñ½È½¸ÍÕ‰Í•ÅÕ•¹ÐÍ¥¹•É•ÅÕ•ÍÑÌì„ÕÍ•ÈÝ¥Ñ Í•Ù•É…°µÕÍÐ(€€€•áÁ±¥¥Ñ±ä¡½½Í”½¹”Í¼…¸¥‘•¹Ñ¥Ñä…¸¹•Ù•ÈÍ¥±•¹Ñ±ä™…±°¥¹Ñ¼Ñ¡”(€€€‘•Á±½åµ•¹ÐÌ‘•µ¼Ñ•¹…¹Ð¸(€€€€ˆˆˆ(€€€€Œ!½ÍÑ•‰É½ÝÍ•È±¥•¹ÑÌÍ•¹Ñ¡”Í¡½ÉÐµ±¥Ù•%Ñ½­•¸…Ì…¸ÕÑ¡½É¥é…Ñ¥½¸(€€€€Œ¡•…‘•ÈÍ¼¥Ð¹•Ù•È…ÁÁ•…ÉÌ¥¸„UI0¸€-••ÀÑ¡”•áÁ±¥¥ÐÅÕ•Éä™¥•±½¹±ä(€€€€Œ™½È±½…°½‰½½ÑÍÑÉ…À½µÁ…Ñ¥‰¥±¥ÑäìÁÉ½‘ÕÑ¥½¸µ¥‘‘±•Ý…É”½Ý¹ÌÑ¡”(€€€€ŒÉ•ÅÕ•ÍÐµÍ½Á•¡•…‘•ÈÙ…±Õ”¸(€€€}¡•…‘•É}…ÁÁÉ½Ù…°°¡•…‘•É}¥‘•¹Ñ¥Ñä€ô}É•ÅÕ•ÍÑ}…ÕÑ ¹•Ð ¤(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸€ô¥‘•¹Ñ¥Ñå}Ñ½­•¸½È¡•…‘•É}¥‘•¹Ñ¥Ñä(€€€…Õ‘¥•¹”€ô½Ì¹•Ñ•¹Ø ‰I%Q1%9}==1}=AIQ=I}U%9ˆ°€ˆˆ¤¹ÍÑÉ¥À ¤(€€€ÑÉäè(€€€€€€€±…¥µÌ€ô}Ù•É¥™å}½½±•}¥‘•¹Ñ¥Ñå}±…¥µÌ¡¥‘•¹Ñ¥Ñå}Ñ½­•¸°…Õ‘¥•¹”¤(€€€€€€€•µ…¥°€ôÍÑÈ¡±…¥µÌ¹•Ð ‰•µ…¥°ˆ°€ˆˆ¤¤¹ÍÑÉ¥À ¤¹…Í•™½± ¤(€€€€€€€µ•µ‰•ÉÍ¡¥ÁÌ€ô±¥ÍÑ}Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥ÁÍ}™½É}•µ…¥°¡•µ…¥°¤(€€€•á•ÁÐá•ÁÑ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÄ°‘•Ñ…¥°ô‰%¹Ù…±¥Ñ•¹…¹Ð¥‘•¹Ñ¥Ñäˆ¤™É½´•áŒ((€€€…Ù…¥±…‰±”è±¥ÍÑm‘¥ÑmÍÑÈ°½‰©•Ñut€ômt(€€€™½Èµ•µ‰•È¥¸µ•µ‰•ÉÍ¡¥ÁÌè(€€€€€€€¥˜ÍÑÈ¡µ•µ‰•È¹•Ð ‰ÍÑ…ÑÕÌˆ°€‰…Ñ¥Ù”ˆ¤¤¹…Í•™½± ¤€„ô€‰…Ñ¥Ù”ˆè(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€€€€€Ñ•¹…¹Ñ}¥€ôÍÑÈ¡µ•µ‰•È¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ°€ˆˆ¤¤¹ÍÑÉ¥À ¤¹…Í•™½± ¤(€€€€€€€ÑÉäè(€€€€€€€€€€€Ñ•¹…¹Ñ}¥€ôÙ…±¥‘…Ñ•}Ñ•¹…¹Ñ}¥¡Ñ•¹…¹Ñ}¥¤(€€€€€€€•á•ÁÐY…±Õ•ÉÉ½Èè(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€€€€€Ñ•¹…¹Ð€ô±½…‘}Ñ•¹…¹Ð¡Ñ•¹…¹Ñ}¥¤(€€€€€€€¥˜½Ì¹•Ñ•¹Ø ‰I%Q1%9}AIM%MQ9ˆ°€‰µ•µ½Éäˆ¤¹…Í•™½± ¤€ôô€‰™¥É•ÍÑ½É”ˆ…¹¹½ÐÑ•¹…¹Ðè(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€€€€€¥˜Ñ•¹…¹Ð…¹ÍÑÈ¡Ñ•¹…¹Ð¹•Ð ‰ÍÑ…ÑÕÌˆ°€‰…Ñ¥Ù”ˆ¤¤¹…Í•™½± ¤€„ô€‰…Ñ¥Ù”ˆè(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€€€€€…Ù…¥±…‰±”¹…ÁÁ•¹ (€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€€€€€‰É½±”ˆèÍÑÈ¡µ•µ‰•È¹•Ð ‰É½±”ˆ°€‰Ù¥•Ý•Èˆ¤¤¹…Í•™½± ¤°(€€€€€€€€€€€€€€€€‰µ•µ‰•ÉÍ¡¥Á}¥ˆèµ•µ‰•È¹•Ð ‰µ•µ‰•ÉÍ¡¥Á}¥ˆ¤°(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€ô(€€€€€€€€¤(€€€…Ù…¥±…‰±”¹Í½ÉÐ¡­•äõ±…µ‰‘„¥Ñ•´èÍÑÈ¡¥Ñ•µl‰Ñ•¹…¹Ñ}¥‰t¤¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰½¬ˆ¥˜…Ù…¥±…‰±”•±Í”€‰¹½}…Ñ¥Ù•}µ•µ‰•ÉÍ¡¥ÁÌˆ°(€€€€€€€€‰•µ…¥°ˆè•µ…¥°°(€€€€€€€€‰Ñ•¹…¹ÑÌˆè…Ù…¥±…‰±”°(€€€€€€€€‰Í•±•Ñ¥½¹}É•ÅÕ¥É•ˆè±•¸¡…Ù…¥±…‰±”¤€ø€Ä°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Á±…Ñ™½É´½Ñ•¹…¹ÑÌˆ¤)‘•˜ÁÉ½Ù¥Í¥½¹}Á±…Ñ™½Éµ}Ñ•¹…¹Ð (€€€É•ÅÕ•ÍÐèA±…Ñ™½ÉµQ•¹…¹ÑAÉ½Ù¥Í¥½¹I•ÅÕ•ÍÐ°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰É•…Ñ”½ÈÉ•…Ñ¥Ù…Ñ”Ñ•¹…¹Ðµ•Ñ…‘…Ñ„Ñ¡É½Õ „Á±…Ñ™½É´=%¥‘•¹Ñ¥Ñä¸((€€€Q¡¥ÌÉ½ÕÑ”¥Ì¥¹Ñ•¹Ñ¥½¹…±±ä„½¹ÑÉ½°µÁ±…¹”‰½½ÑÍÑÉ…À½¹±ä¸%ÐÉ•…Ñ•Ì¹¼(€€€M•É•Ð5…¹…•ÈÙ…±Õ”…¹…•ÁÑÌ¹¼ÁÉ½Ù¥‘•ÈÉ•‘•¹Ñ¥…°ì¥¹™É…ÍÑÉÕÑÕÉ”(€€€ÁÉ½Ù¥Í¥½¹ÌÑ¡”‘•Ñ•Éµ¥¹¥ÍÑ¥Œ½¹Ñ…¥¹•ÉÌÍ•Á…É…Ñ•±ä‰•™½É”‰¥¹‘¥¹Ì…¸‰”(€€€…Ñ¥Ù…Ñ•¸(€€€€ˆˆˆ(€€€Á±…Ñ™½É´€ô}Ù•É¥™å}Á±…Ñ™½Éµ}½Á•É…Ñ½È¡É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸¤(€€€ÑÉäè(€€€€€€€Ñ•¹…¹Ñ}¥€ôÙ…±¥‘…Ñ•}Ñ•¹…¹Ñ}¥¡É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥¤(€€€•á•ÁÐY…±Õ•ÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€½Ý¹•É}•µ…¥°€ôÉ•ÅÕ•ÍÐ¹½Ý¹•É}•µ…¥°¹ÍÑÉ¥À ¤¹…Í•™½± ¤(€€€¥˜€‰ ˆ¹½Ð¥¸½Ý¹•É}•µ…¥°½È±•¸¡½Ý¹•É}•µ…¥°¤€ø€ÌÈÀè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°ô‰½Ý¹•É}•µ…¥±}¥¹Ù…±¥ˆ¤(€€€¹½Ü€ôÕÑ}¹½Ü ¤(€€€‰½½ÑÍÑÉ…Á}…Õ‘¥Ð€ôì(€€€€€€€€‰•Ù•¹Ñ}¥ˆè˜‰Ñ•¹…¹Ðµ…Õ‘¥ÐµíÕÕ¥Ð ¤¹¡•áôˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€‰Ñ•¹…¹Ñ}ÁÉ½Ù¥Í¥½¹•ˆ°(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€‰½Ý¹•É}•µ…¥°ˆè½Ý¹•É}•µ…¥°°(€€€€€€€€‰…Ñ½ÈˆèÁ±…Ñ™½Éµl‰•µ…¥°‰t°(€€€€€€€€‰¥‘•¹Ñ¥ÑäˆèÁ±…Ñ™½Éµl‰¥‘•¹Ñ¥Ñä‰t°(€€€€€€€€‰É•…Ñ•‘}…Ðˆè¹½Ü°(€€€ô(€€€É•…Ñ•€ôÁÉ½Ù¥Í¥½¹}Ñ•¹…¹Ñ}µ•Ñ…‘…Ñ„ (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€‰ÁÉ½Ù¥Í¥½¹¥¹œˆè€‰Á±…Ñ™½Éµ}½¥‘Œˆ°(€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}‰äˆèÁ±…Ñ™½Éµl‰•µ…¥°‰t°(€€€€€€€€€€€€‰É•…Ñ•‘}…Ðˆè¹½Ü°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…Ðˆè¹½Ü°(€€€€€€€ô°(€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰•µ…¥°ˆè½Ý¹•É}•µ…¥°°(€€€€€€€€€€€€‰É½±”ˆè€‰½Ý¹•Èˆ°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€‰Í½ÕÉ”ˆè€‰Á±…Ñ™½Éµ}½¥‘}‰½½ÑÍÑÉ…Àˆ°(€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}‰äˆèÁ±…Ñ™½Éµl‰•µ…¥°‰t°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…Ðˆè¹½Ü°(€€€€€€€ô°(€€€€€€€…Õ‘¥Ñ}Á…å±½…õ‰½½ÑÍÑÉ…Á}…Õ‘¥Ð°(€€€€¤(€€€¥˜¹½ÐÉ•…Ñ•è(€€€€€€€€ŒÁÉ•Ù¥½ÕÌÁ±…Ñ™½É´‰½½ÑÍÑÉ…Àµ…ä¡…Ù”É•…Ñ•Ñ¡”Ñ•¹…¹Ð‘½Õµ•¹Ð(€€€€€€€€Œ‰ÕÐ™…¥±•‰•™½É”ÝÉ¥Ñ¥¹œ¥ÑÌ½Ý¹•Èµ•µ‰•ÉÍ¡¥À€¡™½È•á…µÁ±”‘ÕÉ¥¹œ„(€€€€€€€€ŒÉ½±±¥¹œ¥É•ÍÑ½É”µ¥É…Ñ¥½¸¤¸I•Á…¥ÈÑ¡…Ð‰½Õ¹‘•°µ•Ñ…‘…Ñ„µ½¹±ä(€€€€€€€€ŒÍÑ…Ñ”¥¹ÍÑ•…½˜±•…Ù¥¹œÑ¡”Ñ•¹…¹ÐÁ•Éµ…¹•¹Ñ±äÕ¹‘¥Í½Ù•É…‰±”¸(€€€€€€€•á¥ÍÑ¥¹}Ñ•¹…¹Ð€ô±½…‘}Ñ•¹…¹Ð¡Ñ•¹…¹Ñ}¥¤½Èíô(€€€€€€€•á¥ÍÑ¥¹}µ•µ‰•ÉÍ¡¥ÁÌ€ô±¥ÍÑ}Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥ÁÌ¡Ñ•¹…¹Ñ}¥¤(€€€€€€€¥˜€ (€€€€€€€€€€€ÍÑÈ¡•á¥ÍÑ¥¹}Ñ•¹…¹Ð¹•Ð ‰ÍÑ…ÑÕÌˆ°€ˆˆ¤¤¹…Í•™½± ¤€ôô€‰…Ñ¥Ù”ˆ(€€€€€€€€€€€…¹¹½Ð•á¥ÍÑ¥¹}µ•µ‰•ÉÍ¡¥ÁÌ(€€€€€€€€¤è(€€€€€€€€€€€É•Á…¥É•€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥À (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€€€€€€€€€‰•µ…¥°ˆè½Ý¹•É}•µ…¥°°(€€€€€€€€€€€€€€€€€€€€‰É½±”ˆè€‰½Ý¹•Èˆ°(€€€€€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€€€€€€€€€‰Í½ÕÉ”ˆè€‰Á±…Ñ™½Éµ}½¥‘}µ•µ‰•ÉÍ¡¥Á}É•Á…¥Èˆ°(€€€€€€€€€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}‰äˆèÁ±…Ñ™½Éµl‰•µ…¥°‰t°(€€€€€€€€€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…Ðˆè¹½Ü°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€€€€€É•Á…¥É}…Õ‘¥Ð€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹Ð (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€¨©‰½½ÑÍÑÉ…Á}…Õ‘¥Ð°(€€€€€€€€€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè˜‰Ñ•¹…¹Ðµ…Õ‘¥ÐµíÕÕ¥Ð ¤¹¡•áôˆ°(€€€€€€€€€€€€€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€‰Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥Á}É•Á…¥É•ˆ°(€€€€€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€€€€€€€€€‰É•Á…¥Èˆè€‰µ¥ÍÍ¥¹}½Ý¹•É}µ•µ‰•ÉÍ¡¥Àˆ°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€€€€€‰½Ý¹•É}•µ…¥°ˆè½Ý¹•É}•µ…¥°°(€€€€€€€€€€€€€€€€‰µ•µ‰•ÉÍ¡¥Á}¥ˆèÉ•Á…¥É•‘l‰µ•µ‰•ÉÍ¡¥Á}¥‰t°(€€€€€€€€€€€€€€€€‰Í•É•Ñ}É•™•É•¹•Ìˆèì(€€€€€€€€€€€€€€€€€€€½¹¹•Ñ½ÈèÑ•¹…¹Ñ}½¹¹•Ñ½É}Í•É•Ñ}¹…µ”¡Ñ•¹…¹Ñ}¥°½¹¹•Ñ½È¤(€€€€€€€€€€€€€€€€€€€™½È½¹¹•Ñ½È¥¸€ ‰©¥É„ˆ°€‰½¹™±Õ•¹”ˆ°€‰Í±…¬ˆ°€‰¥Ñ¡Õˆˆ°€‰Í…±•Í™½É”ˆ¤(€€€€€€€€€€€€€€€ô°(€€€€€€€€€€€€€€€€‰½Á•É…Ñ½É}Í¥¹¥¹}Í•É•ÐˆèÑ•¹…¹Ñ}½Á•É…Ñ½É}Í¥¹¥¹}Í•É•Ñ}¹…µ”¡Ñ•¹…¹Ñ}¥¤°(€€€€€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€€€€€€€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆèÉ•Á…¥É}…Õ‘¥Ñl‰•Ù•¹Ñ}¥‰t°(€€€€€€€€€€€€€€€€‰É•Á…¥É•‘}µ•µ‰•ÉÍ¡¥ÀˆèQÉÕ”°(€€€€€€€€€€€€€€€€‰¹•áÑ}ÍÑ•Àˆè€ (€€€€€€€€€€€€€€€€€€€€‰AÉ½Ù¥Í¥½¸Ñ¡”‘•Ñ•Éµ¥¹¥ÍÑ¥ŒM•É•Ð5…¹…•È½¹Ñ…¥¹•ÉÌ½ÕÐ½˜‰…¹°€ˆ(€€€€€€€€€€€€€€€€€€€€‰Ñ¡•¸…‘ÁÉ½Ù¥‘•ÈÙ…±Õ•Ì…¹…Ñ¥Ù…Ñ”•… ½Ý¹•È‰¥¹‘¥¹œ¸ˆ(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€ô(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°ô‰Ñ•¹…¹Ñ}…±É•…‘å}•á¥ÍÑÌˆ¤(€€€µ•µ‰•ÉÍ¡¥Á}¥€ô‰…Í”ØÐ¹ÕÉ±Í…™•}ˆØÑ•¹½‘” (€€€€€€€˜‰íÑ•¹…¹Ñ}¥‘ôéí½Ý¹•É}•µ…¥±ôˆ¹•¹½‘” ¤(€€€€¤¹‘•½‘” ‰…Í¥¤ˆ¤¹ÉÍÑÉ¥À ˆôˆ¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰½Ý¹•É}•µ…¥°ˆè½Ý¹•É}•µ…¥°°(€€€€€€€€‰µ•µ‰•ÉÍ¡¥Á}¥ˆèµ•µ‰•ÉÍ¡¥Á}¥°(€€€€€€€€‰Í•É•Ñ}É•™•É•¹•Ìˆèì(€€€€€€€€€€€½¹¹•Ñ½ÈèÑ•¹…¹Ñ}½¹¹•Ñ½É}Í•É•Ñ}¹…µ”¡Ñ•¹…¹Ñ}¥°½¹¹•Ñ½È¤(€€€€€€€€€€€™½È½¹¹•Ñ½È¥¸€ ‰©¥É„ˆ°€‰½¹™±Õ•¹”ˆ°€‰Í±…¬ˆ°€‰¥Ñ¡Õˆˆ°€‰Í…±•Í™½É”ˆ¤(€€€€€€€ô°(€€€€€€€€‰½Á•É…Ñ½É}Í¥¹¥¹}Í•É•ÐˆèÑ•¹…¹Ñ}½Á•É…Ñ½É}Í¥¹¥¹}Í•É•Ñ}¹…µ”¡Ñ•¹…¹Ñ}¥¤°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆè‰½½ÑÍÑÉ…Á}…Õ‘¥Ñl‰•Ù•¹Ñ}¥‰t°(€€€€€€€€‰¹•áÑ}ÍÑ•Àˆè€ (€€€€€€€€€€€€‰AÉ½Ù¥Í¥½¸Ñ¡”‘•Ñ•Éµ¥¹¥ÍÑ¥ŒM•É•Ð5…¹…•È½¹Ñ…¥¹•ÉÌ½ÕÐ½˜‰…¹°€ˆ(€€€€€€€€€€€€‰Ñ¡•¸…‘ÁÉ½Ù¥‘•ÈÙ…±Õ•Ì…¹…Ñ¥Ù…Ñ”•… ½Ý¹•È‰¥¹‘¥¹œ¸ˆ(€€€€€€€€¤°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½Ñ•¹…¹ÑÌ½…Õ‘¥Ðˆ¤)‘•˜•Ñ}Ñ•¹…¹Ñ}…Õ‘¥Ð (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€±¥µ¥Ðè¥¹Ð€ô€ÔÀ°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸…ÁÁ•¹µ½¹±äÑ•¹…¹Ð½¹ÑÉ½°µÁ±…¹”•Ù•¹ÑÌÝ¥Ñ¡½ÕÐÉ•‘•¹Ñ¥…±Ì¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰Ñ•¹…¹Ðµ…Õ‘¥Ðˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€•Ù•¹ÑÌ€ô±¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹ÑÌ¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°±¥µ¥Ðõ±¥µ¥Ð¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰…ÁÁ•¹‘}½¹±äˆèQÉÕ”°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰•Ù•¹ÑÌˆèl(€€€€€€€€€€€ì(€€€€€€€€€€€€€€€­•äèÙ…±Õ”(€€€€€€€€€€€€€€€™½È­•ä°Ù…±Õ”¥¸•Ù•¹Ð¹¥Ñ•µÌ ¤(€€€€€€€€€€€€€€€¥˜­•ä¹½Ð¥¸ì‰Ñ½­•¸ˆ°€‰Í•É•Ñ}Ù…±Õ”ˆ°€‰…•ÍÍ}Ñ½­•¸ˆ°€‰É•™É•Í¡}Ñ½­•¸‰ô(€€€€€€€€€€€ô(€€€€€€€€€€€™½È•Ù•¹Ð¥¸•Ù•¹ÑÌ(€€€€€€€t°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½Ñ•¹…¹ÑÌ½ÕÍ…”ˆ¤)‘•˜•Ñ}Ñ•¹…¹Ñ}ÕÍ…” (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€Á•É¥½èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸…É•…Ñ”Ñ•¹…¹ÐÕÍ…”ìÑ¡¥Ì¥Ìµ•Ñ•É¥¹œ°¹½Ð‰¥±±¥¹œ¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰Ñ•¹…¹ÐµÕÍ…”ˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€ÕÍ…”€ô±½…‘}Ñ•¹…¹Ñ}ÕÍ…”¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°Á•É¥½õÁ•É¥½¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰Á•É¥½ˆèÕÍ…”¹•Ð ‰Á•É¥½ˆ¤°(€€€€€€€€‰ÕÍ…”ˆèì(€€€€€€€€€€€­•äèÕÍ…”¹•Ð¡­•ä°€À¤(€€€€€€€€€€€™½È­•ä¥¸€ (€€€€€€€€€€€€€€€€‰…•¹Ñ}…±±Ìˆ°(€€€€€€€€€€€€€€€€‰Ý½É­™±½Ý}µÕÑ…Ñ¥½¹Ìˆ°(€€€€€€€€€€€€€€€€‰½¹¹•Ñ½É}…±±Ìˆ°(€€€€€€€€€€€€€€€€‰µ½¹¥Ñ½É}©½‰Ìˆ°(€€€€€€€€€€€€¤(€€€€€€€ô°(€€€€€€€€‰µ•Ñ•É¥¹œˆèì(€€€€€€€€€€€€‰‘ÕÉ…‰±”ˆèQÉÕ”°(€€€€€€€€€€€€‰Í½Á”ˆè€‰Ñ•¹…¹Ñ}Á•É¥½ˆ°(€€€€€€€€€€€€‰‰¥±±¥¹}•¹…‰±•ˆè…±Í”°(€€€€€€€€€€€€‰É•Ñ•¹Ñ¥½¸ˆè€‰½¹ÑÉ½±}Á±…¹•}µ•Ñ…‘…Ñ„ì¹¼½¹Ñ•¹ÐQQ0ˆ°(€€€€€€€ô°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½Ñ•¹…¹ÑÌ½Á½±¥äˆ¤)‘•˜•Ñ}Ñ•¹…¹Ñ}Á½±¥ä (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸Ñ¡”…±±•ÈÌ•™™•Ñ¥Ù”‰½Õ¹‘•ÅÕ½Ñ„…¹É•Ñ•¹Ñ¥½¸Á½±¥ä¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰Ñ•¹…¹ÐµÁ½±¥äµÉ•…ˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€Á½±¥ä€ô±½…‘}Ñ•¹…¹Ñ}Á½±¥ä¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰Á½±¥äˆèÁ½±¥ä°(€€€€€€€€‰Ý¥¹‘½ÝÍ}Í•½¹‘Ìˆèì(€€€€€€€€€€€€‰…•¹Ñ}…±±Ìˆè9Q}]%9=]}M=9L°(€€€€€€€€€€€€‰Ý½É­™±½Ý}µÕÑ…Ñ¥½¹Ìˆè5=}]%9=]}M=9L°(€€€€€€€€€€€€‰½¹¹•Ñ½É}…±±Ìˆè=99Q=I}]%9=]}M=9L°(€€€€€€€ô°(€€€€€€€€‰‰¥±±¥¹}•¹…‰±•ˆè…±Í”°(€€€€€€€€‰µ•Ñ•É¥¹}½¹±äˆèQÉÕ”°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ñ•¹…¹ÑÌ½Á½±¥äˆ¤)‘•˜ÕÁ‘…Ñ•}Ñ•¹…¹Ñ}Á½±¥ä¡É•ÅÕ•ÍÐèQ•¹…¹ÑA½±¥åI•ÅÕ•ÍÐ¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰UÁ‘…Ñ”½¹”Ñ•¹…¹ÐÌ‰½Õ¹‘•ÅÕ½Ñ„…¹É•Ñ•¹Ñ¥½¸Á½±¥äÝ¥Ñ¡½ÕÐÉ•‘•Á±½å¥¹œ¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰Ñ•¹…¹ÐµÁ½±¥äµÕÁ‘…Ñ”ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€É•ÅÕ•ÍÑ•‘}Á½±¥ä€ôì(€€€€€€€™¥•±è•Ñ…ÑÑÈ¡É•ÅÕ•ÍÐ°™¥•±¤(€€€€€€€™½È™¥•±¥¸€ (€€€€€€€€€€€€‰…•¹Ñ}…±±Í}Á•É}Ý¥¹‘½Üˆ°(€€€€€€€€€€€€‰Ý½É­™±½Ý}µÕÑ…Ñ¥½¹Í}Á•É}Ý¥¹‘½Üˆ°(€€€€€€€€€€€€‰½¹¹•Ñ½É}…±±Í}Á•É}Ý¥¹‘½Üˆ°(€€€€€€€€€€€€‰É•Ñ•¹Ñ¥½¹}‘…åÌˆ°(€€€€€€€€¤(€€€€€€€¥˜™¥•±¥¸É•ÅÕ•ÍÐ¹µ½‘•±}™¥•±‘Í}Í•Ð(€€€ô(€€€Á½±¥ä€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}Á½±¥ä¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°É•ÅÕ•ÍÑ•‘}Á½±¥ä¤(€€€…Õ‘¥Ñ}•Ù•¹Ð€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€‰Ñ•¹…¹Ñ}Á½±¥å}ÕÁ‘…Ñ•ˆ°(€€€€€€€€€€€€‰Á½±¥å}­•åÌˆèÍ½ÉÑ•¡Á½±¥ä¤°(€€€€€€€€€€€€‰…Ñ½Èˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰Á½±¥äˆèÁ½±¥ä°(€€€€€€€€‰‰¥±±¥¹}•¹…‰±•ˆè…±Í”°(€€€€€€€€‰µ•Ñ•É¥¹}½¹±äˆèQÉÕ”°(€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆè…Õ‘¥Ñ}•Ù•¹Ñl‰•Ù•¹Ñ}¥‰t°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ñ•¹…¹ÑÌ½‘•ÁÉ½Ù¥Í¥½¸ˆ¤)‘•˜‘•ÁÉ½Ù¥Í¥½¹}Ñ•¹…¹Ð¡É•ÅÕ•ÍÐèQ•¹…¹Ñ•ÁÉ½Ù¥Í¥½¹I•ÅÕ•ÍÐ¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰M½™Ðµ‘¥Í…‰±”½¹”Ñ•¹…¹Ð…¹É•Ù½­”¥ÑÌ½¹¹•Ñ½È‰¥¹‘¥¹Ì¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰Ñ•¹…¹Ðµ‘•ÁÉ½Ù¥Í¥½¸ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€Ñ•¹…¹Ñ}¥€ô¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€¥˜É•ÅÕ•ÍÐ¹½¹™¥Éµ…Ñ¥½¸¹ÍÑÉ¥À ¤¹…Í•™½± ¤€„ôÑ•¹…¹Ñ}¥è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°ô‰Ñ•¹…¹Ñ}½¹™¥Éµ…Ñ¥½¹}µ¥Íµ…Ñ ˆ¤(€€€¹½Ü€ôÕÑ}¹½Ü ¤(€€€‰¥¹‘¥¹Ì€ô±¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹Ì¡Ñ•¹…¹Ñ}¥¤(€€€™½È‰¥¹‘¥¹œ¥¸‰¥¹‘¥¹Ìè(€€€€€€€Á•ÉÍ¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹œ (€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€¨©‰¥¹‘¥¹œ°(€€€€€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰É•Ù½­•ˆ°(€€€€€€€€€€€€€€€€‰É•Ù½­•‘}…Ðˆè¹½Ü°(€€€€€€€€€€€€€€€€‰É•Ù½­•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€€€€€ô(€€€€€€€€¤(€€€µ•µ‰•ÉÍ¡¥ÁÌ€ô±¥ÍÑ}Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥ÁÌ¡Ñ•¹…¹Ñ}¥¤(€€€™½Èµ•µ‰•È¥¸µ•µ‰•ÉÍ¡¥ÁÌè(€€€€€€€Á•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥À (€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€¨©µ•µ‰•È°(€€€€€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰‘¥Í…‰±•ˆ°(€€€€€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…Ðˆè¹½Ü°(€€€€€€€€€€€ô(€€€€€€€€¤(€€€Á•ÉÍ¥ÍÑ}Ñ•¹…¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰‘¥Í…‰±•ˆ°(€€€€€€€€€€€€‰‘•ÁÉ½Ù¥Í¥½¹•‘}…Ðˆè¹½Ü°(€€€€€€€€€€€€‰‘•ÁÉ½Ù¥Í¥½¹•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€…Õ‘¥Ñ}•Ù•¹Ð€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}…Õ‘¥Ñ}•Ù•¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰•Ù•¹Ñ}ÑåÁ”ˆè€‰Ñ•¹…¹Ñ}‘•ÁÉ½Ù¥Í¥½¹•ˆ°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰‘¥Í…‰±•ˆ°(€€€€€€€€€€€€‰É•Ù½­•‘}‰¥¹‘¥¹}½Õ¹Ðˆè±•¸¡‰¥¹‘¥¹Ì¤°(€€€€€€€€€€€€‰‘¥Í…‰±•‘}µ•µ‰•ÉÍ¡¥Á}½Õ¹Ðˆè±•¸¡µ•µ‰•ÉÍ¡¥ÁÌ¤°(€€€€€€€€€€€€‰…Ñ½Èˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€ô(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰‘¥Í…‰±•ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰É•Ù½­•‘}‰¥¹‘¥¹}½Õ¹Ðˆè±•¸¡‰¥¹‘¥¹Ì¤°(€€€€€€€€‰‘¥Í…‰±•‘}µ•µ‰•ÉÍ¡¥Á}½Õ¹Ðˆè±•¸¡µ•µ‰•ÉÍ¡¥ÁÌ¤°(€€€€€€€€‰…Õ‘¥Ñ}•Ù•¹Ñ}¥ˆè…Õ‘¥Ñ}•Ù•¹Ñl‰•Ù•¹Ñ}¥‰t°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€€€€€€‰™½±±½Ý}ÕÀˆè€ (€€€€€€€€€€€€‰I•Ù½­”ÁÉ½Ù¥‘•ÈÑ½­•¹Ì…¹‘•±•Ñ”½È‘¥Í…‰±”Ñ¡”Ñ•¹…¹ÐÌM•É•Ð€ˆ(€€€€€€€€€€€€‰5…¹…•ÈÙ•ÉÍ¥½¹ÌÑ¡É½Õ ¥¹™É…ÍÑÉÕÑÕÉ”½™™‰½…É‘¥¹œ¸ˆ(€€€€€€€€¤°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½Ñ•¹…¹ÑÌ½µ•µ‰•ÉÌˆ¤)‘•˜•Ñ}Ñ•¹…¹Ñ}µ•µ‰•ÉÌ (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰1¥ÍÐÉ½±”µ•Ñ…‘…Ñ„™½È½¹”Ñ•¹…¹Ðì½Ý¹•ÉÌ½¹±äµ…ä¥¹ÍÁ•Ðµ•µ‰•ÉÍ¡¥À¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰Ñ•¹…¹Ðµµ•µ‰•ÉÌˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€µ•µ‰•ÉÌ€ô±¥ÍÑ}Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥ÁÌ¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰µ•µ‰•ÉÌˆèl(€€€€€€€€€€€ì(€€€€€€€€€€€€€€€­•äèÙ…±Õ”(€€€€€€€€€€€€€€€™½È­•ä°Ù…±Õ”¥¸µ•µ‰•È¹¥Ñ•µÌ ¤(€€€€€€€€€€€€€€€¥˜­•ä¹½Ð¥¸ì‰Ñ½­•¸ˆ°€‰Í•É•Ñ}Ù…±Õ”ˆ°€‰…•ÍÍ}Ñ½­•¸ˆ°€‰É•™É•Í¡}Ñ½­•¸‰ô(€€€€€€€€€€€ô(€€€€€€€€€€€™½Èµ•µ‰•È¥¸µ•µ‰•ÉÌ(€€€€€€€t°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ñ•¹…¹ÑÌ½µ•µ‰•ÉÌˆ¤)‘•˜ÁÉ½Ù¥Í¥½¹}Ñ•¹…¹Ñ}µ•µ‰•È¡É•ÅÕ•ÍÐèQ•¹…¹Ñ5•µ‰•ÉI•ÅÕ•ÍÐ¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰AÉ½Ù¥Í¥½¸½ÈÕÁ‘…Ñ”½¹”Ñ•¹…¹ÐÉ½±”Ý¥Ñ¡½ÕÐ…•ÁÑ¥¹œ„Í•É•Ð½Ñ½­•¸¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰Ñ•¹…¹Ðµµ•µ‰•ÈµÁÉ½Ù¥Í¥½¸ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰É½±”ˆ¤€„ô€‰½Ý¹•Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹Ð½Ý¹•ÈÉ½±”¥ÌÉ•ÅÕ¥É•ˆ¤(€€€•µ…¥°€ôÉ•ÅÕ•ÍÐ¹•µ…¥°¹ÍÑÉ¥À ¤¹…Í•™½± ¤(€€€¥˜€‰ ˆ¹½Ð¥¸•µ…¥°½È•µ…¥°¹ÍÑ…ÉÑÍÝ¥Ñ  ‰ ˆ¤½È•µ…¥°¹•¹‘ÍÝ¥Ñ  ‰ ˆ¤è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°ô‰µ•µ‰•É}•µ…¥±}¥¹Ù…±¥ˆ¤(€€€Ñ•¹…¹Ñ}¥€ô¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€Á•ÉÍ¥ÍÑ}Ñ•¹…¹Ð (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…Ñ¥Ù”ˆ°(€€€€€€€€€€€€‰ÁÉ½Ù¥Í¥½¹¥¹œˆè€‰½Ý¹•É}µ•µ‰•ÉÍ¡¥Àˆ°(€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}‰äˆè¥‘•¹Ñ¥Ñä¹•Ð ‰•µ…¥°ˆ¤½È¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ¤°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€ô(€€€€¤(€€€µ•µ‰•È€ôÁ•ÉÍ¥ÍÑ}Ñ•¹…¹Ñ}µ•µ‰•ÉÍ¡¥À (€€€€€€€ì(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€€€€€‰•µ…¥°ˆè•µ…¥°°(€€€€€€€€€€€€‰É½±”ˆèÉ•ÅÕ•ÍÐ¹É½±”°(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆèÉ•ÅÕ•ÍÐ¹ÍÑ…ÑÕÌ°(€€€€€€€€€€€€‰Í½ÕÉ”ˆè€‰½Ý¹•É}ÁÉ½Ù¥Í¥½¹•ˆ°(€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€ô(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆèÉ•ÅÕ•ÍÐ¹ÍÑ…ÑÕÌ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°(€€€€€€€€‰•µ…¥°ˆè•µ…¥°°(€€€€€€€€‰É½±”ˆèÉ•ÅÕ•ÍÐ¹É½±”°(€€€€€€€€‰µ•µ‰•ÉÍ¡¥Á}¥ˆèµ•µ‰•Él‰µ•µ‰•ÉÍ¡¥Á}¥‰t°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½½¹¹•Ñ½ÉÌ½‰¥¹‘¥¹Ìˆ¤)‘•˜•Ñ}½¹¹•Ñ½É}‰¥¹‘¥¹Ì (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰1¥ÍÐµ•Ñ…‘…Ñ„µ½¹±ä½¹¹•Ñ½È‰¥¹‘¥¹Ì™½ÈÑ¡”…±±•ÈÌÑ•¹…¹Ð¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰½¹¹•Ñ½Èµ‰¥¹‘¥¹Ìµ±¥ÍÐˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€‰¥¹‘¥¹Ì€ô±¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹Ì¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰‰¥¹‘¥¹Ìˆèl(€€€€€€€€€€€ì(€€€€€€€€€€€€€€€­•äèÙ…±Õ”(€€€€€€€€€€€€€€€™½È­•ä°Ù…±Õ”¥¸‰¥¹‘¥¹œ¹¥Ñ•µÌ ¤(€€€€€€€€€€€€€€€¥˜­•ä¹½Ð¥¸ì‰Ñ½­•¸ˆ°€‰Í•É•Ñ}Ù…±Õ”ˆ°€‰…•ÍÍ}Ñ½­•¸ˆ°€‰É•™É•Í¡}Ñ½­•¸‰ô(€€€€€€€€€€€ô(€€€€€€€€€€€™½È‰¥¹‘¥¹œ¥¸‰¥¹‘¥¹Ì(€€€€€€€t°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½½¹¹•Ñ½ÉÌ½É•‘•¹Ñ¥…±Ìˆ¤)‘•˜•Ñ}½¹¹•Ñ½É}É•‘•¹Ñ¥…±Ì (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸Ñ¡”Ñ•¹…¹ÐÉ•‘•¹Ñ¥…°µ‰É½­•È¥¹Ù•¹Ñ½ÉäÝ¥Ñ¡½ÕÐÍ•É•ÐÙ…±Õ•Ì¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰½¹¹•Ñ½ÈµÉ•‘•¹Ñ¥…±Ìµ±¥ÍÐˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€‰¥¹‘¥¹Ì€ô±¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹Ì¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤(€€€É•‘•¹Ñ¥…±Ì€ômt(€€€™½È‰¥¹‘¥¹œ¥¸‰¥¹‘¥¹Ìè(€€€€€€€½¹¹•Ñ½È€ôÍÑÈ¡‰¥¹‘¥¹œ¹•Ð ‰½¹¹•Ñ½Èˆ°€ˆˆ¤¤(€€€€€€€É•‘•¹Ñ¥…±Ì¹…ÁÁ•¹ (€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}¥ˆè‰¥¹‘¥¹œ¹•Ð (€€€€€€€€€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}¥ˆ°˜‰É•µí¥‘•¹Ñ¥ÑålÑ•¹…¹Ñ}¥uôµí½¹¹•Ñ½Éôˆ(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€€‰½¹¹•Ñ½Èˆè½¹¹•Ñ½È°(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè‰¥¹‘¥¹œ¹•Ð ‰ÍÑ…ÑÕÌˆ°€‰Õ¹­¹½Ý¸ˆ¤°(€€€€€€€€€€€€€€€€‰Í•É•Ñ}‰…­•¹ˆè‰¥¹‘¥¹œ¹•Ð (€€€€€€€€€€€€€€€€€€€€‰Í•É•Ñ}‰…­•¹ˆ°€‰½½±•}Í•É•Ñ}µ…¹…•Èˆ(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€€‰Í•É•Ñ}É•™•É•¹•}Í½Á”ˆè‰¥¹‘¥¹œ¹•Ð (€€€€€€€€€€€€€€€€€€€€‰Í•É•Ñ}É•™•É•¹•}Í½Á”ˆ°€‰•á…Ñ}Ñ•¹…¹Ñ}½¹¹•Ñ½É}Í•É•Ðˆ(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€€‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆè‰¥¹‘¥¹œ¹•Ð ‰Í•É•Ñ}Ù•ÉÍ¥½¸ˆ°€‰±…Ñ•ÍÐˆ¤°(€€€€€€€€€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹ÌˆèÍ½ÉÑ• (€€€€€€€€€€€€€€€€€€€‰¥¹‘¥¹œ¹•Ð (€€€€€€€€€€€€€€€€€€€€€€€€‰…±±½Ý•‘}½Á•É…Ñ¥½¹Ìˆ°…±±½Ý•‘}½Á•É…Ñ¥½¹Ì¡½¹¹•Ñ½È¤(€€€€€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€€‰±•…Í•}Í•½¹‘Ìˆè¥¹Ð¡‰¥¹‘¥¹œ¹•Ð ‰±•…Í•}Í•½¹‘Ìˆ°€ÌÀÀ¤¤°(€€€€€€€€€€€€€€€€‰¹…µ•ÍÁ…•}Ù•É¥™¥•ˆè‰½½°¡‰¥¹‘¥¹œ¹•Ð ‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆ¤¤°(€€€€€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆè‰¥¹‘¥¹œ¹•Ð ‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆ¤°(€€€€€€€€€€€€€€€€‰Ù•É¥™¥•‘}…Ðˆè‰¥¹‘¥¹œ¹•Ð ‰Ù•É¥™¥•‘}…Ðˆ¤°(€€€€€€€€€€€€€€€€‰ÕÁ‘…Ñ•‘}…Ðˆè‰¥¹‘¥¹œ¹•Ð ‰ÕÁ‘…Ñ•‘}…Ðˆ¤°(€€€€€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€€€€€€€€€ô(€€€€€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰½¬ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰É•‘•¹Ñ¥…±ÌˆèÉ•‘•¹Ñ¥…±Ì°(€€€€€€€€‰…É¡¥Ñ•ÑÕÉ”ˆèì(€€€€€€€€€€€€‰¥Í½±…Ñ¥½¸ˆè€‰Ñ•¹…¹Ñ}‰¥¹‘¥¹}Ñ½}•á…Ñ}Í•É•Ñ}µ…¹…•É}Í•É•Ðˆ°(€€€€€€€€€€€€‰…¹½¹¥…±}‰¥¹‘¥¹}Á…Ñ ˆè€‰‘É¥™Ñ±¥¹•}Ñ•¹…¹ÑÌ½íÑ•¹…¹Ñô½É•‘•¹Ñ¥…±Ì½í½¹¹•Ñ½Éôˆ°(€€€€€€€€€€€€‰¹…µ•ÍÁ…•}Í¡•µ…}Ù•ÉÍ¥½¸ˆè€Ä°(€€€€€€€€€€€€‰¹…µ•ÍÁ…•}µ¥É…Ñ¥½¸ˆè€‰ÍÉ¥ÁÑÌ½µ¥É…Ñ•}Ñ•¹…¹Ñ}É•‘•¹Ñ¥…±}‰¥¹‘¥¹Ì¹Áäˆ°(€€€€€€€€€€€€‰±•…å}™±…Ñ}µ¥ÉÉ½É}ÝÉ¥Ñ•Ìˆè½Ì¹•Ñ•¹Ø (€€€€€€€€€€€€€€€€‰I%Q1%9}]I%Q}1e}=99Q=I}5%II=Hˆ°€‰™…±Í”ˆ(€€€€€€€€€€€€¤¹…Í•™½± ¤(€€€€€€€€€€€€ôô€‰ÑÉÕ”ˆ°(€€€€€€€€€€€€‰ÍÑÉ¥Ñ}¹…µ•ÍÁ…•}É•ÅÕ¥É•ˆè½Ì¹•Ñ•¹Ø (€€€€€€€€€€€€€€€€‰I%Q1%9}IEU%I}Q99Q}I9Q%1}95MAˆ°€‰™…±Í”ˆ(€€€€€€€€€€€€¤¹…Í•™½± ¤(€€€€€€€€€€€€ôô€‰ÑÉÕ”ˆ°(€€€€€€€€€€€€‰É•Í½±ÕÑ¥½¸ˆè€‰Í¡½ÉÑ}±¥Ù•‘}¥¹}ÁÉ½•ÍÍ}±•…Í”ˆ°(€€€€€€€€€€€€‰É½Ñ…Ñ¥½¸ˆè€‰½Ý¹•É}É•ÅÕ•ÍÑ•‘}Ñ¡•¹}Ù•ÉÍ¥½¹}Á¥¹¹•ˆ°(€€€€€€€€€€€€‰É•Ù½…Ñ¥½¸ˆè€‰‰¥¹‘¥¹}ÍÑ…ÑÕÍ}™…¥±}±½Í•ˆ°(€€€€€€€€€€€€‰…Õ‘¥Ñ}½±±•Ñ¥½¸ˆè€‰‘É¥™Ñ±¥¹•}É•‘•¹Ñ¥…±}…•ÍÍ}•Ù•¹ÑÌˆ°(€€€€€€€€€€€€‰•¹É½±±µ•¹Ðˆèì(€€€€€€€€€€€€€€€€‰ÍÑ…ÉÑ}É½ÕÑ”ˆè€ˆ½…Á¤½½¹¹•Ñ½ÉÌ½í½¹¹•Ñ½Éô½É•‘•¹Ñ¥…°µ•¹É½±±µ•¹Ðˆ°(€€€€€€€€€€€€€€€€‰½µÁ±•Ñ•}É½ÕÑ”ˆè€ˆ½…Á¤½½¹¹•Ñ½ÉÌ½í½¹¹•Ñ½Éô½É•‘•¹Ñ¥…°µ•¹É½±±µ•¹Ð½í¥‘ô½½µÁ±•Ñ”ˆ°(€€€€€€€€€€€€€€€€‰Í•ÍÍ¥½¹}ÑÑ±}Í•½¹‘Ìˆè€äÀÀ°(€€€€€€€€€€€€€€€€‰‘•™…Õ±Ñ}¹•Ý}Í½Á”ˆèl‰É•…‘}½¹Ñ•áÐ‰t°(€€€€€€€€€€€€€€€€‰É…Ý}Í•É•Ñ}…•ÁÑ•ˆè…±Í”°(€€€€€€€€€€€ô°(€€€€€€€ô°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½½¹¹•Ñ½ÉÌ½É•‘•¹Ñ¥…±Ì½…•ÍÌˆ¤)‘•˜•Ñ}½¹¹•Ñ½É}É•‘•¹Ñ¥…±}…•ÍÌ (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€±¥µ¥Ðè¥¹Ð€ô€ÄÀÀ°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸½¹”Ñ•¹…¹ÐÌÉ•‘…Ñ•É•‘•¹Ñ¥…°±•…Í”…Õ‘¥ÐÑÉ…¥°¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰½¹¹•Ñ½ÈµÉ•‘•¹Ñ¥…±Ìµ…•ÍÌˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€•Ù•¹ÑÌ€ô±¥ÍÑ}É•‘•¹Ñ¥…±}…•ÍÍ}•Ù•¹ÑÌ¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°±¥µ¥Ðõ±¥µ¥Ð¤(€€€É•‘…Ñ•€ôl(€€€€€€€ì(€€€€€€€€€€€­•äèÙ…±Õ”(€€€€€€€€€€€™½È­•ä°Ù…±Õ”¥¸•Ù•¹Ð¹¥Ñ•µÌ ¤(€€€€€€€€€€€¥˜­•ä(€€€€€€€€€€€¹½Ð¥¸ì(€€€€€€€€€€€€€€€€‰Ù…±Õ”ˆ°(€€€€€€€€€€€€€€€€‰Ñ½­•¸ˆ°(€€€€€€€€€€€€€€€€‰Í•É•Ñ}Ù…±Õ”ˆ°(€€€€€€€€€€€€€€€€‰…•ÍÍ}Ñ½­•¸ˆ°(€€€€€€€€€€€€€€€€‰É•™É•Í¡}Ñ½­•¸ˆ°(€€€€€€€€€€€€€€€€‰±¥•¹Ñ}Í•É•Ðˆ°(€€€€€€€€€€€ô(€€€€€€€ô(€€€€€€€™½È•Ù•¹Ð¥¸•Ù•¹ÑÌ(€€€t(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰½¬ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰•Ù•¹ÑÌˆèÉ•‘…Ñ•°(€€€€€€€€‰…ÁÁ•¹‘}½¹±äˆèQÉÕ”°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½½¹¹•Ñ½ÉÌ½‰¥¹‘¥¹Ì½¡•…±Ñ ˆ¤)‘•˜•Ñ}½¹¹•Ñ½É}‰¥¹‘¥¹}¡•…±Ñ  (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•½¹¥±”Ñ•¹…¹Ð‰¥¹‘¥¹œµ•Ñ…‘…Ñ„Ý¥Ñ É•…‘…‰±”M•É•Ð5…¹…•ÈÍÑ…Ñ”¸((€€€Q¡¥Ì¥Ì„É•…µ½¹±ä½Á•É…Ñ½ÈÁÉ½‰”¸%Ð•¹Õµ•É…Ñ•ÌÑ¡”™¥á•½¹¹•Ñ½È(€€€…±±½Ý±¥ÍÐ°¹•Ù•È…•ÁÑÌ„Í•É•Ð¹…µ”°…¹¹•Ù•ÈÉ•ÑÕÉ¹Ì„É•‘•¹Ñ¥…°(€€€Ù…±Õ”¸Ñ¥Ù”‰¥¹‘¥¹Ì…É”¡•­•……¥¹ÍÐÑ¡”•á…Ð‘•Ñ•Éµ¥¹¥ÍÑ¥ŒÍ•É•Ðì(€€€Á•¹‘¥¹œ°É•Ù½­•°½Èµ¥ÍÍ¥¹œ‰¥¹‘¥¹ÌÉ•µ…¥¸™…¥°µ±½Í•…¹…É”ÍÕÉ™…•(€€€…Ì…ÑÑ•¹Ñ¥½¸¥Ñ•µÌÉ…Ñ¡•ÈÑ¡…¸‰•¥¹œÍ¥±•¹Ñ±äÑÉ•…Ñ•…Ì¡•…±Ñ¡ä¸(€€€€ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰½¹¹•Ñ½Èµ‰¥¹‘¥¹Ìµ¡•…±Ñ ˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¹½Ð}É•Í•ÉÙ•}½¹¹•Ñ½É}…±°¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤è(€€€€€€€É…¥Í”}½¹¹•Ñ½É}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È ‰½¹¹•Ñ½ÈÉ•…ÅÕ½Ñ„É•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ¤(€€€‰½Õ¹€ôì(€€€€€€€ÍÑÈ¡‰¥¹‘¥¹œ¹•Ð ‰½¹¹•Ñ½Èˆ¤¤è‰¥¹‘¥¹œ(€€€€€€€™½È‰¥¹‘¥¹œ¥¸±¥ÍÑ}½¹¹•Ñ½É}‰¥¹‘¥¹Ì¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤(€€€€€€€¥˜‰¥¹‘¥¹œ¹•Ð ‰½¹¹•Ñ½Èˆ¤(€€€ô((€€€‘•˜ÁÉ½™¥±•}¡•…±Ñ ¡½¹¹•Ñ½ÈèÍÑÈ¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€€€€€ˆˆ‰I•½¹¥±”Ñ¡”¹½¸µÍ•É•Ð‘•ÍÑ¥¹…Ñ¥½¸ÁÉ½™¥±”Ý¥Ñ¡½ÕÐÉ•ÑÕÉ¹¥¹œÙ…±Õ•Ì¸ˆˆˆ(€€€€€€€ÑÉäè(€€€€€€€€€€€ÁÉ½™¥±”€ô±½…‘}½¹¹•Ñ½É}ÁÉ½™¥±”¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°½¹¹•Ñ½È¤(€€€€€€€•á•ÁÐá•ÁÑ¥½¸è€€Œ¹½Å„è	1ÀÀÄ€´¡•…±Ñ µÕÍÐ¹½Ð±•…¬ÁÉ½Ù¥‘•È½ÍÑ½É…”•ÉÉ½ÉÌ¸(€€€€€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…ÑÑ•¹Ñ¥½¸ˆ°(€€€€€€€€€€€€€€€€‰É•…Í½¸ˆè€‰ÁÉ½™¥±•}±½½­ÕÁ}™…¥±•ˆ°(€€€€€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}­•åÌˆèmt°(€€€€€€€€€€€ô(€€€€€€€¥˜¹½ÐÁÉ½™¥±”è(€€€€€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰¹½Ñ}½¹™¥ÕÉ•ˆ°(€€€€€€€€€€€€€€€€‰É•…Í½¸ˆè€‰ÁÉ½™¥±•}µ¥ÍÍ¥¹œˆ°(€€€€€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}­•åÌˆèmt°(€€€€€€€€€€€ô(€€€€€€€¥˜ÍÑÈ¡ÁÉ½™¥±”¹•Ð ‰ÍÑ…ÑÕÌˆ°€‰…Ñ¥Ù”ˆ¤¤¹…Í•™½± ¤€„ô€‰…Ñ¥Ù”ˆè(€€€€€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…ÑÑ•¹Ñ¥½¸ˆ°(€€€€€€€€€€€€€€€€‰É•…Í½¸ˆè€‰ÁÉ½™¥±•}¥¹…Ñ¥Ù”ˆ°(€€€€€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}­•åÌˆèmt°(€€€€€€€€€€€ô(€€€€€€€ÑÉäè(€€€€€€€€€€€Í…™•}Í•ÑÑ¥¹Ì€ôÙ…±¥‘…Ñ•}½¹¹•Ñ½É}ÁÉ½™¥±” (€€€€€€€€€€€€€€€½¹¹•Ñ½È°‘¥Ð¡ÁÉ½™¥±”¹•Ð ‰Í•ÑÑ¥¹Ìˆ¤½Èíô¤(€€€€€€€€€€€€¤(€€€€€€€•á•ÁÐ€¡QåÁ•ÉÉ½È°Y…±Õ•ÉÉ½È¤è(€€€€€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…ÑÑ•¹Ñ¥½¸ˆ°(€€€€€€€€€€€€€€€€‰É•…Í½¸ˆè€‰ÁÉ½™¥±•}¥¹Ù…±¥ˆ°(€€€€€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}­•åÌˆèmt°(€€€€€€€€€€€ô(€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰¡•…±Ñ¡äˆ°(€€€€€€€€€€€€‰É•…Í½¸ˆè€‰ÁÉ½™¥±•}½¹™¥ÕÉ•ˆ°(€€€€€€€€€€€€‰½¹™¥ÕÉ•‘}­•åÌˆèÍ½ÉÑ•¡Í…™•}Í•ÑÑ¥¹Ì¤°(€€€€€€€ô((€€€¡•­Ìè±¥ÍÑm‘¥ÑmÍÑÈ°½‰©•Ñut€ômt(€€€™½È½¹¹•Ñ½È¥¸Í½ÉÑ•¡=99Q=I}95L¤è(€€€€€€€•áÁ•Ñ•‘}Í•É•Ð€ôÑ•¹…¹Ñ}½¹¹•Ñ½É}Í•É•Ñ}¹…µ”¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°½¹¹•Ñ½È¤(€€€€€€€ÑÉäè(€€€€€€€€€€€•áÁ•Ñ•‘}¹…µ•ÍÁ…”€ôÑ•¹…¹Ñ}É•‘•¹Ñ¥…±}¹…µ•ÍÁ…” (€€€€€€€€€€€€€€€¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°½¹¹•Ñ½È(€€€€€€€€€€€€¤(€€€€€€€•á•ÁÐ€¡QåÁ•ÉÉ½È°Y…±Õ•ÉÉ½È¤è(€€€€€€€€€€€•áÁ•Ñ•‘}¹…µ•ÍÁ…”€ô9½¹”(€€€€€€€‰¥¹‘¥¹œ€ô‰½Õ¹¹•Ð¡½¹¹•Ñ½È¤(€€€€€€€ÁÉ½™¥±”€ôÁÉ½™¥±•}¡•…±Ñ ¡½¹¹•Ñ½È¤(€€€€€€€¥˜‰¥¹‘¥¹œ¥Ì9½¹”è(€€€€€€€€€€€¡•­Ì¹…ÁÁ•¹ (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰½¹¹•Ñ½Èˆè½¹¹•Ñ½È°(€€€€€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰¹½Ñ}½¹™¥ÕÉ•ˆ°(€€€€€€€€€€€€€€€€€€€€‰Í•É•Ñ}ÍÑ…ÑÕÌˆè€‰¹½Ñ}½¹™¥ÕÉ•ˆ°(€€€€€€€€€€€€€€€€€€€€‰ÁÉ½™¥±•}ÍÑ…ÑÕÌˆèÁÉ½™¥±•l‰ÍÑ…ÑÕÌ‰t°(€€€€€€€€€€€€€€€€€€€€‰ÁÉ½™¥±•}É•…Í½¸ˆèÁÉ½™¥±•l‰É•…Í½¸‰t°(€€€€€€€€€€€€€€€€€€€€‰ÁÉ½™¥±•}½¹™¥ÕÉ•‘}­•åÌˆèÁÉ½™¥±•l‰½¹™¥ÕÉ•‘}­•åÌ‰t°(€€€€€€€€€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆè•áÁ•Ñ•‘}Í•É•Ð°(€€€€€€€€€€€€€€€€€€€€‰¹…µ•ÍÁ…•}ÍÑ…ÑÕÌˆè€‰¹½Ñ}½¹™¥ÕÉ•ˆ°(€€€€€€€€€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€€€€€‰¥¹‘¥¹}ÍÑ…ÑÕÌ€ôÍÑÈ¡‰¥¹‘¥¹œ¹•Ð ‰ÍÑ…ÑÕÌˆ°€‰Õ¹­¹½Ý¸ˆ¤¤(€€€€€€€Í•É•Ñ}¹…µ”€ôÍÑÈ¡‰¥¹‘¥¹œ¹•Ð ‰Í•É•Ñ}¹…µ”ˆ°€ˆˆ¤¤(€€€€€€€¹…µ•ÍÁ…”€ô‰¥¹‘¥¹œ¹•Ð ‰É•‘•¹Ñ¥…±}¹…µ•ÍÁ…”ˆ¤(€€€€€€€¹…µ•ÍÁ…•}ÍÑ…ÑÕÌ€ô€ (€€€€€€€€€€€€‰Ù•É¥™¥•ˆ(€€€€€€€€€€€¥˜¥Í¥¹ÍÑ…¹”¡¹…µ•ÍÁ…”°‘¥Ð¤(€€€€€€€€€€€…¹¥Í¥¹ÍÑ…¹”¡•áÁ•Ñ•‘}¹…µ•ÍÁ…”°‘¥Ð¤(€€€€€€€€€€€…¹…±°¡¹…µ•ÍÁ…”¹•Ð¡­•ä¤€ôô•áÁ•Ñ•‘}¹…µ•ÍÁ…”¹•Ð¡­•ä¤™½È­•ä¥¸€ (€€€€€€€€€€€€€€€€‰Í¡•µ…}Ù•ÉÍ¥½¸ˆ°(€€€€€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆ°(€€€€€€€€€€€€€€€€‰½¹¹•Ñ½Èˆ°(€€€€€€€€€€€€€€€€‰Í•É•Ñ}É•Í½ÕÉ”ˆ°(€€€€€€€€€€€€€€€€‰Í•ÉÙ¥•}…½Õ¹Ðˆ°(€€€€€€€€€€€€€€€€‰¥Í½±…Ñ¥½¸ˆ°(€€€€€€€€€€€€¤¤(€€€€€€€€€€€•±Í”€‰µ¥ÍÍ¥¹œˆ(€€€€€€€€€€€¥˜•áÁ•Ñ•‘}¹…µ•ÍÁ…”¥Ì¹½Ð9½¹”…¹¹…µ•ÍÁ…”¥Ì9½¹”(€€€€€€€€€€€•±Í”€‰¹½Ñ}¡•­•ˆ(€€€€€€€€€€€¥˜•áÁ•Ñ•‘}¹…µ•ÍÁ…”¥Ì9½¹”(€€€€€€€€€€€•±Í”€‰µ¥Íµ…Ñ ˆ(€€€€€€€€¤(€€€€€€€¡•¬è‘¥ÑmÍÑÈ°½‰©•Ñt€ôì(€€€€€€€€€€€€‰½¹¹•Ñ½Èˆè½¹¹•Ñ½È°(€€€€€€€€€€€€‰‰¥¹‘¥¹}ÍÑ…ÑÕÌˆè‰¥¹‘¥¹}ÍÑ…ÑÕÌ°(€€€€€€€€€€€€‰Í•É•Ñ}¹…µ”ˆè•áÁ•Ñ•‘}Í•É•Ð°(€€€€€€€€€€€€‰¹…µ•ÍÁ…•}ÍÑ…ÑÕÌˆè¹…µ•ÍÁ…•}ÍÑ…ÑÕÌ°(€€€€€€€€€€€€‰ÁÉ½™¥±•}ÍÑ…ÑÕÌˆèÁÉ½™¥±•l‰ÍÑ…ÑÕÌ‰t°(€€€€€€€€€€€€‰ÁÉ½™¥±•}É•…Í½¸ˆèÁÉ½™¥±•l‰É•…Í½¸‰t°(€€€€€€€€€€€€‰ÁÉ½™¥±•}½¹™¥ÕÉ•‘}­•åÌˆèÁÉ½™¥±•l‰½¹™¥ÕÉ•‘}­•åÌ‰t°(€€€€€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€€€€€ô(€€€€€€€¥˜Í•É•Ñ}¹…µ”€„ô•áÁ•Ñ•‘}Í•É•Ðè(€€€€€€€€€€€¡•¬¹ÕÁ‘…Ñ”¡ÍÑ…ÑÕÌô‰…ÑÑ•¹Ñ¥½¸ˆ°Í•É•Ñ}ÍÑ…ÑÕÌô‰¹…µ•}µ¥Íµ…Ñ ˆ¤(€€€€€€€•±¥˜¹…µ•ÍÁ…•}ÍÑ…ÑÕÌ¥¸ì‰µ¥ÍÍ¥¹œˆ°€‰µ¥Íµ…Ñ ‰ô½È‰¥¹‘¥¹}ÍÑ…ÑÕÌ€„ô€‰…Ñ¥Ù”ˆè(€€€€€€€€€€€¡•¬¹ÕÁ‘…Ñ”¡ÍÑ…ÑÕÌô‰…ÑÑ•¹Ñ¥½¸ˆ°Í•É•Ñ}ÍÑ…ÑÕÌô‰¹½Ñ}¡•­•ˆ¤(€€€€€€€•±Í”è(€€€€€€€€€€€ÑÉäè(€€€€€€€€€€€€€€€É•…‘…‰±”€ô‰½½°¡}É•…‘}Ñ•¹…¹Ñ}Í•É•Ð¡Ñ•¹…¹Ñ}¥°•áÁ•Ñ•‘}Í•É•Ð¤¹ÍÑÉ¥À ¤¤(€€€€€€€€€€€•á•ÁÐá•ÁÑ¥½¸è€€Œ¹½Å„è	1ÀÀÄ€´¡•…±Ñ µÕÍÐ¹½Ð±•…¬ÁÉ½Ù¥‘•È•ÉÉ½ÉÌ¸(€€€€€€€€€€€€€€€É•…‘…‰±”€ô…±Í”(€€€€€€€€€€€¡•¬¹ÕÁ‘…Ñ” (€€€€€€€€€€€€€€€ÍÑ…ÑÕÌô (€€€€€€€€€€€€€€€€€€€€‰¡•…±Ñ¡äˆ(€€€€€€€€€€€€€€€€€€€¥˜É•…‘…‰±”…¹ÁÉ½™¥±•l‰ÍÑ…ÑÕÌ‰t€ôô€‰¡•…±Ñ¡äˆ(€€€€€€€€€€€€€€€€€€€•±Í”€‰…ÑÑ•¹Ñ¥½¸ˆ(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€Í•É•Ñ}ÍÑ…ÑÕÌô‰É•…‘…‰±”ˆ¥˜É•…‘…‰±”•±Í”€‰Õ¹É•…‘…‰±”ˆ°(€€€€€€€€€€€€¤(€€€€€€€¡•­Ì¹…ÁÁ•¹¡¡•¬¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰½¬ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰•¹•É…Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€‰ÍÕµµ…Éäˆèì(€€€€€€€€€€€€‰Ñ½Ñ…°ˆè±•¸¡¡•­Ì¤°(€€€€€€€€€€€€‰¡•…±Ñ¡äˆèÍÕ´¡¥Ñ•µl‰ÍÑ…ÑÕÌ‰t€ôô€‰¡•…±Ñ¡äˆ™½È¥Ñ•´¥¸¡•­Ì¤°(€€€€€€€€€€€€‰…ÑÑ•¹Ñ¥½¸ˆèÍÕ´¡¥Ñ•µl‰ÍÑ…ÑÕÌ‰t€ôô€‰…ÑÑ•¹Ñ¥½¸ˆ™½È¥Ñ•´¥¸¡•­Ì¤°(€€€€€€€€€€€€‰¹½Ñ}½¹™¥ÕÉ•ˆèÍÕ´ (€€€€€€€€€€€€€€€¥Ñ•µl‰ÍÑ…ÑÕÌ‰t€ôô€‰¹½Ñ}½¹™¥ÕÉ•ˆ™½È¥Ñ•´¥¸¡•­Ì(€€€€€€€€€€€€¤°(€€€€€€€ô°(€€€€€€€€‰¡•­Ìˆè¡•­Ì°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½½ÁÌ½Ù…±Õ”µÁÉ½½˜ˆ¤)‘•˜•Ñ}Ù…±Õ•}ÁÉ½½˜ (€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸½‰Í•ÉÙ•Ý½É­™±½ÜÑ¡É½Õ¡ÁÕÐÝ¥Ñ¡½ÕÐÉ½ÍÌµÑ•¹…¹Ð‘¥Í±½ÍÕÉ”¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñäè‘¥ÑmÍÑÈ°ÍÑÉtð9½¹”€ô9½¹”(€€€¥˜…¹ä¡Ù…±Õ”¥Ì¹½Ð9½¹”™½ÈÙ…±Õ”¥¸€¡½Á•É…Ñ½È°Ñ•¹…¹Ñ}¥°…ÁÁÉ½Ù…±}Ñ½­•¸°¥‘•¹Ñ¥Ñå}Ñ½­•¸¤¤è(€€€€€€€¥˜¹½Ð½Á•É…Ñ½È½È¹½ÐÑ•¹…¹Ñ}¥è(€€€€€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀÄ°‘•Ñ…¥°ô‰M¥¹•…ÁÁÉ½Ù…°¥ÌÉ•ÅÕ¥É•™½ÈÙ…±Õ”µ•ÑÉ¥Ìˆ(€€€€€€€€€€€€¤(€€€€€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€€€€€‰½ÁÌéÙ…±Õ”µÁÉ½½˜ˆ°(€€€€€€€€€€€½Á•É…Ñ½È°(€€€€€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€€€€€¤(€€€Ý¥Ñ }©½‰Í}±½¬è(€€€€€€€©½‰}É•½É‘Ì€ô±¥ÍÐ¡}©½‰Ì¹Ù…±Õ•Ì ¤¤(€€€µ•ÑÉ¥}±¥µ¥Ð€ô}µ•ÑÉ¥}¡¥ÍÑ½Éå}±¥µ¥Ð ÔÀ°¥‘•¹Ñ¥Ñä¤(€€€©½‰Ì€ôl(€€€€€€€©½ˆ(€€€€€€€™½È©½ˆ¥¸}µ•É•}‘ÕÉ…‰±•}É•½É‘Ì (€€€€€€€€€€€©½‰}É•½É‘Ì°±¥ÍÑ}©½‰Ì°±¥µ¥Ðõµ•ÑÉ¥}±¥µ¥Ð°­•äõ±…µ‰‘„¥Ñ•´è¥Ñ•´¹©½‰}¥(€€€€€€€€¤(€€€€€€€¥˜}Ù¥Í¥‰±•}Ñ•¹…¹Ñ}É•½É¡©½ˆ°¥‘•¹Ñ¥Ñä¤(€€€t(€€€Ý½É­™±½Ý}É•½É‘Ì€ô±¥ÍÐ¡Ý½É­™±½Ý}ÍÑ½É”¹}ÉÕ¹Ì¹Ù…±Õ•Ì ¤¤(€€€Ý½É­™±½ÝÌ€ôl(€€€€€€€ÍÑ…Ñ”(€€€€€€€™½ÈÍÑ…Ñ”¥¸}µ•É•}‘ÕÉ…‰±•}É•½É‘Ì (€€€€€€€€€€€Ý½É­™±½Ý}É•½É‘Ì°(€€€€€€€€€€€±¥ÍÑ}Ý½É­™±½ÝÌ°(€€€€€€€€€€€±¥µ¥Ðõµ•ÑÉ¥}±¥µ¥Ð°(€€€€€€€€€€€­•äõ±…µ‰‘„¥Ñ•´è¥Ñ•´¹Ý½É­™±½Ý}¥°(€€€€€€€€¤(€€€€€€€¥˜}Ù¥Í¥‰±•}Ñ•¹…¹Ñ}É•½É¡ÍÑ…Ñ”°¥‘•¹Ñ¥Ñä¤(€€€t(€€€…Ñ¥½¹}¥Ñ•µÌ€ôm¥Ñ•´™½ÈÍÑ…Ñ”¥¸Ý½É­™±½ÝÌ™½È¥Ñ•´¥¸ÍÑ…Ñ”¹…Ñ¥½¹}¥Ñ•µÍt(€€€Í½ÕÉ•}¡•…±Ñ €ôÍ½ÕÉ•}É•¥ÍÑÉå}¡•…±Ñ  (€€€€€€€Ñ•¹…¹Ñ}¥õ¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¥˜¥‘•¹Ñ¥Ñä•±Í”9½¹”°(€€€€€€€¥¹±Õ‘•}‘¥Í…‰±•õ¥‘•¹Ñ¥Ñä¥Ì¹½Ð9½¹”°(€€€€¤(€€€Í½ÕÉ•}¡•…±Ñ¡}ÍÕµµ…Éä€ô}Í½ÕÉ•}¡•…±Ñ¡}ÍÕµµ…Éä¡Í½ÕÉ•}¡•…±Ñ ¤(€€€Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹}Ñ½Ñ…°€ôÍÕ´ (€€€€€€€¥¹Ð¡¥Ñ•´¹•Ð ‰½‰Í•ÉÙ…Ñ¥½¹}½Õ¹Ðˆ°€À¤¤™½È¥Ñ•´¥¸Í½ÕÉ•}¡•…±Ñ (€€€€¤(€€€Í½ÕÉ•}Õ¹¡…¹•‘}Ñ½Ñ…°€ôÍÕ´ (€€€€€€€¥¹Ð¡¥Ñ•´¹•Ð ‰Õ¹¡…¹•‘}½‰Í•ÉÙ…Ñ¥½¹}½Õ¹Ðˆ°€À¤¤™½È¥Ñ•´¥¸Í½ÕÉ•}¡•…±Ñ (€€€€¤(€€€Í½ÕÉ•}¡…¹•‘}Ñ½Ñ…°€ôÍÕ´ (€€€€€€€¥¹Ð¡¥Ñ•´¹•Ð ‰¡…¹•‘}½‰Í•ÉÙ…Ñ¥½¹}½Õ¹Ðˆ°€À¤¤™½È¥Ñ•´¥¸Í½ÕÉ•}¡•…±Ñ (€€€€¤(€€€Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Ì€ô€ (€€€€€€€Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹}Ñ½Ñ…°(€€€€€€€¥˜¥‘•¹Ñ¥Ñä¥Ì¹½Ð9½¹”(€€€€€€€•±Í”µ¥¸¡µ•ÑÉ¥}±¥µ¥Ð°Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹}Ñ½Ñ…°¤(€€€€¤(€€€€Œ¹½¹åµ½ÕÌÙ¥•ÝÌÕÍ”Ñ¡”Í…µ”‰½Õ¹‘•Í½ÕÉ”µ½‰Í•ÉÙ…Ñ¥½¸Ý¥¹‘½Ü…ÌÑ¡”(€€€€ŒÉ•ÍÐ½˜ÁÕ‰±¥ŒÑ•±•µ•ÑÉä¸AÉ•Í•ÉÙ”Ñ¡”½µÁ…É¥Í½¸É…Ñ¥¼Ý¡¥±”…ÁÁ¥¹œ(€€€€Œ½Õ¹ÑÌìÍ¥¹•Ñ•¹…¹ÐÙ¥•ÝÌÉ•Ñ…¥¸Ñ¡”‰½Õ¹‘•Á•ÈµÍ½ÕÉ”±•‘•È½Õ¹ÑÌ(€€€€ŒÉ•ÑÕÉ¹•‰äÍ½ÕÉ•}É•¥ÍÑÉå}¡•…±Ñ ¸(€€€Í½ÕÉ•}Ý¥¹‘½Ý}Í…±”€ô€ (€€€€€€€€Ä¸À(€€€€€€€¥˜¥‘•¹Ñ¥Ñä¥Ì¹½Ð9½¹”½ÈÍ½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹}Ñ½Ñ…°€ðôµ•ÑÉ¥}±¥µ¥Ð(€€€€€€€•±Í”µ•ÑÉ¥}±¥µ¥Ð€¼Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹}Ñ½Ñ…°(€€€€¤(€€€Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Í}Õ¹¡…¹•€ôµ¥¸ (€€€€€€€µ•ÑÉ¥}±¥µ¥Ð°(€€€€€€€É½Õ¹¡Í½ÕÉ•}Õ¹¡…¹•‘}Ñ½Ñ…°€¨Í½ÕÉ•}Ý¥¹‘½Ý}Í…±”¤°(€€€€¤(€€€Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Í}¡…¹•€ôµ¥¸ (€€€€€€€µ•ÑÉ¥}±¥µ¥Ð°(€€€€€€€É½Õ¹¡Í½ÕÉ•}¡…¹•‘}Ñ½Ñ…°€¨Í½ÕÉ•}Ý¥¹‘½Ý}Í…±”¤°(€€€€¤(€€€Í½ÕÉ•}½µÁ…É¥Í½¹}Ñ½Ñ…°€ôÍ½ÕÉ•}Õ¹¡…¹•‘}Ñ½Ñ…°€¬Í½ÕÉ•}¡…¹•‘}Ñ½Ñ…°(€€€Í½ÕÉ•}¹½}½Á}É…Ñ”€ô€ (€€€€€€€É½Õ¹¡Í½ÕÉ•}Õ¹¡…¹•‘}Ñ½Ñ…°€¼Í½ÕÉ•}½µÁ…É¥Í½¹}Ñ½Ñ…°°€Ì¤(€€€€€€€¥˜Í½ÕÉ•}½µÁ…É¥Í½¹}Ñ½Ñ…°(€€€€€€€•±Í”9½¹”(€€€€¤(€€€¡…¹•}…É‘Ì€ômÍÑ…Ñ”¹¡…¹•}…É™½ÈÍÑ…Ñ”¥¸Ý½É­™±½ÝÌ¥˜ÍÑ…Ñ”¹¡…¹•}…É‘t(€€€µ…Ñ•É¥…±¥Ñå}…É‘Ì€ôm…É¹•Ð ‰µ…Ñ•É¥…±¥Ñäˆ¤½Èíô™½È…É¥¸¡…¹•}…É‘Ít(€€€±½ÍÕÉ•}…É‘Ì€ôm…É¹•Ð ‰±½ÍÕÉ”ˆ¤½Èíô™½È…É¥¸¡…¹•}…É‘Ít(€€€¡¥ÍÑ½É¥…±±å}½µÁ±•Ñ•‘}…Ñ¥½¹}¥‘Ì€ôì(€€€€€€€ÍÑÈ¡•Ù•¹Ð¹•Ð ‰…Ñ¥½¹}¥Ñ•µ}¥ˆ¤¤(€€€€€€€™½ÈÍÑ…Ñ”¥¸Ý½É­™±½ÝÌ(€€€€€€€™½È•Ù•¹Ð¥¸ÍÑ…Ñ”¹•Ù•¹ÑÌ(€€€€€€€¥˜•Ù•¹Ð¹•Ð ‰…Ñ½Èˆ¤€ôô€‰…Ñ¥½¹}±¥™•å±”ˆ(€€€€€€€…¹ÍÑÈ¡•Ù•¹Ð¹•Ð ‰½ÕÑ½µ”ˆ°€ˆˆ¤¤¹•¹‘ÍÝ¥Ñ  ˆé½µÁ±•Ñ•ˆ¤(€€€€€€€…¹•Ù•¹Ð¹•Ð ‰…Ñ¥½¹}¥Ñ•µ}¥ˆ¤(€€€ô(€€€¡¥ÍÑ½É¥…±±å}½µÁ±•Ñ•‘}…Ñ¥½¹Ì€ô±•¸¡¡¥ÍÑ½É¥…±±å}½µÁ±•Ñ•‘}…Ñ¥½¹}¥‘Ì¤(€€€Ý½É­™±½Ý}‘…Ñ…}µ½‘•Ì€ô}½Õ¹Ñ}É•½É‘}µ½‘•Ì¡Ý½É­™±½ÝÌ°€‰‘…Ñ…}µ½‘”ˆ¤(€€€©½‰}ÉÕ¹}µ½‘•Ì€ô}½Õ¹Ñ}É•½É‘}µ½‘•Ì¡©½‰Ì°€‰ÉÕ¹}µ½‘”ˆ¤(€€€•áÑ•É¹…±}ÝÉ¥Ñ•Ì€ôÍÕ´ (€€€€€€€‰½½° ¡ÍÑ…Ñ”¹…Ñ¥½¹}É•½É½Èíô¤¹•Ð ‰•áÑ•É¹…±}ÝÉ¥Ñ”ˆ¤¤™½ÈÍÑ…Ñ”¥¸Ý½É­™±½ÝÌ(€€€€¤(€€€É•Ù•ÉÍ•‘}Ý½É­™±½ÝÌ€ôÍÕ´ (€€€€€€€…¹ä¡•Ù•¹Ð¹•Ð ‰½ÕÑ½µ”ˆ¤€ôô€‰‘•¥Í¥½¹}É•½Á•¹•ˆ™½È•Ù•¹Ð¥¸ÍÑ…Ñ”¹•Ù•¹ÑÌ¤(€€€€€€€™½ÈÍÑ…Ñ”¥¸Ý½É­™±½ÝÌ(€€€€¤(€€€…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ìè±¥ÍÑm™±½…Ñt€ômt(€€€™½ÈÍÑ…Ñ”¥¸Ý½É­™±½ÝÌè(€€€€€€€…ÁÁÉ½Ù…±}•Ù•¹Ð€ô¹•áÐ (€€€€€€€€€€€€ (€€€€€€€€€€€€€€€•Ù•¹Ð(€€€€€€€€€€€€€€€™½È•Ù•¹Ð¥¸ÍÑ…Ñ”¹•Ù•¹ÑÌ(€€€€€€€€€€€€€€€¥˜•Ù•¹Ð¹•Ð ‰½ÕÑ½µ”ˆ¤€ôô€‰…ÁÁÉ½Ù…±}É•½É‘•ˆ(€€€€€€€€€€€€¤°(€€€€€€€€€€€9½¹”°(€€€€€€€€¤(€€€€€€€¥˜¹½Ð…ÁÁÉ½Ù…±}•Ù•¹Ðè(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€€€€€ÑÉäè(€€€€€€€€€€€É•…Ñ•€ô‘…Ñ•Ñ¥µ”¹™É½µ¥Í½™½Éµ…Ð¡ÍÑ…Ñ”¹É•…Ñ•‘}…Ð¤(€€€€€€€€€€€…ÁÁÉ½Ù•€ô‘…Ñ•Ñ¥µ”¹™É½µ¥Í½™½Éµ…Ð¡ÍÑÈ¡…ÁÁÉ½Ù…±}•Ù•¹Ñl‰Ñ¥µ•ÍÑ…µÀ‰t¤¤(€€€€€€€€€€€…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ì¹…ÁÁ•¹¡µ…à À¸À°€¡…ÁÁÉ½Ù•€´É•…Ñ•¤¹Ñ½Ñ…±}Í•½¹‘Ì ¤¤¤(€€€€€€€•á•ÁÐ€¡-•åÉÉ½È°QåÁ•ÉÉ½È°Y…±Õ•ÉÉ½È¤è(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ì¹Í½ÉÐ ¤(€€€ÀÔÁ}±…Ñ•¹ä€ô€ (€€€€€€€…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ím±•¸¡…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ì¤€¼¼€Ét¥˜…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ì•±Í”9½¹”(€€€€¤(€€€ÀäÁ}±…Ñ•¹ä€ô€ (€€€€€€€…ÁÁÉ½Ù…±}±…Ñ•¹¥•Íl(€€€€€€€€€€€µ¥¸¡±•¸¡…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ì¤€´€Ä°¥¹Ð¡±•¸¡…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ì¤€¨€À¸ä¤¤(€€€€€€€t(€€€€€€€¥˜…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ì(€€€€€€€•±Í”9½¹”(€€€€¤(€€€½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ìè±¥ÍÑm™±½…Ñt€ômt(€€€™½È¥Ñ•´¥¸…Ñ¥½¹}¥Ñ•µÌè(€€€€€€€ÑÉäè(€€€€€€€€€€€É•…Ñ•€ô‘…Ñ•Ñ¥µ”¹™É½µ¥Í½™½Éµ…Ð¡ÍÑÈ¡¥Ñ•´¹•Ð ‰É•…Ñ•‘}…Ðˆ°€ˆˆ¤¤¤(€€€€€€€€€€€½µÁ±•Ñ•€ô‘…Ñ•Ñ¥µ”¹™É½µ¥Í½™½Éµ…Ð¡ÍÑÈ¡¥Ñ•´¹•Ð ‰½µÁ±•Ñ•‘}…Ðˆ°€ˆˆ¤¤¤(€€€€€€€€€€€½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ì¹…ÁÁ•¹¡µ…à À¸À°€¡½µÁ±•Ñ•€´É•…Ñ•¤¹Ñ½Ñ…±}Í•½¹‘Ì ¤¤¤(€€€€€€€•á•ÁÐ€¡QåÁ•ÉÉ½È°Y…±Õ•ÉÉ½È¤è(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ì¹Í½ÉÐ ¤(€€€½Ý¹•É}…Ñ¥½¹}ÀÔÀ€ô€ (€€€€€€€½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ím±•¸¡½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ì¤€¼¼€Ét(€€€€€€€¥˜½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ì(€€€€€€€•±Í”9½¹”(€€€€¤(€€€½Ý¹•É}…Ñ¥½¹}ÀäÀ€ô€ (€€€€€€€½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Íl(€€€€€€€€€€€µ¥¸¡±•¸¡½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ì¤€´€Ä°¥¹Ð¡±•¸¡½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ì¤€¨€À¸ä¤¤(€€€€€€€t(€€€€€€€¥˜½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ì(€€€€€€€•±Í”9½¹”(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰•¹•É…Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€‰Ñ•±•µ•ÑÉå}Ý¥¹‘½Üˆè}µ•ÑÉ¥}Ý¥¹‘½Ü¡¥‘•¹Ñ¥Ñä°µ•ÑÉ¥}±¥µ¥Ð¤°(€€€€€€€€‰Í½Á”ˆè€ (€€€€€€€€€€€€‰½‰Í•ÉÙ•‘}Ñ•¹…¹Ñ}É•½É‘Ìˆ(€€€€€€€€€€€¥˜¥‘•¹Ñ¥Ñä(€€€€€€€€€€€•±Í”€‰½‰Í•ÉÙ•‘}‘É¥™Ñ±¥¹•}ÁÕ‰±¥}•Ù…±Õ…Ñ¥½¹}É•½É‘Ìˆ(€€€€€€€€¤°(€€€€€€€€‰½‰Í•ÉÙ•ˆèì(€€€€€€€€€€€€‰©½‰Ìˆè±•¸¡©½‰Ì¤°(€€€€€€€€€€€€‰Ý½É­™±½ÝÌˆè±•¸¡Ý½É­™±½ÝÌ¤°(€€€€€€€€€€€€‰Ý½É­™±½Ý}‘…Ñ…}µ½‘•ÌˆèÝ½É­™±½Ý}‘…Ñ…}µ½‘•Ì°(€€€€€€€€€€€€‰©½‰}ÉÕ¹}µ½‘•Ìˆè©½‰}ÉÕ¹}µ½‘•Ì°(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}Í½Á•‘}Ý½É­™±½ÝÌˆèÍÕ´ (€€€€€€€€€€€€€€€ÍÑ…Ñ”¹Ñ•¹…¹Ñ}¥¥Ì¹½Ð9½¹”™½ÈÍÑ…Ñ”¥¸Ý½É­™±½ÝÌ(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰Ñ•¹…¹Ñ±•ÍÍ}Ý½É­™±½ÝÌˆèÍÕ´ (€€€€€€€€€€€€€€€ÍÑ…Ñ”¹Ñ•¹…¹Ñ}¥¥Ì9½¹”™½ÈÍÑ…Ñ”¥¸Ý½É­™±½ÝÌ(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰Ý½É­™±½ÝÍ}É•Ù•ÉÍ•‘}½É}É•½Á•¹•ˆèÉ•Ù•ÉÍ•‘}Ý½É­™±½ÝÌ°(€€€€€€€€€€€€‰•áÑ•É¹…±}ÝÉ¥Ñ•}…Ñ¥½¹Ìˆè•áÑ•É¹…±}ÝÉ¥Ñ•Ì°(€€€€€€€€€€€€‰…Ñ¥½¹}¥Ñ•µÌˆè±•¸¡…Ñ¥½¹}¥Ñ•µÌ¤°(€€€€€€€€€€€€‰…Ñ¥½¹}¥Ñ•µÍ}½µÁ±•Ñ•ˆèÍÕ´ (€€€€€€€€€€€€€€€¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹=5A1Q¹Ù…±Õ”(€€€€€€€€€€€€€€€™½È¥Ñ•´¥¸…Ñ¥½¹}¥Ñ•µÌ(€€€€€€€€€€€€¤°(€€€€€€€€€€€€ŒÕÉÉ•¹ÐÍÑ…ÑÕÌ¥¹Ñ•¹Ñ¥½¹…±±ä•á±Õ‘•Ì…Ñ¥½¹ÌÑ¡…ÐÝ•É”±…Ñ•È(€€€€€€€€€€€€ŒÉ•Ù•ÉÍ•¸Q¡”…ÁÁ•¹µ½¹±ä±¥™•å±”¥ÌÑ¡”¡½¹•ÍÐÍ½ÕÉ”™½È(€€€€€€€€€€€€ŒÁÉ½Ù¥¹œÑ¡…Ð½Ý¹•ÈÝ½É¬±½Í•…Ð±•…ÍÐ½¹”¸(€€€€€€€€€€€€‰…Ñ¥½¹}¥Ñ•µÍ}½µÁ±•Ñ•‘}¡¥ÍÑ½É¥…±±äˆè¡¥ÍÑ½É¥…±±å}½µÁ±•Ñ•‘}…Ñ¥½¹Ì°(€€€€€€€€€€€€‰¡•…±Ñ¡å}Í½ÕÉ•ÌˆèÍÕ´ (€€€€€€€€€€€€€€€¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€ôô€‰¡•…±Ñ¡äˆ™½È¥Ñ•´¥¸Í½ÕÉ•}¡•…±Ñ (€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰Í½ÕÉ•Í}Ñ½Ñ…°ˆèÍ½ÕÉ•}¡•…±Ñ¡}ÍÕµµ…Éål‰Ñ½Ñ…°‰t°(€€€€€€€€€€€€‰Í½ÕÉ•Í}‘Õ”ˆèÍ½ÕÉ•}¡•…±Ñ¡}ÍÕµµ…Éål‰‘Õ”‰t°(€€€€€€€€€€€€‰Í½ÕÉ•Í}ÍÑ…±”ˆèÍ½ÕÉ•}¡•…±Ñ¡}ÍÕµµ…Éål‰ÍÑ…±”‰t°(€€€€€€€€€€€€‰Í½ÕÉ•Í}¹••‘¥¹}‰…Í•±¥¹”ˆèÍ½ÕÉ•}¡•…±Ñ¡}ÍÕµµ…Éål‰¹••‘Í}‰…Í•±¥¹”‰t°(€€€€€€€€€€€€‰Í½ÕÉ•Í}™…¥±•ˆèÍ½ÕÉ•}¡•…±Ñ¡}ÍÕµµ…Éål‰Í½ÕÉ•}™…¥±•‰t°(€€€€€€€€€€€€‰Í½ÕÉ•Í}Á…ÕÍ•ˆèÍ½ÕÉ•}¡•…±Ñ¡}ÍÕµµ…Éål‰Á…ÕÍ•‰t°(€€€€€€€€€€€€‰Í½ÕÉ•Í}Íå¹Ñ¡•Ñ¥}½¹±äˆèÍ½ÕÉ•}¡•…±Ñ¡}ÍÕµµ…Éål‰Íå¹Ñ¡•Ñ¥}½¹±ä‰t°(€€€€€€€€€€€€Œ¹½¹åµ½ÕÌÍ½ÕÉ”Ñ¡É½Õ¡ÁÕÐÕÍ•ÌÑ¡”Í…µ”É••¹Ð‰½Õ¹‘•Ý¥¹‘½Ü(€€€€€€€€€€€€Œ…ÌÝ½É­™±½ÝÌ½©½‰Ì¸Q¡”…ÁÁ•¹µ½¹±äÍ½ÕÉ”±•‘•ÈÉ•µ…¥¹Ì¥¹Ñ…Ðì(€€€€€€€€€€€€ŒÍ¥¹•Ñ•¹…¹ÐÙ¥•ÝÌÉ•Ñ…¥¸Ñ¡•¥ÈÉ•ÅÕ•ÍÑ•…É•…Ñ”‰½Õ¹¸(€€€€€€€€€€€€‰Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹ÌˆèÍ½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Ì°(€€€€€€€€€€€€‰Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Í}Õ¹¡…¹•ˆèÍ½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Í}Õ¹¡…¹•°(€€€€€€€€€€€€‰Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Í}¡…¹•ˆèÍ½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Í}¡…¹•°(€€€€€€€€€€€€‰Í½ÕÉ•}¹½}½Á}½µÁ…É¥Í½¹}É…Ñ”ˆèÍ½ÕÉ•}¹½}½Á}É…Ñ”°(€€€€€€€€€€€€‰Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹}Ý¥¹‘½Üˆè}µ•ÑÉ¥}Ý¥¹‘½Ü¡¥‘•¹Ñ¥Ñä°µ•ÑÉ¥}±¥µ¥Ð¤°(€€€€€€€€€€€€‰…ÁÁÉ½Ù…±}±…Ñ•¹å}Í•½¹‘Ìˆèì(€€€€€€€€€€€€€€€€‰Í…µÁ±•}½Õ¹Ðˆè±•¸¡…ÁÁÉ½Ù…±}±…Ñ•¹¥•Ì¤°(€€€€€€€€€€€€€€€€‰ÀÔÀˆèÀÔÁ}±…Ñ•¹ä°(€€€€€€€€€€€€€€€€‰ÀäÀˆèÀäÁ}±…Ñ•¹ä°(€€€€€€€€€€€ô°(€€€€€€€€€€€€‰½Ý¹•É}…Ñ¥½¹}å±•}Í•½¹‘Ìˆèì(€€€€€€€€€€€€€€€€‰Í…µÁ±•}½Õ¹Ðˆè±•¸¡½Ý¹•É}…Ñ¥½¹}±…Ñ•¹¥•Ì¤°(€€€€€€€€€€€€€€€€‰ÀÔÀˆè½Ý¹•É}…Ñ¥½¹}ÀÔÀ°(€€€€€€€€€€€€€€€€‰ÀäÀˆè½Ý¹•É}…Ñ¥½¹}ÀäÀ°(€€€€€€€€€€€ô°(€€€€€€€€€€€€‰…Ñ¥½¹}¥Ñ•µ}½µÁ±•Ñ¥½¹}É…Ñ”ˆè€ (€€€€€€€€€€€€€€€É½Õ¹ (€€€€€€€€€€€€€€€€€€€ÍÕ´ (€€€€€€€€€€€€€€€€€€€€€€€¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹=5A1Q¹Ù…±Õ”(€€€€€€€€€€€€€€€€€€€€€€€™½È¥Ñ•´¥¸…Ñ¥½¹}¥Ñ•µÌ(€€€€€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€€€€€€€€€€¼±•¸¡…Ñ¥½¹}¥Ñ•µÌ¤°(€€€€€€€€€€€€€€€€€€€€Ì°(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€€€€€¥˜…Ñ¥½¹}¥Ñ•µÌ(€€€€€€€€€€€€€€€•±Í”9½¹”(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰…Ñ¥½¹}¥Ñ•µ}½µÁ±•Ñ¥½¹}É…Ñ•}¡¥ÍÑ½É¥…±±äˆè€ (€€€€€€€€€€€€€€€É½Õ¹¡¡¥ÍÑ½É¥…±±å}½µÁ±•Ñ•‘}…Ñ¥½¹Ì€¼±•¸¡…Ñ¥½¹}¥Ñ•µÌ¤°€Ì¤(€€€€€€€€€€€€€€€¥˜…Ñ¥½¹}¥Ñ•µÌ(€€€€€€€€€€€€€€€•±Í”9½¹”(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰¡…¹•}…É‘Ìˆè±•¸¡¡…¹•}…É‘Ì¤°(€€€€€€€€€€€€‰¡¥¡}µ…Ñ•É¥…±¥Ñå}…É‘ÌˆèÍÕ´ (€€€€€€€€€€€€€€€¥Ñ•´¹•Ð ‰Í•Ù•É¥Ñäˆ¤€ôô€‰¡¥ ˆ™½È¥Ñ•´¥¸µ…Ñ•É¥…±¥Ñå}…É‘Ì(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰…É‘Í}Ý¥Ñ¡}¹…µ•‘}½Ý¹•ÉÌˆèÍÕ´ (€€€€€€€€€€€€€€€‰½½°¡…É¹•Ð ‰½Ý¹•ÉÌˆ¤¤™½È…É¥¸¡…¹•}…É‘Ì(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰…É‘Í}±½Í•ˆèÍÕ´ (€€€€€€€€€€€€€€€¥Ñ•´¹•Ð ‰ÍÑ…Ñ”ˆ¤€ôô€‰±½Í•ˆ™½È¥Ñ•´¥¸±½ÍÕÉ•}…É‘Ì(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰…É‘Í}‘¥Íµ¥ÍÍ•ˆèÍÕ´ (€€€€€€€€€€€€€€€¥Ñ•´¹•Ð ‰ÍÑ…Ñ”ˆ¤€ôô€‰‘¥Íµ¥ÍÍ•ˆ™½È¥Ñ•´¥¸±½ÍÕÉ•}…É‘Ì(€€€€€€€€€€€€¤°(€€€€€€€€€€€€‰½Ù•É‘Õ•}½Ý¹•É}…Ñ¥½¹ÌˆèÍÕ´ (€€€€€€€€€€€€€€€¥¹Ð¡¥Ñ•´¹•Ð ‰½Ù•É‘Õ”ˆ°€À¤¤™½È¥Ñ•´¥¸±½ÍÕÉ•}…É‘Ì(€€€€€€€€€€€€¤°(€€€€€€€ô°(€€€€€€€€‰¹½Ñ}µ•…ÍÕÉ•ˆèl(€€€€€€€€€€€€‰¡½ÕÉÍ}Í…Ù•‘}Á•É}¡…¹”ˆ°(€€€€€€€€€€€€‰É•Ù•¹Õ•}½É}Ý¥¹}É…Ñ•}±¥™Ðˆ°(€€€€€€€€€€€€‰ÕÍÑ½µ•É}É•Ñ•¹Ñ¥½¹}¥µÁ…Ðˆ°(€€€€€€€€€€€€‰Ý¥±±¥¹¹•ÍÍ}Ñ½}Á…äˆ°(€€€€€€€t°(€€€€€€€€‰¥¹Ñ•ÉÁÉ•Ñ…Ñ¥½¸ˆè€ (€€€€€€€€€€€€‰½Õ¹ÑÌ…É”‘¥É•ÐÉ•½É‘Ì™É½´Ñ¡¥Ì¥Í½±…Ñ•É¥™Ñ±¥¹”‘•Á±½åµ•¹Ðì€ˆ(€€€€€€€€€€€€‰Ñ¡•ä…É”¹½ÐÕÍÑ½µ•È½ÈÉ•Ù•¹Õ”±…¥µÌ¸ˆ(€€€€€€€€¤°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½½ÁÌ½½ÕÑ½µ•Ìˆ¤)‘•˜•Ñ}½ÕÑ½µ•}µ•…ÍÕÉ•µ•¹ÑÌ (€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸…É•…Ñ”½ÕÑ½µ•Ì½¹±ä™½ÈÑ¡”ÁÕ‰±¥Œ½ÈÍ¥¹•Ñ•¹…¹ÐÍ½Á”¸ˆˆˆ(€€€¥‘•¹Ñ¥Ñäè‘¥ÑmÍÑÈ°ÍÑÉtð9½¹”€ô9½¹”(€€€¥˜…¹ä¡Ù…±Õ”¥Ì¹½Ð9½¹”™½ÈÙ…±Õ”¥¸€¡½Á•É…Ñ½È°Ñ•¹…¹Ñ}¥°…ÁÁÉ½Ù…±}Ñ½­•¸°¥‘•¹Ñ¥Ñå}Ñ½­•¸¤¤è(€€€€€€€¥˜¹½Ð½Á•É…Ñ½È½È¹½ÐÑ•¹…¹Ñ}¥è(€€€€€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀÄ°‘•Ñ…¥°ô‰M¥¹•…ÁÁÉ½Ù…°¥ÌÉ•ÅÕ¥É•™½È½ÕÑ½µ”É•½É‘Ìˆ(€€€€€€€€€€€€¤(€€€€€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€€€€€‰½ÁÌé½ÕÑ½µ•Ìˆ°(€€€€€€€€€€€½Á•É…Ñ½È°(€€€€€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€€€€€¤(€€€É•½É‘Ì€ôl(€€€€€€€É•½É(€€€€€€€™½ÈÉ•½É¥¸±¥ÍÑ}½ÕÑ½µ•}µ•…ÍÕÉ•µ•¹ÑÌ ÔÀ¤(€€€€€€€¥˜É•½É¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¥Ì9½¹”(€€€€€€€½È€¡¥‘•¹Ñ¥Ñä¥Ì¹½Ð9½¹”…¹É•½É¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤€ôô¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¤(€€€t(€€€É•ÑÕÉ¸ì(€€€€€€€€‰Í½Á”ˆè€‰½Á•É…Ñ½É}É•Á½ÉÑ•‘}½ÕÑ½µ•}±•‘•Èˆ°(€€€€€€€€‰É•½É‘ÌˆèÉ•½É‘Ì°(€€€€€€€€‰½Õ¹Ðˆè±•¸¡É•½É‘Ì¤°(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰µ•…ÍÕÉ•‘}É•½É‘Í}…Ù…¥±…‰±”ˆ¥˜É•½É‘Ì•±Í”€‰¹½Ñ}µ•…ÍÕÉ•ˆ°(€€€€€€€€‰¹½Ñ}µ•…ÍÕÉ•ˆèmt(€€€€€€€¥˜É•½É‘Ì(€€€€€€€•±Í”l(€€€€€€€€€€€€‰¡½ÕÉÍ}Í…Ù•‘}Á•É}¡…¹”ˆ°(€€€€€€€€€€€€‰É•Ù•¹Õ•}½É}Ý¥¹}É…Ñ•}±¥™Ðˆ°(€€€€€€€€€€€€‰ÕÍÑ½µ•É}É•Ñ•¹Ñ¥½¹}¥µÁ…Ðˆ°(€€€€€€€€€€€€‰Ý¥±±¥¹¹•ÍÍ}Ñ½}Á…äˆ°(€€€€€€€t°(€€€€€€€€‰‘¥Í±½ÍÕÉ”ˆè€‰I•½É‘Ì…É”½Á•É…Ñ½ÈµÉ•Á½ÉÑ•…É•…Ñ”•Ù¥‘•¹”…¹É•µ…¥¸Õ¹Ù•É¥™¥•Õ¹Ñ¥°É•Ù¥•Ý•……¥¹ÍÐÑ¡”É•™•É•¹•Í½ÕÉ”¸ˆ°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½½ÁÌ½½ÕÑ½µ•Ìˆ¤)‘•˜É•½É‘}½ÕÑ½µ•}µ•…ÍÕÉ•µ•¹Ð¡É•ÅÕ•ÍÐè=ÕÑ½µ•5•…ÍÕÉ•µ•¹ÑI•ÅÕ•ÍÐ¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰%¹•ÍÐ½¹”…É•…Ñ”Á¥±½Ðµ•…ÍÕÉ•µ•¹ÐÑ¡É½Õ Ñ¡”Í¥¹•½Á•É…Ñ½È±…¹”¸ˆˆˆ(€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€˜‰½ÕÑ½µ”éíÉ•ÅÕ•ÍÐ¹½¡½ÉÑ}±…‰•±ôˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¹½ÐÉ•ÅÕ•ÍÐ¹•Ù¥‘•¹•}É•˜¹ÍÑ…ÉÑÍÝ¥Ñ   ‰¡ÑÑÁÌè¼¼ˆ°€‰Ìè¼¼ˆ°€‰…ÉÑ¥™…Ðè¼¼ˆ¤¤è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°(€€€€€€€€€€€‘•Ñ…¥°ô‰•Ù¥‘•¹•}É•™}µÕÍÑ}Á½¥¹Ñ}Ñ½}…Õ‘¥Ñ}…ÉÑ¥™…Ñ}½É}¡ÑÑÁÍ}Í½ÕÉ”ˆ°(€€€€€€€€¤(€€€½Á•É…Ñ¥½¹…±}½Õ¹ÑÌ€ôì(€€€€€€€¹…µ”èÙ…±Õ”(€€€€€€€™½È¹…µ”°Ù…±Õ”¥¸ì(€€€€€€€€€€€€‰‰…Í•±¥¹•}½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ ˆèÉ•ÅÕ•ÍÐ¹‰…Í•±¥¹•}½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ °(€€€€€€€€€€€€‰‘É¥™Ñ±¥¹•}½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ ˆèÉ•ÅÕ•ÍÐ¹‘É¥™Ñ±¥¹•}½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ °(€€€€€€€€€€€€‰‰…Í•±¥¹•}…Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|ÝˆèÉ•ÅÕ•ÍÐ¹‰…Í•±¥¹•}…Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|Ý°(€€€€€€€€€€€€‰‘É¥™Ñ±¥¹•}…Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|ÝˆèÉ•ÅÕ•ÍÐ¹‘É¥™Ñ±¥¹•}…Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|Ý°(€€€€€€€€€€€€‰‰…Í•±¥¹•}É•Ù•ÉÍ•‘}½É}É•½Á•¹•ˆèÉ•ÅÕ•ÍÐ¹‰…Í•±¥¹•}É•Ù•ÉÍ•‘}½É}É•½Á•¹•°(€€€€€€€€€€€€‰‘É¥™Ñ±¥¹•}É•Ù•ÉÍ•‘}½É}É•½Á•¹•ˆèÉ•ÅÕ•ÍÐ¹‘É¥™Ñ±¥¹•}É•Ù•ÉÍ•‘}½É}É•½Á•¹•°(€€€€€€€ô¹¥Ñ•µÌ ¤(€€€€€€€¥˜Ù…±Õ”¥Ì¹½Ð9½¹”(€€€ô(€€€½Á•É…Ñ¥½¹…±}Á…¥ÉÌ€ô€ (€€€€€€€€ (€€€€€€€€€€€€‰‰…Í•±¥¹•}½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ ˆ°(€€€€€€€€€€€€‰‘É¥™Ñ±¥¹•}½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ ˆ°(€€€€€€€€¤°(€€€€€€€€ (€€€€€€€€€€€€‰‰…Í•±¥¹•}…Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|Ýˆ°(€€€€€€€€€€€€‰‘É¥™Ñ±¥¹•}…Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|Ýˆ°(€€€€€€€€¤°(€€€€€€€€ ‰‰…Í•±¥¹•}É•Ù•ÉÍ•‘}½É}É•½Á•¹•ˆ°€‰‘É¥™Ñ±¥¹•}É•Ù•ÉÍ•‘}½É}É•½Á•¹•ˆ¤°(€€€€¤(€€€Á…ÉÑ¥…±}Á…¥ÉÌ€ôl(€€€€€€€‰…Í•±¥¹•}­•ä(€€€€€€€™½È‰…Í•±¥¹•}­•ä°‘É¥™Ñ±¥¹•}­•ä¥¸½Á•É…Ñ¥½¹…±}Á…¥ÉÌ(€€€€€€€¥˜€¡•Ñ…ÑÑÈ¡É•ÅÕ•ÍÐ°‰…Í•±¥¹•}­•ä¤¥Ì9½¹”¤(€€€€€€€€„ô€¡•Ñ…ÑÑÈ¡É•ÅÕ•ÍÐ°‘É¥™Ñ±¥¹•}­•ä¤¥Ì9½¹”¤(€€€t(€€€¥˜Á…ÉÑ¥…±}Á…¥ÉÌè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°(€€€€€€€€€€€‘•Ñ…¥°õì(€€€€€€€€€€€€€€€€‰µ•ÍÍ…”ˆè€‰Á¥±½Ñ}½Á•É…Ñ¥½¹…±}µ•ÑÉ¥}É•ÅÕ¥É•Í}‰…Í•±¥¹•}…¹‘}‘É¥™Ñ±¥¹”ˆ°(€€€€€€€€€€€€€€€€‰™¥•±‘ÌˆèÁ…ÉÑ¥…±}Á…¥ÉÌ°(€€€€€€€€€€€ô°(€€€€€€€€¤(€€€½Ù•É}½Õ¹Ð€ôl(€€€€€€€¹…µ”™½È¹…µ”°Ù…±Õ”¥¸½Á•É…Ñ¥½¹…±}½Õ¹ÑÌ¹¥Ñ•µÌ ¤¥˜Ù…±Õ”€øÉ•ÅÕ•ÍÐ¹¡…¹•Í}½‰Í•ÉÙ•(€€€t(€€€¥˜½Ù•É}½Õ¹Ðè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°(€€€€€€€€€€€‘•Ñ…¥°õì(€€€€€€€€€€€€€€€€‰µ•ÍÍ…”ˆè€‰Á¥±½Ñ}½Á•É…Ñ¥½¹…±}½Õ¹Ñ}•á••‘Í}¡…¹•Í}½‰Í•ÉÙ•ˆ°(€€€€€€€€€€€€€€€€‰™¥•±‘Ìˆè½Ù•É}½Õ¹Ð°(€€€€€€€€€€€ô°(€€€€€€€€¤(€€€Ñ¥µ•}‘•±Ñ„€ôÉ½Õ¹¡É•ÅÕ•ÍÐ¹‰…Í•±¥¹•}µ¥¹ÕÑ•Ì€´É•ÅÕ•ÍÐ¹‘É¥™Ñ±¥¹•}µ¥¹ÕÑ•Ì°€È¤(€€€€ŒQ¡”Ñ•¹…¹Ð½½¡½ÉÐ½•Ù¥‘•¹”ÑÕÁ±”¥ÌÑ¡”¥‘•µÁ½Ñ•¹ä­•ä¸¹•ÑÝ½É¬É•ÑÉä(€€€€Œ½˜Ñ¡”Í…µ”É•½¹¥±•…ÉÑ¥™…ÐµÕÍÐ¹½ÐÉ•…Ñ”„Í•½¹…É•…Ñ”É½Ü¸(€€€µ•…ÍÕÉ•µ•¹Ñ}­•ä€ô¡…Í¡±¥ˆ¹Í¡„ÈÔØ (€€€€€€€˜‰í…ÁÁÉ½Ù…±}¥‘•¹Ñ¥ÑålÑ•¹…¹Ñ}¥uôéíÉ•ÅÕ•ÍÐ¹½¡½ÉÑ}±…‰•±ôéíÉ•ÅÕ•ÍÐ¹•Ù¥‘•¹•}É•™ôˆ¹•¹½‘” ¤(€€€€¤¹¡•á‘¥•ÍÐ ¥lèÈÑt(€€€µ•…ÍÕÉ•µ•¹Ñ}¥€ô˜‰µ•…ÍÕÉ•µ•¹Ðµíµ•…ÍÕÉ•µ•¹Ñ}­•åôˆ(€€€Á…å±½…€ôì(€€€€€€€€‰µ•…ÍÕÉ•µ•¹Ñ}¥ˆèµ•…ÍÕÉ•µ•¹Ñ}¥°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰Í½ÕÉ•}ÑåÁ”ˆèÉ•ÅÕ•ÍÐ¹Í½ÕÉ•}ÑåÁ”°(€€€€€€€€‰½¡½ÉÑ}±…‰•°ˆèÉ•ÅÕ•ÍÐ¹½¡½ÉÑ}±…‰•°°(€€€€€€€€‰¡…¹•Í}½‰Í•ÉÙ•ˆèÉ•ÅÕ•ÍÐ¹¡…¹•Í}½‰Í•ÉÙ•°(€€€€€€€€‰‰…Í•±¥¹•}µ¥¹ÕÑ•ÌˆèÉ•ÅÕ•ÍÐ¹‰…Í•±¥¹•}µ¥¹ÕÑ•Ì°(€€€€€€€€‰‘É¥™Ñ±¥¹•}µ¥¹ÕÑ•ÌˆèÉ•ÅÕ•ÍÐ¹‘É¥™Ñ±¥¹•}µ¥¹ÕÑ•Ì°(€€€€€€€€‰Ñ¥µ•}Í…Ù•‘}µ¥¹ÕÑ•Í}Ñ½Ñ…°ˆèÑ¥µ•}‘•±Ñ„°(€€€€€€€€‰Ñ¥µ•}Í…Ù•‘}µ¥¹ÕÑ•Í}Á•É}¡…¹”ˆèÉ½Õ¹¡Ñ¥µ•}‘•±Ñ„€¼É•ÅÕ•ÍÐ¹¡…¹•Í}½‰Í•ÉÙ•°€È¤°(€€€€€€€€‰Ñ¥µ•}‘•±Ñ…}‘¥É•Ñ¥½¸ˆè€ (€€€€€€€€€€€€‰Í…Ù•ˆ¥˜Ñ¥µ•}‘•±Ñ„€ø€À•±Í”€‰…‘‘•ˆ¥˜Ñ¥µ•}‘•±Ñ„€ð€À•±Í”€‰¹•ÕÑÉ…°ˆ(€€€€€€€€¤°(€€€€€€€€¨©½Á•É…Ñ¥½¹…±}½Õ¹ÑÌ°(€€€€€€€€‰É•Ù•¹Õ•}±¥™Ñ}ÕÍˆèÉ•ÅÕ•ÍÐ¹É•Ù•¹Õ•}±¥™Ñ}ÕÍ°(€€€€€€€€‰É•Ñ•¹Ñ¥½¹}±¥™Ñ}ÁÐˆèÉ•ÅÕ•ÍÐ¹É•Ñ•¹Ñ¥½¹}±¥™Ñ}ÁÐ°(€€€€€€€€‰Ý¥±±¥¹¹•ÍÍ}Ñ½}Á…å}ÕÍˆèÉ•ÅÕ•ÍÐ¹Ý¥±±¥¹¹•ÍÍ}Ñ½}Á…å}ÕÍ°(€€€€€€€€‰•Ù¥‘•¹•}É•˜ˆèÉ•ÅÕ•ÍÐ¹•Ù¥‘•¹•}É•˜°(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰½Á•É…Ñ½É}É•Á½ÉÑ•‘}Õ¹Ù•É¥™¥•ˆ°(€€€€€€€€‰…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñäˆè…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¹•Ð ‰¥‘•¹Ñ¥Ñäˆ°€‰Í¥¹•‘}½Á•É…Ñ½Èˆ¤°(€€€€€€€€‰…ÁÑÕÉ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€ô(€€€ÑÉäè(€€€€€€€Á•ÉÍ¥ÍÑ•€ôÁ•ÉÍ¥ÍÑ}½ÕÑ½µ•}µ•…ÍÕÉ•µ•¹Ð¡Á…å±½…¤(€€€•á•ÁÐY…±Õ•ÉÉ½È…Ì•áŒè(€€€€€€€¥˜ÍÑÈ¡•áŒ¤€ôô€‰½ÕÑ½µ•}µ•…ÍÕÉ•µ•¹Ñ}½¹™±¥Ðˆè(€€€€€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀä°(€€€€€€€€€€€€€€€‘•Ñ…¥°ô‰½ÕÑ½µ•}µ•…ÍÕÉ•µ•¹Ñ}½¹™±¥Ñ}™½É}•Ù¥‘•¹•}É•˜ˆ°(€€€€€€€€€€€€¤™É½´•áŒ(€€€€€€€É…¥Í”(€€€•á•ÁÐá•ÁÑ¥½¸…Ì•áŒè€€ŒÁÉ…µ„è¹¼½Ù•È€´¥É•ÍÑ½É”µ½¹±ä™…¥±ÕÉ”Á…Ñ ¸(€€€€€€€±½•È¹•á•ÁÑ¥½¸ ‰=ÕÑ½µ”µ•…ÍÕÉ•µ•¹ÐÁ•ÉÍ¥ÍÑ•¹”™…¥±•ˆ¤(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÔÀÌ°‘•Ñ…¥°ô‰=ÕÑ½µ”±•‘•ÈÕ¹…Ù…¥±…‰±”ˆ(€€€€€€€€¤™É½´•áŒ(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰É•½É‘•ˆ¥˜Á•ÉÍ¥ÍÑ•¥Ì¹½Ð…±Í”•±Í”€‰…±É•…‘å}É•½É‘•ˆ°(€€€€€€€€‰µ•…ÍÕÉ•µ•¹ÐˆèÁ…å±½…°(€€€€€€€€‰‘¥Í±½ÍÕÉ”ˆè€‰Q¡¥Ì¥Ì½Á•É…Ñ½ÈµÉ•Á½ÉÑ•…É•…Ñ”•Ù¥‘•¹”°¹½Ð…¸¥¹‘•Á•¹‘•¹Ñ±äÙ•É¥™¥•ÕÍÑ½µ•È±…¥´¸ˆ°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½½ÁÌ½Á¥±½ÐµÉ•Á½ÉÐˆ¤)‘•˜•Ñ}Á¥±½Ñ}É•Á½ÉÐ (€€€½¡½ÉÑ}±…‰•°èÍÑÈð9½¹”€ô9½¹”°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰MÕµµ…É¥é”Í¥¹•°…É•…Ñ”Á¥±½ÐÉ•½É‘ÌÝ¥Ñ¡½ÕÐ•áÁ½Í¥¹œ•Ù¥‘•¹”É•™Ì¸((€€€Á¥±½ÐÉ•Á½ÉÐ¥Ì¥¹Ñ•¹Ñ¥½¹…±±äÍ•Á…É…Ñ”™É½´ÁÕ‰±¥ŒÙ…±Õ”ÁÉ½½˜¸%Ð½¹±ä(€€€É•…‘ÌÑ¡”…±±•ÈÌÑ•¹…¹ÐÉ•½É‘Ì°­••ÁÌÑ¡”É•½É‘Ìµ…É­•(€€€½Á•É…Ñ½É}É•Á½ÉÑ•‘}Õ¹Ù•É¥™¥•‘€°…¹½µÁÕÑ•Ì‘•±Ñ…ÌÝ¥Ñ¡½ÕÐÑÕÉ¹¥¹œÑ¡•´(€€€¥¹Ñ¼¥¹‘•Á•¹‘•¹Ñ±äÙ•É¥™¥•ÕÍÑ½µ•È±…¥µÌ¸(€€€€ˆˆˆ(€€€¥˜¹½Ð½Á•É…Ñ½È½È¹½ÐÑ•¹…¹Ñ}¥è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀÄ°‘•Ñ…¥°ô‰M¥¹•…ÁÁÉ½Ù…°¥ÌÉ•ÅÕ¥É•™½ÈÁ¥±½ÐÉ•Á½ÉÑÌˆ(€€€€€€€€¤(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰½ÁÌéÁ¥±½ÐµÉ•Á½ÉÐˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€É•ÅÕ•ÍÑ•‘}½¡½ÉÐ€ô½¡½ÉÑ}±…‰•°¹ÍÑÉ¥À ¤¥˜½¡½ÉÑ}±…‰•°•±Í”9½¹”(€€€¥˜É•ÅÕ•ÍÑ•‘}½¡½ÉÐ…¹±•¸¡É•ÅÕ•ÍÑ•‘}½¡½ÉÐ¤€ø€àÀè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°ô‰½¡½ÉÑ}±…‰•±}Ñ½½}±½¹œˆ¤(€€€É•½É‘Ì€ôl(€€€€€€€É•½É(€€€€€€€™½ÈÉ•½É¥¸±¥ÍÑ}½ÕÑ½µ•}µ•…ÍÕÉ•µ•¹ÑÌ ÄÀÀ¤(€€€€€€€¥˜É•½É¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤€ôô¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€€€€€…¹€¡¹½ÐÉ•ÅÕ•ÍÑ•‘}½¡½ÉÐ½ÈÉ•½É¹•Ð ‰½¡½ÉÑ}±…‰•°ˆ¤€ôôÉ•ÅÕ•ÍÑ•‘}½¡½ÉÐ¤(€€€t(€€€Ñ½Ñ…±}¡…¹•Ì€ôÍÕ´¡¥¹Ð¡É•½É¹•Ð ‰¡…¹•Í}½‰Í•ÉÙ•ˆ°€À¤½È€À¤™½ÈÉ•½É¥¸É•½É‘Ì¤(€€€‰…Í•±¥¹•}Ñ½Ñ…°€ôÍÕ´¡™±½…Ð¡É•½É¹•Ð ‰‰…Í•±¥¹•}µ¥¹ÕÑ•Ìˆ°€À¤½È€À¤™½ÈÉ•½É¥¸É•½É‘Ì¤(€€€‘É¥™Ñ±¥¹•}Ñ½Ñ…°€ôÍÕ´¡™±½…Ð¡É•½É¹•Ð ‰‘É¥™Ñ±¥¹•}µ¥¹ÕÑ•Ìˆ°€À¤½È€À¤™½ÈÉ•½É¥¸É•½É‘Ì¤(€€€ÝÑÁ}Ù…±Õ•Ì€ôl(€€€€€€€™±½…Ð¡É•½É‘l‰Ý¥±±¥¹¹•ÍÍ}Ñ½}Á…å}ÕÍ‰t¤(€€€€€€€™½ÈÉ•½É¥¸É•½É‘Ì(€€€€€€€¥˜É•½É¹•Ð ‰Ý¥±±¥¹¹•ÍÍ}Ñ½}Á…å}ÕÍˆ¤¥Ì¹½Ð9½¹”(€€€t(€€€É•Ù•¹Õ•}Ù…±Õ•Ì€ôl(€€€€€€€™±½…Ð¡É•½É‘l‰É•Ù•¹Õ•}±¥™Ñ}ÕÍ‰t¤(€€€€€€€™½ÈÉ•½É¥¸É•½É‘Ì(€€€€€€€¥˜É•½É¹•Ð ‰É•Ù•¹Õ•}±¥™Ñ}ÕÍˆ¤¥Ì¹½Ð9½¹”(€€€t(€€€É•Ñ•¹Ñ¥½¹}Ù…±Õ•Ì€ôl(€€€€€€€™±½…Ð¡É•½É‘l‰É•Ñ•¹Ñ¥½¹}±¥™Ñ}ÁÐ‰t¤(€€€€€€€™½ÈÉ•½É¥¸É•½É‘Ì(€€€€€€€¥˜É•½É¹•Ð ‰É•Ñ•¹Ñ¥½¹}±¥™Ñ}ÁÐˆ¤¥Ì¹½Ð9½¹”(€€€t(€€€‘•˜}½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Œ (€€€€€€€‰…Í•±¥¹•}­•äèÍÑÈ°‘É¥™Ñ±¥¹•}­•äèÍÑÈ(€€€€¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€€€€‰…Í•±¥¹•}Ù…±Õ•Ì€ôl(€€€€€€€€€€€¥¹Ð¡É•½É‘m‰…Í•±¥¹•}­•åt¤(€€€€€€€€€€€™½ÈÉ•½É¥¸É•½É‘Ì(€€€€€€€€€€€¥˜É•½É¹•Ð¡‰…Í•±¥¹•}­•ä¤¥Ì¹½Ð9½¹”(€€€€€€€t(€€€€€€€‘É¥™Ñ±¥¹•}Ù…±Õ•Ì€ôl(€€€€€€€€€€€¥¹Ð¡É•½É‘m‘É¥™Ñ±¥¹•}­•åt¤(€€€€€€€€€€€™½ÈÉ•½É¥¸É•½É‘Ì(€€€€€€€€€€€¥˜É•½É¹•Ð¡‘É¥™Ñ±¥¹•}­•ä¤¥Ì¹½Ð9½¹”(€€€€€€€t(€€€€€€€‰…Í•±¥¹•}½Õ¹Ð€ôÍÕ´¡‰…Í•±¥¹•}Ù…±Õ•Ì¤¥˜‰…Í•±¥¹•}Ù…±Õ•Ì•±Í”9½¹”(€€€€€€€‘É¥™Ñ±¥¹•}½Õ¹Ð€ôÍÕ´¡‘É¥™Ñ±¥¹•}Ù…±Õ•Ì¤¥˜‘É¥™Ñ±¥¹•}Ù…±Õ•Ì•±Í”9½¹”(€€€€€€€‰…Í•±¥¹•}É…Ñ”€ô€ (€€€€€€€€€€€É½Õ¹¡‰…Í•±¥¹•}½Õ¹Ð€¼Ñ½Ñ…±}¡…¹•Ì€¨€ÄÀÀ°€È¤(€€€€€€€€€€€¥˜‰…Í•±¥¹•}½Õ¹Ð¥Ì¹½Ð9½¹”…¹Ñ½Ñ…±}¡…¹•Ì(€€€€€€€€€€€•±Í”9½¹”(€€€€€€€€¤(€€€€€€€‘É¥™Ñ±¥¹•}É…Ñ”€ô€ (€€€€€€€€€€€É½Õ¹¡‘É¥™Ñ±¥¹•}½Õ¹Ð€¼Ñ½Ñ…±}¡…¹•Ì€¨€ÄÀÀ°€È¤(€€€€€€€€€€€¥˜‘É¥™Ñ±¥¹•}½Õ¹Ð¥Ì¹½Ð9½¹”…¹Ñ½Ñ…±}¡…¹•Ì(€€€€€€€€€€€•±Í”9½¹”(€€€€€€€€¤(€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€‰‰…Í•±¥¹•}½Õ¹Ðˆè‰…Í•±¥¹•}½Õ¹Ð°(€€€€€€€€€€€€‰‘É¥™Ñ±¥¹•}½Õ¹Ðˆè‘É¥™Ñ±¥¹•}½Õ¹Ð°(€€€€€€€€€€€€‰‰…Í•±¥¹•}É…Ñ•}ÁÐˆè‰…Í•±¥¹•}É…Ñ”°(€€€€€€€€€€€€‰‘É¥™Ñ±¥¹•}É…Ñ•}ÁÐˆè‘É¥™Ñ±¥¹•}É…Ñ”°(€€€€€€€€€€€€‰‘•±Ñ…}Á•É•¹Ñ…•}Á½¥¹ÑÌˆè€ (€€€€€€€€€€€€€€€É½Õ¹¡‘É¥™Ñ±¥¹•}É…Ñ”€´‰…Í•±¥¹•}É…Ñ”°€È¤(€€€€€€€€€€€€€€€¥˜‰…Í•±¥¹•}É…Ñ”¥Ì¹½Ð9½¹”…¹‘É¥™Ñ±¥¹•}É…Ñ”¥Ì¹½Ð9½¹”(€€€€€€€€€€€€€€€•±Í”9½¹”(€€€€€€€€€€€€¤°(€€€€€€€ô(€€€½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Ì€ôì(€€€€€€€€‰½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ ˆè}½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Œ (€€€€€€€€€€€€‰‰…Í•±¥¹•}½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ ˆ°€‰‘É¥™Ñ±¥¹•}½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ ˆ(€€€€€€€€¤°(€€€€€€€€‰…Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|Ýˆè}½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Œ (€€€€€€€€€€€€‰‰…Í•±¥¹•}…Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|Ýˆ°€‰‘É¥™Ñ±¥¹•}…Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|Ýˆ(€€€€€€€€¤°(€€€€€€€€‰É•Ù•ÉÍ•‘}½É}É•½Á•¹•ˆè}½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Œ (€€€€€€€€€€€€‰‰…Í•±¥¹•}É•Ù•ÉÍ•‘}½É}É•½Á•¹•ˆ°€‰‘É¥™Ñ±¥¹•}É•Ù•ÉÍ•‘}½É}É•½Á•¹•ˆ(€€€€€€€€¤°(€€€ô(€€€Ñ¥µ•}Í…Ù•‘}Ñ½Ñ…°€ôÉ½Õ¹¡‰…Í•±¥¹•}Ñ½Ñ…°€´‘É¥™Ñ±¥¹•}Ñ½Ñ…°°€È¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰Í½Á”ˆè€‰Í¥¹•‘}Ñ•¹…¹Ñ}Á¥±½Ñ}É•½É‘Ìˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰½¡½ÉÑ}±…‰•°ˆèÉ•ÅÕ•ÍÑ•‘}½¡½ÉÐ°(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰¹½Ñ}µ•…ÍÕÉ•ˆ¥˜¹½ÐÉ•½É‘Ì•±Í”€‰½Á•É…Ñ½É}É•Á½ÉÑ•‘}Õ¹Ù•É¥™¥•ˆ°(€€€€€€€€‰É•½É‘}½Õ¹Ðˆè±•¸¡É•½É‘Ì¤°(€€€€€€€€‰¡…¹•Í}½‰Í•ÉÙ•ˆèÑ½Ñ…±}¡…¹•Ì°(€€€€€€€€‰‰…Í•±¥¹•}µ¥¹ÕÑ•Í}Ñ½Ñ…°ˆèÉ½Õ¹¡‰…Í•±¥¹•}Ñ½Ñ…°°€È¤°(€€€€€€€€‰‘É¥™Ñ±¥¹•}µ¥¹ÕÑ•Í}Ñ½Ñ…°ˆèÉ½Õ¹¡‘É¥™Ñ±¥¹•}Ñ½Ñ…°°€È¤°(€€€€€€€€‰Ñ¥µ•}Í…Ù•‘}µ¥¹ÕÑ•Í}Ñ½Ñ…°ˆèÑ¥µ•}Í…Ù•‘}Ñ½Ñ…°°(€€€€€€€€‰Ñ¥µ•}Í…Ù•‘}µ¥¹ÕÑ•Í}Á•É}¡…¹”ˆè€ (€€€€€€€€€€€É½Õ¹¡Ñ¥µ•}Í…Ù•‘}Ñ½Ñ…°€¼Ñ½Ñ…±}¡…¹•Ì°€È¤¥˜Ñ½Ñ…±}¡…¹•Ì•±Í”9½¹”(€€€€€€€€¤°(€€€€€€€€‰Ñ¥µ•}‘•±Ñ…}‘¥É•Ñ¥½¸ˆè€ (€€€€€€€€€€€€‰Í…Ù•ˆ¥˜Ñ¥µ•}Í…Ù•‘}Ñ½Ñ…°€ø€À•±Í”€‰…‘‘•ˆ¥˜Ñ¥µ•}Í…Ù•‘}Ñ½Ñ…°€ð€À•±Í”€‰¹•ÕÑÉ…°ˆ(€€€€€€€€¤¥˜É•½É‘Ì•±Í”9½¹”°(€€€€€€€€‰Ñ¥µ•}‘•±Ñ…}ÁÐˆè€ (€€€€€€€€€€€É½Õ¹¡Ñ¥µ•}Í…Ù•‘}Ñ½Ñ…°€¼‰…Í•±¥¹•}Ñ½Ñ…°€¨€ÄÀÀ°€È¤¥˜‰…Í•±¥¹•}Ñ½Ñ…°•±Í”9½¹”(€€€€€€€€¤°(€€€€€€€€‰Ñ¥µ•}Í…Ù•‘}ÁÐˆè€ (€€€€€€€€€€€É½Õ¹ ¡‰…Í•±¥¹•}Ñ½Ñ…°€´‘É¥™Ñ±¥¹•}Ñ½Ñ…°¤€¼‰…Í•±¥¹•}Ñ½Ñ…°€¨€ÄÀÀ°€È¤(€€€€€€€€€€€¥˜‰…Í•±¥¹•}Ñ½Ñ…°(€€€€€€€€€€€•±Í”9½¹”(€€€€€€€€¤°(€€€€€€€€‰É•Ù•¹Õ•}±¥™Ñ}ÕÍ‘}Ñ½Ñ…°ˆèÉ½Õ¹¡ÍÕ´¡É•Ù•¹Õ•}Ù…±Õ•Ì¤°€È¤¥˜É•Ù•¹Õ•}Ù…±Õ•Ì•±Í”9½¹”°(€€€€€€€€‰É•Ñ•¹Ñ¥½¹}±¥™Ñ}ÁÑ}µ•‘¥…¸ˆèÉ½Õ¹¡µ•‘¥…¸¡É•Ñ•¹Ñ¥½¹}Ù…±Õ•Ì¤°€È¤¥˜É•Ñ•¹Ñ¥½¹}Ù…±Õ•Ì•±Í”9½¹”°(€€€€€€€€‰Ý¥±±¥¹¹•ÍÍ}Ñ½}Á…å}ÕÍ‘}µ•‘¥…¸ˆèÉ½Õ¹¡µ•‘¥…¸¡ÝÑÁ}Ù…±Õ•Ì¤°€È¤¥˜ÝÑÁ}Ù…±Õ•Ì•±Í”9½¹”°(€€€€€€€€‰½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Ìˆè½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Ì°(€€€€€€€€‰‘¥Í±½ÍÕÉ”ˆè€ (€€€€€€€€€€€€‰É•…Ñ”½Á•É…Ñ½ÈµÉ•Á½ÉÑ••Ù¥‘•¹”½¹±äì¥¹‘•Á•¹‘•¹Ñ±äÙ•É¥™ä•… €ˆ(€€€€€€€€€€€€‰É•½É……¥¹ÍÐ¥ÑÌÍ½ÕÉ”‰•™½É”µ…­¥¹œ„ÕÍÑ½µ•È½ÈÉ•Ù•¹Õ”±…¥´¸ˆ(€€€€€€€€¤°(€€€ô(()‘•˜}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡Ù…±Õ”è½‰©•Ð°€¨°™…±±‰…¬èÍÑÈ€ô€‰9½Ðµ•…ÍÕÉ•ˆ¤€´øÍÑÈè(€€€€ˆˆ‰I•¹‘•È½¹”…É•…Ñ”Á¥±½ÐÙ…±Õ”Ý¥Ñ¡½ÕÐ…±±½Ý¥¹œ5…É­‘½Ý¸¥¹©•Ñ¥½¸¸ˆˆˆ(€€€¥˜Ù…±Õ”¥Ì9½¹”½ÈÙ…±Õ”€ôô€ˆˆè(€€€€€€€É•ÑÕÉ¸™…±±‰…¬(€€€É•ÑÕÉ¸ÍÑÈ¡Ù…±Õ”¤¹É•Á±…” ‰qÈˆ°€ˆ€ˆ¤¹É•Á±…” ‰q¸ˆ°€ˆ€ˆ¤¹ÍÑÉ¥À ¥lèÄØÁt(()…ÁÀ¹•Ð ˆ½…Á¤½½ÁÌ½Á¥±½ÐµÁ…­•Ðˆ°É•ÍÁ½¹Í•}±…ÍÌõA±…¥¹Q•áÑI•ÍÁ½¹Í”¤)‘•˜‘½Ý¹±½…‘}Á¥±½Ñ}Á…­•Ð (€€€½¡½ÉÑ}±…‰•°èÍÑÈð9½¹”€ô9½¹”°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´øA±…¥¹Q•áÑI•ÍÁ½¹Í”è(€€€€ˆˆ‰½Ý¹±½…„Í¥¹•°…É•…Ñ”µ½¹±äÁ¥±½ÐÉ•Ù¥•ÜÁ…­•Ð¸((€€€Q¡”Á…­•Ð¥Ì‘•±¥‰•É…Ñ•±äÍ•Á…É…Ñ”™É½´Ñ¡”ÁÕ‰±¥ŒÙ…±Õ”µÁÉ½½˜Ù¥•Ü¸%Ð(€€€¥ÌÕÍ•™Õ°Ñ¼„Á¥±½ÐÉ•Ù¥•Ý•ÈÝ¡¥±”­••Á¥¹œ•Ù¥‘•¹”É•™•É•¹•Ì°ÕÍÑ½µ•È(€€€¥‘•¹Ñ¥™¥•ÉÌ°Í½ÕÉ”‰½‘¥•Ì°…¹I4É•½É‘Ì½ÕÐ½˜Ñ¡”•áÁ½ÉÑ•…ÉÑ¥™…Ð¸(€€€€ˆˆˆ(€€€É•Á½ÉÐ€ô•Ñ}Á¥±½Ñ}É•Á½ÉÐ (€€€€€€€½¡½ÉÑ}±…‰•°õ½¡½ÉÑ}±…‰•°°(€€€€€€€½Á•É…Ñ½Èõ½Á•É…Ñ½È°(€€€€€€€Ñ•¹…¹Ñ}¥õÑ•¹…¹Ñ}¥°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸õ…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸õ¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€¤(€€€Ù…±Õ•}ÁÉ½½˜€ô•Ñ}Ù…±Õ•}ÁÉ½½˜ (€€€€€€€½Á•É…Ñ½Èõ½Á•É…Ñ½È°(€€€€€€€Ñ•¹…¹Ñ}¥õÑ•¹…¹Ñ}¥°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸õ…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸õ¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€¤(€€€½‰Í•ÉÙ•€ôÙ…±Õ•}ÁÉ½½˜¹•Ð ‰½‰Í•ÉÙ•ˆ¤¥˜¥Í¥¹ÍÑ…¹”¡Ù…±Õ•}ÁÉ½½˜°‘¥Ð¤•±Í”íô(€€€½‰Í•ÉÙ•€ô½‰Í•ÉÙ•¥˜¥Í¥¹ÍÑ…¹”¡½‰Í•ÉÙ•°‘¥Ð¤•±Í”íô(€€€…ÁÁÉ½Ù…±}±…Ñ•¹ä€ô½‰Í•ÉÙ•¹•Ð ‰…ÁÁÉ½Ù…±}±…Ñ•¹å}Í•½¹‘Ìˆ¤(€€€…ÁÁÉ½Ù…±}±…Ñ•¹ä€ô…ÁÁÉ½Ù…±}±…Ñ•¹ä¥˜¥Í¥¹ÍÑ…¹”¡…ÁÁÉ½Ù…±}±…Ñ•¹ä°‘¥Ð¤•±Í”íô(€€€½Ý¹•É}…Ñ¥½¹}å±”€ô½‰Í•ÉÙ•¹•Ð ‰½Ý¹•É}…Ñ¥½¹}å±•}Í•½¹‘Ìˆ¤(€€€½Ý¹•É}…Ñ¥½¹}å±”€ô½Ý¹•É}…Ñ¥½¹}å±”¥˜¥Í¥¹ÍÑ…¹”¡½Ý¹•É}…Ñ¥½¹}å±”°‘¥Ð¤•±Í”íô(€€€±¥¹•Ì€ôl(€€€€€€€€ˆŒÉ¥™Ñ±¥¹”Á¥±½Ðµ•…ÍÕÉ•µ•¹ÐÁ…­•Ðˆ°(€€€€€€€€ˆˆ°(€€€€€€€˜‰•¹•É…Ñ•èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡ÕÑ}¹½Ü ¤¥ôˆ°(€€€€€€€˜‰½¡½ÉÐèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð ½¡½ÉÑ}±…‰•°œ¤¥ôˆ°(€€€€€€€˜‰MÑ…ÑÕÌèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð ÍÑ…ÑÕÌœ¤¥ôˆ°(€€€€€€€€ˆˆ°(€€€€€€€€ˆŒŒÉ•…Ñ”Ý½É­™±½Üµ•…ÍÕÉ•Ìˆ°(€€€€€€€€ˆˆ°(€€€€€€€˜ˆ´I•½É‘Ìèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð É•½É‘}½Õ¹Ðœ¤°™…±±‰…¬ôœÀœ¥ôˆ°(€€€€€€€˜ˆ´¡…¹•Ì½‰Í•ÉÙ•èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð ¡…¹•Í}½‰Í•ÉÙ•œ¤°™…±±‰…¬ôœÀœ¥ôˆ°(€€€€€€€˜ˆ´	…Í•±¥¹”µ¥¹ÕÑ•ÌÑ½Ñ…°èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð ‰…Í•±¥¹•}µ¥¹ÕÑ•Í}Ñ½Ñ…°œ¤°™…±±‰…¬ôœÀœ¥ôˆ°(€€€€€€€˜ˆ´É¥™Ñ±¥¹”µ¥¹ÕÑ•ÌÑ½Ñ…°èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð ‘É¥™Ñ±¥¹•}µ¥¹ÕÑ•Í}Ñ½Ñ…°œ¤°™…±±‰…¬ôœÀœ¥ôˆ°(€€€€€€€˜ˆ´Q¥µ”Í…Ù•µ¥¹ÕÑ•ÌÑ½Ñ…°èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð Ñ¥µ•}Í…Ù•‘}µ¥¹ÕÑ•Í}Ñ½Ñ…°œ¤°™…±±‰…¬ô9½Ðµ•…ÍÕÉ•œ¥ôˆ°(€€€€€€€˜ˆ´Q¥µ”Í…Ù•µ¥¹ÕÑ•ÌÁ•È¡…¹”èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð Ñ¥µ•}Í…Ù•‘}µ¥¹ÕÑ•Í}Á•É}¡…¹”œ¤°™…±±‰…¬ô9½Ðµ•…ÍÕÉ•œ¥ôˆ°(€€€€€€€˜ˆ´Q¥µ”‘•±Ñ„‘¥É•Ñ¥½¸èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð Ñ¥µ•}‘•±Ñ…}‘¥É•Ñ¥½¸œ¤°™…±±‰…¬ô9½Ðµ•…ÍÕÉ•œ¥ôˆ°(€€€€€€€˜ˆ´Q¥µ”‘•±Ñ„Á•É•¹Ð€¡Í…Ù•Á½Í¥Ñ¥Ù”¤èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð Ñ¥µ•}Í…Ù•‘}ÁÐœ¤°™…±±‰…¬ô9½Ðµ•…ÍÕÉ•œ¥ôˆ°(€€€€€€€€ˆˆ°(€€€€€€€€ˆŒŒ=Á•É…Ñ¥½¹…°Á¥±½Ð½ÕÑ½µ•Ì€¡…É•…Ñ”°½Á•É…Ñ½ÈµÉ•Á½ÉÑ•¤ˆ°(€€€€€€€€ˆˆ°(€€€€€€€˜ˆ´=Ý¹•ÈµÉ•…‘äÝ¥Ñ¡¥¸€ÈÑ €¡‰…Í•±¥¹”ƒŠHÉ¥™Ñ±¥¹”¤èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ” ¡É•Á½ÉÐ¹•Ð ½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Ìœ¤½Èíô¤¹•Ð ½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ œ°íô¤¹•Ð ‰…Í•±¥¹•}É…Ñ•}ÁÐœ¤¥ôƒŠHí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ” ¡É•Á½ÉÐ¹•Ð ½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Ìœ¤½Èíô¤¹•Ð ½Ý¹•É}É•…‘å}Ý¥Ñ¡¥¹|ÈÑ œ°íô¤¹•Ð ‘É¥™Ñ±¥¹•}É…Ñ•}ÁÐœ¤¥ôˆ°(€€€€€€€˜ˆ´Ñ¥½¹Ì½µÁ±•Ñ•Ý¥Ñ¡¥¸€Ý€¡‰…Í•±¥¹”ƒŠHÉ¥™Ñ±¥¹”¤èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ” ¡É•Á½ÉÐ¹•Ð ½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Ìœ¤½Èíô¤¹•Ð …Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|Ýœ°íô¤¹•Ð ‰…Í•±¥¹•}É…Ñ•}ÁÐœ¤¥ôƒŠHí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ” ¡É•Á½ÉÐ¹•Ð ½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Ìœ¤½Èíô¤¹•Ð …Ñ¥½¹Í}½µÁ±•Ñ•‘}Ý¥Ñ¡¥¹|Ýœ°íô¤¹•Ð ‘É¥™Ñ±¥¹•}É…Ñ•}ÁÐœ¤¥ôˆ°(€€€€€€€˜ˆ´I•Ù•ÉÍ•½ÈÉ•½Á•¹•€¡‰…Í•±¥¹”ƒŠHÉ¥™Ñ±¥¹”¤èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ” ¡É•Á½ÉÐ¹•Ð ½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Ìœ¤½Èíô¤¹•Ð É•Ù•ÉÍ•‘}½É}É•½Á•¹•œ°íô¤¹•Ð ‰…Í•±¥¹•}É…Ñ•}ÁÐœ¤¥ôƒŠHí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ” ¡É•Á½ÉÐ¹•Ð ½Á•É…Ñ¥½¹…±}µ•ÑÉ¥Ìœ¤½Èíô¤¹•Ð É•Ù•ÉÍ•‘}½É}É•½Á•¹•œ°íô¤¹•Ð ‘É¥™Ñ±¥¹•}É…Ñ•}ÁÐœ¤¥ôˆ°(€€€€€€€€‰I…Ñ•Ì…É”Á•É•¹Ñ…•Ì½˜Ñ¡”½‰Í•ÉÙ•¡…¹”Í•Ðì½µ¥ÑÑ•™¥•±‘ÌÉ•µ…¥¸¹½Ðµ•…ÍÕÉ•¸ˆ°(€€€€€€€€ˆˆ°(€€€€€€€€ˆŒŒÕÍÑ½µ•È½ÕÑ½µ•Ìˆ°(€€€€€€€€ˆˆ°(€€€€€€€˜ˆ´I•Ù•¹Õ”€¼Ý¥¸µÉ…Ñ”±¥™Ðèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð É•Ù•¹Õ•}±¥™Ñ}ÕÍ‘}Ñ½Ñ…°œ¤¥ôˆ°(€€€€€€€˜ˆ´I•Ñ•¹Ñ¥½¸±¥™Ðèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð É•Ñ•¹Ñ¥½¹}±¥™Ñ}ÁÑ}µ•‘¥…¸œ¤¥ôˆ°(€€€€€€€˜ˆ´]¥±±¥¹¹•ÍÌÑ¼Á…äèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð Ý¥±±¥¹¹•ÍÍ}Ñ½}Á…å}ÕÍ‘}µ•‘¥…¸œ¤¥ôˆ°(€€€€€€€€ˆˆ°(€€€€€€€€ˆŒŒÉ¥™Ñ±¥¹”½Á•É…Ñ¥½¹…°Ñ•±•µ•ÑÉä€¡¹½ÐÕÍÑ½µ•ÈÁÉ½½˜¤ˆ°(€€€€€€€€ˆˆ°(€€€€€€€˜ˆ´]½É­™±½ÝÌ½‰Í•ÉÙ•èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡½‰Í•ÉÙ•¹•Ð Ý½É­™±½ÝÌœ¤°™…±±‰…¬ôœÀœ¥ôˆ°(€€€€€€€˜ˆ´M½ÕÉ”½‰Í•ÉÙ…Ñ¥½¹Ìèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡½‰Í•ÉÙ•¹•Ð Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Ìœ¤°™…±±‰…¬ôœÀœ¥ôˆ°(€€€€€€€˜ˆ´9¼µ½ÀÍ½ÕÉ”½‰Í•ÉÙ…Ñ¥½¹Ìèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡½‰Í•ÉÙ•¹•Ð Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Í}Õ¹¡…¹•œ¤°™…±±‰…¬ôœÀœ¥ôˆ°(€€€€€€€˜ˆ´5…Ñ•É¥…°±•‘•È¡…¹•Ìèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡½‰Í•ÉÙ•¹•Ð Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Í}¡…¹•œ¤°™…±±‰…¬ôœÀœ¥ôˆ°(€€€€€€€˜ˆ´9¼µ½À½µÁ…É¥Í½¸É…Ñ”èí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡½‰Í•ÉÙ•¹•Ð Í½ÕÉ•}¹½}½Á}½µÁ…É¥Í½¹}É…Ñ”œ¤¥ôˆ°(€€€€€€€˜ˆ´=Ý¹•È…Ñ¥½¹Ì½µÁ±•Ñ•¡¥ÍÑ½É¥…±±äèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡½‰Í•ÉÙ•¹•Ð …Ñ¥½¹}¥Ñ•µÍ}½µÁ±•Ñ•‘}¡¥ÍÑ½É¥…±±äœ¤°™…±±‰…¬ôœÀœ¥ôˆ°(€€€€€€€˜ˆ´ÁÁÉ½Ù…°±…Ñ•¹äÀÔÀ€¼ÀäÀÍ•½¹‘Ìèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡…ÁÁÉ½Ù…±}±…Ñ•¹ä¹•Ð ÀÔÀœ¤¥ô€¼í}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡…ÁÁÉ½Ù…±}±…Ñ•¹ä¹•Ð ÀäÀœ¤¥ôˆ°(€€€€€€€˜ˆ´=Ý¹•Èµ…Ñ¥½¸å±”ÀÔÀ€¼ÀäÀÍ•½¹‘Ìèí}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡½Ý¹•É}…Ñ¥½¹}å±”¹•Ð ÀÔÀœ¤¥ô€¼í}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡½Ý¹•É}…Ñ¥½¹}å±”¹•Ð ÀäÀœ¤¥ôˆ°(€€€€€€€€‰Q¡•Í”Ù…±Õ•Ì‘•ÍÉ¥‰”¥Í½±…Ñ•É¥™Ñ±¥¹”Ý½É­™±½ÜÑ•±•µ•ÑÉä½¹±ä¸Q¡•ä‘¼¹½Ð•ÍÑ…‰±¥Í ÕÍÑ½µ•ÈÑ¥µ”Í…Ù•°É•Ù•¹Õ”±¥™Ð°É•Ñ•¹Ñ¥½¸°½ÈÝ¥±±¥¹¹•ÍÌÑ¼Á…ä¸ˆ°(€€€€€€€€ˆˆ°(€€€€€€€€ˆŒŒ¥Í±½ÍÕÉ”ˆ°(€€€€€€€€ˆˆ°(€€€€€€€}Á¥±½Ñ}Á…­•Ñ}Ù…±Õ”¡É•Á½ÉÐ¹•Ð ‰‘¥Í±½ÍÕÉ”ˆ¤¤°(€€€€€€€€‰Q¡¥Ì•áÁ½ÉÐ½¹Ñ…¥¹Ì…É•…Ñ”Ù…±Õ•Ì½¹±ä¸I•½¹¥±”Ñ¡”‘…Ñ•Á¥±½Ð•Ù¥‘•¹”½ÕÑÍ¥‘”É¥™Ñ±¥¹”‰•™½É”µ…­¥¹œ„ÕÍÑ½µ•È°É•Ù•¹Õ”°½ÈI=$±…¥´¸ˆ°(€€€€€€€€‰Ù¥‘•¹”É•™•É•¹•Ì°ÕÍÑ½µ•È¥‘•¹Ñ¥™¥•ÉÌ°I4É•½É‘Ì°Í½ÕÉ”‰½‘¥•Ì°…¹É•‘•¹Ñ¥…±Ì…É”¥¹Ñ•¹Ñ¥½¹…±±ä•á±Õ‘•¸ˆ°(€€€€€€€€ˆˆ°(€€€t(€€€É•ÑÕÉ¸A±…¥¹Q•áÑI•ÍÁ½¹Í” (€€€€€€€€‰q¸ˆ¹©½¥¸¡±¥¹•Ì¤°(€€€€€€€¡•…‘•ÉÌõì‰½¹Ñ•¹Ðµ¥ÍÁ½Í¥Ñ¥½¸ˆè€…ÑÑ…¡µ•¹Ðì™¥±•¹…µ”ô‰‘É¥™Ñ±¥¹”µÁ¥±½ÐµÁ…­•Ð¹µˆô°(€€€€¤(()…ÁÀ¹•Ð ˆ½…Á¤½Í½ÕÉ•Ì½íÍ½ÕÉ•}¥éÁ…Ñ¡ô½¡¥ÍÑ½Éäˆ¤)‘•˜•Ñ}Í½ÕÉ•}¡¥ÍÑ½Éä (€€€Í½ÕÉ•}¥èÍÑÈ°(€€€±¥µ¥Ðè¥¹Ð€ô€ÄÈ°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€¥‘•¹Ñ¥Ñäè‘¥ÑmÍÑÈ°ÍÑÉtð9½¹”€ô9½¹”(€€€¥˜…¹ä¡Ù…±Õ”¥Ì¹½Ð9½¹”™½ÈÙ…±Õ”¥¸€¡½Á•É…Ñ½È°Ñ•¹…¹Ñ}¥°…ÁÁÉ½Ù…±}Ñ½­•¸°¥‘•¹Ñ¥Ñå}Ñ½­•¸¤¤è(€€€€€€€¥˜¹½Ð½Á•É…Ñ½È½È¹½ÐÑ•¹…¹Ñ}¥è(€€€€€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀÄ°‘•Ñ…¥°ô‰M¥¹•…ÁÁÉ½Ù…°¥ÌÉ•ÅÕ¥É•™½ÈÍ½ÕÉ”¡¥ÍÑ½Éäˆ(€€€€€€€€€€€€¤(€€€€€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€€€€˜‰Í½ÕÉ”µ¡¥ÍÑ½ÉäéíÍ½ÕÉ•}¥‘ôˆ°(€€€€€€€€€€€½Á•É…Ñ½È°(€€€€€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€€€€€¤(€€€‰½Õ¹‘}Ñ•¹…¹Ð€ô¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¥˜¥‘•¹Ñ¥Ñä•±Í”9½¹”(€€€‘•™¥¹¥Ñ¥½¸€ôÍ½ÕÉ•}‘•™¥¹¥Ñ¥½¸ (€€€€€€€Í½ÕÉ•}¥°‰½Õ¹‘}Ñ•¹…¹Ð°¥¹±Õ‘•}‘¥Í…‰±•õ¥‘•¹Ñ¥Ñä¥Ì¹½Ð9½¹”(€€€€¤(€€€¥˜‘•™¥¹¥Ñ¥½¸¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰M½ÕÉ”¥Ì¹½Ð…±±½Ý±¥ÍÑ•ˆ¤(€€€¥˜€ (€€€€€€€‘•™¥¹¥Ñ¥½¸¹•Ð ‰‘å¹…µ¥Œˆ¤€ôô€‰ÑÉÕ”ˆ(€€€€€€€…¹¹½Ð¥‘•¹Ñ¥Ñä(€€€€¤è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰Q•¹…¹ÐµÍ½Á•Í½ÕÉ”É•ÅÕ¥É•ÌÍ¥¹•…ÁÁÉ½Ù…°ˆ¤(€€€‰½Õ¹‘•‘}±¥µ¥Ð€ôµ…à Ä°µ¥¸¡±¥µ¥Ð°€ÔÀ¤¤(€€€½‰Í•ÉÙ…Ñ¥½¹Ì€ô±¥ÍÑ}Í½ÕÉ•}¡¥ÍÑ½Éä¡Í½ÕÉ•}¥°‰½Õ¹‘•‘}±¥µ¥Ð°‰½Õ¹‘}Ñ•¹…¹Ð¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰Í½ÕÉ•}¥ˆèÍ½ÕÉ•}¥°(€€€€€€€€‰…ÁÁ•¹‘}½¹±äˆèQÉÕ”°(€€€€€€€€‰½‰Í•ÉÙ…Ñ¥½¹Ìˆè½‰Í•ÉÙ…Ñ¥½¹Ì°(€€€€€€€€‰µ•µ½Éäˆè‰Õ¥±‘}µ•µ½Éå}ÍÕµµ…Éä¡íÍ½ÕÉ•}¥è½‰Í•ÉÙ…Ñ¥½¹Íô°mt¥l‰Í½ÕÉ•Ì‰ulÁt°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½µ•µ½Éä½ÍÕµµ…Éäˆ¤)‘•˜•Ñ}µ•µ½Éå}ÍÕµµ…Éä (€€€±¥µ¥Ðè¥¹Ð€ô€ÔÀ°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸…ÁÁ•¹µ½¹±ä¡…¹”µ•µ½ÉäÁ±ÕÌÉ•ÕÉÉ¥¹œ…¹Õ¹É•Í½±Ù•Ý½É¬¸ˆˆˆ(€€€‰½Õ¹‘•‘}±¥µ¥Ð€ôµ…à Ä°µ¥¸¡±¥µ¥Ð°€ÄÀÀ¤¤(€€€¥‘•¹Ñ¥Ñäè‘¥ÑmÍÑÈ°ÍÑÉtð9½¹”€ô9½¹”(€€€¥˜…¹ä¡Ù…±Õ”¥Ì¹½Ð9½¹”™½ÈÙ…±Õ”¥¸€¡½Á•É…Ñ½È°Ñ•¹…¹Ñ}¥°…ÁÁÉ½Ù…±}Ñ½­•¸°¥‘•¹Ñ¥Ñå}Ñ½­•¸¤¤è(€€€€€€€¥˜¹½Ð½Á•É…Ñ½È½È¹½ÐÑ•¹…¹Ñ}¥è(€€€€€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀÄ°‘•Ñ…¥°ô‰M¥¹•…ÁÁÉ½Ù…°¥ÌÉ•ÅÕ¥É•™½ÈÑ•¹…¹Ðµ•µ½Éäˆ(€€€€€€€€€€€€¤(€€€€€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€€€€€‰µ•µ½ÉäéÍÕµµ…Éäˆ°(€€€€€€€€€€€½Á•É…Ñ½È°(€€€€€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€€€€€¤(€€€‰½Õ¹‘•‘}±¥µ¥Ð€ô}µ•ÑÉ¥}¡¥ÍÑ½Éå}±¥µ¥Ð¡‰½Õ¹‘•‘}±¥µ¥Ð°¥‘•¹Ñ¥Ñä¤(€€€Í½ÕÉ•}Ñ•¹…¹Ð€ô¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¥˜¥‘•¹Ñ¥Ñä•±Í”9½¹”(€€€Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Ì€ô±¥ÍÑ}Í½ÕÉ•}¡¥ÍÑ½É¥•Ì (€€€€€€€±¥ÍÐ¡Í½ÕÉ•}‘•™¥¹¥Ñ¥½¹Ì¡Í½ÕÉ•}Ñ•¹…¹Ð¤¤°(€€€€€€€±¥µ¥Ðõ‰½Õ¹‘•‘}±¥µ¥Ð°(€€€€€€€Ñ•¹…¹Ñ}¥õÍ½ÕÉ•}Ñ•¹…¹Ð°(€€€€¤(€€€Ý¥Ñ }©½‰Í}±½¬è(€€€€€€€Ý½É­™±½Ý}É•½É‘Ì€ô±¥ÍÐ¡Ý½É­™±½Ý}ÍÑ½É”¹}ÉÕ¹Ì¹Ù…±Õ•Ì ¤¤(€€€Ý½É­™±½ÝÌ€ôl(€€€€€€€ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(€€€€€€€™½ÈÍÑ…Ñ”¥¸}µ•É•}‘ÕÉ…‰±•}É•½É‘Ì (€€€€€€€€€€€Ý½É­™±½Ý}É•½É‘Ì°(€€€€€€€€€€€±¥ÍÑ}Ý½É­™±½ÝÌ°(€€€€€€€€€€€±¥µ¥Ðõ‰½Õ¹‘•‘}±¥µ¥Ð°(€€€€€€€€€€€­•äõ±…µ‰‘„¥Ñ•´è¥Ñ•´¹Ý½É­™±½Ý}¥°(€€€€€€€€¤(€€€€€€€¥˜}Ù¥Í¥‰±•}Ñ•¹…¹Ñ}É•½É¡ÍÑ…Ñ”°¥‘•¹Ñ¥Ñä¤(€€€t(€€€ÍÕµµ…Éä€ô‰Õ¥±‘}µ•µ½Éå}ÍÕµµ…Éä¡Í½ÕÉ•}½‰Í•ÉÙ…Ñ¥½¹Ì°Ý½É­™±½ÝÌ¤(€€€ÍÕµµ…Éål‰¡¥ÍÑ½Éå}Ý¥¹‘½Ü‰t€ô}µ•ÑÉ¥}Ý¥¹‘½Ü¡¥‘•¹Ñ¥Ñä°‰½Õ¹‘•‘}±¥µ¥Ð¤(€€€É•ÑÕÉ¸ÍÕµµ…Éä(()…ÁÀ¹•Ð ˆ½…Á¤½µÕ±Ñ¥µ½‘…°½…ÍÍ•ÑÌ½í…ÍÍ•Ñ}¥‘ô½íÍ¥‘•ôˆ¤)‘•˜•Ñ}µÕ±Ñ¥µ½‘…±}…ÍÍ•Ð (€€€…ÍÍ•Ñ}¥èÍÑÈ°Í¥‘”èÍÑÈ°µ½‘”è1¥Ñ•É…±l‰±¥Ù”ˆ°€‰‘•µ¼‰t€ô€‰±¥Ù”ˆ(¤€´øI•ÍÁ½¹Í”è(€€€€ˆˆ‰M•ÉÙ”½¹±ä‰åÑ•Ì™É½´Ñ¡”Ù¥ÍÕ…°É•¥ÍÑÉäÑ¡É½Õ Ñ¡”Í…µ”½É¥¥¸¸ˆˆˆ(€€€ÑÉäè(€€€€€€€…ÍÍ•Ð€ôÙ¥ÍÕ…±}…ÍÍ•Ñ}‰åÑ•Ì¡…ÍÍ•Ñ}¥°Í¥‘”°µ½‘”¤(€€€•á•ÁÐ5Õ±Ñ¥µ½‘…±U¹…Ù…¥±…‰±”…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€É•ÑÕÉ¸I•ÍÁ½¹Í”¡½¹Ñ•¹Ðõ…ÍÍ•Ð¹‰½‘ä°µ•‘¥…}ÑåÁ”õ…ÍÍ•Ð¹µ¥µ•}ÑåÁ”¤(()…ÁÀ¹•Ð ˆ½…Á¤½µÕ±Ñ¥µ½‘…°½•Ù¥‘•¹”½í…ÍÍ•Ñ}¥‘ôˆ¤)‘•˜•Ñ}µÕ±Ñ¥µ½‘…±}•Ù¥‘•¹” (€€€…ÍÍ•Ñ}¥èÍÑÈ°µ½‘”è1¥Ñ•É…±l‰±¥Ù”ˆ°€‰‘•µ¼‰t€ô€‰±¥Ù”ˆ(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸‰•™½É”½…™Ñ•ÈÙ¥ÍÕ…°µ•Ñ…‘…Ñ„…¹Ñ¡”½µ‰¥¹••Ù¥‘•¹”¡…Í ¸ˆˆˆ(€€€™…±±‰…­}É•…Í½¸èÍÑÈð9½¹”€ô9½¹”(€€€É•Í½±Ù•‘}µ½‘”€ôµ½‘”(€€€ÑÉäè(€€€€€€€•Ù¥‘•¹”€ô•Ñ}Ù¥ÍÕ…±}•Ù¥‘•¹”¡…ÍÍ•Ñ}¥°µ½‘”¤(€€€•á•ÁÐ5Õ±Ñ¥µ½‘…±U¹…Ù…¥±…‰±”…Ì•áŒè(€€€€€€€€ŒQ¡”…¹½¹åµ½ÕÌ™¥á•Ù¥ÍÕ…°±…¹”Í¡½Õ±É•µ…¥¸©Õ‘•…‰±”‘ÕÉ¥¹œ„(€€€€€€€€ŒÑÉ…¹Í¥•¹Ð¥Ñ!Õˆ½ÁÕ‰±¥Œµ‰åÑ”½ÕÑ…”¸-••ÀÑ¡”ÍÑÉ¥ÐµÕ±Ñ¥µ½‘…°(€€€€€€€€Œ¡•±Á•ÈÍ•µ…¹Ñ¥Ì¥¹Ñ…Ð°‰ÕÐÉ•ÑÕÉ¸„Ù¥Í¥‰±ä±…‰•±±•Íå¹Ñ¡•Ñ¥Œ(€€€€€€€€ŒÁ…¥È™É½´Ñ¡¥ÌÁÕ‰±¥Œµ•Ñ…‘…Ñ„É½ÕÑ”¥¹ÍÑ•…½˜„‰É½­•¸Á…¹•°¸(€€€€€€€¥˜µ½‘”€„ô€‰±¥Ù”ˆè(€€€€€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÔÀÌ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€€€€€ÑÉäè(€€€€€€€€€€€•Ù¥‘•¹”€ô•Ñ}Ù¥ÍÕ…±}•Ù¥‘•¹”¡…ÍÍ•Ñ}¥°€‰‘•µ¼ˆ¤(€€€€€€€€€€€É•Í½±Ù•‘}µ½‘”€ô€‰‘•µ¼ˆ(€€€€€€€€€€€™…±±‰…­}É•…Í½¸€ôÍÑÈ¡•áŒ¤(€€€€€€€•á•ÁÐ5Õ±Ñ¥µ½‘…±U¹…Ù…¥±…‰±”è(€€€€€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÔÀÌ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€Á…å±½…€ô•Ù¥‘•¹”¹Ñ½}‘¥Ð ¤(€€€Á…å±½…‘l‰‰•™½É•}ÕÉ°‰t€ô˜ˆ½…Á¤½µÕ±Ñ¥µ½‘…°½…ÍÍ•ÑÌ½í…ÍÍ•Ñ}¥‘ô½‰•™½É”ýµ½‘”õíÉ•Í½±Ù•‘}µ½‘•ôˆ(€€€Á…å±½…‘l‰…™Ñ•É}ÕÉ°‰t€ô˜ˆ½…Á¤½µÕ±Ñ¥µ½‘…°½…ÍÍ•ÑÌ½í…ÍÍ•Ñ}¥‘ô½…™Ñ•Èýµ½‘”õíÉ•Í½±Ù•‘}µ½‘•ôˆ(€€€¥˜™…±±‰…­}É•…Í½¸è(€€€€€€€Á…å±½…‘l‰™…±±‰…­}É•…Í½¸‰t€ô™…±±‰…­}É•…Í½¸(€€€É•ÑÕÉ¸Á…å±½…(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½µÕ±Ñ¥µ½‘…°½…¹…±åé”ˆ¤)…Íå¹Œ‘•˜…¹…±åé•}µÕ±Ñ¥µ½‘…°¡É•ÅÕ•ÍÐè5Õ±Ñ¥µ½‘…±¹…±åÍ¥ÍI•ÅÕ•ÍÐ¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰IÕ¸•µ¥¹¤Ù¥Í¥½¸½¹±ä½¸Ñ¡”‰½Õ¹‘•…±±½Ý±¥ÍÑ•Ù¥ÍÕ…°Á…¥È¸ˆˆˆ(€€€É•ÑÉå}…™Ñ•È€ô}É•Í•ÉÙ•}µÕ±Ñ¥µ½‘…±}…±° ¤(€€€¥˜É•ÑÉå}…™Ñ•È¥Ì¹½Ð9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÈä°(€€€€€€€€€€€‘•Ñ…¥°ô‰5Õ±Ñ¥µ½‘…°…¹…±åÍ¥ÌÅÕ½Ñ„É•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ°(€€€€€€€€€€€¡•…‘•ÉÌõì‰I•ÑÉäµ™Ñ•ÈˆèÍÑÈ¡É•ÑÉå}…™Ñ•È¥ô°(€€€€€€€€¤(€€€ÑÉäè(€€€€€€€É•ÑÕÉ¸…Ý…¥Ð…Íå¹¥¼¹Ñ½}Ñ¡É•… (€€€€€€€€€€€…¹…±åé•}Ù¥ÍÕ…±}•Ù¥‘•¹”°É•ÅÕ•ÍÐ¹…ÍÍ•Ñ}¥°É•ÅÕ•ÍÐ¹µ½‘”(€€€€€€€€¤(€€€•á•ÁÐ5Õ±Ñ¥µ½‘…±U¹…Ù…¥±…‰±”…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÔÀÌ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()…ÁÀ¹•Ð ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½Í•¹…É¥½Ìˆ¤)‘•˜•Ñ}Ý½É­™±½Ý}Í•¹…É¥½Ì (€€€Ý½É­™±½Ý}¥èÍÑÈ°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰AÉ•Ù¥•Ü…ÁÁÉ½Ù”½É…¹‘™…Ñ¡•È½‘•™•È½ÕÑ½µ•ÌÝ¥Ñ¡½ÕÐµ…­¥¹œ…¹äÝÉ¥Ñ•Ì¸ˆˆˆ(€€€ÑÉäè(€€€€€€€ÍÑ…Ñ”€ô}É•Í½±Ù•}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€}…ÕÑ¡½É¥é•}É•…‘}Ñ•¹…¹Ð (€€€€€€€ÍÑ…Ñ”°(€€€€€€€É•Í½ÕÉ•}¥õÍÑ…Ñ”¹Ý½É­™±½Ý}¥°(€€€€€€€½Á•É…Ñ½Èõ½Á•É…Ñ½È°(€€€€€€€Ñ•¹…¹Ñ}¥õÑ•¹…¹Ñ}¥°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸õ…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸õ¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€¤(€€€¥µÁ…ÑÌ€ôm¥Ñ•´¹}}‘¥Ñ}|™½È¥Ñ•´¥¸ÍÑ…Ñ”¹¥µÁ…ÑÍt(€€€É•ÑÕÉ¸Í¥µÕ±…Ñ•}Í•¹…É¥½Ì (€€€€€€€¥µÁ…ÑÌ°(€€€€€€€ÍÑ…Ñ”¹•Ù¥‘•¹”¹•Ù¥‘•¹•}¡…Í ¥˜ÍÑ…Ñ”¹•Ù¥‘•¹”•±Í”9½¹”°(€€€€€€€ÍÑ…Ñ”¹¥¹Ñ•É…Ñ¥½¹}Ñ…É•ÑÌ°(€€€€¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½‘•¥Í¥½¸µÑÝ¥¸½¥¹Ñ…­”ˆ¤)…Íå¹Œ‘•˜ÍÑ…ÉÑ}‘•¥Í¥½¹}ÑÝ¥¹}¥¹Ñ…­”¡É•ÅÕ•ÍÐè•¥Í¥½¹QÝ¥¹%¹Ñ…­•I•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€€ˆˆ‰É•…Ñ”„•¥Í¥½¸QÝ¥¸™É½´‰½Õ¹‘•°•áÁ±¥¥Ñ±äÕ¹Ù•É¥™¥•A4½¹Ñ•áÐ¸ˆˆˆ(€€€¥˜¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸ ¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰•¥Í¥½¸QÝ¥¸¥¹Ñ…­”É…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€…Í”€ô‰Õ¥±‘}¥¹Ñ…­•}‘•¥Í¥½¹}…Í” (€€€€€€€…Í•}¥õ˜‰‘•¥Í¥½¸µ¥¹Ñ…­”µíÍ•É•ÑÌ¹Ñ½­•¹}¡•à ÄÈ¥ôˆ°(€€€€€€€ÅÕ•ÍÑ¥½¸õÉ•ÅÕ•ÍÐ¹ÅÕ•ÍÑ¥½¸°(€€€€€€€ÕÉÉ•¹Ñ}½µµ¥Ñµ•¹ÐõÉ•ÅÕ•ÍÐ¹ÕÉÉ•¹Ñ}½µµ¥Ñµ•¹Ð°(€€€€€€€ÕÉ•¹äõÉ•ÅÕ•ÍÐ¹ÕÉ•¹ä°(€€€€€€€Á½Í¥Ñ¥Ù•}Í¥¹…°õÉ•ÅÕ•ÍÐ¹Á½Í¥Ñ¥Ù•}Í¥¹…°°(€€€€€€€É¥Í­}Í¥¹…°õÉ•ÅÕ•ÍÐ¹É¥Í­}Í¥¹…°°(€€€€€€€…™™•Ñ•‘}Í•µ•¹ÐõÉ•ÅÕ•ÍÐ¹…™™•Ñ•‘}Í•µ•¹Ð°(€€€€¤(€€€¥˜½Ì¹•Ñ•¹Ø ‰%M%=9}Q]%9}1%Y}=U9%0ˆ°€‰™…±Í”ˆ¤¹…Í•™½± ¤€ôô€‰ÑÉÕ”ˆè(€€€€€€€¥˜¹½Ð}É•Í•ÉÙ•}ÁÉ½‘ÕÑ}½Õ¹¥±}…±±Ì ¤è(€€€€€€€€€€€…Í”¹•Ù•¹ÑÌ¹…ÁÁ•¹ (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè€‰ÁÉ½‘ÕÐµ½Õ¹¥°µÅÕ½Ñ„µ‰½Õ¹‘•ˆ°(€€€€€€€€€€€€€€€€€€€€‰…Ñ¥½¸ˆè€‰½½±•}…‘­}ÁÉ½‘ÕÑ}½Õ¹¥°ˆ°(€€€€€€€€€€€€€€€€€€€€‰½ÕÑ½µ”ˆè€‰‘•Ñ•Éµ¥¹¥ÍÑ¥}‘•µ½}™…±±‰…¬ˆ°(€€€€€€€€€€€€€€€€€€€€‰•¹•É…Ñ¥½¸ˆè…Í”¹•¹•É…Ñ¥½¸°(€€€€€€€€€€€€€€€€€€€€‰É•…Í½¸ˆè€‰ÁÕ‰±¥}µ½‘•±}…±±}ÅÕ½Ñ„ˆ°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€•±Í”è(€€€€€€€€€€€ÑÉäè(€€€€€€€€€€€€€€€…Í”¹½Õ¹¥°€ô…Ý…¥ÐÉÕ¹}±¥Ù•}ÁÉ½‘ÕÑ}½Õ¹¥°¡…Í”¤(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ð€ô¹•áÐ (€€€€€€€€€€€€€€€€€€€•Ù•¹Ð(€€€€€€€€€€€€€€€€€€€™½È•Ù•¹Ð¥¸…Í”¹•Ù•¹ÑÌ(€€€€€€€€€€€€€€€€€€€¥˜•Ù•¹Ð¹•Ð ‰•Ù•¹Ñ}¥ˆ¤€ôô€‰ÁÉ½‘ÕÐµ½Õ¹¥°µ½µÁ±•Ñ”ˆ(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ñl‰…Ñ¥½¸‰t€ô€‰½½±•}…‘­}ÁÉ½‘ÕÑ}½Õ¹¥°ˆ(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ñl‰½ÕÑ½µ”‰t€ô€‰‘¥Í…É••µ•¹Ñ}ÁÉ•Í•ÉÙ•ˆ(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ñl‰•á•ÕÑ¥½¹}µ½‘”‰t€ô€‰½½±•}…‘¬ˆ(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ñl‰µ½‘•°‰t€ô½Ì¹•Ñ•¹Ø (€€€€€€€€€€€€€€€€€€€€‰5=1}95ˆ°€‰•µ¥¹¤´Ì¸Ôµ™±…Í ˆ(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€•á•ÁÐAÉ½‘ÕÑ½Õ¹¥±U¹…Ù…¥±…‰±”…Ì•áŒè(€€€€€€€€€€€€€€€…Í”¹•Ù•¹ÑÌ¹…ÁÁ•¹ (€€€€€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè€‰ÁÉ½‘ÕÐµ½Õ¹¥°µ±¥Ù”µÕ¹…Ù…¥±…‰±”ˆ°(€€€€€€€€€€€€€€€€€€€€€€€€‰…Ñ¥½¸ˆè€‰½½±•}…‘­}ÁÉ½‘ÕÑ}½Õ¹¥°ˆ°(€€€€€€€€€€€€€€€€€€€€€€€€‰½ÕÑ½µ”ˆè€‰‘•Ñ•Éµ¥¹¥ÍÑ¥}‘•µ½}™…±±‰…¬ˆ°(€€€€€€€€€€€€€€€€€€€€€€€€‰•¹•É…Ñ¥½¸ˆè…Í”¹•¹•É…Ñ¥½¸°(€€€€€€€€€€€€€€€€€€€€€€€€‰É•…Í½¸ˆèÍÑÈ¡•áŒ¥lèÈÐÁt°(€€€€€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€€€€€¤(€€€Á•ÉÍ¥ÍÑ}‘•¥Í¥½¹}…Í”¡…Í”¤(€€€É•ÑÕÉ¸…Í”¹µ½‘•±}‘ÕµÀ¡µ½‘”ô‰©Í½¸ˆ¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½‘•¥Í¥½¸µÑÝ¥¸½‘•µ¼ˆ¤)…Íå¹Œ‘•˜ÍÑ…ÉÑ}‘•¥Í¥½¹}ÑÝ¥¹}‘•µ¼ ¤€´ø‘¥Ðè(€€€€ˆˆ‰É•…Ñ”Ñ¡”Á¥¹¹•A4‘•¥Í¥½¸…Í”…¹½ÁÑ¥½¹…±±äÉÕ¸Ñ¡”±¥Ù”,½Õ¹¥°¸ˆˆˆ(€€€¥˜¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸ ¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰•¥Í¥½¸QÝ¥¸‘•µ¼É…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€€Œ… …¹½¹åµ½ÕÌÉÕ¸É••¥Ù•Ì…¸½Á…ÅÕ”¥¸Í¡…É•‘•Ñ•Éµ¥¹¥ÍÑ¥Œ¥Ý½Õ±(€€€€Œ±•Ð½¹”©Õ‘”Í•ÍÍ¥½¸É•Í•Ð½ÈµÕÑ…Ñ”…¹½Ñ¡•ÈÍ•ÍÍ¥½¸Ì…ÁÁÉ½Ù…°¸(€€€…Í”€ô‰Õ¥±‘}‘•µ½}‘•¥Í¥½¹}…Í” (€€€€€€€…Í•}¥õ˜‰‘•¥Í¥½¸µ½¹‰½…É‘¥¹œµíÍ•É•ÑÌ¹Ñ½­•¹}¡•à ÄÈ¥ôˆ(€€€€¤(€€€¥˜½Ì¹•Ñ•¹Ø ‰%M%=9}Q]%9}	%EUIe}9	1ˆ°€‰™…±Í”ˆ¤¹…Í•™½± ¤€ôô€‰ÑÉÕ”ˆè(€€€€€€€ÑÉäè(€€€€€€€€€€€Íµ…±±}µ•ÑÉ¥Œ°•¹Ñ•ÉÁÉ¥Í•}µ•ÑÉ¥Œ€ô…Ý…¥Ð…Íå¹¥¼¹…Ñ¡•È (€€€€€€€€€€€€€€€…Íå¹¥¼¹Ñ½}Ñ¡É•… (€€€€€€€€€€€€€€€€€€€ÅÕ•Éå}…É•…Ñ•}µ•ÑÉ¥Œ°€‰…Ñ¥Ù…Ñ¥½¹}É…Ñ”ˆ°€‰Íµ…±±}Ý½É­ÍÁ…•Ìˆ(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€…Íå¹¥¼¹Ñ½}Ñ¡É•… (€€€€€€€€€€€€€€€€€€€ÅÕ•Éå}…É•…Ñ•}µ•ÑÉ¥Œ°(€€€€€€€€€€€€€€€€€€€€‰…Ñ¥Ù…Ñ¥½¹}É…Ñ”ˆ°(€€€€€€€€€€€€€€€€€€€€‰•¹Ñ•ÉÁÉ¥Í•}Ý½É­ÍÁ…•Ìˆ°(€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€¤(€€€€€€€€€€€…Í”€ô…ÑÑ…¡}…É•…Ñ•}µ•ÑÉ¥Ì (€€€€€€€€€€€€€€€…Í”°(€€€€€€€€€€€€€€€mÍµ…±±}µ•ÑÉ¥Œ°•¹Ñ•ÉÁÉ¥Í•}µ•ÑÉ¥t°(€€€€€€€€€€€€¤(€€€€€€€•á•ÁÐá•ÁÑ¥½¸…Ì•áŒè€€Œ¹½Å„è	1ÀÀÄ€´ÁÕ‰±¥Œ‘•µ¼É•Ñ…¥¹Ì„±…‰•±±•™¥áÑÕÉ”¸(€€€€€€€€€€€…Í”¹•Ù•¹ÑÌ¹…ÁÁ•¹ (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè€‰‰¥ÅÕ•Éäµ…É•…Ñ”µÕ¹…Ù…¥±…‰±”ˆ°(€€€€€€€€€€€€€€€€€€€€‰…Ñ¥½¸ˆè€‰‰¥ÅÕ•Éå}…É•…Ñ•}É•…‘•Èˆ°(€€€€€€€€€€€€€€€€€€€€‰½ÕÑ½µ”ˆè€‰Á¥¹¹•‘}…É•…Ñ•}™¥áÑÕÉ•}É•Ñ…¥¹•ˆ°(€€€€€€€€€€€€€€€€€€€€‰•¹•É…Ñ¥½¸ˆè…Í”¹•¹•É…Ñ¥½¸°(€€€€€€€€€€€€€€€€€€€€‰É•…Í½¸ˆè€ (€€€€€€€€€€€€€€€€€€€€€€€€‰…¹…±åÑ¥Í}Á½±¥å}É•©•Ñ•ˆ(€€€€€€€€€€€€€€€€€€€€€€€¥˜¥Í¥¹ÍÑ…¹”¡•áŒ°¹…±åÑ¥ÍA½±¥åÉÉ½È¤(€€€€€€€€€€€€€€€€€€€€€€€•±Í”€‰‰¥ÅÕ•Éå}ÉÕ¹Ñ¥µ•}Õ¹…Ù…¥±…‰±”ˆ(€€€€€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€¥˜½Ì¹•Ñ•¹Ø ‰%M%=9}Q]%9}%M%=9}55=Ie}9	1ˆ°€‰™…±Í”ˆ¤¹…Í•™½± ¤€ôô€‰ÑÉÕ”ˆè(€€€€€€€ÑÉäè(€€€€€€€€€€€ÁÉ••‘•¹ÑÌ€ô…Ý…¥Ð…Íå¹¥¼¹Ñ½}Ñ¡É•… (€€€€€€€€€€€€€€€ÅÕ•Éå}‘•¥Í¥½¹}ÁÉ••‘•¹ÑÌ°(€€€€€€€€€€€€€€€lÀ¸Àä°€À¸ÄÄ°€Ä¸À°€Ä¸Át°(€€€€€€€€€€€€¤(€€€€€€€€€€€…Í”€ô…ÑÑ…¡}‘•¥Í¥½¹}ÁÉ••‘•¹ÑÌ¡…Í”°ÁÉ••‘•¹ÑÌ¤(€€€€€€€•á•ÁÐá•ÁÑ¥½¸…Ì•áŒè€€Œ¹½Å„è	1ÀÀÄ€´É•Ñ…¥¸Ñ¡”±…‰•±±•™¥áÑÕÉ”¸(€€€€€€€€€€€…Í”¹•Ù•¹ÑÌ¹…ÁÁ•¹ (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè€‰‘•¥Í¥½¸µµ•µ½ÉäµÕ¹…Ù…¥±…‰±”ˆ°(€€€€€€€€€€€€€€€€€€€€‰…Ñ¥½¸ˆè€‰‰¥ÅÕ•Éå}Ù•Ñ½É}ÁÉ••‘•¹Ñ}É•…‘•Èˆ°(€€€€€€€€€€€€€€€€€€€€‰½ÕÑ½µ”ˆè€‰Íå¹Ñ¡•Ñ¥}ÁÉ••‘•¹Ñ}™¥áÑÕÉ•}É•Ñ…¥¹•ˆ°(€€€€€€€€€€€€€€€€€€€€‰•¹•É…Ñ¥½¸ˆè…Í”¹•¹•É…Ñ¥½¸°(€€€€€€€€€€€€€€€€€€€€‰É•…Í½¸ˆè€ (€€€€€€€€€€€€€€€€€€€€€€€€‰…¹…±åÑ¥Í}Á½±¥å}É•©•Ñ•ˆ(€€€€€€€€€€€€€€€€€€€€€€€¥˜¥Í¥¹ÍÑ…¹”¡•áŒ°¹…±åÑ¥ÍA½±¥åÉÉ½È¤(€€€€€€€€€€€€€€€€€€€€€€€•±Í”€‰‰¥ÅÕ•Éå}ÉÕ¹Ñ¥µ•}Õ¹…Ù…¥±…‰±”ˆ(€€€€€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€¥˜½Ì¹•Ñ•¹Ø ‰%M%=9}Q]%9}1%Y}=U9%0ˆ°€‰™…±Í”ˆ¤¹…Í•™½± ¤€ôô€‰ÑÉÕ”ˆè(€€€€€€€¥˜¹½Ð}É•Í•ÉÙ•}ÁÉ½‘ÕÑ}½Õ¹¥±}…±±Ì ¤è(€€€€€€€€€€€…Í”¹•Ù•¹ÑÌ¹…ÁÁ•¹ (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè€‰ÁÉ½‘ÕÐµ½Õ¹¥°µÅÕ½Ñ„µ‰½Õ¹‘•ˆ°(€€€€€€€€€€€€€€€€€€€€‰…Ñ¥½¸ˆè€‰½½±•}…‘­}ÁÉ½‘ÕÑ}½Õ¹¥°ˆ°(€€€€€€€€€€€€€€€€€€€€‰½ÕÑ½µ”ˆè€‰‘•Ñ•Éµ¥¹¥ÍÑ¥}‘•µ½}™…±±‰…¬ˆ°(€€€€€€€€€€€€€€€€€€€€‰•¹•É…Ñ¥½¸ˆè…Í”¹•¹•É…Ñ¥½¸°(€€€€€€€€€€€€€€€€€€€€‰É•…Í½¸ˆè€‰ÁÕ‰±¥}µ½‘•±}…±±}ÅÕ½Ñ„ˆ°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€•±Í”è(€€€€€€€€€€€ÑÉäè(€€€€€€€€€€€€€€€…Í”¹½Õ¹¥°€ô…Ý…¥ÐÉÕ¹}±¥Ù•}ÁÉ½‘ÕÑ}½Õ¹¥°¡…Í”¤(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ð€ô¹•áÐ (€€€€€€€€€€€€€€€€€€€•Ù•¹Ð(€€€€€€€€€€€€€€€€€€€™½È•Ù•¹Ð¥¸…Í”¹•Ù•¹ÑÌ(€€€€€€€€€€€€€€€€€€€¥˜•Ù•¹Ð¹•Ð ‰•Ù•¹Ñ}¥ˆ¤€ôô€‰ÁÉ½‘ÕÐµ½Õ¹¥°µ½µÁ±•Ñ”ˆ(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ñl‰…Ñ¥½¸‰t€ô€‰½½±•}…‘­}ÁÉ½‘ÕÑ}½Õ¹¥°ˆ(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ñl‰½ÕÑ½µ”‰t€ô€‰‘¥Í…É••µ•¹Ñ}ÁÉ•Í•ÉÙ•ˆ(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ñl‰•á•ÕÑ¥½¹}µ½‘”‰t€ô€‰½½±•}…‘¬ˆ(€€€€€€€€€€€€€€€½Õ¹¥±}•Ù•¹Ñl‰µ½‘•°‰t€ô½Ì¹•Ñ•¹Ø (€€€€€€€€€€€€€€€€€€€€‰5=1}95ˆ°€‰•µ¥¹¤´Ì¸Ôµ™±…Í ˆ(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€•á•ÁÐAÉ½‘ÕÑ½Õ¹¥±U¹…Ù…¥±…‰±”…Ì•áŒè(€€€€€€€€€€€€€€€€ŒQ¡”ÁÕ‰±¥Œ©Õ‘”™±½ÜÉ•µ…¥¹ÌÉ•ÁÉ½‘Õ¥‰±”°‰ÕÐÑ¡”É•ÍÁ½¹Í”(€€€€€€€€€€€€€€€€Œ…¹•Ù•¹Ð¹•Ù•Èµ¥Í±…‰•°„™…±±‰…¬…Ì„±¥Ù”µ½‘•°ÉÕ¸¸(€€€€€€€€€€€€€€€…Í”¹•Ù•¹ÑÌ¹…ÁÁ•¹ (€€€€€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè€‰ÁÉ½‘ÕÐµ½Õ¹¥°µ±¥Ù”µÕ¹…Ù…¥±…‰±”ˆ°(€€€€€€€€€€€€€€€€€€€€€€€€‰…Ñ¥½¸ˆè€‰½½±•}…‘­}ÁÉ½‘ÕÑ}½Õ¹¥°ˆ°(€€€€€€€€€€€€€€€€€€€€€€€€‰½ÕÑ½µ”ˆè€‰‘•Ñ•Éµ¥¹¥ÍÑ¥}‘•µ½}™…±±‰…¬ˆ°(€€€€€€€€€€€€€€€€€€€€€€€€‰•¹•É…Ñ¥½¸ˆè…Í”¹•¹•É…Ñ¥½¸°(€€€€€€€€€€€€€€€€€€€€€€€€‰É•…Í½¸ˆèÍÑÈ¡•áŒ¥lèÈÐÁt°(€€€€€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€€€€€¤(€€€Á•ÉÍ¥ÍÑ}‘•¥Í¥½¹}…Í”¡…Í”¤(€€€É•ÑÕÉ¸…Í”¹µ½‘•±}‘ÕµÀ¡µ½‘”ô‰©Í½¸ˆ¤(()…ÁÀ¹•Ð ˆ½…Á¤½‘•¥Í¥½¸µÑÝ¥¸½í…Í•}¥‘ôˆ¤)‘•˜•Ñ}‘•¥Í¥½¹}ÑÝ¥¸¡…Í•}¥èÍÑÈ¤€´ø‘¥Ðè(€€€…Í”€ô±½…‘}‘•¥Í¥½¹}…Í”¡…Í•}¥¤(€€€¥˜…Í”¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰•¥Í¥½¸…Í”¹½Ð™½Õ¹ˆ¤(€€€¥˜…Í”¹Ñ•¹…¹Ñ}¥¥Ì¹½Ð9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰•¥Í¥½¸…Í”¹½Ð™½Õ¹ˆ¤(€€€É•ÑÕÉ¸…Í”¹µ½‘•±}‘ÕµÀ¡µ½‘”ô‰©Í½¸ˆ¤(()…ÁÀ¹•Ð ˆ½…Á¤½‘•¥Í¥½¸µÑÝ¥¸½í…Í•}¥‘ô½•Ù…±Õ…Ñ¥½¸ˆ¤)‘•˜•Ñ}‘•¥Í¥½¹}ÑÝ¥¹}•Ù…±Õ…Ñ¥½¸¡…Í•}¥èÍÑÈ¤€´ø‘¥Ðè(€€€…Í”€ô±½…‘}‘•¥Í¥½¹}…Í”¡…Í•}¥¤(€€€¥˜…Í”¥Ì9½¹”½È…Í”¹Ñ•¹…¹Ñ}¥¥Ì¹½Ð9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰•¥Í¥½¸…Í”¹½Ð™½Õ¹ˆ¤(€€€É•ÑÕÉ¸•Ù…±Õ…Ñ•}‘•¥Í¥½¹}ÑÝ¥¹}…Í”¡…Í”¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½‘•¥Í¥½¸µÑÝ¥¸½í…Í•}¥‘ô½…ÁÁÉ½Ù”ˆ¤)‘•˜…ÁÁÉ½Ù•}‘•¥Í¥½¹}ÑÝ¥¸ (€€€…Í•}¥èÍÑÈ°(€€€É•ÅÕ•ÍÐè•¥Í¥½¹QÝ¥¹ÁÁÉ½Ù…±I•ÅÕ•ÍÐ°(€€€‰…­É½Õ¹‘}Ñ…Í­Ìè	…­É½Õ¹‘Q…Í­Ì°(¤€´ø‘¥Ðè(€€€¥˜¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸ ¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰•¥Í¥½¸QÝ¥¸…ÁÁÉ½Ù…°É…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€ÕÉÉ•¹Ð€ô±½…‘}‘•¥Í¥½¹}…Í”¡…Í•}¥¤(€€€¥˜ÕÉÉ•¹Ð¥Ì9½¹”½ÈÕÉÉ•¹Ð¹Ñ•¹…¹Ñ}¥¥Ì¹½Ð9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰•¥Í¥½¸…Í”¹½Ð™½Õ¹ˆ¤(€€€ÁÉ•Ù¥½ÕÍ}ÍÑ…ÑÕÌ€ôÕÉÉ•¹Ð¹ÍÑ…ÑÕÌ(€€€ÁÉ•Ù¥½ÕÍ}•¹•É…Ñ¥½¸€ôÕÉÉ•¹Ð¹•¹•É…Ñ¥½¸(€€€ÑÉäè(€€€€€€€…ÁÁÉ½Ù•€ô…ÁÁÉ½Ù•}‘•¥Í¥½¹}…Í” (€€€€€€€€€€€ÕÉÉ•¹Ð°(€€€€€€€€€€€½ÁÑ¥½¹}¥õÉ•ÅÕ•ÍÐ¹½ÁÑ¥½¹}¥°(€€€€€€€€€€€…ÁÁÉ½Ù•ÈõÉ•ÅÕ•ÍÐ¹…ÁÁÉ½Ù•È°(€€€€€€€€€€€•áÁ•Ñ•‘}Íå¹Ñ¡•Í¥Í}¡…Í õÉ•ÅÕ•ÍÐ¹•áÁ•Ñ•‘}Íå¹Ñ¡•Í¥Í}¡…Í °(€€€€€€€€€€€•áÁ•Ñ•‘}•¹•É…Ñ¥½¸õÉ•ÅÕ•ÍÐ¹•áÁ•Ñ•‘}•¹•É…Ñ¥½¸°(€€€€€€€€¤(€€€•á•ÁÐ•¥Í¥½¹QÝ¥¹A½±¥åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€½µµ¥ÑÑ•€ô½µÁ…É•}…¹‘}Í•Ñ}‘•¥Í¥½¹}…Í” (€€€€€€€…ÁÁÉ½Ù•°(€€€€€€€•áÁ•Ñ•‘}•¹•É…Ñ¥½¸õÁÉ•Ù¥½ÕÍ}•¹•É…Ñ¥½¸°(€€€€€€€•áÁ•Ñ•‘}ÍÑ…ÑÕÍ•ÌõíÁÉ•Ù¥½ÕÍ}ÍÑ…ÑÕÍô°(€€€€¤(€€€¥˜¹½Ð½µµ¥ÑÑ•è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀä°(€€€€€€€€€€€‘•Ñ…¥°ô‰•¥Í¥½¸¡…¹•‰•™½É”…ÁÁÉ½Ù…°ìÉ•±½…Ñ¡”ÕÉÉ•¹Ð•¹•É…Ñ¥½¸¸ˆ°(€€€€€€€€¤(€€€…ÕÑ½¹½µ½ÕÍ}µ½¹¥Ñ½È€ô½Ì¹•Ñ•¹Ø ‰%M%=9}Q]%9}UQ=9=5=UM}5=9%Q=Hˆ¤(€€€¥˜€ (€€€€€€€…ÕÑ½¹½µ½ÕÍ}µ½¹¥Ñ½È¹…Í•™½± ¤€ôô€‰ÑÉÕ”ˆ(€€€€€€€¥˜…ÕÑ½¹½µ½ÕÍ}µ½¹¥Ñ½È¥Ì¹½Ð9½¹”(€€€€€€€•±Í”}Ñ…Í­Í}•¹…‰±• ¤(€€€€¤è(€€€€€€€ÑÉäè(€€€€€€€€€€€¥˜}Ñ…Í­Í}•¹…‰±• ¤è(€€€€€€€€€€€€€€€}•¹ÅÕ•Õ•}‘•¥Í¥½¹}ÑÝ¥¹}µ½¹¥Ñ½È¡…ÁÁÉ½Ù•¹…Í•}¥°…ÁÁÉ½Ù•¹•¹•É…Ñ¥½¸¤(€€€€€€€€€€€•±Í”è(€€€€€€€€€€€€€€€‰…­É½Õ¹‘}Ñ…Í­Ì¹…‘‘}Ñ…Í¬ (€€€€€€€€€€€€€€€€€€€}É•½É‘}‘•¥Í¥½¹}ÑÝ¥¹}‘•µ½}½ÕÑ½µ”°(€€€€€€€€€€€€€€€€€€€…ÁÁÉ½Ù•¹…Í•}¥°(€€€€€€€€€€€€€€€€€€€•¥Í¥½¹QÝ¥¹=ÕÑ½µ•I•ÅÕ•ÍÐ (€€€€€€€€€€€€€€€€€€€€€€€•áÁ•Ñ•‘}•¹•É…Ñ¥½¸õ…ÁÁÉ½Ù•¹•¹•É…Ñ¥½¸°(€€€€€€€€€€€€€€€€€€€€€€€Í•¹…É¥¼ô‰Õ…É‘É…¥±}‰É•… ˆ°(€€€€€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€€¤(€€€€€€€•á•ÁÐá•ÁÑ¥½¸è(€€€€€€€€€€€€ŒÁÁÉ½Ù…°É•µ…¥¹ÌÙ…±¥•Ù•¸¥˜Ñ¡”µ½¹¥Ñ½ÈÅÕ•Õ”¥ÌÑ•µÁ½É…É¥±ä(€€€€€€€€€€€€ŒÕ¹…Ù…¥±…‰±”¸Q¡”U$­••ÁÌÑ¡”•áÁ±¥¥Ð‘•µ¼µ•…ÍÕÉ•µ•¹Ð™…±±‰…¬¸(€€€€€€€€€€€±½•È¹•á•ÁÑ¥½¸ (€€€€€€€€€€€€€€€€‰U¹…‰±”Ñ¼•¹ÅÕ•Õ”•¥Í¥½¸QÝ¥¸µ½¹¥Ñ½È™½È€•Ìˆ°…ÁÁÉ½Ù•¹…Í•}¥(€€€€€€€€€€€€¤(€€€É•ÑÕÉ¸…ÁÁÉ½Ù•¹µ½‘•±}‘ÕµÀ¡µ½‘”ô‰©Í½¸ˆ¤(()‘•˜}É•½É‘}‘•¥Í¥½¹}ÑÝ¥¹}‘•µ½}½ÕÑ½µ” (€€€…Í•}¥èÍÑÈ°É•ÅÕ•ÍÐè•¥Í¥½¹QÝ¥¹=ÕÑ½µ•I•ÅÕ•ÍÐ(¤€´ø‘¥Ðè(€€€ÕÉÉ•¹Ð€ô±½…‘}‘•¥Í¥½¹}…Í”¡…Í•}¥¤(€€€¥˜ÕÉÉ•¹Ð¥Ì9½¹”½ÈÕÉÉ•¹Ð¹Ñ•¹…¹Ñ}¥¥Ì¹½Ð9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰•¥Í¥½¸…Í”¹½Ð™½Õ¹ˆ¤(€€€½‰Í•ÉÙ…Ñ¥½¹}¥€ô˜‰½ÕÑ½µ”µíÕÉÉ•¹Ð¹•¹•É…Ñ¥½¹ôµíÉ•ÅÕ•ÍÐ¹Í•¹…É¥½ôˆ(€€€¥˜…¹ä¡¥Ñ•´¹½‰Í•ÉÙ…Ñ¥½¹}¥€ôô½‰Í•ÉÙ…Ñ¥½¹}¥™½È¥Ñ•´¥¸ÕÉÉ•¹Ð¹½ÕÑ½µ•Ì¤è(€€€€€€€É•ÑÕÉ¸ÕÉÉ•¹Ð¹µ½‘•±}‘ÕµÀ¡µ½‘”ô‰©Í½¸ˆ¤(€€€Á±…¸€ôÕÉÉ•¹Ð¹•áÁ•É¥µ•¹Ñ}Á±…¸(€€€¥˜Á±…¸¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°ô‰=ÕÑ½µ”É•ÅÕ¥É•Ì…¸…Ñ¥Ù”•áÁ•É¥µ•¹Ðˆ¤(€€€¥˜É•ÅÕ•ÍÐ¹Í•¹…É¥¼€ôô€‰Õ…É‘É…¥±}‰É•… ˆè(€€€€€€€Ù…±Õ”€ôÁ±…¸¹ÍÑ½Á}Ñ¡É•Í¡½±(€€€•±Í”è(€€€€€€€Ù…±Õ”€ôÁ±…¸¹ÍÕ•ÍÍ}Ñ¡É•Í¡½±(€€€½‰Í•ÉÙ…Ñ¥½¸€ôì(€€€€€€€€‰½‰Í•ÉÙ…Ñ¥½¹}¥ˆè½‰Í•ÉÙ…Ñ¥½¹}¥°(€€€€€€€€‰µ•ÑÉ¥}¥ˆèÁ±…¸¹ÁÉ¥µ…Éå}µ•ÑÉ¥Œ°(€€€€€€€€‰Í•µ•¹ÐˆèÁ±…¸¹Ñ…É•Ñ}Í•µ•¹Ð°(€€€€€€€€‰Ù…±Õ”ˆèÙ…±Õ”°(€€€€€€€€‰‰…Í•±¥¹”ˆè€À¸À°(€€€€€€€€‰Õ¹¥Ðˆè€ (€€€€€€€€€€€€‰½Õ¹Ðˆ(€€€€€€€€€€€¥˜Á±…¸¹ÁÉ¥µ…Éå}µ•ÑÉ¥Œ€ôô€‰ÅÕ…±¥™¥•‘}•¹Ñ•ÉÁÉ¥Í•}•Ù¥‘•¹•}½Õ¹Ðˆ(€€€€€€€€€€€•±Í”€‰É•±…Ñ¥Ù•}¡…¹”ˆ(€€€€€€€€¤°(€€€€€€€€‰½‰Í•ÉÙ•‘}…Ðˆè€ˆÈÀÈØ´Àà´ÌÁPÄàèÀÀèÀÀ¬ÀÀèÀÀˆ°(€€€€€€€€‰Í½ÕÉ•}±…‰•°ˆè€‰	¥EÕ•Éä…É•…Ñ”½ÕÑ½µ”™¥áÑÕÉ”ˆ°(€€€€€€€€‰½¹Ñ•¹Ñ}¡…Í ˆè¡…Í¡±¥ˆ¹Í¡„ÈÔØ (€€€€€€€€€€€˜‰í½‰Í•ÉÙ…Ñ¥½¹}¥‘ôéíÁ±…¸¹ÁÉ¥µ…Éå}µ•ÑÉ¥ôéíÁ±…¸¹Ñ…É•Ñ}Í•µ•¹ÑôéíÙ…±Õ•ôˆ¹•¹½‘” ¤(€€€€€€€€¤¹¡•á‘¥•ÍÐ ¤°(€€€ô(€€€ÑÉäè(€€€€€€€ÕÁ‘…Ñ•€ôÉ•½É‘}½ÕÑ½µ” (€€€€€€€€€€€ÕÉÉ•¹Ð°(€€€€€€€€€€€½‰Í•ÉÙ…Ñ¥½¸°(€€€€€€€€€€€•áÁ•Ñ•‘}•¹•É…Ñ¥½¸õÉ•ÅÕ•ÍÐ¹•áÁ•Ñ•‘}•¹•É…Ñ¥½¸°(€€€€€€€€¤(€€€•á•ÁÐ•¥Í¥½¹QÝ¥¹A½±¥åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€ÕÁ‘…Ñ•¹•Ù•¹ÑÌ¹…ÁÁ•¹ (€€€€€€€ì(€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè˜‰‘•¥Í¥½¸µµ½¹¥Ñ½Èµ½‰Í•ÉÙ•µíÕÉÉ•¹Ð¹•¹•É…Ñ¥½¹ôˆ°(€€€€€€€€€€€€‰…Ñ¥½¸ˆè€‰…ÕÑ½¹½µ½ÕÍ}•áÁ•É¥µ•¹Ñ}µ½¹¥Ñ½Èˆ°(€€€€€€€€€€€€‰½ÕÑ½µ”ˆèÕÁ‘…Ñ•¹½ÕÑ½µ•Íl´Åt¹•Ù…±Õ…Ñ¥½¸¹Ù•É‘¥Ð°(€€€€€€€€€€€€‰•¹•É…Ñ¥½¸ˆèÕÉÉ•¹Ð¹•¹•É…Ñ¥½¸°(€€€€€€€€€€€€‰Í½ÕÉ”ˆè€‰‰¥ÅÕ•Éå}…É•…Ñ•}™¥áÑÕÉ”ˆ°(€€€€€€€ô(€€€€¤(€€€½µµ¥ÑÑ•€ô½µÁ…É•}…¹‘}Í•Ñ}‘•¥Í¥½¹}…Í” (€€€€€€€ÕÁ‘…Ñ•°(€€€€€€€•áÁ•Ñ•‘}•¹•É…Ñ¥½¸õÕÉÉ•¹Ð¹•¹•É…Ñ¥½¸°(€€€€€€€•áÁ•Ñ•‘}ÍÑ…ÑÕÍ•ÌõíÕÉÉ•¹Ð¹ÍÑ…ÑÕÍô°(€€€€¤(€€€¥˜¹½Ð½µµ¥ÑÑ•è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀä°(€€€€€€€€€€€‘•Ñ…¥°ô‰•¥Í¥½¸¡…¹•‰•™½É”Ñ¡”½ÕÑ½µ”Ý…ÌÉ•½É‘•ìÉ•±½…¥Ð¸ˆ°(€€€€€€€€¤(€€€É•ÑÕÉ¸ÕÁ‘…Ñ•¹µ½‘•±}‘ÕµÀ¡µ½‘”ô‰©Í½¸ˆ¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½‘•¥Í¥½¸µÑÝ¥¸½í…Í•}¥‘ô½½ÕÑ½µ•Ì½‘•µ¼ˆ¤)‘•˜É•½É‘}‘•¥Í¥½¹}ÑÝ¥¹}‘•µ½}½ÕÑ½µ” (€€€…Í•}¥èÍÑÈ°É•ÅÕ•ÍÐè•¥Í¥½¹QÝ¥¹=ÕÑ½µ•I•ÅÕ•ÍÐ(¤€´ø‘¥Ðè(€€€¥˜¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸ ¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰•¥Í¥½¸QÝ¥¸½ÕÑ½µ”É…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€É•ÑÕÉ¸}É•½É‘}‘•¥Í¥½¹}ÑÝ¥¹}‘•µ½}½ÕÑ½µ”¡…Í•}¥°É•ÅÕ•ÍÐ¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½‘•¥Í¥½¸µÑÝ¥¸½í…Í•}¥‘ô½µ½¹¥Ñ½È½ÉÕ¸ˆ¤)‘•˜ÉÕ¹}‘•¥Í¥½¹}ÑÝ¥¹}µ½¹¥Ñ½È (€€€…Í•}¥èÍÑÈ°(€€€µ½¹¥Ñ½É}É•ÅÕ•ÍÐè•¥Í¥½¹QÝ¥¹=ÕÑ½µ•I•ÅÕ•ÍÐ°(€€€É•ÅÕ•ÍÐèI•ÅÕ•ÍÐ°(¤€´ø‘¥Ðè(€€€€ˆˆ‰AÉ½•ÍÌ„‰½Õ¹‘•µ•…ÍÕÉ•µ•¹Ð™É½´…¸…ÕÑ¡•¹Ñ¥…Ñ•±½ÕQ…Í¬¸ˆˆˆ(€€€}Ù•É¥™å}Ñ…Í­}É•ÅÕ•ÍÐ¡É•ÅÕ•ÍÐ¤(€€€É•ÑÕÉ¸}É•½É‘}‘•¥Í¥½¹}ÑÝ¥¹}‘•µ½}½ÕÑ½µ”¡…Í•}¥°µ½¹¥Ñ½É}É•ÅÕ•ÍÐ¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½‘•µ¼ˆ¤)‘•˜ÍÑ…ÉÑ}‘•µ¼¡Í½ÕÉ•}¥èÍÑÈ€ô€‰ÁÕ‰±¥Œ½ÁÉ¥¥¹œˆ¤€´ø‘¥Ðè(€€€€ˆˆ‰1•…ä‘•Ñ•Éµ¥¹¥ÍÑ¥Œ™¥áÑÕÉ”•¹‘Á½¥¹ÐÉ•Ñ…¥¹•™½ÈÉ•ÁÉ½‘Õ¥‰±”Ñ•ÍÑÌ¸ˆˆˆ(€€€¥˜¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸ ¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰•µ¼Ý½É­™±½ÜÉ…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€‘•™¥¹¥Ñ¥½¸€ôÍ½ÕÉ•}‘•™¥¹¥Ñ¥½¸¡Í½ÕÉ•}¥¤(€€€¥˜‘•™¥¹¥Ñ¥½¸¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°ô‰M½ÕÉ”¥Ì¹½Ð…±±½Ý±¥ÍÑ•ˆ¤(€€€¥˜‘•™¥¹¥Ñ¥½¸¹•Ð ‰‘å¹…µ¥Œˆ¤€ôô€‰ÑÉÕ”ˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°(€€€€€€€€€€€‘•Ñ…¥°ô‰=Á•É…Ñ½ÈµÉ•¥ÍÑ•É•Í½ÕÉ•ÌÉ•ÅÕ¥É”„ÁÕ‰±¥Œµ½¹¥Ñ½ÈÉÕ¸ˆ°(€€€€€€€€¤(€€€ÍÑ…Ñ”€ôÝ½É­™±½Ý}ÍÑ½É”¹ÍÑ…ÉÑ}‘•µ¼ (€€€€€€€Í½ÕÉ•}¥õÍ½ÕÉ•}¥°(€€€€€€€Í½ÕÉ•}¹…µ”õ‘•™¥¹¥Ñ¥½¹l‰¹…µ”‰t°(€€€€€€€Í½ÕÉ•}…Ñ•½Éäõ‘•™¥¹¥Ñ¥½¸¹•Ð ‰…Ñ•½Éäˆ¤°(€€€€€€€Í½ÕÉ•}¡…¹•}ÑåÁ”õ‘•™¥¹¥Ñ¥½¸¹•Ð ‰¡…¹•}ÑåÁ”ˆ¤°(€€€€€€€Í½ÕÉ•}ÕÉ°õ‘•™¥¹¥Ñ¥½¹l‰ÕÉ°‰t°(€€€€€€€‰•™½É•}Ñ•áÐõ‘•™¥¹¥Ñ¥½¹l‰‰•™½É”‰t°(€€€€€€€…™Ñ•É}Ñ•áÐõ‘•™¥¹¥Ñ¥½¹l‰…™Ñ•È‰t°(€€€€€€€Í¹…ÁÍ¡½Ñ}±…‰•°õ˜‰Må¹Ñ¡•Ñ¥ŒÉ•Á±…ä™¥áÑÕÉ”ƒ
+ÜíÍ½ÕÉ•}¥‘ôˆ°(€€€€€€€‘…Ñ…}µ½‘”ô‰Íå¹Ñ¡•Ñ¥}‘•µ¼ˆ°(€€€€¤(€€€Á•ÉÍ¥ÍÑ}Ý½É­™±½Ü¡ÍÑ…Ñ”¤(€€€É•ÑÕÉ¸ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½©½‰Ì½‘•µ¼ˆ¤)…Íå¹Œ‘•˜ÍÑ…ÉÑ}‘•µ½}©½ˆ (€€€É•ÅÕ•ÍÐè)½‰MÑ…ÉÑI•ÅÕ•ÍÐ°(€€€‰…­É½Õ¹‘}Ñ…Í­Ìè	…­É½Õ¹‘Q…Í­Ì°(¤€´ø‘¥Ðè(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”(€€€¥˜É•ÅÕ•ÍÐ¹ÉÕ¹}µ½‘”¥¸ì‰µ½¹¥Ñ½Èˆ°€‰Ñ•¹…¹Ñ}‘•µ¼‰ôè(€€€€€€€…ÕÑ¡}É•Í½ÕÉ”€ô€ (€€€€€€€€€€€€‰µ½¹¥Ñ½Èˆ¥˜É•ÅÕ•ÍÐ¹ÉÕ¹}µ½‘”€ôô€‰µ½¹¥Ñ½Èˆ•±Í”€‰Ñ•¹…¹Ðµ‘•µ¼ˆ(€€€€€€€€¤(€€€€€€€µ½¹¥Ñ½É}¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€€€€˜‰í…ÕÑ¡}É•Í½ÕÉ•ôéíÉ•ÅÕ•ÍÐ¹Í½ÕÉ•}¥‘ôˆ°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€€€€€¤(€€€€€€€Ñ•¹…¹Ñ}¥€ôµ½¹¥Ñ½É}¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t(€€€‘•™¥¹¥Ñ¥½¸€ôÍ½ÕÉ•}‘•™¥¹¥Ñ¥½¸¡É•ÅÕ•ÍÐ¹Í½ÕÉ•}¥°Ñ•¹…¹Ñ}¥¤(€€€¥˜‘•™¥¹¥Ñ¥½¸¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°ô‰M½ÕÉ”¥Ì¹½Ð…±±½Ý±¥ÍÑ•ˆ¤(€€€¥˜‘•™¥¹¥Ñ¥½¸¹•Ð ‰‘å¹…µ¥Œˆ¤€ôô€‰ÑÉÕ”ˆ…¹É•ÅÕ•ÍÐ¹ÉÕ¹}µ½‘”€„ô€‰µ½¹¥Ñ½Èˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°(€€€€€€€€€€€‘•Ñ…¥°ô‰=Á•É…Ñ½ÈµÉ•¥ÍÑ•É•Í½ÕÉ•ÌÉ•ÅÕ¥É”ÉÕ¹}µ½‘”õµ½¹¥Ñ½Èˆ°(€€€€€€€€¤(€€€¥Í}ÁÕ‰±¥}‘•µ¼€ôÉ•ÅÕ•ÍÐ¹ÉÕ¹}µ½‘”€ôô€‰‘•µ¼ˆ…¹Ñ•¹…¹Ñ}¥¥Ì9½¹”(€€€¥˜¥Í}ÁÕ‰±¥}‘•µ¼è(€€€€€€€€Œ-••ÀÑ¡”¡•¬°ÅÕ½Ñ„É•Í•ÉÙ…Ñ¥½¸°…¹•¹ÅÕ•Õ”¥¸½¹”ÁÉ½•ÍÌµ±½…°(€€€€€€€€ŒÉ¥Ñ¥…°Í•Ñ¥½¸¸Q¡¥Ì±½Í•ÌÑ¡”‘½Õ‰±”µ±¥¬É…”ìÑ¡”‘ÕÉ…‰±”©½ˆ(€€€€€€€€Œ±…¥´ÍÑ¥±°ÁÉ½Ñ•ÑÌ‘ÕÁ±¥…Ñ”±½ÕQ…Í­Ì‘•±¥Ù•É¥•Ì…É½ÍÌIÕ¸(€€€€€€€€Œ¥¹ÍÑ…¹•Ì¸(€€€€€€€Ý¥Ñ }ÁÕ‰±¥}©½‰}±½¬è(€€€€€€€€€€€•á¥ÍÑ¥¹œ€ô}¥¹™±¥¡Ñ}ÁÕ‰±¥}©½ˆ¡É•ÅÕ•ÍÐ¹Í½ÕÉ•}¥¤(€€€€€€€€€€€¥˜•á¥ÍÑ¥¹œ¥Ì¹½Ð9½¹”è(€€€€€€€€€€€€€€€Á…å±½…€ô}©½‰}Á…å±½…¡•á¥ÍÑ¥¹œ¤(€€€€€€€€€€€€€€€Á…å±½…‘l‰‘•‘ÕÁ±¥…Ñ•‰t€ôQÉÕ”(€€€€€€€€€€€€€€€É•ÑÕÉ¸Á…å±½…(€€€€€€€€€€€¥˜¹½Ð}É•Í•ÉÙ•}…•¹Ñ}…±°¡Ñ•¹…¹Ñ}¥¤è(€€€€€€€€€€€€€€€É…¥Í”}…•¹Ñ}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€€€€€€€€€‰1¥Ù”…•¹Ð‘•µ¼É…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€€ŒQ¡”…¹½¹åµ½ÕÌ±…¹”¥Ì„‘•Ñ•Éµ¥¹¥ÍÑ¥Œ©Õ‘”ÍÕÉ™…”¸¼¹½Ð(€€€€€€€€€€€€ŒÁ•ÉÍ¥ÍÐ½ÈÍ•¹…É‰¥ÑÉ…Éä…±±•ÈÑ•áÐÑ¼•µ¥¹¤ì½Ñ¡•ÉÝ¥Í”„(€€€€€€€€€€€€ŒÁÕ‰±¥ŒÙ¥Í¥Ñ½È½Õ±…¥‘•¹Ñ…±±äÍÕ‰µ¥ÐÁÉ¥Ù…Ñ”µ…Ñ•É¥…°¸(€€€€€€€€€€€ÅÕ•Éä€ô€ (€€€€€€€€€€€€€€€˜‰%¹ÍÁ•ÐÑ¡”…±±½Ý±¥ÍÑ•íÉ•ÅÕ•ÍÐ¹Í½ÕÉ•}¥‘ô¡…¹”°Ù•É¥™äÑ¡”€ˆ(€€€€€€€€€€€€€€€€‰•Ù¥‘•¹”°µ…À…™™•Ñ•…ÉÑ¥™…ÑÌ°…¹ÍÑ½À…ÐÑ¡”¡Õµ…¸…ÁÁÉ½Ù…°€ˆ(€€€€€€€€€€€€€€€€‰…Ñ”¸ˆ(€€€€€€€€€€€€¤(€€€€€€€€€€€©½ˆ€ô}ÍÑ…ÉÑ}©½ˆ (€€€€€€€€€€€€€€€ÅÕ•ÉäõÅÕ•Éä°(€€€€€€€€€€€€€€€ÕÍ•É}¥ô‰ÁÕ‰±¥Œµ‘•µ¼ˆ°(€€€€€€€€€€€€€€€ÉÕ¹}µ½‘”õÉ•ÅÕ•ÍÐ¹ÉÕ¹}µ½‘”°(€€€€€€€€€€€€€€€‰…­É½Õ¹‘}Ñ…Í­Ìõ‰…­É½Õ¹‘}Ñ…Í­Ì°(€€€€€€€€€€€€€€€Ñ•¹…¹Ñ}¥õ9½¹”°(€€€€€€€€€€€€€€€Í½ÕÉ•}¥õÉ•ÅÕ•ÍÐ¹Í½ÕÉ•}¥°(€€€€€€€€€€€€¤(€€€€€€€€€€€É•ÑÕÉ¸©½ˆ¹Ñ½}‘¥Ð ¤((€€€¥˜¹½Ð}É•Í•ÉÙ•}…•¹Ñ}…±°¡Ñ•¹…¹Ñ}¥¤è(€€€€€€€É…¥Í”}…•¹Ñ}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰1¥Ù”…•¹Ð‘•µ¼É…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€ÅÕ•Éä€ô€ (€€€€€€€˜‰íÉ•ÅÕ•ÍÐ¹ÅÕ•Éä¹ÍÑÉ¥À ¥ôUÍ”Ñ¡”•á…Ð…±±½Ý±¥ÍÑ•Í½ÕÉ•}¥€ˆ(€€€€€€€˜œ‰íÉ•ÅÕ•ÍÐ¹Í½ÕÉ•}¥‘ôˆ¸¼¹½Ð¡½½Í”„‘¥™™•É•¹ÐÍ½ÕÉ”¸œ(€€€€¤(€€€©½ˆ€ô}ÍÑ…ÉÑ}©½ˆ (€€€€€€€ÅÕ•ÉäõÅÕ•Éä°(€€€€€€€ÕÍ•É}¥õÉ•ÅÕ•ÍÐ¹ÕÍ•É}¥°(€€€€€€€ÉÕ¹}µ½‘”õÉ•ÅÕ•ÍÐ¹ÉÕ¹}µ½‘”°(€€€€€€€‰…­É½Õ¹‘}Ñ…Í­Ìõ‰…­É½Õ¹‘}Ñ…Í­Ì°(€€€€€€€Ñ•¹…¹Ñ}¥õÑ•¹…¹Ñ}¥°(€€€€€€€Í½ÕÉ•}¥õÉ•ÅÕ•ÍÐ¹Í½ÕÉ•}¥°(€€€€¤(€€€É•ÑÕÉ¸©½ˆ¹Ñ½}‘¥Ð ¤(()…ÁÀ¹•Ð ˆ½…Á¤½©½‰Ìˆ¤)‘•˜•Ñ}©½‰Ì (€€€±¥µ¥Ðè¥¹Ð€ô€à°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰áÁ½Í”‰½Õ¹‘•¡¥ÍÑ½ÉäÝ¡¥±”™¥±Ñ•É¥¹œÑ•¹…¹Ðµ‰½Õ¹©½‰Ì‰ä¥‘•¹Ñ¥Ñä¸ˆˆˆ(€€€‰½Õ¹‘•‘}±¥µ¥Ð€ôµ…à Ä°µ¥¸¡±¥µ¥Ð°€ÈÀ¤¤(€€€¥‘•¹Ñ¥Ñäè‘¥ÑmÍÑÈ°ÍÑÉtð9½¹”€ô9½¹”(€€€¥˜…¹ä¡Ù…±Õ”¥Ì¹½Ð9½¹”™½ÈÙ…±Õ”¥¸€¡½Á•É…Ñ½È°Ñ•¹…¹Ñ}¥°…ÁÁÉ½Ù…±}Ñ½­•¸°¥‘•¹Ñ¥Ñå}Ñ½­•¸¤¤è(€€€€€€€¥˜¹½Ð½Á•É…Ñ½È½È¹½ÐÑ•¹…¹Ñ}¥è(€€€€€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀÄ°‘•Ñ…¥°ô‰M¥¹•…ÁÁÉ½Ù…°¥ÌÉ•ÅÕ¥É•™½ÈÑ•¹…¹Ð©½‰Ìˆ(€€€€€€€€€€€€¤(€€€€€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€€€€€‰©½‰Ìé±¥ÍÐˆ°(€€€€€€€€€€€½Á•É…Ñ½È°(€€€€€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€€€€€¤(€€€Ý¥Ñ }©½‰Í}±½¬è(€€€€€€€µ•µ½Éå}©½‰Ì€ô±¥ÍÐ¡}©½‰Ì¹Ù…±Õ•Ì ¤¤(€€€…¹‘¥‘…Ñ•Ì€ô}µ•É•}‘ÕÉ…‰±•}É•½É‘Ì (€€€€€€€µ•µ½Éå}©½‰Ì°±¥ÍÑ}©½‰Ì°±¥µ¥Ðõ‰½Õ¹‘•‘}±¥µ¥Ð°­•äõ±…µ‰‘„¥Ñ•´è¥Ñ•´¹©½‰}¥(€€€€¤(€€€…¹‘¥‘…Ñ•Ì¹Í½ÉÐ¡­•äõ±…µ‰‘„¥Ñ•´è¥Ñ•´¹É•…Ñ•‘}…Ð½È€ˆˆ°É•Ù•ÉÍ”õQÉÕ”¤(€€€©½‰Ì€ôl(€€€€€€€©½ˆ(€€€€€€€™½È©½ˆ¥¸…¹‘¥‘…Ñ•Ì(€€€€€€€¥˜}Ù¥Í¥‰±•}Ñ•¹…¹Ñ}É•½É¡©½ˆ°¥‘•¹Ñ¥Ñä¤(€€€ulé‰½Õ¹‘•‘}±¥µ¥Ñt(€€€É•ÑÕÉ¸ì‰©½‰Ìˆèm}©½‰}Á…å±½…¡©½ˆ¤™½È©½ˆ¥¸©½‰Íuô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Í¡•‘Õ±•È½Ñ¥¬ˆ¤)…Íå¹Œ‘•˜Í¡•‘Õ±•É}Ñ¥¬ (€€€É•ÅÕ•ÍÐèI•ÅÕ•ÍÐ°(€€€‰…­É½Õ¹‘}Ñ…Í­Ìè	…­É½Õ¹‘Q…Í­Ì°(€€€Í½ÕÉ•}¥èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥Ðè(€€€€ˆˆ‰…¸½ÕÐ½¹”‰½Õ¹‘•¡¥ÍÑ½É¥…°µ½¹¥Ñ½ÈÉÕ¸Á•È…ÁÁÉ½Ù•Í½ÕÉ”¸((€€€Í¥¹•Í¡•‘Õ±•È…¸Á…ÍÌÍ½ÕÉ•}¥‘€™½È„Í¥¹±”…¹…Éä¸]¥Ñ ¹¼(€€€ÅÕ•ÉäÁ…É…µ•Ñ•È°Ñ¡”•áÁ±¥¥ÐÁÉ½‘ÕÑ¥½¸É•¥ÍÑÉä¥ÌÕÍ•¸Q¡”™…¸µ½ÕÐ¥Ì(€€€¥¹Ñ•¹Ñ¥½¹…±±ä…ÁÁ•‰•™½É”…¹äµ½‘•°…±°Í¼„‰…Í¡•‘Õ±•È½¹™¥ÕÉ…Ñ¥½¸(€€€…¹¹½ÐÑÕÉ¸¥¹Ñ¼…¸Õ¹‰½Õ¹‘•É…Ý±•È½ÈÍÁ•¹ÍÁ¥­”¸(€€€€ˆˆˆ(€€€}Ù•É¥™å}Í¡•‘Õ±•É}É•ÅÕ•ÍÐ¡É•ÅÕ•ÍÐ¤(€€€½¹™¥ÕÉ•‘}Ù…±Õ”€ô½Ì¹•Ñ•¹Ø ‰I%Q1%9}5=9%Q=I}M=UILˆ°€‰…±°ˆ¤¹ÍÑÉ¥À ¤(€€€¥˜½¹™¥ÕÉ•‘}Ù…±Õ”¹…Í•™½± ¤¥¸ìˆˆ°€‰…±°‰ôè(€€€€€€€½¹™¥ÕÉ•‘}•¹ÑÉ¥•Ì€ôÍ¡•‘Õ±•É}Í½ÕÉ•}•¹ÑÉ¥•Ì ¤(€€€•±Í”è(€€€€€€€É•ÅÕ•ÍÑ•‘}¥‘Ì€ôl(€€€€€€€€€€€¥Ñ•´¹ÍÑÉ¥À ¤™½È¥Ñ•´¥¸½¹™¥ÕÉ•‘}Ù…±Õ”¹ÍÁ±¥Ð ˆ°ˆ¤¥˜¥Ñ•´¹ÍÑÉ¥À ¤(€€€€€€€t(€€€€€€€½¹™¥ÕÉ•‘}•¹ÑÉ¥•Ì€ôl(€€€€€€€€€€€€¡9½¹”°¥Ñ•´°Í½ÕÉ•}‘•™¥¹¥Ñ¥½¸¡¥Ñ•´¤½Èíô¤™½È¥Ñ•´¥¸É•ÅÕ•ÍÑ•‘}¥‘Ì(€€€€€€€t(€€€¥˜Í½ÕÉ•}¥è(€€€€€€€½¹™¥ÕÉ•‘}•¹ÑÉ¥•Ì€ôl(€€€€€€€€€€€•¹ÑÉä™½È•¹ÑÉä¥¸½¹™¥ÕÉ•‘}•¹ÑÉ¥•Ì¥˜•¹ÑÉålÅt€ôôÍ½ÕÉ•}¥¹ÍÑÉ¥À ¤(€€€€€€€t(€€€µ…á}Í½ÕÉ•Ì€ô}Á½Í¥Ñ¥Ù•}¥¹Ð ‰I%Q1%9}5=9%Q=I}5a}M=UILˆ°€Ô¤(€€€Í½ÕÉ•}•¹ÑÉ¥•Ì°‘•™•ÉÉ•‘}Í½ÕÉ•Ì€ô}µ½¹¥Ñ½É}‘Õ•}Í•±•Ñ¥½¸ (€€€€€€€½¹™¥ÕÉ•‘}•¹ÑÉ¥•Ì°(€€€€€€€µ…á}Í½ÕÉ•Ìõµ…á}Í½ÕÉ•Ì°(€€€€€€€™½É•}Í½ÕÉ•}¥õÍ½ÕÉ•}¥°(€€€€¤(€€€¥¹Ù…±¥€ôl(€€€€€€€¥Ñ•´(€€€€€€€™½ÈÑ•¹…¹Ñ}¥°¥Ñ•´°‘•™¥¹¥Ñ¥½¸¥¸Í½ÕÉ•}•¹ÑÉ¥•Ì(€€€€€€€¥˜¹½Ð‘•™¥¹¥Ñ¥½¸½ÈÍ½ÕÉ•}‘•™¥¹¥Ñ¥½¸¡¥Ñ•´°Ñ•¹…¹Ñ}¥¤¥Ì9½¹”(€€€t(€€€¥˜¥¹Ù…±¥è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°(€€€€€€€€€€€‘•Ñ…¥°õì‰µ•ÍÍ…”ˆè€‰M½ÕÉ”¥Ì¹½Ð…±±½Ý±¥ÍÑ•ˆ°€‰Í½ÕÉ•}¥‘Ìˆè¥¹Ù…±¥‘ô°(€€€€€€€€¤(€€€©½‰Ìè±¥ÍÑm)½‰MÑ…Ñ•t€ômt(€€€ÅÕ•Õ•‘}Í½ÕÉ•}¥‘Ìè±¥ÍÑmÍÑÉt€ômt(€€€Í­¥ÁÁ•è±¥ÍÑmÍÑÉt€ômt(€€€¥¹}™±¥¡Ðè±¥ÍÑmÍÑÉt€ômt(€€€™½ÈÕÉÉ•¹Ñ}Ñ•¹…¹Ñ}¥°ÕÉÉ•¹Ñ}Í½ÕÉ•}¥°}‘•™¥¹¥Ñ¥½¸¥¸Í½ÕÉ•}•¹ÑÉ¥•Ìè(€€€€€€€¥˜}¥¹™±¥¡Ñ}µ½¹¥Ñ½É}©½‰}•á¥ÍÑÌ¡ÕÉÉ•¹Ñ}Í½ÕÉ•}¥°ÕÉÉ•¹Ñ}Ñ•¹…¹Ñ}¥¤è(€€€€€€€€€€€¥¹}™±¥¡Ð¹…ÁÁ•¹¡ÕÉÉ•¹Ñ}Í½ÕÉ•}¥¤(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€€€€€¥˜¹½Ð}É•Í•ÉÙ•}…•¹Ñ}…±°¡ÕÉÉ•¹Ñ}Ñ•¹…¹Ñ}¥¤è(€€€€€€€€€€€Í­¥ÁÁ•¹…ÁÁ•¹¡ÕÉÉ•¹Ñ}Í½ÕÉ•}¥¤(€€€€€€€€€€€½¹Ñ¥¹Õ”(€€€€€€€©½ˆ€ô}ÍÑ…ÉÑ}©½ˆ (€€€€€€€€€€€ÅÕ•Éäô (€€€€€€€€€€€€€€€˜‰5½¹¥Ñ½ÈÑ¡”¡¥ÍÑ½É¥…°…±±½Ý±¥ÍÑ•íÕÉÉ•¹Ñ}Í½ÕÉ•}¥‘ôÍ¹…ÁÍ¡½Ð¸€ˆ(€€€€€€€€€€€€€€€€‰I•Á½ÉÐ‰…Í•±¥¹•}•ÍÑ…‰±¥Í¡•°Õ¹¡…¹•°½È„Ù•É¥™¥•µ…Ñ•É¥…°€ˆ(€€€€€€€€€€€€€€€€‰¡…¹”ì¹•Ù•È¥¹Ù•¹Ð…¸…ÁÁÉ½Ù…°¸ˆ(€€€€€€€€€€€€¤°(€€€€€€€€€€€ÕÍ•É}¥ô‰‘É¥™Ñ±¥¹”µÍ¡•‘Õ±•Èˆ°(€€€€€€€€€€€ÉÕ¹}µ½‘”ô‰µ½¹¥Ñ½Èˆ°(€€€€€€€€€€€‰…­É½Õ¹‘}Ñ…Í­Ìõ‰…­É½Õ¹‘}Ñ…Í­Ì°(€€€€€€€€€€€Ñ•¹…¹Ñ}¥õÕÉÉ•¹Ñ}Ñ•¹…¹Ñ}¥°(€€€€€€€€€€€Í½ÕÉ•}¥õÕÉÉ•¹Ñ}Í½ÕÉ•}¥°(€€€€€€€€¤(€€€€€€€©½‰Ì¹…ÁÁ•¹¡©½ˆ¤(€€€€€€€ÅÕ•Õ•‘}Í½ÕÉ•}¥‘Ì¹…ÁÁ•¹¡ÕÉÉ•¹Ñ}Í½ÕÉ•}¥¤(€€€¥˜¹½Ð©½‰Ì…¹Í­¥ÁÁ•è(€€€€€€€É…¥Í”}…•¹Ñ}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È ‰5½¹¥Ñ½ÈÉ…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰ÅÕ•Õ•ˆ°(€€€€€€€€‰Í½ÕÉ•}¥‘ÌˆèÅÕ•Õ•‘}Í½ÕÉ•}¥‘Ì°(€€€€€€€€‰Í•±•Ñ•‘}Í½ÕÉ•}É•™Ìˆèl(€€€€€€€€€€€ì‰Ñ•¹…¹Ñ}¥ˆèÑ•¹…¹Ñ}¥°€‰Í½ÕÉ•}¥ˆèÕÉÉ•¹Ñ}Í½ÕÉ•}¥‘ô(€€€€€€€€€€€™½ÈÑ•¹…¹Ñ}¥°ÕÉÉ•¹Ñ}Í½ÕÉ•}¥°}‘•™¥¹¥Ñ¥½¸¥¸Í½ÕÉ•}•¹ÑÉ¥•Ì(€€€€€€€t°(€€€€€€€€‰©½‰Ìˆèm©½ˆ¹Ñ½}‘¥Ð ¤™½È©½ˆ¥¸©½‰Ít°(€€€€€€€€‰Í­¥ÁÁ•‘}Í½ÕÉ•}¥‘ÌˆèÍ­¥ÁÁ•°(€€€€€€€€‰¥¹}™±¥¡Ñ}Í½ÕÉ•}¥‘Ìˆè¥¹}™±¥¡Ð°(€€€€€€€€‰‘•™•ÉÉ•‘}Í½ÕÉ•Ìˆè‘•™•ÉÉ•‘}Í½ÕÉ•Ì°(€€€€€€€€ŒAÉ•Í•ÉÙ”Ñ¡”½¹”µ©½ˆÉ•ÍÁ½¹Í”Í¡…Á”™½È„…¹…Éä¥¹Ù½…Ñ¥½¸¸(€€€€€€€€‰©½‰}¥ˆè©½‰ÍlÁt¹©½‰}¥¥˜±•¸¡©½‰Ì¤€ôô€Ä•±Í”9½¹”°(€€€ô(()‘•˜}©½‰}Á…å±½…¡©½ˆè)½‰MÑ…Ñ”¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€Á…å±½…€ô©½ˆ¹Ñ½}‘¥Ð ¤(€€€¥˜©½ˆ¹Ñ•¹…¹Ñ}¥¥Ì9½¹”è(€€€€€€€€Œ¹½¹åµ½ÕÌ‘•µ¼©½‰Ì…É”ÕÍ•™Õ°™½È©Õ‘¥¹œ°‰ÕÐ…±±•ÉÌ…¸ÍÕ‰µ¥Ð(€€€€€€€€Œ…É‰¥ÑÉ…ÉäÑ•áÐ¸9•Ù•È•¡¼Ñ¡…ÐÑ•áÐ°É…Üµ½‘•°½ÕÑÁÕÐ°™…¥±ÕÉ”(€€€€€€€€Œ‘•Ñ…¥±Ì°½ÈÑ¡”½Á…ÅÕ”±½ÕQ…Í­Ì±…¥´¥¹Ñ¼ÁÕ‰±¥Œ¡¥ÍÑ½Éä¸(€€€€€€€Á…å±½…¹Á½À ‰ÅÕ•Éäˆ°9½¹”¤(€€€€€€€Á…å±½…¹Á½À ‰ÕÍ•É}¥ˆ°9½¹”¤(€€€€€€€Á…å±½…¹Á½À ‰É•ÍÁ½¹Í”ˆ°9½¹”¤(€€€€€€€Á…å±½…¹Á½À ‰•ÉÉ½Èˆ°9½¹”¤(€€€€€€€Á…å±½…¹Á½À ‰±…¥µ}¥ˆ°9½¹”¤(€€€€€€€¥˜©½ˆ¹ÍÑ…ÑÕÌ€ôô€‰™…¥±•ˆè(€€€€€€€€€€€ÍÕµµ…Éä€ô€‰AÕ‰±¥Œ‘•µ¼ÉÕ¸™…¥±•ì¥¹Ñ•É¹…°‘•Ñ…¥±Ì…É”Ý¥Ñ¡¡•±¸ˆ(€€€€€€€•±¥˜©½ˆ¹ÍÑ…ÑÕÌ€ôô€‰½µÁ±•Ñ”ˆè(€€€€€€€€€€€ÍÕµµ…Éä€ô€‰IÕ¸½µÁ±•Ñ”ì•Ù¥‘•¹”µ‰½Õ¹Ý½É­™±½Ü¥Ì…Ù…¥±…‰±”¸ˆ(€€€€€€€•±¥˜©½ˆ¹ÍÑ…ÑÕÌ€ôô€‰¹••‘Í}…ÁÁÉ½Ù…°ˆè(€€€€€€€€€€€ÍÕµµ…Éä€ô€‰Ù¥‘•¹”Ù•É¥™¥•ìÝ…¥Ñ¥¹œ™½È¡Õµ…¸…ÁÁÉ½Ù…°¸ˆ(€€€€€€€•±¥˜©½ˆ¹ÍÑ…ÑÕÌ€ôô€‰ÉÕ¹¹¥¹œˆè(€€€€€€€€€€€ÍÕµµ…Éä€ô€‰•¹ÐÉÕ¸¥¸ÁÉ½É•ÍÌ¸ˆ(€€€€€€€•±Í”è(€€€€€€€€€€€ÍÕµµ…Éä€ô€‰Ý…¥Ñ¥¹œ‘ÕÉ…‰±”…•¹Ð•á•ÕÑ¥½¸¸ˆ(€€€€€€€Á…å±½…‘l‰ÁÕ‰±¥}ÍÕµµ…Éä‰t€ôÍÕµµ…Éä(€€€¥˜©½ˆ¹Ý½É­™±½Ý}¥è(€€€€€€€ÑÉäè(€€€€€€€€€€€Á…å±½…‘l‰Ý½É­™±½Ü‰t€ô}É•Í½±Ù•}Ý½É­™±½Ü¡©½ˆ¹Ý½É­™±½Ý}¥¤¹Ñ½}‘¥Ð ¤(€€€€€€€•á•ÁÐ-•åÉÉ½Èè(€€€€€€€€€€€Á…å±½…‘l‰Ý½É­™±½Ü‰t€ô9½¹”(€€€É•ÑÕÉ¸Á…å±½…(()…ÁÀ¹•Ð ˆ½…Á¤½©½‰Ì½í©½‰}¥‘ôˆ¤)‘•˜•Ñ}©½ˆ (€€€©½‰}¥èÍÑÈ°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥Ðè(€€€ÑÉäè(€€€€€€€©½ˆ€ô}É•Í½±Ù•}©½ˆ¡©½‰}¥¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€}…ÕÑ¡½É¥é•}É•…‘}Ñ•¹…¹Ð (€€€€€€€©½ˆ°(€€€€€€€É•Í½ÕÉ•}¥õ©½ˆ¹©½‰}¥°(€€€€€€€½Á•É…Ñ½Èõ½Á•É…Ñ½È°(€€€€€€€Ñ•¹…¹Ñ}¥õÑ•¹…¹Ñ}¥°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸õ…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸õ¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€¤(€€€É•ÑÕÉ¸}©½‰}Á…å±½…¡©½ˆ¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½©½‰Ì½í©½‰}¥‘ô½É•ÑÉäˆ¤)…Íå¹Œ‘•˜É•ÑÉå}©½ˆ (€€€©½‰}¥èÍÑÈ°(€€€É•ÅÕ•ÍÐè)½‰I•ÑÉåI•ÅÕ•ÍÐ°(€€€‰…­É½Õ¹‘}Ñ…Í­Ìè	…­É½Õ¹‘Q…Í­Ì°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰EÕ•Õ”½¹”‰½Õ¹‘•É•ÑÉä™½È„™…¥±•Ñ•¹…¹Ð©½ˆ¸((€€€Q¡”…±±•È…¹¹½ÐÉ•Á±…”Ñ¡”½É¥¥¹…°ÅÕ•Éä°Í½ÕÉ”°Ñ•¹…¹Ð°½ÈÉÕ¸µ½‘”¸(€€€¹½¹åµ½ÕÌ½ÁÕ‰±¥Œ©½‰ÌÉ•µ…¥¸Á…­•ÐµÍ…™”…¹…É”É•ÑÉ¥•™É½´Ñ¡”¹½Éµ…°(€€€ÁÕ‰±¥ŒIÕ¸Í…¸½¹ÑÉ½°¥¹ÍÑ•…½˜•áÁ½Í¥¹œ„µÕÑ…Ñ¥½¸•¹‘Á½¥¹Ð¸(€€€€ˆˆˆ(€€€ÑÉäè(€€€€€€€™…¥±•‘}©½ˆ€ô}É•Í½±Ù•}©½ˆ¡©½‰}¥¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°ô‰)½ˆ¹½Ð™½Õ¹ˆ¤™É½´•áŒ(€€€¥˜™…¥±•‘}©½ˆ¹Ñ•¹…¹Ñ}¥¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°(€€€€€€€€€€€‘•Ñ…¥°ô‰AÕ‰±¥Œ©½‰Ì…¸‰”É•ÉÕ¸™É½´Ñ¡”ÁÕ‰±¥ŒÍ…¸½¹ÑÉ½°ˆ°(€€€€€€€€¤(€€€¥˜™…¥±•‘}©½ˆ¹ÍÑ…ÑÕÌ€„ô€‰™…¥±•ˆè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀä°(€€€€€€€€€€€‘•Ñ…¥°ô‰=¹±äÑ•Éµ¥¹…±±ä™…¥±•©½‰Ì…¸‰”É•ÑÉ¥•ˆ°(€€€€€€€€¤(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€˜‰©½ˆµÉ•ÑÉäéí©½‰}¥‘ôˆ°(€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€¥˜¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤€„ô™…¥±•‘}©½ˆ¹Ñ•¹…¹Ñ}¥è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÌ°‘•Ñ…¥°ô‰)½ˆÑ•¹…¹Ðµ¥Íµ…Ñ ˆ¤(€€€¥˜Í½ÕÉ•}‘•™¥¹¥Ñ¥½¸¡™…¥±•‘}©½ˆ¹Í½ÕÉ•}¥°¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤¥Ì9½¹”è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°ô‰)½ˆÍ½ÕÉ”¥Ì¹¼±½¹•È…±±½Ý±¥ÍÑ•ˆ¤(€€€€Œ±½ÕQ…Í­Ì…¹‰É½ÝÍ•ÈÉ•ÑÉ¥•Ì…¸É…”…É½ÍÌ¥¹ÍÑ…¹•Ì¸€I•ÑÕÉ¸Ñ¡”(€€€€Œ•á¥ÍÑ¥¹œ…Ñ¥Ù”ÍÕ•ÍÍ½È¥¹ÍÑ•…½˜ÍÁ•¹‘¥¹œ„Í•½¹…•¹Ð…±°¸(€€€ÑÉäè(€€€€€€€Ý¥Ñ }©½‰Í}±½¬è(€€€€€€€€€€€É••¹Ñ}©½‰Ì€ô±¥ÍÐ¡}©½‰Ì¹Ù…±Õ•Ì ¤¤(€€€€€€€É••¹Ñ}©½‰Ì¹•áÑ•¹¡±¥ÍÑ}©½‰Ì¡±¥µ¥ÐôÔÀ¤¤(€€€•á•ÁÐá•ÁÑ¥½¸è(€€€€€€€±½•È¹•á•ÁÑ¥½¸ ‰U¹…‰±”Ñ¼¥¹ÍÁ•ÐÉ•ÑÉä¥‘•µÁ½Ñ•¹ä±•‘•È™½È€•Ìˆ°©½‰}¥¤(€€€€€€€É••¹Ñ}©½‰Ì€ômt(€€€•á¥ÍÑ¥¹œ€ô¹•áÐ (€€€€€€€€ (€€€€€€€€€€€…¹‘¥‘…Ñ”(€€€€€€€€€€€™½È…¹‘¥‘…Ñ”¥¸É••¹Ñ}©½‰Ì(€€€€€€€€€€€¥˜…¹‘¥‘…Ñ”¹É•ÑÉå}½˜€ôô™…¥±•‘}©½ˆ¹©½‰}¥(€€€€€€€€€€€…¹…¹‘¥‘…Ñ”¹Ñ•¹…¹Ñ}¥€ôô™…¥±•‘}©½ˆ¹Ñ•¹…¹Ñ}¥(€€€€€€€€€€€…¹…¹‘¥‘…Ñ”¹ÍÑ…ÑÕÌ¥¸ì‰ÅÕ•Õ•ˆ°€‰ÉÕ¹¹¥¹œˆ°€‰¹••‘Í}…ÁÁÉ½Ù…°ˆ°€‰½µÁ±•Ñ”‰ô(€€€€€€€€¤°(€€€€€€€9½¹”°(€€€€¤(€€€¥˜•á¥ÍÑ¥¹œ¥Ì¹½Ð9½¹”è(€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰…±É•…‘å}ÅÕ•Õ•ˆ°(€€€€€€€€€€€€‰É•ÑÉ¥•‘}©½‰}¥ˆè™…¥±•‘}©½ˆ¹©½‰}¥°(€€€€€€€€€€€€‰©½ˆˆè•á¥ÍÑ¥¹œ¹Ñ½}‘¥Ð ¤°(€€€€€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€€€€€‰Í½ÕÉ•}¥ˆè™…¥±•‘}©½ˆ¹Í½ÕÉ•}¥°(€€€€€€€ô(€€€¥˜¹½Ð}É•Í•ÉÙ•}…•¹Ñ}…±°¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t¤è(€€€€€€€É…¥Í”}…•¹Ñ}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È ‰Q•¹…¹Ð…•¹ÐÉ…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ¤(€€€É•ÑÉ¥•€ô}ÍÑ…ÉÑ}©½ˆ (€€€€€€€ÅÕ•Éäõ™…¥±•‘}©½ˆ¹ÅÕ•Éä°(€€€€€€€ÕÍ•É}¥õ™…¥±•‘}©½ˆ¹ÕÍ•É}¥°(€€€€€€€ÉÕ¹}µ½‘”õ™…¥±•‘}©½ˆ¹ÉÕ¹}µ½‘”°(€€€€€€€‰…­É½Õ¹‘}Ñ…Í­Ìõ‰…­É½Õ¹‘}Ñ…Í­Ì°(€€€€€€€Ñ•¹…¹Ñ}¥õ¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€Í½ÕÉ•}¥õ™…¥±•‘}©½ˆ¹Í½ÕÉ•}¥°(€€€€€€€É•ÑÉå}½˜õ™…¥±•‘}©½ˆ¹©½‰}¥°(€€€€¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰ÅÕ•Õ•ˆ°(€€€€€€€€‰É•ÑÉ¥•‘}©½‰}¥ˆè™…¥±•‘}©½ˆ¹©½‰}¥°(€€€€€€€€‰©½ˆˆèÉ•ÑÉ¥•¹Ñ½}‘¥Ð ¤°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰Í½ÕÉ•}¥ˆè™…¥±•‘}©½ˆ¹Í½ÕÉ•}¥°(€€€ô(()…ÁÀ¹•Ð ˆ½…Á¤½½ÁÌ½©½ˆµ™…¥±ÕÉ•Ìˆ¤)‘•˜•Ñ}©½‰}™…¥±ÕÉ•Ì (€€€½Á•É…Ñ½ÈèÍÑÈ°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€±¥µ¥Ðè¥¹Ð€ô€ÔÀ°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€€ˆˆ‰I•ÑÕÉ¸Ñ•Éµ¥¹…°…Íå¹Œ™…¥±ÕÉ•Ì™½ÈÑ¡”…±±•ÈÌÑ•¹…¹Ð½¹±ä¸((€€€±½ÕQ…Í­ÌÉ•µ½Ù•Ì„Ñ…Í¬…™Ñ•È¥ÑÌ‰½Õ¹‘•É•ÑÉäÁ½±¥ä¥Ì•á¡…ÕÍÑ•ì(€€€Ñ¡¥ÌÍ¥¹•°µ•Ñ…‘…Ñ„µ½¹±ä±•‘•ÈÁÉ•Í•ÉÙ•ÌÑ¡”½Á•É…Ñ¥½¹…°Í¥¹…°Ý¥Ñ¡½ÕÐ(€€€É•ÑÕÉ¹¥¹œÁÉ½µÁÑÌ°Í½ÕÉ”‰½‘¥•Ì°•á•ÁÑ¥½¸Ñ•áÐ°½ÈÉ•‘•¹Ñ¥…±Ì¸(€€€€ˆˆˆ(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€‰©½ˆµ™…¥±ÕÉ•Ìˆ°(€€€€€€€½Á•É…Ñ½È°(€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€Ñ•¹…¹Ñ}¥°(€€€€¤(€€€™…¥±ÕÉ•Ì€ô±¥ÍÑ}©½‰}™…¥±ÕÉ•Ì¡¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°±¥µ¥Ðõ±¥µ¥Ð¤(€€€É•ÑÕÉ¸ì(€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰½¬ˆ°(€€€€€€€€‰Ñ•¹…¹Ñ}¥ˆè¥‘•¹Ñ¥Ñål‰Ñ•¹…¹Ñ}¥‰t°(€€€€€€€€‰™…¥±ÕÉ•Ìˆè™…¥±ÕÉ•Ì°(€€€€€€€€‰É•Ñ•¹Ñ¥½¸ˆè˜‰‰½Õ¹‘•‘}í½Ì¹•Ñ•¹Ø I%Q1%9}IQ9Q%=9}eLœ°€œÌÀœ¥õ}‘…åÌˆ°(€€€€€€€€‰É•‘•¹Ñ¥…±}Ù…±Õ•Í}•áÁ½Í•ˆè…±Í”°(€€€ô(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½©½‰Ì½í©½‰}¥‘ô½ÉÕ¸ˆ¤)…Íå¹Œ‘•˜ÉÕ¹}©½ˆ¡©½‰}¥èÍÑÈ°É•ÅÕ•ÍÐèI•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€}Ù•É¥™å}Ñ…Í­}É•ÅÕ•ÍÐ¡É•ÅÕ•ÍÐ¤(€€€ÑÉäè(€€€€€€€}É•Í½±Ù•}©½ˆ¡©½‰}¥¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€…Ý…¥Ð}ÉÕ¹}©½ˆ¡©½‰}¥¤(€€€Á…å±½…€ô}©½‰}Á…å±½…¡}É•Í½±Ù•}©½ˆ¡©½‰}¥¤¤(€€€¥˜Á…å±½…¹•Ð ‰ÍÑ…ÑÕÌˆ¤€ôô€‰ÅÕ•Õ•ˆ…¹Á…å±½…¹•Ð ‰•ÉÉ½Èˆ°€ˆˆ¤¹ÍÑ…ÉÑÍÝ¥Ñ  (€€€€€€€€‰QÉ…¹Í¥•¹Ðˆ(€€€€¤è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÔÀÌ°‘•Ñ…¥°ô‰QÉ…¹Í¥•¹Ð©½ˆ™…¥±ÕÉ”ì±½ÕQ…Í­ÌÝ¥±°É•ÑÉäˆ(€€€€€€€€¤(€€€É•ÑÕÉ¸Á…å±½…(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½…•¹Ð½ÉÕ¸ˆ¤)…Íå¹Œ‘•˜ÉÕ¹}…•¹Ð¡É•ÅÕ•ÍÐè•¹ÑIÕ¹I•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€¥˜¹½ÐÉ•ÅÕ•ÍÐ¹ÅÕ•Éä¹ÍÑÉ¥À ¤è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°ô‰EÕ•Éä…¹¹½Ð‰”•µÁÑäˆ¤(€€€Í¥¹•‘}¥‘•¹Ñ¥Ñäè‘¥ÑmÍÑÈ°ÍÑÉtð9½¹”€ô9½¹”(€€€¡…Í}Í¥¹•‘}™¥•±‘Ì€ô…¹ä (€€€€€€€Ù…±Õ”¥Ì¹½Ð9½¹”(€€€€€€€™½ÈÙ…±Õ”¥¸€ (€€€€€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€€¤(€€€€¤(€€€¥˜¡…Í}Í¥¹•‘}™¥•±‘Ìè(€€€€€€€¥˜¹½ÐÉ•ÅÕ•ÍÐ¹½Á•É…Ñ½È½È¹½ÐÉ•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥è(€€€€€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÐÀÄ°(€€€€€€€€€€€€€€€‘•Ñ…¥°ô‰M¥¹•…•¹Ð•á•ÕÑ¥½¸É•ÅÕ¥É•Ì½Á•É…Ñ½È…¹Ñ•¹…¹Ñ}¥ˆ°(€€€€€€€€€€€€¤(€€€€€€€Í¥¹•‘}¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€€€€€˜‰…•¹ÐµÉÕ¸éíÉ•ÅÕ•ÍÐ¹Í½ÕÉ•}¥‘ôˆ°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹½Á•É…Ñ½È°(€€€€€€€€€€€€‰Í¥¹•ˆ°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€€€€€¤(€€€‰½Õ¹‘}Ñ•¹…¹Ð€ôÍ¥¹•‘}¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¥˜Í¥¹•‘}¥‘•¹Ñ¥Ñä•±Í”9½¹”(€€€€ŒÉ•¥ÍÑ•É•ÁÕ‰±¥ŒUI0‰•±½¹ÌÑ¼¥ÑÌÑ•¹…¹Ð…¹µÕÍÐ¹•Ù•È‰”(€€€€Œ‘¥Í½Ù•É…‰±”½ÈÉÕ¹¹…‰±”™É½´Ñ¡”…¹½¹åµ½ÕÌ±…¹”¸I•Í½±Ù”Ñ¡”Í½ÕÉ”(€€€€Œ½¹±ä…™Ñ•È…ÕÑ¡•¹Ñ¥…Ñ¥¹œÑ¡”½ÁÑ¥½¹…°Ñ•¹…¹Ð°Í¼‘¥É•ÐA$½Á•É…Ñ½ÉÌ(€€€€ŒÉ••¥Ù”Ñ¡”Í…µ”É•…°µ½¹¥Ñ½ÈÁ…Ñ …ÌÑ¡”½¹Í½±”…¹Í¡•‘Õ±•È¸(€€€‘•™¥¹¥Ñ¥½¸€ôÍ½ÕÉ•}‘•™¥¹¥Ñ¥½¸¡É•ÅÕ•ÍÐ¹Í½ÕÉ•}¥°‰½Õ¹‘}Ñ•¹…¹Ð¤(€€€¥˜‘•™¥¹¥Ñ¥½¸¥Ì9½¹”½È€ (€€€€€€€‘•™¥¹¥Ñ¥½¸¹•Ð ‰‘å¹…µ¥Œˆ¤€ôô€‰ÑÉÕ”ˆ…¹‰½Õ¹‘}Ñ•¹…¹Ð¥Ì9½¹”(€€€€¤è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÈÈ°‘•Ñ…¥°ô‰M½ÕÉ”¥Ì¹½Ð…±±½Ý±¥ÍÑ•ˆ¤(€€€¥˜¹½Ð}É•Í•ÉÙ•}…•¹Ñ}…±°¡‰½Õ¹‘}Ñ•¹…¹Ð¤è(€€€€€€€É…¥Í”}…•¹Ñ}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰1¥Ù”…•¹Ð‘•µ¼É…Ñ”±¥µ¥ÐÉ•…¡•ìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€¥˜‰½Õ¹‘}Ñ•¹…¹Ð¥Ì9½¹”è(€€€€€€€€Œ¹½¹åµ½ÕÌ‘¥É•ÐÉÕ¹Ì…É”„©Õ‘”ÍÕÉ™…”°¹½Ð„•¹•É…°µÁÕÉÁ½Í”(€€€€€€€€ŒÁÉ½µÁÐÁÉ½áä¸-••À…±±•ÈÑ•áÐ½ÕÐ½˜•µ¥¹¤…¹Ñ¡”ÁÕ‰±¥ŒÝ½É­™±½Ü(€€€€€€€€Œ±•‘•ÈÝ¡¥±”ÁÉ•Í•ÉÙ¥¹œÑ¡”Í¥¹•Ñ•¹…¹Ð±…¹”™½ÈÉ•…°½Á•É…Ñ½ÉÌ¸(€€€€€€€ÅÕ•Éä€ô€ (€€€€€€€€€€€˜‰%¹ÍÁ•ÐÑ¡”…±±½Ý±¥ÍÑ•íÉ•ÅÕ•ÍÐ¹Í½ÕÉ•}¥‘ô¡…¹”°Ù•É¥™äÑ¡”€ˆ(€€€€€€€€€€€€‰•Ù¥‘•¹”°µ…À…™™•Ñ•…ÉÑ¥™…ÑÌ°…¹ÍÑ½À…ÐÑ¡”¡Õµ…¸…ÁÁÉ½Ù…°€ˆ(€€€€€€€€€€€€‰…Ñ”¸ˆ(€€€€€€€€¤(€€€€€€€ÕÍ•É}¥€ô€‰ÁÕ‰±¥Œµ‘•µ¼ˆ(€€€•±Í”è(€€€€€€€ÅÕ•Éä€ô€ (€€€€€€€€€€€˜‰íÉ•ÅÕ•ÍÐ¹ÅÕ•Éä¹ÍÑÉ¥À ¥ôUÍ”Ñ¡”•á…Ð…±±½Ý±¥ÍÑ•Í½ÕÉ•}¥€ˆ(€€€€€€€€€€€˜œ‰íÉ•ÅÕ•ÍÐ¹Í½ÕÉ•}¥‘ôˆ¸¼¹½Ð¡½½Í”„‘¥™™•É•¹ÐÍ½ÕÉ”¸œ(€€€€€€€€¤(€€€€€€€ÕÍ•É}¥€ôÉ•ÅÕ•ÍÐ¹ÕÍ•É}¥(€€€ÑÉäè(€€€€€€€¥˜‰½Õ¹‘}Ñ•¹…¹Ðè(€€€€€€€€€€€¥¹Ñ•É¹…±}½¹Ñ•áÐ€ô}É•…‘}¥¹Ñ•É¹…±}½¹Ñ•áÑ}™½É}ÉÕ¸¡‰½Õ¹‘}Ñ•¹…¹Ð¤(€€€€€€€€€€€¥˜¥¹Ñ•É¹…±}½¹Ñ•áÐ¥Ì¹½Ð9½¹”è(€€€€€€€€€€€€€€€É•ÑÕÉ¸…Ý…¥ÐÉÕ¹}…•¹Ñ}Ñ…Í¬ (€€€€€€€€€€€€€€€€€€€ÅÕ•Éä°(€€€€€€€€€€€€€€€€€€€ÕÍ•É}¥°(€€€€€€€€€€€€€€€€€€€ÉÕ¹}µ½‘”ô‰±¥Ù”ˆ°(€€€€€€€€€€€€€€€€€€€Ñ•¹…¹Ñ}¥õ‰½Õ¹‘}Ñ•¹…¹Ð°(€€€€€€€€€€€€€€€€€€€¥¹Ñ•É¹…±}½¹Ñ•áÐõ¥¹Ñ•É¹…±}½¹Ñ•áÐ°(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€É•ÑÕÉ¸…Ý…¥ÐÉÕ¹}…•¹Ñ}Ñ…Í¬ (€€€€€€€€€€€€€€€ÅÕ•Éä°(€€€€€€€€€€€€€€€ÕÍ•É}¥°(€€€€€€€€€€€€€€€ÉÕ¹}µ½‘”ô‰±¥Ù”ˆ°(€€€€€€€€€€€€€€€Ñ•¹…¹Ñ}¥õ‰½Õ¹‘}Ñ•¹…¹Ð°(€€€€€€€€€€€€¤(€€€€€€€É•ÑÕÉ¸…Ý…¥ÐÉÕ¹}…•¹Ñ}Ñ…Í¬¡ÅÕ•Éä°ÕÍ•É}¥¤(€€€•á•ÁÐá•ÁÑ¥½¸…Ì•áŒè(€€€€€€€±½•È¹•á•ÁÑ¥½¸ ‰1¥Ù”,•á•ÕÑ¥½¸™…¥±•ˆ¤(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸ (€€€€€€€€€€€ÍÑ…ÑÕÍ}½‘”ôÔÀÌ°(€€€€€€€€€€€‘•Ñ…¥°ô‰1¥Ù”,•á•ÕÑ¥½¸¥ÌÕ¹…Ù…¥±…‰±”ì¡•¬½½±”±½ÕÉ•‘•¹Ñ¥…±Ì¸ˆ°(€€€€€€€€¤™É½´•áŒ(()…ÁÀ¹•Ð ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ôˆ¤)‘•˜•Ñ}Ý½É­™±½Ü (€€€Ý½É­™±½Ý}¥èÍÑÈ°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥Ðè(€€€ÑÉäè(€€€€€€€ÍÑ…Ñ”€ô}É•Í½±Ù•}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€}…ÕÑ¡½É¥é•}É•…‘}Ñ•¹…¹Ð (€€€€€€€ÍÑ…Ñ”°(€€€€€€€É•Í½ÕÉ•}¥õÍÑ…Ñ”¹Ý½É­™±½Ý}¥°(€€€€€€€½Á•É…Ñ½Èõ½Á•É…Ñ½È°(€€€€€€€Ñ•¹…¹Ñ}¥õÑ•¹…¹Ñ}¥°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸õ…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸õ¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€¤(€€€É•ÑÕÉ¸ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(()‘•˜}É•ÅÕ¥É•}…Ñ¥½¹}…Ñ½È¡…Ñ½ÈèÍÑÈ¤€´øÍÑÈè(€€€±•…¹•€ô…Ñ½È¹ÍÑÉ¥À ¤(€€€¥˜¹½Ð±•…¹•½È…¹ä (€€€€€€€Ñ½­•¸¥¸ì‰…•¹Ðˆ°€‰ÍåÍÑ•´ˆ°€‰•µ¥¹¤ˆ°€‰…ÍÍ¥ÍÑ…¹Ð‰ô(€€€€€€€™½ÈÑ½­•¸¥¸±•…¹•¹…Í•™½± ¤¹ÍÁ±¥Ð ¤(€€€€¤è(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÀ°‘•Ñ…¥°ô‰¹…µ•¡Õµ…¸…Ñ½È¥ÌÉ•ÅÕ¥É•ˆ¤(€€€É•ÑÕÉ¸±•…¹•(()…ÁÀ¹•Ð ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½…Ñ¥½¹Ìˆ¤)‘•˜•Ñ}…Ñ¥½¹Ì (€€€Ý½É­™±½Ý}¥èÍÑÈ°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€ÑÉäè(€€€€€€€ÍÑ…Ñ”€ô}É•Í½±Ù•}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€}…ÕÑ¡½É¥é•}É•…‘}Ñ•¹…¹Ð (€€€€€€€ÍÑ…Ñ”°(€€€€€€€É•Í½ÕÉ•}¥õÍÑ…Ñ”¹Ý½É­™±½Ý}¥°(€€€€€€€½Á•É…Ñ½Èõ½Á•É…Ñ½È°(€€€€€€€Ñ•¹…¹Ñ}¥õÑ•¹…¹Ñ}¥°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸õ…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸õ¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€¤(€€€É•ÑÕÉ¸ì‰…Ñ¥½¹ÌˆèÍÑ…Ñ”¹…Ñ¥½¹}¥Ñ•µÍô(()‘•˜}…Ñ¥½¹}¥Ñ•´¡ÍÑ…Ñ”è]½É­™±½ÝMÑ…Ñ”°¥Ñ•µ}¥èÍÑÈ¤€´ø‘¥ÑmÍÑÈ°½‰©•Ñtè(€€€¥Ñ•´€ô¹•áÐ (€€€€€€€€¡•¹ÑÉä™½È•¹ÑÉä¥¸ÍÑ…Ñ”¹…Ñ¥½¹}¥Ñ•µÌ¥˜•¹ÑÉål‰¥Ñ•µ}¥‰t€ôô¥Ñ•µ}¥¤°9½¹”(€€€€¤(€€€¥˜¥Ñ•´¥Ì9½¹”è(€€€€€€€É…¥Í”-•åÉÉ½È¡˜‰U¹­¹½Ý¸…Ñ¥½¸¥Ñ•´èí¥Ñ•µ}¥‘ôˆ¤(€€€É•ÑÕÉ¸¥Ñ•´(()‘•˜}…Ñ¥½¹}É•ÅÕ•ÍÑ}¥Í}¥‘•µÁ½Ñ•¹Ð (€€€ÍÑ…Ñ”è]½É­™±½ÝMÑ…Ñ”°(€€€¥Ñ•´è‘¥ÑmÍÑÈ°½‰©•Ñt°(€€€½Á•É…Ñ¥½¸èÍÑÈ°(€€€…Ñ½ÈèÍÑÈ°(€€€É•ÅÕ•ÍÐèÑ¥½¹%Ñ•µI•ÅÕ•ÍÐ°(¤€´ø‰½½°è(€€€€ˆˆ‰%‘•¹Ñ¥™äÍ…™”É•Á•…ÑÌÑ¡…Ð‘¼¹½ÐÉ•…Ñ”…¹½Ñ¡•ÈÍÑ…Ñ”ÑÉ…¹Í¥Ñ¥½¸¸((€€€I…Ñ”±¥µ¥ÑÌÁÉ½Ñ•Ð¹•ÜÝ½É¬°¹½ÐÑÉ…¹ÍÁ½ÉÐÉ•ÑÉ¥•Ì¸-••Á¥¹œ‘ÕÁ±¥…Ñ”(€€€É•ÅÕ•ÍÑÌÅÕ½Ñ„µ¹•ÕÑÉ…°ÁÉ•Ù•¹ÑÌ„‘½Õ‰±”µ±¥¬½È„±¥•¹ÐÉ•ÑÉä™É½´(€€€½¹ÍÕµ¥¹œÑ¡”ÁÕ‰±¥ŒµÕÑ…Ñ¥½¸‰Õ‘•ÐÝ¡¥±”ÁÉ•Í•ÉÙ¥¹œÑ¡”Í…µ”Á½±¥ä(€€€¡•­Ì…¹LÑÉ…¹Í¥Ñ¥½¸™½È•Ù•ÉäÉ•…°¡…¹”¸(€€€€ˆˆˆ(€€€¥˜ÍÑ…Ñ”¹ÍÑ…ÑÕÌ¹Ù…±Õ”€„ô€‰½µÁ±•Ñ”ˆè(€€€€€€€É•ÑÕÉ¸…±Í”(€€€ÍÑ…ÑÕÌ€ô¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤(€€€¥˜½Á•É…Ñ¥½¸€ôô€‰±…¥´ˆè(€€€€€€€É•ÑÕÉ¸ÍÑ…ÑÕÌ€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹1%5¹Ù…±Õ”…¹¥Ñ•´¹•Ð ‰±…¥µ•‘}‰äˆ¤€ôô…Ñ½È(€€€¥˜½Á•É…Ñ¥½¸€ôô€‰½µÁ±•Ñ”ˆè(€€€€€€€É•ÑÕÉ¸ÍÑ…ÑÕÌ€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹=5A1Q¹Ù…±Õ”…¹€ (€€€€€€€€€€€¥Ñ•´¹•Ð ‰½µÁ±•Ñ•‘}‰äˆ¤€ôô…Ñ½È½È¥Ñ•´¹•Ð ‰±…¥µ•‘}‰äˆ¤€ôô…Ñ½È(€€€€€€€€¤(€€€¥˜½Á•É…Ñ¥½¸€ôô€‰™…¥°ˆè(€€€€€€€É•ÑÕÉ¸ÍÑ…ÑÕÌ€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹%1¹Ù…±Õ”…¹€ (€€€€€€€€€€€¥Ñ•´¹•Ð ‰™…¥±•‘}‰äˆ¤€ôô…Ñ½È(€€€€€€€€€€€…¹¥Ñ•´¹•Ð ‰™…¥±ÕÉ•}É•…Í½¸ˆ¤€ôô•Ñ…ÑÑÈ¡É•ÅÕ•ÍÐ°€‰É•…Í½¸ˆ°9½¹”¤(€€€€€€€€¤(€€€¥˜½Á•É…Ñ¥½¸€ôô€‰É•ÑÉäˆè(€€€€€€€É•ÑÕÉ¸ÍÑ…ÑÕÌ€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹EUU¹Ù…±Õ”…¹¥Ñ•´¹•Ð ‰É•ÑÉ¥•‘}‰äˆ¤¥¸€ (€€€€€€€€€€€9½¹”°(€€€€€€€€€€€…Ñ½È°(€€€€€€€€¤(€€€¥˜½Á•É…Ñ¥½¸€ôô€‰É•Ù•ÉÍ”ˆè(€€€€€€€É•ÑÕÉ¸ÍÑ…ÑÕÌ€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹IYIM¹Ù…±Õ”(€€€É•ÑÕÉ¸…±Í”(()‘•˜}…Ñ¥½¹}•Ù•¹Ð¡ÍÑ…Ñ”è]½É­™±½ÝMÑ…Ñ”°¥Ñ•µ}¥èÍÑÈ°½ÕÑ½µ”èÍÑÈ°…Ñ½ÈèÍÑÈ¤€´ø9½¹”è(€€€ÍÑ…Ñ”¹•Ù•¹ÑÌ¹…ÁÁ•¹ (€€€€€€€ì(€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè˜‰•Ù•¹ÐµíÕÕ¥Ð ¤¹¡•álèÄÉuôˆ°(€€€€€€€€€€€€‰…Ñ½Èˆè€‰…Ñ¥½¹}±¥™•å±”ˆ°(€€€€€€€€€€€€‰½ÕÑ½µ”ˆè˜‰í¥Ñ•µ}¥‘ôéí½ÕÑ½µ•ôˆ°(€€€€€€€€€€€€‰Ñ¥µ•ÍÑ…µÀˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€€‰…Ñ¥½¹}¥Ñ•µ}¥ˆè¥Ñ•µ}¥°(€€€€€€€€€€€€‰¡Õµ…¹}…Ñ½Èˆè…Ñ½È°(€€€€€€€ô(€€€€¤(€€€ÍÑ…Ñ”¹ÕÁ‘…Ñ•‘}…Ð€ôÕÑ}¹½Ü ¤(()‘•˜}…ÕÑ¡½É¥é•}…Ñ¥½¹}É•ÅÕ•ÍÐ (€€€Ý½É­™±½Ý}¥èÍÑÈ°(€€€¥Ñ•µ}¥èÍÑÈ°(€€€É•ÅÕ•ÍÐèÑ¥½¹%Ñ•µI•ÅÕ•ÍÐ°(€€€½Á•É…Ñ¥½¸èÍÑÈ°(¤€´ø‘¥ÑmÍÑÈ°ÍÑÉtè(€€€¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€Ý½É­™±½Ý}¥°(€€€€€€€É•ÅÕ•ÍÐ¹…Ñ½È°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}µ½‘”°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€}…ÕÑ¡½É¥é•}Ý½É­™±½Ý}Ñ•¹…¹Ð¡Ý½É­™±½Ý}¥°¥‘•¹Ñ¥Ñä¤(€€€±•…¹•‘}…Ñ½È€ô}É•ÅÕ¥É•}…Ñ¥½¹}…Ñ½È¡É•ÅÕ•ÍÐ¹…Ñ½È¤(€€€ÍÑ…Ñ”€ô}É•Í½±Ù•}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥¤(€€€¥Ñ•´€ô}…Ñ¥½¹}¥Ñ•´¡ÍÑ…Ñ”°¥Ñ•µ}¥¤(€€€¥˜¹½Ð}…Ñ¥½¹}É•ÅÕ•ÍÑ}¥Í}¥‘•µÁ½Ñ•¹Ð (€€€€€€€ÍÑ…Ñ”°¥Ñ•´°½Á•É…Ñ¥½¸°±•…¹•‘}…Ñ½È°É•ÅÕ•ÍÐ(€€€€¤…¹¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸¡¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰Ñ¥½¸µÕÑ…Ñ¥½¸É…Ñ”±¥µ¥ÐÉ•…¡•™½ÈÑ¡¥ÌÑ•¹…¹ÐìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€É•ÑÕÉ¸¥‘•¹Ñ¥Ñä(()‘•˜}…Ñ¥½¹}ÑÉ…¹Í¥Ñ¥½¸ (€€€Ý½É­™±½Ý}¥èÍÑÈ°(€€€¥Ñ•µ}¥èÍÑÈ°(€€€É•ÅÕ•ÍÐèÑ¥½¹%Ñ•µI•ÅÕ•ÍÐ°(€€€ÑÉ…¹Í¥Ñ¥½¸è…±±…‰±•mm]½É­™±½ÝMÑ…Ñ”°‘¥ÑmÍÑÈ°½‰©•Ñt°ÍÑÉt°9½¹•t°(€€€€¨°(€€€½Á•É…Ñ¥½¸èÍÑÈ°(¤€´ø‘¥Ðè(€€€€ˆˆ‰ÁÁ±ä½¹”¥‘•µÁ½Ñ•¹Ð…Ñ¥½¸µ¥Ñ•´ÑÉ…¹Í¥Ñ¥½¸Ñ¡É½Õ Ý½É­™±½ÜL¸ˆˆˆ(€€€}…ÕÑ¡½É¥é•}…Ñ¥½¹}É•ÅÕ•ÍÐ¡Ý½É­™±½Ý}¥°¥Ñ•µ}¥°É•ÅÕ•ÍÐ°½Á•É…Ñ¥½¸¤(€€€±•…¹•‘}…Ñ½È€ô}É•ÅÕ¥É•}…Ñ¥½¹}…Ñ½È¡É•ÅÕ•ÍÐ¹…Ñ½È¤((€€€‘•˜…ÁÁ±ä¡ÍÑ…Ñ”è]½É­™±½ÝMÑ…Ñ”¤€´ø]½É­™±½ÝMÑ…Ñ”è(€€€€€€€¥˜ÍÑ…Ñ”¹ÍÑ…ÑÕÌ¹Ù…±Õ”€„ô€‰½µÁ±•Ñ”ˆè(€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰Ñ¥½¹Ì…É”…Ù…¥±…‰±”…™Ñ•È…ÁÁÉ½Ù…°ˆ¤(€€€€€€€ÑÉ…¹Í¥Ñ¥½¸¡ÍÑ…Ñ”°}…Ñ¥½¹}¥Ñ•´¡ÍÑ…Ñ”°¥Ñ•µ}¥¤°±•…¹•‘}…Ñ½È¤(€€€€€€€¥˜ÍÑ…Ñ”¹•Ù¥‘•¹”¥Ì¹½Ð9½¹”è(€€€€€€€€€€€ÍÑ…Ñ”¹¡…¹•}…É€ô‰Õ¥±‘}¡…¹•}…É (€€€€€€€€€€€€€€€Ý½É­™±½Ý}¥õÍÑ…Ñ”¹Ý½É­™±½Ý}¥°(€€€€€€€€€€€€€€€•Ù¥‘•¹”õÍÑ…Ñ”¹•Ù¥‘•¹”°(€€€€€€€€€€€€€€€¥µÁ…ÑÌõÍÑ…Ñ”¹¥µÁ…ÑÌ°(€€€€€€€€€€€€€€€¥µÁ…Ñ}É…Á õÍÑ…Ñ”¹¥µÁ…Ñ}É…Á °(€€€€€€€€€€€€€€€‘…Ñ…}µ½‘”õÍÑ…Ñ”¹‘…Ñ…}µ½‘”°(€€€€€€€€€€€€€€€…ÁÁÉ½Ù…°õÍÑ…Ñ”¹…ÁÁÉ½Ù…°°(€€€€€€€€€€€€€€€…Ñ¥½¹}¥Ñ•µÌõÍÑ…Ñ”¹…Ñ¥½¹}¥Ñ•µÌ°(€€€€€€€€€€€€¤(€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”((€€€É•ÑÕÉ¸}ÑÉ…¹Í¥Ñ¥½¹}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥°€‰½µÁ±•Ñ”ˆ°…ÁÁ±ä¤¹Ñ½}‘¥Ð ¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½…Ñ¥½¹Ì½í¥Ñ•µ}¥‘ô½±…¥´ˆ¤)‘•˜±…¥µ}…Ñ¥½¸¡Ý½É­™±½Ý}¥èÍÑÈ°¥Ñ•µ}¥èÍÑÈ°É•ÅÕ•ÍÐèÑ¥½¹%Ñ•µI•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€ÑÉäè((€€€€€€€‘•˜ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€ÍÑ…Ñ”è]½É­™±½ÝMÑ…Ñ”°¥Ñ•´è‘¥ÑmÍÑÈ°½‰©•Ñt°…Ñ½ÈèÍÑÈ(€€€€€€€€¤€´ø9½¹”è(€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹1%5¹Ù…±Õ”è(€€€€€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰±…¥µ•‘}‰äˆ¤€ôô…Ñ½Èè(€€€€€€€€€€€€€€€€€€€É•ÑÕÉ¸(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰Ñ¥½¸¥Ñ•´¥Ì…±É•…‘ä±…¥µ•ˆ¤(€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€„ôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹EUU¹Ù…±Õ”è(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰Ñ¥½¸¥Ñ•´¥Ì¹½ÐÅÕ•Õ•ˆ¤(€€€€€€€€€€€¥Ñ•´¹ÕÁ‘…Ñ” (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆèÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹1%5¹Ù…±Õ”°(€€€€€€€€€€€€€€€€€€€€‰±…¥µ•‘}‰äˆè…Ñ½È°(€€€€€€€€€€€€€€€€€€€€‰±…¥µ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€€€€€€€€€€‰…ÑÑ•µÁÑÌˆè¥¹Ð¡¥Ñ•´¹•Ð ‰…ÑÑ•µÁÑÌˆ°€À¤¤€¬€Ä°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€€€€€}…Ñ¥½¹}•Ù•¹Ð¡ÍÑ…Ñ”°¥Ñ•µ}¥°€‰±…¥µ•ˆ°…Ñ½È¤((€€€€€€€É•ÑÕÉ¸}…Ñ¥½¹}ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€Ý½É­™±½Ý}¥°¥Ñ•µ}¥°É•ÅÕ•ÍÐ°ÑÉ…¹Í¥Ñ¥½¸°½Á•É…Ñ¥½¸ô‰±…¥´ˆ(€€€€€€€€¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€•á•ÁÐA½±¥åY¥½±…Ñ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½…Ñ¥½¹Ì½í¥Ñ•µ}¥‘ô½½µÁ±•Ñ”ˆ¤)‘•˜½µÁ±•Ñ•}…Ñ¥½¸¡Ý½É­™±½Ý}¥èÍÑÈ°¥Ñ•µ}¥èÍÑÈ°É•ÅÕ•ÍÐèÑ¥½¹%Ñ•µI•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€ÑÉäè((€€€€€€€‘•˜ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€ÍÑ…Ñ”è]½É­™±½ÝMÑ…Ñ”°¥Ñ•´è‘¥ÑmÍÑÈ°½‰©•Ñt°…Ñ½ÈèÍÑÈ(€€€€€€€€¤€´ø9½¹”è(€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹=5A1Q¹Ù…±Õ”è(€€€€€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰½µÁ±•Ñ•‘}‰äˆ¤€ôô…Ñ½È½È¥Ñ•´¹•Ð ‰±…¥µ•‘}‰äˆ¤€ôô…Ñ½Èè(€€€€€€€€€€€€€€€€€€€É•ÑÕÉ¸(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ (€€€€€€€€€€€€€€€€€€€€‰=¹±äÑ¡”±…¥µ¥¹œ…Ñ½È…¸½µÁ±•Ñ”Ñ¡¥Ì…Ñ¥½¸ˆ(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€¥˜€ (€€€€€€€€€€€€€€€¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€„ôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹1%5¹Ù…±Õ”(€€€€€€€€€€€€€€€½È¥Ñ•´¹•Ð ‰±…¥µ•‘}‰äˆ¤€„ô…Ñ½È(€€€€€€€€€€€€¤è(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ (€€€€€€€€€€€€€€€€€€€€‰=¹±äÑ¡”±…¥µ¥¹œ…Ñ½È…¸½µÁ±•Ñ”Ñ¡¥Ì…Ñ¥½¸ˆ(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€¥Ñ•´¹ÕÁ‘…Ñ” (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆèÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹=5A1Q¹Ù…±Õ”°(€€€€€€€€€€€€€€€€€€€€‰½µÁ±•Ñ•‘}‰äˆè…Ñ½È°(€€€€€€€€€€€€€€€€€€€€‰½µÁ±•Ñ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€€€€€}…Ñ¥½¹}•Ù•¹Ð¡ÍÑ…Ñ”°¥Ñ•µ}¥°€‰½µÁ±•Ñ•ˆ°…Ñ½È¤((€€€€€€€É•ÑÕÉ¸}…Ñ¥½¹}ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€Ý½É­™±½Ý}¥°¥Ñ•µ}¥°É•ÅÕ•ÍÐ°ÑÉ…¹Í¥Ñ¥½¸°½Á•É…Ñ¥½¸ô‰½µÁ±•Ñ”ˆ(€€€€€€€€¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€•á•ÁÐA½±¥åY¥½±…Ñ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½…Ñ¥½¹Ì½í¥Ñ•µ}¥‘ô½™…¥°ˆ¤)‘•˜™…¥±}…Ñ¥½¸¡Ý½É­™±½Ý}¥èÍÑÈ°¥Ñ•µ}¥èÍÑÈ°É•ÅÕ•ÍÐèÑ¥½¹…¥±ÕÉ•I•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€€ˆˆ‰I•½É„‰½Õ¹‘•¡Õµ…¸µÙ¥Í¥‰±”™…¥±ÕÉ”Í¼„ÅÕ•Õ•É•ÑÉä¥ÌÁ½ÍÍ¥‰±”¸ˆˆˆ(€€€ÑÉäè((€€€€€€€‘•˜ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€ÍÑ…Ñ”è]½É­™±½ÝMÑ…Ñ”°¥Ñ•´è‘¥ÑmÍÑÈ°½‰©•Ñt°…Ñ½ÈèÍÑÈ(€€€€€€€€¤€´ø9½¹”è(€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹%1¹Ù…±Õ”è(€€€€€€€€€€€€€€€¥˜€ (€€€€€€€€€€€€€€€€€€€¥Ñ•´¹•Ð ‰™…¥±•‘}‰äˆ¤€ôô…Ñ½È(€€€€€€€€€€€€€€€€€€€…¹¥Ñ•´¹•Ð ‰™…¥±ÕÉ•}É•…Í½¸ˆ¤€ôôÉ•ÅÕ•ÍÐ¹É•…Í½¸(€€€€€€€€€€€€€€€€¤è(€€€€€€€€€€€€€€€€€€€É•ÑÕÉ¸(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰Ñ¥½¸¥Ñ•´¥Ì…±É•…‘ä™…¥±•ˆ¤(€€€€€€€€€€€¥˜€ (€€€€€€€€€€€€€€€¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€„ôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹1%5¹Ù…±Õ”(€€€€€€€€€€€€€€€½È¥Ñ•´¹•Ð ‰±…¥µ•‘}‰äˆ¤€„ô…Ñ½È(€€€€€€€€€€€€¤è(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰=¹±äÑ¡”±…¥µ¥¹œ…Ñ½È…¸™…¥°Ñ¡¥Ì…Ñ¥½¸ˆ¤(€€€€€€€€€€€¥Ñ•´¹ÕÁ‘…Ñ” (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆèÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹%1¹Ù…±Õ”°(€€€€€€€€€€€€€€€€€€€€‰™…¥±•‘}‰äˆè…Ñ½È°(€€€€€€€€€€€€€€€€€€€€‰™…¥±•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€€€€€€€€€€‰™…¥±ÕÉ•}É•…Í½¸ˆèÉ•ÅÕ•ÍÐ¹É•…Í½¸°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€€€€€}…Ñ¥½¹}•Ù•¹Ð¡ÍÑ…Ñ”°¥Ñ•µ}¥°€‰™…¥±•ˆ°…Ñ½È¤((€€€€€€€É•ÑÕÉ¸}…Ñ¥½¹}ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€Ý½É­™±½Ý}¥°¥Ñ•µ}¥°É•ÅÕ•ÍÐ°ÑÉ…¹Í¥Ñ¥½¸°½Á•É…Ñ¥½¸ô‰™…¥°ˆ(€€€€€€€€¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€•á•ÁÐA½±¥åY¥½±…Ñ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½…Ñ¥½¹Ì½í¥Ñ•µ}¥‘ô½É•ÑÉäˆ¤)‘•˜É•ÑÉå}…Ñ¥½¸¡Ý½É­™±½Ý}¥èÍÑÈ°¥Ñ•µ}¥èÍÑÈ°É•ÅÕ•ÍÐèÑ¥½¹%Ñ•µI•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€€ˆˆ‰I•ÅÕ•Õ”„™…¥±•¥Ñ•´ìÉ•Á•…ÐÉ•ÑÉ¥•Ì‰äÑ¡”Í…µ”…Ñ½È…É”¥‘•µÁ½Ñ•¹Ð¸ˆˆˆ(€€€ÑÉäè((€€€€€€€‘•˜ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€ÍÑ…Ñ”è]½É­™±½ÝMÑ…Ñ”°¥Ñ•´è‘¥ÑmÍÑÈ°½‰©•Ñt°…Ñ½ÈèÍÑÈ(€€€€€€€€¤€´ø9½¹”è(€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹EUU¹Ù…±Õ”è(€€€€€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰É•ÑÉ¥•‘}‰äˆ¤¥¸€¡9½¹”°…Ñ½È¤è(€€€€€€€€€€€€€€€€€€€É•ÑÕÉ¸(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰Ñ¥½¸¥Ñ•´¥Ì…±É•…‘äÅÕ•Õ•ˆ¤(€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€„ôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹%1¹Ù…±Õ”è(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰=¹±ä„™…¥±•…Ñ¥½¸…¸‰”É•ÑÉ¥•ˆ¤(€€€€€€€€€€€¥Ñ•´¹ÕÁ‘…Ñ” (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆèÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹EUU¹Ù…±Õ”°(€€€€€€€€€€€€€€€€€€€€‰É•ÑÉ¥•‘}‰äˆè…Ñ½È°(€€€€€€€€€€€€€€€€€€€€‰É•ÑÉ¥•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€€€€€€€€€€‰É•ÑÉå}½Õ¹Ðˆè¥¹Ð¡¥Ñ•´¹•Ð ‰É•ÑÉå}½Õ¹Ðˆ°€À¤¤€¬€Ä°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€€€€€}…Ñ¥½¹}•Ù•¹Ð¡ÍÑ…Ñ”°¥Ñ•µ}¥°€‰É•ÑÉ¥•ˆ°…Ñ½È¤((€€€€€€€É•ÑÕÉ¸}…Ñ¥½¹}ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€Ý½É­™±½Ý}¥°¥Ñ•µ}¥°É•ÅÕ•ÍÐ°ÑÉ…¹Í¥Ñ¥½¸°½Á•É…Ñ¥½¸ô‰É•ÑÉäˆ(€€€€€€€€¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€•á•ÁÐA½±¥åY¥½±…Ñ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½…Ñ¥½¹Ì½í¥Ñ•µ}¥‘ô½É•Ù•ÉÍ”ˆ¤)‘•˜É•Ù•ÉÍ•}…Ñ¥½¸¡Ý½É­™±½Ý}¥èÍÑÈ°¥Ñ•µ}¥èÍÑÈ°É•ÅÕ•ÍÐèÑ¥½¹%Ñ•µI•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€€ˆˆ‰I•Ù•ÉÍ¥‰±ä±½Í”…¸¥¹‘¥Ù¥‘Õ…°…Ñ¥½¸¥Ñ•´Ý¥Ñ¡½ÕÐ‘•±•Ñ¥¹œ¥ÑÌ…Õ‘¥Ð¸ˆˆˆ(€€€ÑÉäè((€€€€€€€‘•˜ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€ÍÑ…Ñ”è]½É­™±½ÝMÑ…Ñ”°¥Ñ•´è‘¥ÑmÍÑÈ°½‰©•Ñt°…Ñ½ÈèÍÑÈ(€€€€€€€€¤€´ø9½¹”è(€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤€ôôÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹IYIM¹Ù…±Õ”è(€€€€€€€€€€€€€€€É•ÑÕÉ¸(€€€€€€€€€€€¥˜¥Ñ•´¹•Ð ‰ÍÑ…ÑÕÌˆ¤¹½Ð¥¸ì(€€€€€€€€€€€€€€€Ñ¥½¹%Ñ•µMÑ…ÑÕÌ¹EUU¹Ù…±Õ”°(€€€€€€€€€€€€€€€Ñ¥½¹%Ñ•µMÑ…ÑÕÌ¹1%5¹Ù…±Õ”°(€€€€€€€€€€€€€€€Ñ¥½¹%Ñ•µMÑ…ÑÕÌ¹=5A1Q¹Ù…±Õ”°(€€€€€€€€€€€€€€€Ñ¥½¹%Ñ•µMÑ…ÑÕÌ¹%1¹Ù…±Õ”°(€€€€€€€€€€€ôè(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰Ñ¥½¸¥Ñ•´…¹¹½Ð‰”É•Ù•ÉÍ•ˆ¤(€€€€€€€€€€€¥Ñ•´¹ÕÁ‘…Ñ” (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆèÑ¥½¹%Ñ•µMÑ…ÑÕÌ¹IYIM¹Ù…±Õ”°(€€€€€€€€€€€€€€€€€€€€‰É•Ù•ÉÍ•‘}‰äˆè…Ñ½È°(€€€€€€€€€€€€€€€€€€€€‰É•Ù•ÉÍ•‘}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€€€€€}…Ñ¥½¹}•Ù•¹Ð¡ÍÑ…Ñ”°¥Ñ•µ}¥°€‰É•Ù•ÉÍ•ˆ°…Ñ½È¤((€€€€€€€É•ÑÕÉ¸}…Ñ¥½¹}ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€Ý½É­™±½Ý}¥°¥Ñ•µ}¥°É•ÅÕ•ÍÐ°ÑÉ…¹Í¥Ñ¥½¸°½Á•É…Ñ¥½¸ô‰É•Ù•ÉÍ”ˆ(€€€€€€€€¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€•á•ÁÐA½±¥åY¥½±…Ñ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()…ÁÀ¹•Ð ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½Á…­•Ðˆ°É•ÍÁ½¹Í•}±…ÍÌõA±…¥¹Q•áÑI•ÍÁ½¹Í”¤)‘•˜•Ñ}Á…­•Ð (€€€Ý½É­™±½Ý}¥èÍÑÈ°(€€€½Á•É…Ñ½ÈèÍÑÈð9½¹”€ô9½¹”°(€€€Ñ•¹…¹Ñ}¥èÍÑÈð9½¹”€ô9½¹”°(€€€…ÁÁÉ½Ù…±}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸èÍÑÈð9½¹”€ô9½¹”°(¤€´øÍÑÈè(€€€ÑÉäè(€€€€€€€ÍÑ…Ñ”€ô}É•Í½±Ù•}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€}…ÕÑ¡½É¥é•}É•…‘}Ñ•¹…¹Ð (€€€€€€€ÍÑ…Ñ”°(€€€€€€€É•Í½ÕÉ•}¥õÍÑ…Ñ”¹Ý½É­™±½Ý}¥°(€€€€€€€½Á•É…Ñ½Èõ½Á•É…Ñ½È°(€€€€€€€Ñ•¹…¹Ñ}¥õÑ•¹…¹Ñ}¥°(€€€€€€€…ÁÁÉ½Ù…±}Ñ½­•¸õ…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€¥‘•¹Ñ¥Ñå}Ñ½­•¸õ¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€¤(€€€É•ÑÕÉ¸Á…­•Ñ}µ…É­‘½Ý¸¡ÍÑ…Ñ”¤(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½…ÁÁÉ½Ù”ˆ¤)‘•˜…ÁÁÉ½Ù”¡Ý½É­™±½Ý}¥èÍÑÈ°É•ÅÕ•ÍÐèÁÁÉ½Ù…±I•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€Ý½É­™±½Ý}¥°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù•È°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}µ½‘”°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€…Õ‘¥Ñ}…Ñ½È€ô}…Õ‘¥Ñ}…Ñ½È¡É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù•È°…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¤(€€€}…ÕÑ¡½É¥é•}Ý½É­™±½Ý}Ñ•¹…¹Ð¡Ý½É­™±½Ý}¥°…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¤(€€€¥˜¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸¡…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰]½É­™±½ÜµÕÑ…Ñ¥½¸É…Ñ”±¥µ¥ÐÉ•…¡•™½ÈÑ¡¥ÌÑ•¹…¹ÐìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€ÑÉäè((€€€€€€€‘•˜…ÁÁ±ä¡ÕÉÉ•¹Ðè]½É­™±½ÝMÑ…Ñ”¤€´ø]½É­™±½ÝMÑ…Ñ”è(€€€€€€€€€€€ÑÉäè(€€€€€€€€€€€€€€€Ù…±¥‘…Ñ•}…ÁÁÉ½Ù…±}¡½¥” (€€€€€€€€€€€€€€€€€€€ÕÉÉ•¹Ð°(€€€€€€€€€€€€€€€€€€€É•ÅÕ•ÍÐ¹½Á¥±½Ñ}½ÁÑ¥½¹}¥°(€€€€€€€€€€€€€€€€€€€É•ÅÕ•ÍÐ¹‘•¥Í¥½¸°(€€€€€€€€€€€€€€€€€€€É•ÅÕ•ÍÐ¹…ÉÑ¥™…Ñ}‘•¥Í¥½¹Ì°(€€€€€€€€€€€€€€€€€€€ÕÍÑ½µ}½Ù•ÉÉ¥‘”õÉ•ÅÕ•ÍÐ¹½Á¥±½Ñ}…ÉÑ¥™…Ñ}½Ù•ÉÉ¥‘”°(€€€€€€€€€€€€€€€€€€€½Ù•ÉÉ¥‘•}É•…Í½¸õÉ•ÅÕ•ÍÐ¹½Á¥±½Ñ}½Ù•ÉÉ¥‘•}É•…Í½¸°(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€•á•ÁÐ€¡Y…±Õ•ÉÉ½È°QåÁ•ÉÉ½È¤…Ì•áŒè(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸¡ÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€€€€€€€€€ÍÑ…Ñ”€ôÝ½É­™±½Ý}ÍÑ½É”¹…ÁÁÉ½Ù” (€€€€€€€€€€€€€€€ÕÉÉ•¹Ð¹Ý½É­™±½Ý}¥°(€€€€€€€€€€€€€€€…Õ‘¥Ñ}…Ñ½È°(€€€€€€€€€€€€€€€É•ÅÕ•ÍÐ¹‘•¥Í¥½¸°(€€€€€€€€€€€€€€€É•ÅÕ•ÍÐ¹…ÉÑ¥™…Ñ}‘•¥Í¥½¹Ì°(€€€€€€€€€€€€€€€…ÁÁÉ½Ù…±}µ•Ñ…‘…Ñ„õì(€€€€€€€€€€€€€€€€€€€€‰½Á¥±½Ñ}½ÁÑ¥½¹}¥ˆèÉ•ÅÕ•ÍÐ¹½Á¥±½Ñ}½ÁÑ¥½¹}¥°(€€€€€€€€€€€€€€€€€€€€‰½Á¥±½Ñ}…ÉÑ¥™…Ñ}½Ù•ÉÉ¥‘”ˆèÉ•ÅÕ•ÍÐ¹½Á¥±½Ñ}…ÉÑ¥™…Ñ}½Ù•ÉÉ¥‘”°(€€€€€€€€€€€€€€€€€€€€¨¨ (€€€€€€€€€€€€€€€€€€€€€€€ì‰½Á¥±½Ñ}½Ù•ÉÉ¥‘•}É•…Í½¸ˆèÉ•ÅÕ•ÍÐ¹½Á¥±½Ñ}½Ù•ÉÉ¥‘•}É•…Í½¸¹ÍÑÉ¥À ¥ô(€€€€€€€€€€€€€€€€€€€€€€€¥˜É•ÅÕ•ÍÐ¹½Á¥±½Ñ}…ÉÑ¥™…Ñ}½Ù•ÉÉ¥‘”(€€€€€€€€€€€€€€€€€€€€€€€…¹É•ÅÕ•ÍÐ¹½Á¥±½Ñ}½Ù•ÉÉ¥‘•}É•…Í½¸(€€€€€€€€€€€€€€€€€€€€€€€•±Í”íô(€€€€€€€€€€€€€€€€€€€€¤°(€€€€€€€€€€€€€€€ô°(€€€€€€€€€€€€¤(€€€€€€€€€€€¥˜ÍÑ…Ñ”¹…ÁÁÉ½Ù…°¥Ì¹½Ð9½¹”è(€€€€€€€€€€€€€€€ÍÑ…Ñ”¹…ÁÁÉ½Ù…±l‰…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä‰t€ô…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä(€€€€€€€€€€€€Œ±…¥´Ñ¡”Ý¡½±”Í¥‘”µ•™™•Ð½Á•É…Ñ¥½¸‘ÕÉ…‰±ä‰•™½É”…¹ä(€€€€€€€€€€€€Œ½¹¹•Ñ½È½È…ÉÑ¥™…ÐÝÉ¥Ñ”¸U¹‘¼…¹É•…ÁÁÉ½Ù…°É•©•ÐÑ¡¥Ì(€€€€€€€€€€€€Œ¥¹Ñ•Éµ•‘¥…Ñ”ÍÑ…Ñ”…É½ÍÌ±½ÕIÕ¸¥¹ÍÑ…¹•Ì¸(€€€€€€€€€€€ÍÑ…Ñ”¹ÍÑ…ÑÕÌ€ô]½É­™±½ÝMÑ…ÑÕÌ¹AAI=Y1}aUQ%9(€€€€€€€€€€€}±…¥µ}Í¥‘•}•™™•Ñ}½Á•É…Ñ¥½¸ (€€€€€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€€€€€­¥¹ô‰…ÁÁÉ½Ù…°ˆ°(€€€€€€€€€€€€€€€…Ñ½Èõ…Õ‘¥Ñ}…Ñ½È°(€€€€€€€€€€€€€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñäõ…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä°(€€€€€€€€€€€€¤(€€€€€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”((€€€€€€€ÍÑ…Ñ”€ô}ÑÉ…¹Í¥Ñ¥½¹}Ý½É­™±½Ü (€€€€€€€€€€€Ý½É­™±½Ý}¥°(€€€€€€€€€€€€‰¹••‘Í}…ÁÁÉ½Ù…°ˆ°(€€€€€€€€€€€…ÁÁ±ä°(€€€€€€€€¤(€€€€€€€•á•ÕÑ¥¹}ÍÑ…Ñ”€ô½Áä¹‘••Á½Áä¡ÍÑ…Ñ”¤(€€€€€€€ÑÉäè(€€€€€€€€€€€ÍÑ…Ñ”€ô}•á•ÕÑ•}±…¥µ•‘}Í¥‘•}•™™•ÑÌ (€€€€€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€€€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä°(€€€€€€€€€€€€€€€É•Ù•ÉÍ”õ…±Í”°(€€€€€€€€€€€€¤(€€€€€€€•á•ÁÐá•ÁÑ¥½¸…Ì•áŒè(€€€€€€€€€€€±½•È¹•á•ÁÑ¥½¸ ‰ÁÁÉ½Ù…°½Á•É…Ñ¥½¸É•ÅÕ¥É•ÌÉ•½¹¥±¥…Ñ¥½¸ˆ¤(€€€€€€€€€€€ÍÑ…Ñ”€ô}µ…É­}É•½¹¥±¥…Ñ¥½¹}É•ÅÕ¥É• (€€€€€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€€€€€•áÁ•Ñ•‘}ÍÑ…ÑÕÌõ]½É­™±½ÝMÑ…ÑÕÌ¹AAI=Y1}aUQ%9°(€€€€€€€€€€€€€€€™…±±‰…¬õ•á•ÕÑ¥¹}ÍÑ…Ñ”°(€€€€€€€€€€€€€€€•ÉÉ½Èõ•áŒ°(€€€€€€€€€€€€¤(€€€€€€€€€€€}Íå¹}©½‰Í}™½É}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥°ÍÑ…Ñ”¹ÍÑ…ÑÕÌ¹Ù…±Õ”¤(€€€€€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(€€€€€€€ÍÑ…Ñ”€ô}½µµ¥Ñ}Ý½É­™±½Ý}ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€]½É­™±½ÝMÑ…ÑÕÌ¹AAI=Y1}aUQ%9¹Ù…±Õ”°(€€€€€€€€€€€•á•ÕÑ¥¹}ÍÑ…Ñ”°(€€€€€€€€¤(€€€€€€€}Íå¹}©½‰Í}™½É}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥°ÍÑ…Ñ”¹ÍÑ…ÑÕÌ¹Ù…±Õ”¤(€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€•á•ÁÐA½±¥åY¥½±…Ñ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½‘¥Íµ¥ÍÌˆ¤)‘•˜‘¥Íµ¥ÍÌ¡Ý½É­™±½Ý}¥èÍÑÈ°É•ÅÕ•ÍÐè¥Íµ¥ÍÍI•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€Ý½É­™±½Ý}¥°(€€€€€€€É•ÅÕ•ÍÐ¹…Ñ½È°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}µ½‘”°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€…Õ‘¥Ñ}…Ñ½È€ô}…Õ‘¥Ñ}…Ñ½È¡É•ÅÕ•ÍÐ¹…Ñ½È°…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¤(€€€}…ÕÑ¡½É¥é•}Ý½É­™±½Ý}Ñ•¹…¹Ð¡Ý½É­™±½Ý}¥°…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¤(€€€¥˜¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸¡…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰]½É­™±½ÜµÕÑ…Ñ¥½¸É…Ñ”±¥µ¥ÐÉ•…¡•™½ÈÑ¡¥ÌÑ•¹…¹ÐìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€ÑÉäè((€€€€€€€‘•˜…ÁÁ±ä¡ÕÉÉ•¹Ðè]½É­™±½ÝMÑ…Ñ”¤€´ø]½É­™±½ÝMÑ…Ñ”è(€€€€€€€€€€€ÍÑ…Ñ”€ôÝ½É­™±½Ý}ÍÑ½É”¹‘¥Íµ¥ÍÌ (€€€€€€€€€€€€€€€ÕÉÉ•¹Ð¹Ý½É­™±½Ý}¥°(€€€€€€€€€€€€€€€…Õ‘¥Ñ}…Ñ½È°(€€€€€€€€€€€€€€€É•ÅÕ•ÍÐ¹É•…Í½¸°(€€€€€€€€€€€€¤(€€€€€€€€€€€¥˜ÍÑ…Ñ”¹…ÁÁÉ½Ù…°¥Ì¹½Ð9½¹”è(€€€€€€€€€€€€€€€ÍÑ…Ñ”¹…ÁÁÉ½Ù…±l‰…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä‰t€ô…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä(€€€€€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”((€€€€€€€ÍÑ…Ñ”€ô}ÑÉ…¹Í¥Ñ¥½¹}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥°€‰¹••‘Í}…ÁÁÉ½Ù…°ˆ°…ÁÁ±ä¤(€€€€€€€}Íå¹}©½‰Í}™½É}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥°ÍÑ…Ñ”¹ÍÑ…ÑÕÌ¹Ù…±Õ”¤(€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€•á•ÁÐA½±¥åY¥½±…Ñ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½Õ¹‘¼ˆ¤)‘•˜Õ¹‘¼¡Ý½É­™±½Ý}¥èÍÑÈ°É•ÅÕ•ÍÐèU¹‘½I•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€Ý½É­™±½Ý}¥°(€€€€€€€É•ÅÕ•ÍÐ¹…Ñ½È°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}µ½‘”°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€…Õ‘¥Ñ}…Ñ½È€ô}…Õ‘¥Ñ}…Ñ½È¡É•ÅÕ•ÍÐ¹…Ñ½È°…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¤(€€€}…ÕÑ¡½É¥é•}Ý½É­™±½Ý}Ñ•¹…¹Ð¡Ý½É­™±½Ý}¥°…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¤(€€€¥˜¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸¡…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰]½É­™±½ÜµÕÑ…Ñ¥½¸É…Ñ”±¥µ¥ÐÉ•…¡•™½ÈÑ¡¥ÌÑ•¹…¹ÐìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€ÑÉäè((€€€€€€€‘•˜…ÁÁ±ä¡ÕÉÉ•¹Ðè]½É­™±½ÝMÑ…Ñ”¤€´ø]½É­™±½ÝMÑ…Ñ”è(€€€€€€€€€€€¥˜€ (€€€€€€€€€€€€€€€ÕÉÉ•¹Ð¹…Ñ¥½¹}É•½É(€€€€€€€€€€€€€€€…¹ÕÉÉ•¹Ð¹…Ñ¥½¹}É•½É¹•Ð ‰•áÑ•É¹…±}ÝÉ¥Ñ”ˆ¤(€€€€€€€€€€€€€€€…¹…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¹•Ð ‰Í½Á”ˆ¤€„ô€‰½¹™¥ÕÉ•ˆ(€€€€€€€€€€€€¤è(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ (€€€€€€€€€€€€€€€€€€€€‰M¥¹•…ÁÁÉ½Ù…°¥ÌÉ•ÅÕ¥É•Ñ¼É•Ù•ÉÍ”½¹™¥ÕÉ•½¹¹•Ñ½ÈÝÉ¥Ñ•Ìˆ(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€ÍÑ…Ñ”€ôÝ½É­™±½Ý}ÍÑ½É”¹Õ¹‘¼¡ÕÉÉ•¹Ð¹Ý½É­™±½Ý}¥°…Õ‘¥Ñ}…Ñ½È¤(€€€€€€€€€€€ÍÑ…Ñ”¹•Ù•¹ÑÍl´Åul‰…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä‰t€ô…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä(€€€€€€€€€€€€Œ±…¥´É•Ù•ÉÍ…°‰•™½É”Ñ½Õ¡¥¹œ…¹ä•áÑ•É¹…°ÍåÍÑ•´¸½¹ÕÉÉ•¹Ð(€€€€€€€€€€€€Œ…ÁÁÉ½Ù…°Í••ÌÑ¡¥Ì‘ÕÉ…‰±”ÍÑ…Ñ”…¹™…¥±Ì±½Í•¸(€€€€€€€€€€€ÍÑ…Ñ”¹ÍÑ…ÑÕÌ€ô]½É­™±½ÝMÑ…ÑÕÌ¹IYIM1}aUQ%9(€€€€€€€€€€€}±…¥µ}Í¥‘•}•™™•Ñ}½Á•É…Ñ¥½¸ (€€€€€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€€€€€­¥¹ô‰É•Ù•ÉÍ…°ˆ°(€€€€€€€€€€€€€€€…Ñ½Èõ…Õ‘¥Ñ}…Ñ½È°(€€€€€€€€€€€€€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñäõ…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä°(€€€€€€€€€€€€¤(€€€€€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”((€€€€€€€ÍÑ…Ñ”€ô}ÑÉ…¹Í¥Ñ¥½¹}Ý½É­™±½Ü (€€€€€€€€€€€Ý½É­™±½Ý}¥°(€€€€€€€€€€€€‰½µÁ±•Ñ”ˆ°(€€€€€€€€€€€…ÁÁ±ä°(€€€€€€€€¤(€€€€€€€•á•ÕÑ¥¹}ÍÑ…Ñ”€ô½Áä¹‘••Á½Áä¡ÍÑ…Ñ”¤(€€€€€€€ÑÉäè(€€€€€€€€€€€ÍÑ…Ñ”€ô}•á•ÕÑ•}±…¥µ•‘}Í¥‘•}•™™•ÑÌ (€€€€€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€€€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä°(€€€€€€€€€€€€€€€É•Ù•ÉÍ”õQÉÕ”°(€€€€€€€€€€€€¤(€€€€€€€•á•ÁÐá•ÁÑ¥½¸…Ì•áŒè(€€€€€€€€€€€±½•È¹•á•ÁÑ¥½¸ ‰I•Ù•ÉÍ…°½Á•É…Ñ¥½¸É•ÅÕ¥É•ÌÉ•½¹¥±¥…Ñ¥½¸ˆ¤(€€€€€€€€€€€ÍÑ…Ñ”€ô}µ…É­}É•½¹¥±¥…Ñ¥½¹}É•ÅÕ¥É• (€€€€€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€€€€€•áÁ•Ñ•‘}ÍÑ…ÑÕÌõ]½É­™±½ÝMÑ…ÑÕÌ¹IYIM1}aUQ%9°(€€€€€€€€€€€€€€€™…±±‰…¬õ•á•ÕÑ¥¹}ÍÑ…Ñ”°(€€€€€€€€€€€€€€€•ÉÉ½Èõ•áŒ°(€€€€€€€€€€€€¤(€€€€€€€€€€€}Íå¹}©½‰Í}™½É}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥°ÍÑ…Ñ”¹ÍÑ…ÑÕÌ¹Ù…±Õ”¤(€€€€€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(€€€€€€€ÍÑ…Ñ”€ô}½µµ¥Ñ}Ý½É­™±½Ý}ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€]½É­™±½ÝMÑ…ÑÕÌ¹IYIM1}aUQ%9¹Ù…±Õ”°(€€€€€€€€€€€•á•ÕÑ¥¹}ÍÑ…Ñ”°(€€€€€€€€¤(€€€€€€€}Íå¹}©½‰Í}™½É}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥°ÍÑ…Ñ”¹ÍÑ…ÑÕÌ¹Ù…±Õ”¤(€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€•á•ÁÐA½±¥åY¥½±…Ñ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()…ÁÀ¹Á½ÍÐ ˆ½…Á¤½Ý½É­™±½ÝÌ½íÝ½É­™±½Ý}¥‘ô½É•½¹¥±”ˆ¤)‘•˜É•½¹¥±”¡Ý½É­™±½Ý}¥èÍÑÈ°É•ÅÕ•ÍÐèI•½¹¥±•I•ÅÕ•ÍÐ¤€´ø‘¥Ðè(€€€€ˆˆ‰I•ÑÉäÑ¡”Í…µ”‘ÕÉ…‰±”½Á•É…Ñ¥½¸…™Ñ•È…¸¥¹Ñ•ÉÉÕÁÑ•½…µ‰¥Õ½ÕÌ…ÑÑ•µÁÐ¸ˆˆˆ(€€€…Ñ½È€ô}É•ÅÕ¥É•}…Ñ¥½¹}…Ñ½È¡É•ÅÕ•ÍÐ¹…Ñ½È¤(€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä€ô}Ù•É¥™å}…ÁÁÉ½Ù…±}µ½‘” (€€€€€€€Ý½É­™±½Ý}¥°(€€€€€€€…Ñ½È°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}µ½‘”°(€€€€€€€É•ÅÕ•ÍÐ¹…ÁÁÉ½Ù…±}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹¥‘•¹Ñ¥Ñå}Ñ½­•¸°(€€€€€€€É•ÅÕ•ÍÐ¹Ñ•¹…¹Ñ}¥°(€€€€¤(€€€…Õ‘¥Ñ}…Ñ½È€ô}…Õ‘¥Ñ}…Ñ½È¡…Ñ½È°…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¤(€€€}…ÕÑ¡½É¥é•}Ý½É­™±½Ý}Ñ•¹…¹Ð¡Ý½É­™±½Ý}¥°…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¤(€€€¥˜¹½Ð}É•Í•ÉÙ•}‘•µ½}µÕÑ…Ñ¥½¸¡…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¹•Ð ‰Ñ•¹…¹Ñ}¥ˆ¤¤è(€€€€€€€É…¥Í”}‘•µ½}µÕÑ…Ñ¥½¹}É…Ñ•}±¥µ¥Ñ}•ÉÉ½È (€€€€€€€€€€€€‰]½É­™±½ÜµÕÑ…Ñ¥½¸É…Ñ”±¥µ¥ÐÉ•…¡•™½ÈÑ¡¥ÌÑ•¹…¹ÐìÉ•ÑÉä±…Ñ•È¸ˆ(€€€€€€€€¤(€€€ÑÉäè(€€€€€€€ÕÉÉ•¹Ð€ô}É•Í½±Ù•}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥¤(€€€€€€€¥˜ÕÉÉ•¹Ð¹ÍÑ…ÑÕÌ¥¸ì(€€€€€€€€€€€]½É­™±½ÝMÑ…ÑÕÌ¹AAI=Y1}aUQ%9°(€€€€€€€€€€€]½É­™±½ÝMÑ…ÑÕÌ¹IYIM1}aUQ%9°(€€€€€€€ôè(€€€€€€€€€€€€ŒÁÉ½•ÍÌµ…äÑ•Éµ¥¹…Ñ”…™Ñ•ÈÑ¡”‘ÕÉ…‰±”±…¥´‰ÕÐ‰•™½É”Ñ¡”(€€€€€€€€€€€€Œ•á•ÁÑ¥½¸¡…¹‘±•È…¸µ…É¬É•½¹¥±¥…Ñ¥½¹}É•ÅÕ¥É•¸¥ÉÍÐµ½Ù”(€€€€€€€€€€€€Œ½¹±ä…¸•áÁ¥É•±…¥´¥¹Ñ¼Ñ¡…Ð•á±ÕÍ¥Ù”ÍÑ…Ñ”ì„Í•½¹L(€€€€€€€€€€€€Œ‰•±½ÜÑ¡•¸•¹ÍÕÉ•Ì•á…Ñ±ä½¹”É•½Ù•Éä…ÑÑ•µÁÐ…¸•á•ÕÑ”¸(€€€€€€€€€€€}ÑÉ…¹Í¥Ñ¥½¹}Ý½É­™±½Ü (€€€€€€€€€€€€€€€Ý½É­™±½Ý}¥°(€€€€€€€€€€€€€€€ÕÉÉ•¹Ð¹ÍÑ…ÑÕÌ¹Ù…±Õ”°(€€€€€€€€€€€€€€€}•áÁ¥É•}ÍÑ…±•}½Á•É…Ñ¥½¹}±…¥´°(€€€€€€€€€€€€¤(€€€€€€€•±¥˜ÕÉÉ•¹Ð¹ÍÑ…ÑÕÌ€„ô]½É­™±½ÝMÑ…ÑÕÌ¹I=9%1%Q%=9}IEU%Iè(€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰]½É­™±½Ü¡…Ì¹¼É•½Ù•É…‰±”½Á•É…Ñ¥½¸ˆ¤((€€€€€€€‘•˜±…¥´¡ÕÉÉ•¹Ðè]½É­™±½ÝMÑ…Ñ”¤€´ø]½É­™±½ÝMÑ…Ñ”è(€€€€€€€€€€€½Á•É…Ñ¥½¸€ôÕÉÉ•¹Ð¹½Á•É…Ñ¥½¸½Èíô(€€€€€€€€€€€­¥¹€ô½Á•É…Ñ¥½¸¹•Ð ‰­¥¹ˆ¤(€€€€€€€€€€€¥˜­¥¹¹½Ð¥¸ì‰…ÁÁÉ½Ù…°ˆ°€‰É•Ù•ÉÍ…°‰ôè(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ ‰]½É­™±½Ü¡…Ì¹¼É•½Ù•É…‰±”½Á•É…Ñ¥½¸ˆ¤(€€€€€€€€€€€É•ÅÕ¥É•Í}Í¥¹•€ô‰½½° (€€€€€€€€€€€€€€€½Á•É…Ñ¥½¸¹•Ð ‰Í½Á”ˆ¤€ôô€‰½¹™¥ÕÉ•ˆ(€€€€€€€€€€€€€€€½È€¡ÕÉÉ•¹Ð¹…Ñ¥½¹}É•½É½Èíô¤¹•Ð ‰•áÑ•É¹…±}ÝÉ¥Ñ”ˆ¤(€€€€€€€€€€€€¤(€€€€€€€€€€€¥˜É•ÅÕ¥É•Í}Í¥¹•…¹…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä¹•Ð ‰Í½Á”ˆ¤€„ô€‰½¹™¥ÕÉ•ˆè(€€€€€€€€€€€€€€€É…¥Í”A½±¥åY¥½±…Ñ¥½¸ (€€€€€€€€€€€€€€€€€€€€‰M¥¹•…ÁÁÉ½Ù…°¥ÌÉ•ÅÕ¥É•Ñ¼É•½¹¥±”½¹™¥ÕÉ•½¹¹•Ñ½ÈÝÉ¥Ñ•Ìˆ(€€€€€€€€€€€€€€€€¤(€€€€€€€€€€€ÕÉÉ•¹Ð¹½Á•É…Ñ¥½¸€ôì(€€€€€€€€€€€€€€€€¨©½Á•É…Ñ¥½¸°(€€€€€€€€€€€€€€€€‰ÍÑ…ÑÕÌˆè€‰•á•ÕÑ¥¹œˆ°(€€€€€€€€€€€€€€€€‰…ÑÑ•µÁÑÌˆè¥¹Ð¡½Á•É…Ñ¥½¸¹•Ð ‰…ÑÑ•µÁÑÌˆ°€Ä¤¤€¬€Ä°(€€€€€€€€€€€€€€€€‰±…ÍÑ}…ÑÑ•µÁÑ}…ÐˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€€€€€€‰±•…Í•}•áÁ¥É•Í}…Ðˆè€ (€€€€€€€€€€€€€€€€€€€‘…Ñ•Ñ¥µ”¹¹½Ü¡UQ¤(€€€€€€€€€€€€€€€€€€€€¬Ñ¥µ•‘•±Ñ„¡Í•½¹‘Ìõ}½Á•É…Ñ¥½¹}±•…Í•}Í•½¹‘Ì ¤¤(€€€€€€€€€€€€€€€€¤¹¥Í½™½Éµ…Ð ¤°(€€€€€€€€€€€€€€€€‰É•½¹¥±•‘}‰äˆè…Õ‘¥Ñ}…Ñ½È°(€€€€€€€€€€€ô(€€€€€€€€€€€ÕÉÉ•¹Ð¹ÍÑ…ÑÕÌ€ô€ (€€€€€€€€€€€€€€€]½É­™±½ÝMÑ…ÑÕÌ¹AAI=Y1}aUQ%9(€€€€€€€€€€€€€€€¥˜­¥¹€ôô€‰…ÁÁÉ½Ù…°ˆ(€€€€€€€€€€€€€€€•±Í”]½É­™±½ÝMÑ…ÑÕÌ¹IYIM1}aUQ%9(€€€€€€€€€€€€¤(€€€€€€€€€€€ÕÉÉ•¹Ð¹•Ù•¹ÑÌ¹…ÁÁ•¹ (€€€€€€€€€€€€€€€ì(€€€€€€€€€€€€€€€€€€€€‰•Ù•¹Ñ}¥ˆè˜‰•ÙÐµíÕÕ¥Ð ¤¹¡•álèÄÉuôˆ°(€€€€€€€€€€€€€€€€€€€€‰Ñ¥µ•ÍÑ…µÀˆèÕÑ}¹½Ü ¤°(€€€€€€€€€€€€€€€€€€€€‰…Ñ¥½¸ˆè€‰½Á•É…Ñ¥½¹}É•½¹¥±•Èˆ°(€€€€€€€€€€€€€€€€€€€€‰½ÕÑ½µ”ˆè€‰É•ÑÉå}±…¥µ•ˆ°(€€€€€€€€€€€€€€€€€€€€‰ÍÑ…”ˆèÕÉÉ•¹Ð¹ÍÑ…”¹Ù…±Õ”°(€€€€€€€€€€€€€€€€€€€€‰•Ù¥‘•¹•}¡…Í ˆèÕÉÉ•¹Ð¹•Ù¥‘•¹”¹•Ù¥‘•¹•}¡…Í (€€€€€€€€€€€€€€€€€€€¥˜ÕÉÉ•¹Ð¹•Ù¥‘•¹”(€€€€€€€€€€€€€€€€€€€•±Í”9½¹”°(€€€€€€€€€€€€€€€€€€€€‰½Á•É…Ñ¥½¹}¥ˆè½Á•É…Ñ¥½¸¹•Ð ‰½Á•É…Ñ¥½¹}¥ˆ¤°(€€€€€€€€€€€€€€€ô(€€€€€€€€€€€€¤(€€€€€€€€€€€É•ÑÕÉ¸ÕÉÉ•¹Ð((€€€€€€€ÍÑ…Ñ”€ô}ÑÉ…¹Í¥Ñ¥½¹}Ý½É­™±½Ü (€€€€€€€€€€€Ý½É­™±½Ý}¥°(€€€€€€€€€€€]½É­™±½ÝMÑ…ÑÕÌ¹I=9%1%Q%=9}IEU%I¹Ù…±Õ”°(€€€€€€€€€€€±…¥´°(€€€€€€€€¤(€€€€€€€•á•ÕÑ¥¹}ÍÑ…ÑÕÌ€ôÍÑ…Ñ”¹ÍÑ…ÑÕÌ(€€€€€€€•á•ÕÑ¥¹}ÍÑ…Ñ”€ô½Áä¹‘••Á½Áä¡ÍÑ…Ñ”¤(€€€€€€€É•Ù•ÉÍ”€ôÍÑ…Ñ”¹½Á•É…Ñ¥½¸¹•Ð ‰­¥¹ˆ¤€ôô€‰É•Ù•ÉÍ…°ˆ(€€€€€€€ÑÉäè(€€€€€€€€€€€ÍÑ…Ñ”€ô}•á•ÕÑ•}±…¥µ•‘}Í¥‘•}•™™•ÑÌ (€€€€€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€€€€€…ÁÁÉ½Ù…±}¥‘•¹Ñ¥Ñä°(€€€€€€€€€€€€€€€É•Ù•ÉÍ”õÉ•Ù•ÉÍ”°(€€€€€€€€€€€€¤(€€€€€€€•á•ÁÐá•ÁÑ¥½¸…Ì•áŒè(€€€€€€€€€€€±½•È¹•á•ÁÑ¥½¸ ‰I•½¹¥±•½Á•É…Ñ¥½¸É•µ…¥¹Ì¥¹½µÁ±•Ñ”ˆ¤(€€€€€€€€€€€ÍÑ…Ñ”€ô}µ…É­}É•½¹¥±¥…Ñ¥½¹}É•ÅÕ¥É• (€€€€€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€€€€€•áÁ•Ñ•‘}ÍÑ…ÑÕÌõ•á•ÕÑ¥¹}ÍÑ…ÑÕÌ°(€€€€€€€€€€€€€€€™…±±‰…¬õ•á•ÕÑ¥¹}ÍÑ…Ñ”°(€€€€€€€€€€€€€€€•ÉÉ½Èõ•áŒ°(€€€€€€€€€€€€¤(€€€€€€€€€€€}Íå¹}©½‰Í}™½É}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥°ÍÑ…Ñ”¹ÍÑ…ÑÕÌ¹Ù…±Õ”¤(€€€€€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(€€€€€€€ÍÑ…Ñ”¹…Ñ¥½¹}É•½É€ôì(€€€€€€€€€€€€¨¨¡ÍÑ…Ñ”¹…Ñ¥½¹}É•½É½Èíô¤°(€€€€€€€€€€€€‰É•½¹¥±¥…Ñ¥½¹}É•ÅÕ¥É•ˆè…±Í”°(€€€€€€€€€€€€‰½Á•É…Ñ¥½¹}¥ˆèÍÑ…Ñ”¹½Á•É…Ñ¥½¸¹•Ð ‰½Á•É…Ñ¥½¹}¥ˆ¤°(€€€€€€€ô(€€€€€€€ÍÑ…Ñ”€ô}½µµ¥Ñ}Ý½É­™±½Ý}ÑÉ…¹Í¥Ñ¥½¸ (€€€€€€€€€€€ÍÑ…Ñ”°(€€€€€€€€€€€•á•ÕÑ¥¹}ÍÑ…ÑÕÌ¹Ù…±Õ”°(€€€€€€€€€€€•á•ÕÑ¥¹}ÍÑ…Ñ”°(€€€€€€€€¤(€€€€€€€}Íå¹}©½‰Í}™½É}Ý½É­™±½Ü¡Ý½É­™±½Ý}¥°ÍÑ…Ñ”¹ÍÑ…ÑÕÌ¹Ù…±Õ”¤(€€€€€€€É•ÑÕÉ¸ÍÑ…Ñ”¹Ñ½}‘¥Ð ¤(€€€•á•ÁÐ-•åÉÉ½È…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀÐ°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(€€€•á•ÁÐA½±¥åY¥½±…Ñ¥½¸…Ì•áŒè(€€€€€€€É…¥Í”!QQAá•ÁÑ¥½¸¡ÍÑ…ÑÕÍ}½‘”ôÐÀä°‘•Ñ…¥°õÍÑÈ¡•áŒ¤¤™É½´•áŒ(()ÍÑ…Ñ¥}‘¥È€ôA…Ñ ¡½Ì¹•Ñ•¹Ø ‰I%Q1%9}MQQ%}%Hˆ°€ˆ½…ÁÀ½ÍÑ…Ñ¥Œˆ¤¤)¥˜ÍÑ…Ñ¥}‘¥È¹¥Í}‘¥È ¤è(€€€…ÁÀ¹µ½Õ¹Ð ˆ¼ˆ°MÑ…Ñ¥¥±•Ì¡‘¥É•Ñ½ÉäõÍÑ…Ñ¥}‘¥È°¡Ñµ°õQÉÕ”¤°¹…µ”ô‰½¹Í½±”ˆ¤

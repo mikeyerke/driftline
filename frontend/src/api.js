@@ -195,6 +195,14 @@ export function startDecisionTwin() {
   });
 }
 
+export function startDecisionTwinIntake(payload) {
+  return request("/api/decision-twin/intake", {
+    method: "POST",
+    timeoutMs: COUNCIL_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getDecisionTwin(caseId) {
   return request(`/api/decision-twin/${encodeURIComponent(caseId)}`);
 }
