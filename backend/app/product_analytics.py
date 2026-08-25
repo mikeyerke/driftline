@@ -36,6 +36,18 @@ class AggregateMetric(BaseModel):
     source_mode: Literal["pinned_aggregate_fixture", "bigquery_aggregate"]
 
 
+class DecisionPrecedentMatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    precedent_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,100}$")
+    title: str = Field(min_length=1, max_length=120)
+    chosen_response: Literal["ship", "rollback", "segment", "defer"]
+    outcome: Literal["validated", "invalidated", "inconclusive"]
+    lesson: str = Field(min_length=1, max_length=280)
+    similarity: float = Field(ge=0.0, le=1.0)
+    source_label: str = Field(min_length=1, max_length=160)
+
+
 def fixture_aggregate_metrics() -> list[AggregateMetric]:
     return [
         AggregateMetric(
@@ -71,6 +83,15 @@ def _table_id() -> str:
     table = os.getenv("DECISION_TWIN_BIGQUERY_TABLE", "")
     if not _TABLE_PATTERN.fullmatch(table):
         raise AnalyticsPolicyError("BigQuery table must be an exact project.dataset.table")
+    return table
+
+
+def _precedent_table_id() -> str:
+    table = os.getenv("DECISION_TWIN_PRECEDENT_TABLE", "")
+    if not _TABLE_PATTERN.fullmatch(table):
+        raise AnalyticsPolicyError(
+            "BigQuery precedent table must be an exact project.dataset.table"
+        )
     return table
 
 
@@ -146,3 +167,80 @@ def query_aggregate_metric(
         observed_at=str(_row_value(row, "observed_at")),
         source_mode="bigquery_aggregate",
     )
+
+
+def query_decision_precedents(
+    decision_vector: list[float],
+    *,
+    client: bigquery.Client | None = None,
+) -> list[DecisionPrecedentMatch]:
+    """Find structurally similar decisions with exact, byte-capped vector search."""
+    if os.getenv("DECISION_TWIN_DECISION_MEMORY_ENABLED", "false").casefold() != "true":
+        raise AnalyticsPolicyError("Decision memory is not enabled")
+    if len(decision_vector) != 4 or any(not -1.0 <= float(value) <= 1.0 for value in decision_vector):
+        raise AnalyticsPolicyError("Decision vector violates the bounded four-feature contract")
+    table = _precedent_table_id()
+    sql = f"""
+        SELECT
+          base.precedent_id,
+          base.title,
+          base.chosen_response,
+          base.outcome,
+          base.lesson,
+          distance
+        FROM VECTOR_SEARCH(
+          (
+            SELECT precedent_id, title, chosen_response, outcome, lesson,
+                   decision_vector
+            FROM `{table}`
+            WHERE observed_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 365 DAY)
+          ),
+          'decision_vector',
+          (SELECT @decision_vector AS decision_vector),
+          top_k => 2,
+          distance_type => 'EUCLIDEAN'
+        )
+        ORDER BY distance ASC
+    """
+    parameters = [
+        bigquery.ArrayQueryParameter(
+            "decision_vector", "FLOAT64", [float(value) for value in decision_vector]
+        )
+    ]
+    maximum_bytes = _max_bytes()
+    query_client = client or bigquery.Client()
+    dry_job = query_client.query(
+        sql,
+        job_config=bigquery.QueryJobConfig(
+            dry_run=True,
+            use_query_cache=False,
+            query_parameters=parameters,
+            maximum_bytes_billed=maximum_bytes,
+        ),
+    )
+    if int(dry_job.total_bytes_processed or 0) > maximum_bytes:
+        raise AnalyticsPolicyError("BigQuery precedent dry run exceeds the configured byte cap")
+    rows = list(
+        query_client.query(
+            sql,
+            job_config=bigquery.QueryJobConfig(
+                use_query_cache=True,
+                query_parameters=parameters,
+                maximum_bytes_billed=maximum_bytes,
+            ),
+        ).result()
+    )
+    if not rows:
+        raise AnalyticsPolicyError("BigQuery decision memory returned no usable precedent")
+    return [
+        DecisionPrecedentMatch(
+            precedent_id=str(_row_value(row, "precedent_id")),
+            title=str(_row_value(row, "title")),
+            chosen_response=str(_row_value(row, "chosen_response")),
+            outcome=str(_row_value(row, "outcome")),
+            lesson=str(_row_value(row, "lesson")),
+            similarity=max(0.0, min(1.0, 1.0 / (1.0 + float(_row_value(row, "distance"))))),
+            source_label="BigQuery vector decision memory · synthetic precedent fixture",
+        )
+        for row in rows
+    ]

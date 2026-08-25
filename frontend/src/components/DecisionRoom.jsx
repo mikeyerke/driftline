@@ -1,4 +1,4 @@
-import { ArrowRight, Bot, CheckCircle2, CircleAlert, ClipboardCheck, Database, FileCheck2, GitCompareArrows, LoaderCircle, Play, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle2, CircleAlert, ClipboardCheck, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, Play, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinOutcome, startDecisionTwin } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
@@ -78,15 +78,29 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
   };
 
+  const resetDecision = () => {
+    setDecisionCase(null);
+    setEvaluation(null);
+    setSelectedId("segment");
+    setMonitoring(false);
+    setBusy("");
+    setError("");
+  };
+
   const activeStage = !decisionCase ? 0 : decisionCase.status === "needs_approval" || decisionCase.status === "reopened" ? 2 : 3;
 
   if (!decisionCase) return (
     <>
     <section className="decision-room-hero" aria-labelledby="decision-room-hero-title">
       <div className="decision-room-hero-copy">
-        <div className="decision-room-kicker">Driftline Decision Twin <span>for product decisions</span></div>
-        <h2 id="decision-room-hero-title">Catch when new evidence invalidates a roadmap decision.</h2>
-        <p>Driftline connects customer signals, usage movement, support themes, and product commitments so a PM can choose the smallest safe response, then prove what happened next.</p>
+        <div className="decision-room-kicker">For product managers <span>making high-stakes product calls</span></div>
+        <h2 id="decision-room-hero-title">Turn conflicting evidence into a decision your team can defend.</h2>
+        <p>When usage, customer calls, support, and roadmap commitments disagree, Driftline shows what changed, compares the safe responses, and turns your choice into a measurable experiment.</p>
+        <div className="decision-room-outcome-rail" aria-label="What Driftline produces">
+          <span><b>Understand</b>What changed—and which segment is at risk</span>
+          <span><b>Decide</b>Ship, segment, roll back, or defer</span>
+          <span><b>Prove</b>Guardrail, rollback, and outcome receipt</span>
+        </div>
         <div className="decision-room-case-preview" aria-label="Live decision in this demo">
           <span>Live decision in this demo</span>
           <strong>Should the onboarding redesign ship to every workspace next week?</strong>
@@ -99,20 +113,20 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         <div className="decision-room-hero-actions">
           <button className="primary decision-room-run" type="button" onClick={runCouncil} disabled={Boolean(busy)} aria-busy={busy === "council"}>
             {busy ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}
-            {busy ? "Reading the decision evidence…" : "Review the onboarding decision"}
+            {busy ? "Reading the decision evidence…" : "See the decision brief"}
           </button>
-          <span>One decision · five bounded perspectives · human approval</span>
+          <span>Interactive 90-second example · no sign-in required</span>
         </div>
         {busy === "council" && <p className="decision-room-status" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Checking evidence, disagreement, and reversible options.</p>}
         {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
       </div>
       <div className="decision-room-promise decision-room-risk-card">
-        <div className="decision-room-risk-heading"><span><ShieldCheck size={18} />Decision at risk</span><strong>7 days to rollout</strong></div>
+        <div className="decision-room-risk-heading"><span><ShieldCheck size={18} />Example decision at risk</span><strong>7 days to rollout</strong></div>
         <h3>Onboarding redesign</h3>
         <p>Small-workspace activation improved <b className="decision-positive">+9%</b>, while enterprise activation fell <b className="decision-negative">-11%</b>.</p>
         <dl className="decision-room-risk-facts">
-          <div><dt>Driftline finds</dt><dd>Segment conflict, not a global answer</dd></div>
-          <div><dt>PM receives</dt><dd>Recommendation, guardrail, and rollback</dd></div>
+          <div><dt>The hidden problem</dt><dd>One rollout has opposite results by segment</dd></div>
+          <div><dt>The usable answer</dt><dd>Segment, test the failure mode, and stop automatically</dd></div>
         </dl>
         <div className="decision-room-safe-note"><ShieldCheck size={15} />No external writes before approval</div>
       </div>
@@ -120,10 +134,10 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     <section className="decision-room-utility-bridge" aria-labelledby="decision-room-utility-title">
       <header>
         <div>
-          <span className="decision-room-bridge-kicker">The PM utility</span>
-          <h2 id="decision-room-utility-title">One decision loop, not another dashboard.</h2>
+          <span className="decision-room-bridge-kicker">What this replaces</span>
+          <h2 id="decision-room-utility-title">The alignment meeting, evidence hunt, and post-launch guesswork.</h2>
         </div>
-        <p>Start with the decision you need to defend. Leave with a bounded experiment your team can execute and revisit.</p>
+        <p>Start with a contested commitment. Leave with cited tradeoffs, a named choice, and proof of what reality did next.</p>
       </header>
       <div className="decision-room-utility-steps">
         <article>
@@ -172,7 +186,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <h2 id="decision-room-title">{decisionCase.title}</h2>
           <p>{decisionCase.question}</p>
         </div>
-        <button className="secondary compact" type="button" onClick={runCouncil} disabled={Boolean(busy)}><RotateCcw size={14} />Start over</button>
+        <button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button>
       </header>
       <nav className="decision-room-stages" aria-label="Decision Twin progress">
         {stages.map((stage, index) => <span className={index < activeStage ? "complete" : index === activeStage ? "current" : ""} key={stage}>
@@ -197,6 +211,19 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <span><ShieldCheck size={16} /><b>1 reversible plan</b><small>gated by a human</small></span>
         </div>
       </section>
+      {decisionCase.precedents?.length > 0 && <section className="decision-memory-proof" aria-labelledby="decision-memory-title">
+        <div className="decision-memory-icon"><History size={18} /></div>
+        <div>
+          <span>Decision memory</span>
+          <h3 id="decision-memory-title">This decision has a precedent.</h3>
+          <p>{decisionCase.precedents[0].lesson}</p>
+        </div>
+        <dl>
+          <div><dt>Closest match</dt><dd>{decisionCase.precedents[0].title}</dd></div>
+          <div><dt>Prior response</dt><dd>{optionTitle(decisionCase.council.options, decisionCase.precedents[0].chosen_response)}</dd></div>
+          <div><dt>Match</dt><dd>{Math.round(decisionCase.precedents[0].similarity * 100)}% · {decisionCase.precedents[0].source_label}</dd></div>
+        </dl>
+      </section>}
       <EvidenceCouncil decisionCase={decisionCase} />
       <CounterfactualCompare options={decisionCase.council.options} recommendedId={decisionCase.council.recommendation} selectedId={selectedId} onSelect={setSelectedId} />
       {waitingForDecision && <section className="decision-approval-gate">

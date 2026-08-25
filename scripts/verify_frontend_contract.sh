@@ -138,13 +138,15 @@ check_frontend_literal() {
   fi
 }
 
-if ! check_frontend_literal 'Catch when new evidence invalidates a roadmap decision.' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'One decision loop, not another dashboard.' frontend/src/components/DecisionRoom.jsx \
+if ! check_frontend_literal 'Turn conflicting evidence into a decision your team can defend.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'The alignment meeting, evidence hunt, and post-launch guesswork.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'What the PM leaves with' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Guardrail + rollback' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Open source-connected workspace flow' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'Review the onboarding decision' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'See the decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'This decision has a precedent.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'window.location.assign(destination)' frontend/src/components/OperatorAccess.jsx \
   || ! check_frontend_literal 'decision-recommendation-strip' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'What Driftline completed autonomously' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Completed before human approval' frontend/src/components/DecisionRoom.jsx \

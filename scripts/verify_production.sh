@@ -13,6 +13,7 @@ readonly task_queue="driftline-jobs"
 readonly uptime_id="driftline-health-Hmxqs16MUkY"
 readonly dashboard_id="9f00a615-b74c-4567-aae9-211cd66e97fc"
 readonly runtime_service_account="driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com"
+readonly operator_signin_origin="https://driftline-xvxczqg62a-uc.a.run.app"
 readonly expected_release_sha="${DRIFTLINE_EXPECTED_SHA:-$(git rev-parse HEAD)}"
 
 actual_project="$(gcloud config get-value project 2>/dev/null)"
@@ -93,9 +94,15 @@ grep -Fqi 'permissions-policy: camera=(), microphone=(), geolocation=(), payment
 printf 'Security headers: health no-store + capability deny-list\n'
 
 auth_config="$(curl --fail --silent --show-error --max-time 20 "${public_url}/api/auth/config")"
-printf '%s\n' "${auth_config}" | jq -e --arg prefix "${expected_project_number}-" \
-  '.enabled == true and .mode == "google_oidc" and (.client_id | startswith($prefix)) and .credential_values_exposed == false' >/dev/null
-printf 'Google operator auth: isolated project client, credential values not exposed\n'
+printf '%s\n' "${auth_config}" | jq -e \
+  --arg prefix "${expected_project_number}-" \
+  --arg signin_origin "${operator_signin_origin}" \
+  '.enabled == true and
+   .mode == "google_oidc" and
+   (.client_id | startswith($prefix)) and
+   .sign_in_origin == $signin_origin and
+   .credential_values_exposed == false' >/dev/null
+printf 'Google operator auth: isolated client + authorized sign-in origin, credential values not exposed\n'
 
 api_headers="$(curl --fail --silent --show-error --max-time 20 --dump-header - --output /dev/null "${public_url}/api/auth/config")"
 grep -Fqi 'cache-control: no-store' <<<"${api_headers}"

@@ -161,6 +161,13 @@ def build_council_prompt(case: DecisionCase, role: CouncilRole) -> str:
             "urgency": case.urgency,
             "allowed_recommendations": ["ship", "rollback", "segment", "defer"],
             "evidence": _bounded_manifest(case),
+            "decision_precedents": [
+                precedent.model_dump(mode="json") for precedent in case.precedents
+            ],
+            "precedent_rule": (
+                "Treat precedents as non-authoritative lessons. Current cited evidence "
+                "must control the recommendation."
+            ),
             "output_rule": "Cite only supplied node_id values.",
         },
         sort_keys=True,

@@ -148,6 +148,20 @@ class OutcomeObservation(BaseModel):
     evaluation: OutcomeEvaluation | None = None
 
 
+class DecisionPrecedent(BaseModel):
+    """A bounded, non-authoritative lesson from a structurally similar decision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    precedent_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,100}$")
+    title: str = Field(min_length=1, max_length=120)
+    chosen_response: DecisionOptionId
+    outcome: Literal["validated", "invalidated", "inconclusive"]
+    lesson: str = Field(min_length=1, max_length=280)
+    similarity: float = Field(ge=0.0, le=1.0)
+    source_label: str = Field(min_length=1, max_length=160)
+
+
 class DecisionHistoryRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -179,6 +193,7 @@ class DecisionCase(BaseModel):
     ] = "needs_approval"
     current_commitment: str
     urgency: str
+    precedents: list[DecisionPrecedent] = Field(default_factory=list, max_length=3)
     evidence_nodes: list[EvidenceNode] = Field(min_length=1, max_length=24)
     evidence_edges: list[EvidenceEdge] = Field(default_factory=list, max_length=64)
     council: CouncilSynthesis
@@ -424,6 +439,17 @@ def build_demo_decision_case(
         question="Should the onboarding redesign ship to every workspace next week?",
         current_commitment="Roll out the redesigned onboarding flow to every workspace next week.",
         urgency="Enterprise activation is down while the public rollout commitment is seven days away.",
+        precedents=[
+            DecisionPrecedent(
+                precedent_id="precedent-permission-preview",
+                title="Role-policy preview before an enterprise rollout",
+                chosen_response="segment",
+                outcome="validated",
+                lesson="Segmenting protected enterprise accounts while testing a policy preview preserved the smaller-team gain without widening the permission failure.",
+                similarity=0.93,
+                source_label="Synthetic precedent fixture · decision-shape match",
+            )
+        ],
         evidence_nodes=nodes,
         evidence_edges=[
             EvidenceEdge(
@@ -462,6 +488,31 @@ def build_demo_decision_case(
     validate_evidence_graph(case)
     validate_council(case)
     return case
+
+
+def attach_decision_precedents(
+    case: DecisionCase, precedents: list[Any]
+) -> DecisionCase:
+    """Attach at most three policy-bounded precedent summaries to the case."""
+    if not precedents:
+        raise DecisionTwinPolicyError("Decision memory returned no precedents")
+    updated = deepcopy(case)
+    updated.precedents = [
+        DecisionPrecedent.model_validate(
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+        )
+        for item in precedents[:3]
+    ]
+    updated.events.append(
+        {
+            "event_id": "decision-memory-attached",
+            "action": "bigquery_vector_precedent_reader",
+            "outcome": "bounded_precedents_attached",
+            "generation": updated.generation,
+            "precedent_count": len(updated.precedents),
+        }
+    )
+    return updated
 
 
 def attach_aggregate_metrics(

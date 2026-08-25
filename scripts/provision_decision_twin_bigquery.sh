@@ -4,6 +4,7 @@ set -euo pipefail
 readonly project_id="driftline-hackathon-2026"
 readonly dataset_id="driftline_product"
 readonly table_id="decision_twin_usage_daily"
+readonly precedent_table_id="decision_twin_precedents"
 readonly location="US"
 readonly runtime_service_account="driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com"
 readonly root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -44,8 +45,14 @@ bq add-iam-policy-binding \
   --member="serviceAccount:${runtime_service_account}" \
   --role="roles/bigquery.dataViewer" \
   "${project_id}:${dataset_id}.${table_id}"
+bq add-iam-policy-binding \
+  --member="serviceAccount:${runtime_service_account}" \
+  --role="roles/bigquery.dataViewer" \
+  "${project_id}:${dataset_id}.${precedent_table_id}"
 
 bq show --project_id="${project_id}" \
   "${project_id}:${dataset_id}.${table_id}" >/dev/null
-printf 'Decision Twin BigQuery provisioning: PASS (%s.%s.%s)\n' \
-  "${project_id}" "${dataset_id}" "${table_id}"
+bq show --project_id="${project_id}" \
+  "${project_id}:${dataset_id}.${precedent_table_id}" >/dev/null
+printf 'Decision Twin BigQuery provisioning: PASS (%s.%s.%s + %s)\n' \
+  "${project_id}" "${dataset_id}" "${table_id}" "${precedent_table_id}"

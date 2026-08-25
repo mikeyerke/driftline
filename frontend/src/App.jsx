@@ -613,7 +613,7 @@ export default function App() {
       <Sidebar selected={selectedNav} onSelect={selectNav} operatorSession={operatorSession} />
       <main id="main-content">
         <header className="topbar">
-          <h1>Product decision review</h1>
+          <h1>Product decisions, with evidence</h1>
           <div className="topbar-actions">
             <OperatorAccess />
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : scanMessage}</span>}
@@ -623,7 +623,7 @@ export default function App() {
         </header>
 
         <div className="content">
-        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>PM decision review</strong><span>{operatorSession.identityToken ? `Signed workspace · ${operatorSession.tenantId} · approval-gated owner handoffs` : "One realistic rollout decision · no external writes before approval"}</span></div><span className="banner-status">{operatorSession.identityToken ? (liveWorkflow ? "Signed workflow" : "Signed lane") : "Ready to review"}</span><details className="technical-proof-details"><summary>For judges: architecture &amp; safety</summary><ReleaseProof compact /></details></div>
+        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>{operatorSession.identityToken ? "Signed PM workspace" : "Interactive product-decision example"}</strong><span>{operatorSession.identityToken ? `${operatorSession.tenantId} · source-connected evidence · approval-gated owner handoffs` : "See how a PM resolves conflicting signals without handing authority to AI"}</span></div><span className="banner-status">{operatorSession.identityToken ? (liveWorkflow ? "Signed workflow" : "Signed lane") : "No sign-in needed"}</span><details className="technical-proof-details"><summary>For judges: architecture &amp; safety</summary><ReleaseProof compact /></details></div>
           <DecisionRoom workflowState={workflowState} job={job} scanning={scanning} scanMessage={scanMessage} scanFailed={scanFailed} scenarioTitle={decisionScenario.title} scenarioLabel={decisionScenario.label} onRunReview={() => runScan()} onOpenWorkflow={() => focusSection("overview-section")} />
           <details className="legacy-workflow-details" open={controlPlaneOpen} onToggle={(event) => setControlPlaneOpen(event.currentTarget.open)}>
             <summary className="legacy-workflow-summary"><span>Secondary control plane</span><strong>Owner work and evidence trace</strong><p>Optional technical walkthrough for source snapshots, handoffs, and deployment proof.</p><b>{controlPlaneOpen ? "Hide" : "Open"}</b></summary>

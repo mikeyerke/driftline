@@ -13,7 +13,7 @@ printf '%s' "${health_json}" | python3 -c \
 case_json="$(curl --fail --silent --show-error --max-time 180 \
   -X POST "${base_url}/api/decision-twin/demo")"
 case_id="$(printf '%s' "${case_json}" | python3 -c \
-  'import json,sys; p=json.load(sys.stdin); assert p["status"]=="needs_approval"; assert p["council"]["mode"]=="google_adk"; assert any(e["event_id"]=="bigquery-aggregate-attached" for e in p["events"]); assert any(e["event_id"]=="product-council-complete" and e.get("execution_mode")=="google_adk" for e in p["events"]); print(p["case_id"])')"
+  'import json,sys; p=json.load(sys.stdin); assert p["status"]=="needs_approval"; assert p["council"]["mode"]=="google_adk"; assert any(e["event_id"]=="bigquery-aggregate-attached" for e in p["events"]); assert any(e["event_id"]=="decision-memory-attached" for e in p["events"]); assert any("BigQuery vector decision memory" in item["source_label"] for item in p["precedents"]); assert any(e["event_id"]=="product-council-complete" and e.get("execution_mode")=="google_adk" for e in p["events"]); print(p["case_id"])')"
 synthesis_hash="$(printf '%s' "${case_json}" | python3 -c \
   'import json,sys; print(json.load(sys.stdin)["council"]["synthesis_hash"])')"
 recommendation="$(printf '%s' "${case_json}" | python3 -c \
@@ -47,5 +47,5 @@ evaluation_json="$(curl --fail --silent --show-error --max-time 30 \
 printf '%s' "${evaluation_json}" | python3 -c \
   'import json,sys; p=json.load(sys.stdin); assert p["gate_status"]=="pass"; assert p["overall_score"]==1.0'
 
-printf 'Decision Twin live verification: PASS (sha=%s, case=%s, generation=2, council=google_adk, analytics=bigquery, monitor=cloud_tasks)\n' \
+printf 'Decision Twin live verification: PASS (sha=%s, case=%s, generation=2, council=google_adk, analytics=bigquery, memory=bigquery_vector, monitor=cloud_tasks)\n' \
   "${expected_sha}" "${case_id}"

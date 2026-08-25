@@ -9,6 +9,7 @@ from app.product_analytics import (
     AnalyticsPolicyError,
     fixture_aggregate_metrics,
     query_aggregate_metric,
+    query_decision_precedents,
 )
 
 
@@ -108,3 +109,54 @@ def test_bigquery_adapter_fails_closed_when_dry_run_exceeds_cap(monkeypatch) -> 
             "enterprise_workspaces",
             client=ExpensiveClient(),
         )
+
+
+def test_bigquery_decision_memory_is_bounded_parameterized_vector_search(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DECISION_TWIN_DECISION_MEMORY_ENABLED", "true")
+    monkeypatch.setenv(
+        "DECISION_TWIN_PRECEDENT_TABLE", "project.dataset.decision_precedents"
+    )
+    calls = []
+
+    class FakeClient:
+        def query(self, sql, job_config):
+            calls.append((sql, job_config))
+            if job_config.dry_run:
+                return SimpleNamespace(total_bytes_processed=2048)
+            return SimpleNamespace(
+                result=lambda: [
+                    {
+                        "precedent_id": "precedent-permission-preview",
+                        "title": "Role-policy preview",
+                        "chosen_response": "segment",
+                        "outcome": "validated",
+                        "lesson": "Segment first and verify the enterprise failure mode.",
+                        "distance": 0.05,
+                    }
+                ]
+            )
+
+    matches = query_decision_precedents(
+        [0.09, 0.11, 1.0, 1.0], client=FakeClient()
+    )
+
+    assert len(matches) == 1
+    assert matches[0].chosen_response == "segment"
+    assert matches[0].similarity > 0.95
+    assert matches[0].source_label.startswith("BigQuery vector decision memory")
+    assert "VECTOR_SEARCH" in calls[0][0]
+    assert "[0.09" not in calls[0][0]
+    assert calls[0][1].query_parameters[0].name == "decision_vector"
+
+
+def test_bigquery_decision_memory_rejects_unbounded_shape(monkeypatch) -> None:
+    monkeypatch.setenv("DECISION_TWIN_DECISION_MEMORY_ENABLED", "true")
+    monkeypatch.setenv(
+        "DECISION_TWIN_PRECEDENT_TABLE", "project.dataset.decision_precedents"
+    )
+    with pytest.raises(AnalyticsPolicyError, match="four-feature"):
+        query_decision_precedents([0.1, 0.2])
+    with pytest.raises(AnalyticsPolicyError, match="four-feature"):
+        query_decision_precedents([0.1, 0.2, 0.3, 9.0])

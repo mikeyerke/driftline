@@ -14,6 +14,7 @@ if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
 fi
 
 gcloud config set project "${project_id}"
+./scripts/provision_decision_twin_bigquery.sh
 ./scripts/deploy.sh
 
 # This live ADK run writes the redacted, append-only trace evaluation that the
