@@ -14,9 +14,9 @@ outcome can reopen the decision.
 Open the Decision Room and start the pinned onboarding council. Inspect the
 evidence graph and five cited specialist positions, pause on strategy and
 challenger dissent, compare ship/rollback/segment/defer, and approve one
-falsifiable experiment as a named human. Apply the measured outcome: the same
-case reopens as generation 2 while retaining the complete original approval and
-experiment plan.
+falsifiable experiment as a named human. Then stop clicking: a durable Cloud
+Tasks monitor processes the bounded measurement and the same case reopens as
+generation 2 while retaining the complete original approval and experiment plan.
 
 ## Inspiration
 
@@ -40,8 +40,9 @@ change-to-action agent:
    metrics, guardrails, stop conditions, rollbacks, and owner actions.
 4. A named human alone approves, and Firestore binds the approval to the exact
    evidence, synthesis hash, and decision generation.
-5. A measured outcome produces a learning receipt and either closes the case
-   or reopens the next generation with complete prior lineage.
+5. Human approval starts an idempotent Cloud Tasks monitor. A measured outcome
+   produces a learning receipt and either closes the case or reopens the next
+   generation with complete prior lineage—without another PM prompt.
 
 The underlying operational foundation remains independently useful:
 

@@ -57,14 +57,15 @@ conflicting approvals with compare-and-set persistence.”
 
 ## 2:28–3:05 — The wow moment: outcome reopens the same decision
 
-**Screen:** Apply the measured demo outcome. Show the learning receipt and the
-new case generation with prior lineage retained.
+**Screen:** Do not click again. Hold on the autonomous-monitor status while
+Cloud Tasks processes the bounded aggregate, then show the learning receipt
+and new case generation with prior lineage retained.
 
-**Narration:** “A decision is not done when a ticket moves. The measured outcome
-is evaluated against the thresholds committed at approval. If a guardrail
-breaks, Driftline writes a learning receipt and reopens the same decision as a
-new generation. The evidence, dissent, approval, and result remain linked, so
-the organization compounds judgment instead of repeating debate.”
+**Narration:** “One human approval starts the bounded monitor; there is no second
+prompt or PM click. Cloud Tasks processes the measurement against the exact
+thresholds committed at approval. When the guardrail breaks, Driftline writes
+a learning receipt and reopens the same decision as a new generation. The
+evidence, dissent, approval, and result stay linked.”
 
 ## 3:05–3:38 — Google architecture and bounded cost
 

@@ -45,8 +45,9 @@ erasing the original reasoning.
    strategy and challenger dissent.
 3. Compare ship, rollback, segment, and defer, then approve one falsifiable
    experiment as a named human.
-4. Apply the measured outcome and watch the same case reopen as generation 2
-   with its prior approval and experiment lineage intact.
+4. Stop clicking after approval. Watch the Cloud Tasks monitor evaluate the
+   bounded measurement and reopen the same case as generation 2 with its prior
+   approval and experiment lineage intact.
 
 The differentiator is not another summary. Driftline makes disagreement,
 authority, falsifiability, and outcome learning inspectable in one live loop.
