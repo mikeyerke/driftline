@@ -48,16 +48,23 @@ export default function DecisionRoom() {
   const activeStage = !decisionCase ? 0 : decisionCase.status === "needs_approval" || decisionCase.status === "reopened" ? 2 : 3;
 
   if (!decisionCase) return (
+    <>
     <section className="decision-room-hero" aria-labelledby="decision-room-hero-title">
       <div className="decision-room-hero-copy">
-        <h2 id="decision-room-hero-title">Should the onboarding redesign ship to every workspace next week?</h2>
-        <p>Enterprise activation is down while the rollout commitment is seven days away. Driftline turns conflicting evidence into a reversible, measurable decision before anyone changes the plan.</p>
+        <div className="decision-room-kicker">Driftline Decision Twin <span>for product decisions</span></div>
+        <h2 id="decision-room-hero-title">Catch when new evidence invalidates a roadmap decision.</h2>
+        <p>Driftline connects customer signals, usage movement, support themes, and product commitments so a PM can choose the smallest safe response, then prove what happened next.</p>
+        <div className="decision-room-case-preview" aria-label="Live decision in this demo">
+          <span>Live decision in this demo</span>
+          <strong>Should the onboarding redesign ship to every workspace next week?</strong>
+          <small>Enterprise activation is down while the rollout commitment is seven days away.</small>
+        </div>
         <div className="decision-room-hero-actions">
           <button className="primary decision-room-run" type="button" onClick={runCouncil} disabled={Boolean(busy)} aria-busy={busy === "council"}>
             {busy ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}
             {busy ? "Reading the decision evidence…" : "Review the onboarding decision"}
           </button>
-          <span>5 evidence sources · 4 response options · human approval</span>
+          <span>One decision · five bounded perspectives · human approval</span>
         </div>
         {busy === "council" && <p className="decision-room-status" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Checking evidence, disagreement, and reversible options.</p>}
         {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
@@ -73,6 +80,31 @@ export default function DecisionRoom() {
         <div className="decision-room-safe-note"><ShieldCheck size={15} />No external writes before approval</div>
       </div>
     </section>
+    <section className="decision-room-utility-bridge" aria-labelledby="decision-room-utility-title">
+      <header>
+        <div>
+          <span className="decision-room-bridge-kicker">The PM utility</span>
+          <h2 id="decision-room-utility-title">One decision loop, not another dashboard.</h2>
+        </div>
+        <p>Start with the decision you need to defend. Leave with a bounded experiment your team can execute and revisit.</p>
+      </header>
+      <div className="decision-room-utility-steps">
+        <article>
+          <b>1</b>
+          <div><strong>Bring a contested decision</strong><span>Rollout, launch, pricing, packaging, or positioning commitment.</span></div>
+        </article>
+        <article>
+          <b>2</b>
+          <div><strong>Make the conflict visible</strong><span>Customer, usage, support, strategy, and feasibility evidence stay cited.</span></div>
+        </article>
+        <article>
+          <b>3</b>
+          <div><strong>Leave with a safer experiment</strong><span>Recommendation, guardrail, rollback path, and a receipt when reality changes.</span></div>
+        </article>
+      </div>
+      <small className="decision-room-demo-disclosure">This public lane uses a pinned, redacted decision case. The approval, outcome, and reopen loop is the same workflow a signed workspace uses with bounded sources.</small>
+    </section>
+    </>
   );
 
   const waitingForDecision = ["needs_approval", "reopened"].includes(decisionCase.status);

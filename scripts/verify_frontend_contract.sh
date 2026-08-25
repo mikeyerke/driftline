@@ -138,7 +138,10 @@ check_frontend_literal() {
   fi
 }
 
-if ! check_frontend_literal 'Review the onboarding decision' frontend/src/components/DecisionRoom.jsx \
+if ! check_frontend_literal 'Catch when new evidence invalidates a roadmap decision.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'One decision loop, not another dashboard.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Review the onboarding decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'decision-recommendation-strip' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'ReleaseProof compact' frontend/src/App.jsx \
   || ! check_frontend_literal 'Trace refresh needed' frontend/src/components/ReleaseProof.jsx; then

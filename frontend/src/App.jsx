@@ -613,7 +613,7 @@ export default function App() {
       <Sidebar selected={selectedNav} onSelect={selectNav} operatorSession={operatorSession} />
       <main id="main-content">
         <header className="topbar">
-          <h1>Decision Twin</h1>
+          <h1>Product decision review</h1>
           <div className="topbar-actions">
             <OperatorAccess />
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : scanMessage}</span>}
