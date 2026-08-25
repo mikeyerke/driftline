@@ -143,6 +143,7 @@ if ! check_frontend_literal 'Catch when new evidence invalidates a roadmap decis
   || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'What the PM leaves with' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Guardrail + rollback' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Open source-connected workspace flow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Review the onboarding decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'decision-recommendation-strip' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'ReleaseProof compact' frontend/src/App.jsx \

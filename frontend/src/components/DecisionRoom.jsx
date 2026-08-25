@@ -9,7 +9,7 @@ const stages = ["Detect drift", "Compare options", "Approve action", "Learn"];
 
 const optionTitle = (options, id) => options.find((option) => option.option_id === id)?.title || id;
 
-export default function DecisionRoom() {
+export default function DecisionRoom({ onOpenWorkflow }) {
   const [decisionCase, setDecisionCase] = useState(null);
   const [selectedId, setSelectedId] = useState("segment");
   const [evaluation, setEvaluation] = useState(null);
@@ -118,7 +118,10 @@ export default function DecisionRoom() {
           <li><CheckCircle2 size={15} /><span><strong>Learning receipt</strong><small>What reality proved afterward</small></span></li>
         </ul>
       </div>
-      <small className="decision-room-demo-disclosure">This public lane uses a pinned, redacted decision case. The approval, outcome, and reopen loop is the same workflow a signed workspace uses with bounded sources.</small>
+      <div className="decision-room-demo-footer">
+        <small className="decision-room-demo-disclosure">This public lane uses a pinned, redacted decision case. The approval, outcome, and reopen loop is the same workflow a signed workspace uses with bounded sources.</small>
+        {onOpenWorkflow && <button className="text-button decision-room-workspace-link" type="button" onClick={onOpenWorkflow}>Open source-connected workspace flow <ArrowRight size={14} /></button>}
+      </div>
     </section>
     </>
   );
