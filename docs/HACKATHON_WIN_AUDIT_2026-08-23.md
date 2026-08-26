@@ -30,7 +30,7 @@ private. None of those gaps is being disguised as complete.
 | Exactly one category | Taskmaster | Pass |
 | Hosted URL encouraged | `https://driftline-ops.web.app/` | Pass |
 | Repo and reproducible setup | Public repo, locked dependencies, local/cloud instructions, automated gates | Pass |
-| Architecture diagram | `submission/assets/driftline-architecture.png` | Pass; refresh after final deploy |
+| Architecture diagram | `submission/assets/driftline-decision-twin-architecture.png` | Pass for the serving release; replace with the candidate version only after exact release proof |
 | Demo ≤4 minutes, public YouTube/Vimeo, English/subtitles | Script/runbook/caption assets prepared | Open: final truthful recording/upload |
 | Demo shows problem, value, live action, Google Cloud backend | Continuous product path and Cloud proof are scripted | Open until final video passes QA |
 | Project started during submission period | Implementation start documented as August 18; earlier ideation/source package disclosed | Pass, preserve disclosure |

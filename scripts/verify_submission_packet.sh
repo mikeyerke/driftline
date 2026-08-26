@@ -19,6 +19,7 @@ for file in \
   devpost-submission.md \
   submission/DEVPOST.md \
   submission/DEMO_SCRIPT.md \
+  submission/REMOTE_CHECKLIST.md \
   submission/JUDGE_SCORECARD.md \
   docs/JUDGE_SCORECARD.md \
   scripts/build_candidate_rehearsal.sh \
@@ -41,6 +42,9 @@ require_text submission/DEMO_SCRIPT.md 'Reject the take unless public `main`,'
 require_text scripts/release_and_verify.sh './scripts/verify_release_candidate_local.sh --release-candidate'
 require_text scripts/verify_release_candidate_local.sh 'expected mikeyerke/driftline'
 require_text scripts/verify_release_candidate_local.sh 'refs/heads/$release_ref'
+require_text README.md 'exactly equals the'
+require_text docs/STATUS.md '## Unreleased candidate custody'
+require_text submission/REMOTE_CHECKLIST.md 'Nothing here authorizes a push, merge, Cloud'
 require_text submission/DEVPOST.md 'unreleased local candidate'
 require_text devpost-submission.md 'Status: draft-ready, not release-ready or form-ready.'
 require_text devpost-submission.md '| Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |'

@@ -84,6 +84,7 @@ architecture upload, screenshots, captions, and final Devpost copy.
 
 - `submission/DEVPOST.md`: canonical concise project narrative.
 - `submission/DEMO_SCRIPT.md`: 3:45 target video plan.
-- `submission/assets/driftline-architecture.png`: required architecture upload.
+- `submission/assets/driftline-decision-twin-architecture.png`: required
+  primary architecture upload. `driftline-architecture.png` is historical.
 - `submission/BUILD_STORY.md`: optional public build-content bonus.
 - `devpost-submission.md`: exact form-ready packet and remaining private fields.

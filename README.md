@@ -640,9 +640,12 @@ gcloud config set project driftline-hackathon-2026
 ~~~
 
 For the final candidate, use the release wrapper instead of stopping after the
-build. It deploys one clean commit, refreshes the live ADK trace evaluation for
-that exact SHA, verifies the Decision Twin approval/outcome/reopen loop, and
-runs the production proof gate in the required order:
+build. Before any Google Cloud mutation, the wrapper runs the complete locked
+local suite and refuses unless local `HEAD` is clean and exactly equals the
+public `origin/main` tip of `mikeyerke/driftline`. It then deploys that one
+commit, refreshes the live ADK trace evaluation for the same SHA, verifies the
+Decision Twin approval/outcome/reopen loop, and runs the production proof gate
+in the required order:
 
 ~~~bash
 DRIFTLINE_BASE_URL=https://driftline-ops.web.app \
@@ -656,8 +659,8 @@ API key is embedded in the client. The production image installs the frozen
 `pyproject.toml` cannot silently change a deployed build. Verify the lockfile
 before a release with `uv lock --check --directory backend`. The deployment
 script refuses any active project other than `driftline-hackathon-2026`, refuses
-a dirty or untracked release context, and explicitly selects the isolated
-`driftline-build` Cloud Build service account;
+a dirty, untracked, locally failing, or public-main-mismatched release context,
+and explicitly selects the isolated `driftline-build` Cloud Build service account;
 it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
