@@ -757,6 +757,8 @@ def test_pm_intake_case_keeps_user_context_unverified_and_policy_bounded() -> No
 
     validate_evidence_graph(case)
     validate_council(case)
+    assert case.title == "Mid-market admins decision review"
+    assert case.title != case.question.rstrip(" ?.")
     assert case.council.recommendation == "segment"
     assert {node.source_label for node in case.evidence_nodes} == {
         "PM-provided context · unverified"

@@ -83,6 +83,7 @@ errors.
 
 The completed custom-decision journey is now repeatable through a loopback-only
 browser gate. At desktop and mobile widths it built the PM-authored brief,
+used a concise affected-segment title instead of repeating the full question,
 retained the unverified evidence label, copied the brief and opaque return link,
 recorded named approval, exposed the bounded internal action with decision-state-
 only scope and no external writes, preserved the approver and approval timestamp

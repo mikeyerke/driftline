@@ -71,6 +71,8 @@ try {
 
     const decisionUrl = page.url();
     const caseId = new URL(decisionUrl).searchParams.get("decision");
+    const decisionTitle = await page.locator("#decision-room-title").innerText();
+    const decisionQuestion = await page.locator("#decision-room-title + p").innerText();
     await page.getByRole("button", { name: "Copy decision brief" }).click();
     await page.getByRole("button", { name: "Copied" }).waitFor();
     await page.getByLabel("Human approver").fill("Independent PM");
@@ -111,6 +113,7 @@ try {
 
     results[name] = {
       approvalLabel,
+      conciseDistinctTitle: decisionTitle === "Mid-market admins decision review" && decisionTitle !== decisionQuestion.replace(/[ ?.]+$/, ""),
       opaqueCase: Boolean(caseId && /^[a-z0-9][a-z0-9_-]{2,100}$/.test(caseId)),
       pmProvidedVisible: body.includes("PM-provided context · unverified"),
       internalActionVisible: body.includes("Bounded internal action executed"),

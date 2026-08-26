@@ -738,9 +738,11 @@ def build_intake_decision_case(
         synthesis_hash=_digest(raw),
         mode="deterministic_demo_fallback",
     )
+    segment_title = segment[:60].strip()
+    segment_title = f"{segment_title[:1].upper()}{segment_title[1:]} decision review"
     case = DecisionCase(
         case_id=case_id,
-        title=(question.rstrip(" ?.")[:76] or "PM decision review"),
+        title=segment_title,
         question=question,
         current_commitment=current_commitment,
         urgency=urgency,

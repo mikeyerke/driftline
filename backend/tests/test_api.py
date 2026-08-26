@@ -134,6 +134,8 @@ def test_decision_twin_intake_builds_an_honestly_labelled_pm_case(monkeypatch) -
     assert response.status_code == 200
     case = response.json()
     assert case["case_id"].startswith("decision-intake-")
+    assert case["title"] == "Mid-market admins decision review"
+    assert case["title"] != case["question"].rstrip(" ?.")
     assert case["status"] == "needs_approval"
     assert case["council"]["mode"] == "deterministic_demo_fallback"
     assert {node["source_label"] for node in case["evidence_nodes"]} == {
