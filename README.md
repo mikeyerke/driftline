@@ -1,44 +1,62 @@
 # Driftline
 
-Driftline is a Product Decision Control Plane for PMs. It detects when new
-customer, usage, support, interface, or market evidence invalidates a roadmap
-commitment; compares the smallest safe responses; records a named human
-decision; and reopens the same decision when a measured guardrail breaks. The
-public judge journey is a complete evidence-to-outcome loop, not a chat answer:
-the agent turns ambiguity into a reversible experiment and a durable learning
-receipt. The existing Promise Drift workflow remains as the adjacent
-Taskmaster proof for turning an external change into owner-ready downstream
-work.
+**Contradictory product evidence becomes a reversible experiment—and the
+measured outcome can reopen the original decision.**
 
-The hosted service has two explicit lanes: the anonymous judge console is
-packet-safe, while the Google-OIDC tenant operator lane uses the same durable
-Firestore workflow to execute least-privilege, idempotent, reversible connector
-actions. This is a real deployed control plane with a deliberately safe public
-surface, not a claim that an unauthenticated visitor can mutate a customer's
-systems.
+Driftline is a Google ADK and Gemini product-decision control plane for PMs. It
+preserves evidence provenance and specialist disagreement, compares four
+counterfactual responses, leaves approval with a named human, and carries the
+result back into the same durable decision lineage.
 
-For the current truth about what is deployed, externally verified, and still
-unmeasured, start with [`docs/STATUS.md`](docs/STATUS.md). The concise release
-contract is: one evidence-bound change, one human decision, one reversible
-downstream handoff. Historical release proof is retained for auditability but
-is not a substitute for a customer pilot.
+| Judge entry point | Link |
+| --- | --- |
+| Run the no-sign-in workflow | [driftline-ops.web.app](https://driftline-ops.web.app/) |
+| Verify the serving identity | [`/health`](https://driftline-ops.web.app/health) |
+| See the 40/30/30 evidence map | [Judge scorecard](submission/JUDGE_SCORECARD.md) |
+| Inspect current deployment truth | [Status](docs/STATUS.md) |
+| Reproduce the release checks | [Verification](#reproducible-verification) |
 
-For the fastest rubric-aligned review, see the [judge scorecard](submission/JUDGE_SCORECARD.md):
-it maps the official 40/30/30 judging weights to the live journey, architecture,
-and reproducible release checks.
+## Judge it in 60 seconds
 
-The release also carries a fail-closed [trace-to-eval quality gate](docs/TRACE_EVAL.md):
-the same bounded agent trace is scored for human gating, tool/evidence safety,
-rollback, artifact coverage, decision usefulness, and audit provenance. CI blocks
-critical safety regressions, and the deployed verifier persists redacted live
-reports. The console shows the latest score, one-step regression delta, and a
-bounded oldest-to-newest trajectory from `GET /api/evals/history`; these are
-evaluation metrics, not customer ROI or willingness-to-pay claims.
+1. Open the live application logged out and click **Run the decision workflow**.
+2. Inspect the five cited signals, five independent Google ADK positions, and
+   the preserved challenger dissent.
+3. Compare **ship**, **rollback**, **segment**, and **defer**; enter a reviewer
+   name and approve the segmented experiment.
+4. Stop clicking. The bounded monitor evaluates the committed guardrail and the
+   same case reopens as generation 2 with rollback selected, the approver
+   cleared, and the generation-1 approval and result still attached.
+5. Open [`/health`](https://driftline-ops.web.app/health) and compare its release
+   SHA and Cloud Build ID with the immutable proof below.
+
+![Driftline Decision Twin architecture](submission/assets/driftline-decision-twin-architecture.png)
+
+### Release truth
+
+The currently serving release is application commit
+`03ec8f12fc23d265c89b462a345a5b599a6411e8`, Cloud Run revision
+`driftline-00305-xln`, Cloud Build
+`c01bec2e-a950-407c-873b-b1d4fdc6bae6`, and Artifact Registry digest
+`sha256:fca505ce56c6bd933f9cde8d55ff1e4ea7f9cad099d6fe39e8bb8321c96ea6d3`.
+The public desktop and 390-pixel journeys were freshly rechecked August 26,
+2026. `/health` is authoritative if this prose ever becomes stale.
+
+The local candidate is **not deployed**. It adds one explicitly internal,
+rollback-capable allocation record and a PM-authored two-metric measurement
+contract; the UI states **External writes: none**. Do not describe those two
+candidate additions as live until the candidate is released and the SHA,
+revision, build, digest, trace, and browser journeys are reverified.
+
+Driftline's anonymous judge console is packet-safe. A separate Google-OIDC
+operator lane uses the same durable Firestore workflow for least-privilege,
+idempotent, reversible connector actions. A public visitor cannot mutate a
+customer system, and no customer ROI, adoption, or willingness-to-pay result is
+claimed without an independent pilot.
 
 ## Decision Twin: evidence to outcome
 
-The production release adds a focused product-management decision loop above the
-existing change-to-action workflow. A pinned onboarding case combines bounded
+The current production release provides a focused product-management decision
+loop above the existing change-to-action workflow. A pinned onboarding case combines bounded
 product analytics, customer evidence, strategy constraints, and delivery risk
 into a provenance-preserving evidence graph. Five independent Google ADK
 specialists take customer, usage, strategy, feasibility, and challenger
@@ -46,11 +64,13 @@ positions before one bounded synthesis compares four counterfactuals: ship,
 rollback, segment, or defer. The model recommends; a named human alone approves
 a falsifiable experiment with success, guardrail, and stop conditions.
 
-The loop does not end at approval. A measured aggregate outcome is evaluated
+The live pinned loop does not end at approval. A measured aggregate outcome is evaluated
 against the precommitted thresholds, produces a learning receipt, and can
 reopen the same decision as the next generation while preserving its lineage.
-PMs can also choose **Use my decision** and submit a bounded, non-confidential
-decision question, current commitment, urgency, strongest upside signal, and
+
+The unreleased candidate extends **Use my decision** so a PM can submit a
+bounded, non-confidential decision question, current commitment, urgency,
+strongest upside signal, and
 strongest risk signal before a second, progressive step binds the affected
 segment, owner, primary metric, risk metric, thresholds, and review window.
 `POST /api/decision-twin/intake` labels every resulting
@@ -61,16 +81,16 @@ question, recommendation, decisive conflict, evidence labels, guardrail, and
 rollback path for an alignment doc or roadmap review. The manual-measurement API
 fails closed before the committed review timestamp; the UI exposes the exact
 opening time rather than accepting a premature result.
-The public fixture is deterministic and explicitly labeled; live council mode
+The live public fixture is deterministic and explicitly labeled; live council mode
 uses Gemini 3.5 Flash through Google ADK, and the optional BigQuery adapter reads
 only allowlisted aggregate metrics through parameterized, dry-run-checked,
 bytes-capped queries. See the [judge scorecard](submission/JUDGE_SCORECARD.md)
 and [Decision Twin implementation plan](docs/superpowers/plans/2026-08-23-decision-twin-implementation.md).
 
-The August 24 verified baseline production proof is release
-`1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`, Cloud Run revision
-`driftline-00291-v89`, and Cloud Build
-`154547e7-36ae-4eb2-a79a-35064e293191`. The live Decision Twin verifier proved
+The August 25 verified production proof is release
+`03ec8f12fc23d265c89b462a345a5b599a6411e8`, Cloud Run revision
+`driftline-00305-xln`, and Cloud Build
+`c01bec2e-a950-407c-873b-b1d4fdc6bae6`. The live Decision Twin verifier proved
 five evidence-grounded ADK roles with preserved `ship`/`segment`/`defer`
 disagreement, a privacy-thresholded BigQuery attachment, named-human approval,
 measured outcome, and generation-2 reopening with prior approval and experiment
@@ -78,6 +98,9 @@ lineage intact.
 The authoritative identity for any later release is read from `/health` and
 cross-checked against Cloud Run, Cloud Build, and Artifact Registry by
 `./scripts/verify_production.sh` rather than copied forward in prose.
+
+<details>
+<summary><strong>Deep technical and operator reference</strong></summary>
 
 The adjacent Promise Drift demonstration models a competitor price change from
 $49 to $59 per seat per month, then traces the impact into a comparison map,
@@ -567,6 +590,8 @@ reviewed.
 Every connector returns an explicit per-system status (`created`, `reused`,
 `reversed`, `prepared_only`, `not_configured`, `not_eligible`,
 `invalid_config`, or `failed`) in the action record.
+
+</details>
 
 ## Repository layout
 

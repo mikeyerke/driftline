@@ -20,6 +20,7 @@ for file in \
   submission/DEVPOST.md \
   submission/DEMO_SCRIPT.md \
   submission/REMOTE_CHECKLIST.md \
+  submission/GITHUB_REPOSITORY_METADATA.md \
   submission/JUDGE_SCORECARD.md \
   submission/final-demo-manifest.template.json \
   docs/JUDGE_SCORECARD.md \
@@ -49,6 +50,9 @@ cmp -s docs/JUDGE_SCORECARD.md submission/JUDGE_SCORECARD.md || \
 if rg -Fq -- 'Final candidate identity is public `main`' submission/DEMO_SCRIPT.md; then
   fail "demo script mislabels the pre-candidate production release as the final candidate"
 fi
+if rg -Fq -- '1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6' README.md; then
+  fail "README release truth still carries the superseded August 24 identity"
+fi
 require_text submission/DEMO_SCRIPT.md 'This is the pre-candidate release,'
 require_text submission/DEMO_SCRIPT.md 'Reject the take unless public `main`,'
 require_text scripts/release_and_verify.sh './scripts/verify_release_candidate_local.sh --release-candidate'
@@ -75,6 +79,12 @@ require_text docs/REAL_PM_CUSTOMER_SPRINT.md 'It should never send a message'
 require_text README.md 'exactly equals the'
 require_text docs/STATUS.md '## Unreleased candidate custody'
 require_text submission/REMOTE_CHECKLIST.md 'Nothing here authorizes a push, merge, Cloud'
+require_text submission/GITHUB_REPOSITORY_METADATA.md 'requires explicit publication authorization'
+require_text submission/GITHUB_REPOSITORY_METADATA.md 'google-adk'
+require_text README.md '## Judge it in 60 seconds'
+require_text README.md 'The local candidate is **not deployed**.'
+require_text README.md '03ec8f12fc23d265c89b462a345a5b599a6411e8'
+require_text README.md 'c01bec2e-a950-407c-873b-b1d4fdc6bae6'
 require_text submission/DEVPOST.md 'unreleased local candidate'
 require_text submission/DEVPOST.md '**Taskmaster proof:** one named authorization'
 require_text submission/DEVPOST.md '**Firebase Hosting** for the stable public judge URL'
@@ -168,7 +178,11 @@ for path, expected in reviewed_assets.items():
         )
 
 link_pattern = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
-for document in (Path("devpost-submission.md"), Path("submission/DEVPOST.md")):
+for document in (
+    Path("README.md"),
+    Path("devpost-submission.md"),
+    Path("submission/DEVPOST.md"),
+):
     for target in link_pattern.findall(document.read_text()):
         if target.startswith(("http://", "https://", "mailto:", "#")):
             continue

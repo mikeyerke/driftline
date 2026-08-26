@@ -24,6 +24,10 @@ mutation, registration, upload, publication, or submission.
 5. Run `./scripts/verify_release_candidate_local.sh --release-candidate`.
    This must fail if the tree is dirty, any local gate fails, the remote is not
    `mikeyerke/driftline`, or the exact public `main` commit differs.
+6. Apply the reviewed description, website, and topics from
+   `submission/GITHUB_REPOSITORY_METADATA.md`; then open the repository logged
+   out and test the README's first-screen links. Repository metadata is a
+   separate public mutation and is not authorized by this checklist.
 
 ## 3. Google Cloud release — requires authorization
 
