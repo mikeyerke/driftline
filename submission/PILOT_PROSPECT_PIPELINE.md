@@ -75,6 +75,41 @@ design partner who then schedules a price conversation or signs a bounded paid
 pilot. Trying to force payment before the August 31 deadline is more likely to
 reduce participation than strengthen the entry.
 
+## Fastest controllable independent-PM route
+
+The current fastest route is one screened paid B2B research participant through
+[User Interviews](https://www.userinterviews.com/lps/recruit-participants), not
+cold outreach. Its public pages currently advertise professional targeting,
+custom screeners, manual participant approval, and pay-as-you-go pricing of
+$98 per completed session plus $49 for advanced B2B targeting; participant
+incentives are additional. Those are current vendor claims, not a delivery
+guarantee, and the exact feasibility estimate and checkout total have not been
+verified. Creating an account, launching a study, scheduling a participant, or
+spending money requires Mike's separate approval.
+
+Use the five-gate screener in
+`docs/validation/PM_RECRUITING_RESEARCH_2026-08-26.md`: the participant must
+personally own a contested decision due by September 25, name two real options
+and concrete downside, safely redact the evidence, and commit a choice and
+confidence before seeing Driftline. A completed paid session is independent
+evaluation evidence only. Recruiting fees and incentives are evaluation spend,
+never revenue; the participant is not a customer or design partner merely
+because Driftline paid them.
+
+The best organic route remains ProductTank Austin on August 27. In addition to
+an organizer-mediated opt-in introduction, the qualified target is speaker
+Katie Campbell, whom Salesforce's official Trailblazer community currently
+lists as Sr. Director of Product at Blackthorn.io. Ask only for a safely
+redacted current decision after the talk. Attendance, access, willingness, and
+qualification remain unverified; no RSVP or registration has been performed.
+
+If the User Interviews feasibility estimate is weak, Respondent is the paid
+panel fallback. Its public PM page advertises verified role targeting and a
+roughly 1.5-day average to fill a study, but that is a vendor claim and public
+pricing was not established. Austin UX Happy Hour is only a same-evening
+contingency because its role qualification is materially weaker than
+ProductTank's.
+
 ## Ranked pipeline
 
 | Rank | Route | Likely role | Why now | Exact next action if approved | Qualification risk |
@@ -96,16 +131,24 @@ reduce participation than strengthen the entry.
 
 ## Next-48-hour recruiting sequence if Mike authorizes it
 
-1. Use ProductTank Austin for one opt-in introduction, not a room-wide pitch.
-2. In parallel, send at most two direct, personalized requests: Kevin Smith and
+1. Decide whether to authorize a single paid independent-PM recruit. If yes,
+   review the live User Interviews feasibility estimate and exact checkout total
+   before any launch, then manually approve only a participant who passes every
+   qualification gate.
+2. Separately use ProductTank Austin for one opt-in introduction, not a
+   room-wide pitch. Ask an organizer or Katie Campbell only after verifying
+   access and fit.
+3. If the first panel is infeasible, review Respondent's live price and timing;
+   do not launch or spend without a second explicit approval.
+4. In parallel, send at most two direct, personalized requests: Kevin Smith and
    Hatch Labs. They combine a current public route with repeated decision work
    and personal authority; do not widen the list before testing those routes.
-3. Stop widening the pipeline as soon as one participant confirms a decision
+5. Stop widening the pipeline as soon as one participant confirms a decision
    due within 30 days, two real options, meaningful downside, safe redaction,
    and decision authority.
-4. Run the session before sending any follow-up wave. A scheduled generic demo
+6. Run the session before sending any follow-up wave. A scheduled generic demo
    does not satisfy the qualification gate.
-5. Ask about payment only after the participant makes a second costly
+7. Ask about payment only after the participant makes a second costly
    commitment or requests continued use. The deadline does not justify forcing
    a customer claim.
 

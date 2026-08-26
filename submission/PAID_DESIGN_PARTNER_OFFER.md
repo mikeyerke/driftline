@@ -13,6 +13,15 @@ founder or fractional product leader can approve without procurement.
 Do not discount a free interview into a customer claim. Customer status begins
 only after payment or a signed commitment to the paid scope below.
 
+Paying someone to evaluate Driftline is the opposite cash flow and a different
+kind of evidence. A screened participant recruited through User Interviews,
+Respondent, or another research panel may support an independent-PM validation
+claim if the session passes the evidence gates. The recruiting fee and
+participant incentive are evaluation spend, never revenue. The participant is
+not a customer or design partner unless they later make a separate voluntary
+commitment to use Driftline; only their payment to Driftline or signed paid-pilot
+commitment can support a customer claim.
+
 ## The offer
 
 **One Decision Under Pressure — $500 fixed-fee design-partner pilot**

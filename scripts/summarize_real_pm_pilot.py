@@ -23,6 +23,9 @@ REQUIRED_FIELDS = {
     "app_release_sha",
     "app_state",
     "participant_role",
+    "participant_independent",
+    "participant_recruitment_channel",
+    "participant_incentive_usd",
     "company_stage",
     "decision_type",
     "decision_due_days",
@@ -36,6 +39,7 @@ REQUIRED_FIELDS = {
     "minutes_to_brief",
     "decision_effect",
     "citation_error_count",
+    "all_citations_reviewed",
     "human_control_understood",
     "external_writes_none_understood",
     "adoption_blocker",
@@ -59,6 +63,12 @@ ENUMS = {
         "fractional_product_leader",
         "product_operations",
         "product_marketing",
+    },
+    "participant_recruitment_channel": {
+        "organic_opt_in",
+        "paid_research_panel",
+        "existing_relationship",
+        "referral",
     },
     "company_stage": {
         "pre_seed",
@@ -149,6 +159,17 @@ def _number(
     return number
 
 
+def _integer(
+    record: dict[str, Any], key: str, *, minimum: int, maximum: int
+) -> int:
+    value = record[key]
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise PilotValidationError(f"invalid {key}")
+    if not minimum <= value <= maximum:
+        raise PilotValidationError(f"invalid {key}")
+    return value
+
+
 def validate(record: dict[str, Any]) -> None:
     missing = sorted(REQUIRED_FIELDS - record.keys())
     unexpected = sorted(record.keys() - REQUIRED_FIELDS)
@@ -168,12 +189,16 @@ def validate(record: dict[str, Any]) -> None:
         raise PilotValidationError("invalid session_date") from exc
     if not re.fullmatch(r"[0-9a-f]{40}", str(record["app_release_sha"])):
         raise PilotValidationError("app_release_sha must be a full commit")
+    if record["app_release_sha"] == "0" * 40:
+        raise PilotValidationError("app_release_sha must not be a placeholder")
 
     for key in ENUMS:
         _enum(record, key)
     for key in (
         "meaningful_downside",
         "safe_redaction_confirmed",
+        "participant_independent",
+        "all_citations_reviewed",
         "human_control_understood",
         "external_writes_none_understood",
         "public_anonymized_result_consent",
@@ -182,14 +207,14 @@ def validate(record: dict[str, Any]) -> None:
     ):
         _bool(record, key)
 
-    due_days = _number(record, "decision_due_days", minimum=1, maximum=30)
-    option_count = _number(record, "plausible_option_count", minimum=2, maximum=10)
-    evidence_count = _number(record, "evidence_input_count", minimum=3, maximum=10)
-    _number(record, "before_confidence_1_7", minimum=1, maximum=7)
-    _number(record, "after_confidence_1_7", minimum=1, maximum=7)
+    due_days = _integer(record, "decision_due_days", minimum=1, maximum=30)
+    option_count = _integer(record, "plausible_option_count", minimum=2, maximum=10)
+    evidence_count = _integer(record, "evidence_input_count", minimum=3, maximum=10)
+    _integer(record, "before_confidence_1_7", minimum=1, maximum=7)
+    _integer(record, "after_confidence_1_7", minimum=1, maximum=7)
     _number(record, "minutes_to_brief", minimum=1, maximum=120)
-    _number(record, "citation_error_count", minimum=0, maximum=100)
-    review_window = _number(record, "review_window_days", minimum=3, maximum=30)
+    _integer(record, "citation_error_count", minimum=0, maximum=100)
+    review_window = _integer(record, "review_window_days", minimum=3, maximum=30)
     if review_window not in {3, 7, 14, 30}:
         raise PilotValidationError("review_window_days must be 3, 7, 14, or 30")
     if not record["meaningful_downside"] or not record["safe_redaction_confirmed"]:
@@ -209,6 +234,16 @@ def validate(record: dict[str, Any]) -> None:
 
     commercial_status = record["commercial_status"]
     amount = _number(record, "paid_amount_usd", minimum=0, maximum=100000)
+    incentive = _number(
+        record, "participant_incentive_usd", minimum=0, maximum=5000
+    )
+    if (
+        record["participant_recruitment_channel"] == "paid_research_panel"
+        and incentive <= 0
+    ):
+        raise PilotValidationError(
+            "paid research panel requires the participant incentive amount"
+        )
     if commercial_status == "none" and amount != 0:
         raise PilotValidationError("paid_amount_usd requires a paid commercial status")
     if commercial_status == "signed_paid_pilot" and (
@@ -241,6 +276,7 @@ def summarize(record: dict[str, Any]) -> str:
     decision = LABELS.get(record["decision_type"], record["decision_type"])
     app_state = LABELS[record["app_state"]]
     commitments = record["costly_commitments"]
+    recruitment_channel = record["participant_recruitment_channel"].replace("_", " ")
 
     if record["commercial_status"] == "payment_received":
         customer_status = (
@@ -256,6 +292,10 @@ def summarize(record: dict[str, Any]) -> str:
     public_claim_blockers = []
     if not record["public_anonymized_result_consent"]:
         public_claim_blockers.append("no anonymized-result publication consent")
+    if not record["participant_independent"]:
+        public_claim_blockers.append("participant independence not confirmed")
+    if not record["all_citations_reviewed"]:
+        public_claim_blockers.append("not every citation was reviewed")
     if record["protocol_deviation"]:
         public_claim_blockers.append("protocol deviation")
     if not record["human_control_understood"]:
@@ -279,6 +319,11 @@ def summarize(record: dict[str, Any]) -> str:
                 f" The participant identified {record['citation_error_count']:.0f} "
                 "citation errors."
             )
+        if record["participant_incentive_usd"]:
+            public_statement += (
+                f" The participant received a ${record['participant_incentive_usd']:.0f} "
+                "research incentive; this was evaluation spend, not customer revenue."
+            )
     else:
         public_status = f"**blocked** ({'; '.join(public_claim_blockers)})"
         public_statement = "No public pilot statement is authorized."
@@ -300,9 +345,12 @@ Status: **qualified single-session evidence (n=1)**.
 - Session: `{record['session_id']}` on {record['session_date']}
 - Application custody: **{app_state}** at `{record['app_release_sha']}`
 - Participant: anonymized {role}; {stage}; decision authority: {record['decision_authority']}
+- Participant independent of the build and judging: **{'yes' if record['participant_independent'] else 'no'}**
+- Recruitment channel: **{recruitment_channel}**; participant research incentive: **${record['participant_incentive_usd']:.0f}**
 - Decision: {decision}; due in {record['decision_due_days']:.0f} days; {record['plausible_option_count']:.0f} plausible options; {record['evidence_input_count']:.0f} redacted evidence inputs
 - Decision effect: **{record['decision_effect']}**; confidence {record['before_confidence_1_7']:.0f} → {record['after_confidence_1_7']:.0f} / 7; {record['minutes_to_brief']:.0f} minutes from complete intake
 - Citation errors identified: {record['citation_error_count']:.0f}
+- Every citation reviewed by the participant: **{'yes' if record['all_citations_reviewed'] else 'no'}**
 - Human authority understood: **{'yes' if record['human_control_understood'] else 'no'}**
 - External-writes-none boundary understood: **{'yes' if record['external_writes_none_understood'] else 'no'}**
 - Largest adoption blocker: {record['adoption_blocker']}
@@ -318,7 +366,7 @@ Status: **qualified single-session evidence (n=1)**.
 
 ## Interpretation boundary
 
-This is one directional, self-reported session—not causal or statistically representative evidence. It does not prove ROI, revenue, retention, time saved across users, or product-market fit. A decision effect is not a measured business outcome. Customer status requires the commercial evidence shown above.
+This is one directional, self-reported session—not causal or statistically representative evidence. It does not prove ROI, revenue, retention, time saved across users, or product-market fit. A decision effect is not a measured business outcome. Recruiting fees and participant incentives are evaluation spend, never customer revenue. Customer status requires the commercial evidence shown above.
 """
 
 

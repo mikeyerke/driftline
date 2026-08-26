@@ -38,9 +38,14 @@ does not validate Driftline itself.
 One pilot counts only if all of these are true:
 
 - The participant currently owns or materially influences a real product decision due within 30 days.
+- The participant is independent of the Driftline build, judging, and any paid
+  implementation work; disclose an existing personal or advisory relationship
+  instead of calling it independent validation.
 - The decision has at least two plausible options and meaningful downside if wrong.
 - The participant supplies at least three real, non-secret evidence inputs or faithful redactions.
 - Driftline produces a cited brief, competing recommendations, a bounded action, and a named approval step.
+- The participant opens and reviews every generated citation; an uninspected
+  brief does not count as evidence-grounded validation.
 - The participant records before/after measures and completes a follow-up after reviewing the brief.
 - Any public use is separately consented to and anonymized by default.
 - The participant keeps the opaque return link and can reopen the same

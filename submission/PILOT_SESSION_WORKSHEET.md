@@ -9,6 +9,9 @@ Status: local draft only. Nothing in this worksheet authorizes publication, attr
 - Participant role:
 - Company stage:
 - Decision authority: owner / recommender / advisor
+- Independent of the Driftline build, judging, and paid implementation work: yes / no
+- Recruitment channel: organic opt-in / paid research panel / existing relationship / referral
+- Participant research incentive (USD; zero if none):
 - May Driftline process the redacted inputs during this private session? yes / no
 - May anonymized aggregate results be retained? yes / no
 - May a quote be requested later under separate written approval? yes / no
@@ -76,6 +79,7 @@ For each input, record source, observed date, affected segment, and whether it i
 - Decision changed / sharpened / unchanged:
 - Strongest useful disagreement exposed:
 - Unsupported inference or citation error found:
+- Every generated citation opened and reviewed: yes / no
 - Most important missing evidence:
 - Would this replace a meeting, document, or tool? Which one?
 - Largest adoption blocker:
@@ -108,6 +112,7 @@ Check only behavior that actually occurred:
 - [ ] None
 
 Praise, feature requests, and “keep me posted” do not count as demand.
+Recruiting fees and participant incentives are research costs, never customer revenue.
 
 ## Evidence-safe result statement
 

@@ -17,6 +17,9 @@ def valid_record() -> dict:
         "app_release_sha": "a" * 40,
         "app_state": "unreleased_local_candidate",
         "participant_role": "fractional_product_leader",
+        "participant_independent": True,
+        "participant_recruitment_channel": "organic_opt_in",
+        "participant_incentive_usd": 0,
         "company_stage": "seed",
         "decision_type": "segment",
         "decision_due_days": 14,
@@ -30,6 +33,7 @@ def valid_record() -> dict:
         "minutes_to_brief": 18,
         "decision_effect": "sharpened",
         "citation_error_count": 0,
+        "all_citations_reviewed": True,
         "human_control_understood": True,
         "external_writes_none_understood": True,
         "adoption_blocker": "integration",
@@ -62,6 +66,8 @@ def test_public_statement_discloses_unreleased_candidate_and_narrow_claim() -> N
     assert "unreleased local candidate" in report
     assert "sharpened the decision" in report
     assert "stated confidence from 4 to 6" in report
+    assert "Participant independent of the build and judging: **yes**" in report
+    assert "Every citation reviewed by the participant: **yes**" in report
     assert "ROI" in report
 
 
@@ -70,6 +76,8 @@ def test_public_statement_discloses_unreleased_candidate_and_narrow_claim() -> N
     [
         ("human_control_understood", "human-authority boundary not understood"),
         ("external_writes_none_understood", "external-write boundary not understood"),
+        ("participant_independent", "participant independence not confirmed"),
+        ("all_citations_reviewed", "not every citation was reviewed"),
     ],
 )
 def test_public_statement_is_blocked_when_authority_is_misunderstood(
@@ -107,6 +115,24 @@ def test_customer_classification_requires_commercial_evidence(
     assert classification in MODULE.summarize(record)
 
 
+def test_paid_panel_discloses_incentive_as_evaluation_spend() -> None:
+    record = valid_record()
+    record["participant_recruitment_channel"] = "paid_research_panel"
+    record["participant_incentive_usd"] = 100
+    record["public_anonymized_result_consent"] = True
+    report = MODULE.summarize(record)
+    assert "Recruitment channel: **paid research panel**" in report
+    assert "received a $100 research incentive" in report
+    assert "evaluation spend, not customer revenue" in report
+
+
+def test_paid_panel_without_incentive_amount_is_rejected() -> None:
+    record = valid_record()
+    record["participant_recruitment_channel"] = "paid_research_panel"
+    with pytest.raises(MODULE.PilotValidationError, match="incentive amount"):
+        MODULE.summarize(record)
+
+
 def test_paid_status_without_amount_or_matching_commitment_is_rejected() -> None:
     record = valid_record()
     record["commercial_status"] = "signed_paid_pilot"
@@ -125,6 +151,32 @@ def test_identity_or_raw_data_fields_are_rejected() -> None:
     record = valid_record()
     record["participant_name"] = "Not Allowed"
     with pytest.raises(MODULE.PilotValidationError, match="unexpected fields"):
+        MODULE.summarize(record)
+
+
+def test_placeholder_release_sha_is_rejected() -> None:
+    record = valid_record()
+    record["app_release_sha"] = "0" * 40
+    with pytest.raises(MODULE.PilotValidationError, match="placeholder"):
+        MODULE.summarize(record)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "decision_due_days",
+        "plausible_option_count",
+        "evidence_input_count",
+        "before_confidence_1_7",
+        "after_confidence_1_7",
+        "citation_error_count",
+        "review_window_days",
+    ],
+)
+def test_count_and_scale_fields_reject_fractional_values(key: str) -> None:
+    record = valid_record()
+    record[key] = float(record[key]) + 0.5
+    with pytest.raises(MODULE.PilotValidationError, match=f"invalid {key}"):
         MODULE.summarize(record)
 
 
