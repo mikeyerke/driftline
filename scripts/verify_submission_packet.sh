@@ -283,10 +283,10 @@ PY
 todo_lines="$(rg -n -i 'todo|placeholder|tbd|fixme|lorem' \
   devpost-submission.md submission/DEVPOST.md || true)"
 unexpected_todo_lines="$(printf '%s\n' "$todo_lines" | rg -v \
-  '(public YouTube or Vimeo URL|publish an approved draft from `submission/SOCIAL_POST_DRAFTS\.md`)' || true)"
+  '(public YouTube or Vimeo URL|publish the reviewed Decision Twin story|publish an approved draft from `submission/SOCIAL_POST_DRAFTS\.md`)' || true)"
 [[ -z "$unexpected_todo_lines" ]] || \
   fail "unexpected placeholder text exists in the canonical submission copy"
-[[ "$(printf '%s\n' "$todo_lines" | rg -c '.' || true)" == "3" ]] || \
-  fail "the submission packet must contain exactly the three approved owner-only placeholders"
+[[ "$(printf '%s\n' "$todo_lines" | rg -c '.' || true)" == "4" ]] || \
+  fail "the submission packet must contain exactly the four approved owner-only placeholders"
 
 printf 'Submission packet checks passed.\n'

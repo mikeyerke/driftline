@@ -27,7 +27,7 @@ publish or submit without explicit entrant approval.
 | Private testing instructions | Open https://driftline-ops.web.app/ while logged out. Click **Run the decision workflow**; inspect the five cited agents and disagreement; enter a review name; approve the segmented experiment; then stop clicking. Verify that Cloud Tasks reopens generation 2 with rollback selected, the approver cleared, 7/7 policy checks, and the original lineage preserved. Open https://driftline-ops.web.app/health to confirm the serving SHA and build. No credentials are required. |
 | Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |
 | Demo video | **ENTRANT TODO:** public YouTube or Vimeo URL, 4:00 maximum |
-| Bonus build content | https://github.com/mikeyerke/driftline/blob/main/submission/BUILD_STORY.md |
+| Bonus build content | **ENTRANT TODO:** publish the reviewed Decision Twin story from `submission/BUILD_STORY.md`, then paste its verified public URL; the current public `main` URL serves an older promise-drift story and must not be used. |
 | Social post | **ENTRANT TODO:** publish an approved draft from `submission/SOCIAL_POST_DRAFTS.md` and paste the public URL |
 | Startup prize | Leave blank unless the entrant independently meets and confirms its eligibility requirements |
 
