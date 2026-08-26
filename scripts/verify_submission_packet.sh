@@ -33,6 +33,7 @@ for file in \
   scripts/build_final_demo_rehearsal.sh \
   scripts/build_candidate_rehearsal.sh \
   scripts/verify_final_demo_package.sh \
+  scripts/render_final_demo_review_sheet.sh \
   scripts/verify_contest_provenance.sh \
   scripts/verify_third_party_licenses.py \
   scripts/summarize_real_pm_pilot.py \
@@ -72,6 +73,10 @@ require_text scripts/verify_final_demo_package.sh 'named_human_approval_visible'
 require_text scripts/verify_final_demo_package.sh 'bounded_action_receipt_timestamp_seconds'
 require_text scripts/verify_final_demo_package.sh 'generation_2_reopen_visible'
 require_text scripts/verify_final_demo_package.sh 'generation_1_lineage_visible'
+require_text scripts/render_final_demo_review_sheet.sh 'NAMED HUMAN APPROVAL'
+require_text scripts/render_final_demo_review_sheet.sh 'BOUNDED ACTION RECEIPT'
+require_text scripts/render_final_demo_review_sheet.sh 'GENERATION 2 REOPEN'
+require_text scripts/render_final_demo_review_sheet.sh 'VISIBLE GOOGLE CLOUD PROOF'
 require_text scripts/verify_final_demo_package.sh 'External writes: none'
 require_text scripts/verify_final_demo_package.sh 'google_cloud_proof_type'
 require_text scripts/verify_final_demo_package.sh 'Google Cloud proof must begin at least ten seconds before the video ends'

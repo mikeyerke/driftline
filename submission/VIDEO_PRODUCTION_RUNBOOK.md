@@ -139,6 +139,11 @@ see that the result came from the visible action in the same workflow.
   approval-to-reopen core is continuous; the external-write boundary and Cloud
   proof are visible; captions cover every judge-critical claim; and media,
   loudness, silence, black-frame, duration, and checksum gates pass.
+- Generate the timestamp-bound visual audit with
+  `scripts/render_final_demo_review_sheet.sh VIDEO.mp4 MANIFEST.json REVIEW.png`.
+  Inspect the 1920×1080 sheet at original resolution. Its fixed order is named
+  approval, action receipt, generation-2 reopen, and visible Google Cloud
+  proof. Reject the take if any panel fails its label.
 
 ## Take log
 
