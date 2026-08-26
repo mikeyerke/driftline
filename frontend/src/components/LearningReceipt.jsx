@@ -43,7 +43,7 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
   return (
     <section className={`decision-room-section learning-receipt${reopened ? " reopened" : ""}`} aria-labelledby="learning-receipt-title" aria-live="polite">
       <header className="decision-room-section-header">
-        <div><span className="decision-room-kicker">Action + learning</span><h3 id="learning-receipt-title">{terminalReview ? "Generation limit reached—human review required" : reopened ? "The outcome changed the decision" : validated ? "The action completed inside its guardrail" : measurementPending ? "Attach the real measurement when the review window closes" : active ? "The approved action is now measurable" : "Decision memory is ready"}</h3><p className="section-dek">Driftline keeps the owner follow-through, guardrail, and outcome attached to the same decision.</p></div>
+        <div><span className="decision-room-kicker">Action + learning</span><h3 id="learning-receipt-title" tabIndex="-1">{terminalReview ? "Generation limit reached—human review required" : reopened ? "The outcome changed the decision" : validated ? "The action completed inside its guardrail" : measurementPending ? "Attach the real measurement when the review window closes" : active ? "The approved action is now measurable" : "Decision memory is ready"}</h3><p className="section-dek">Driftline keeps the owner follow-through, guardrail, and outcome attached to the same decision.</p></div>
         {evaluation && <span className={`evaluation-gate ${evaluation.gate_status}`}>{evaluation.passed_case_count}/{evaluation.case_count} policy checks</span>}
       </header>
       {plan && <div className="experiment-contract">

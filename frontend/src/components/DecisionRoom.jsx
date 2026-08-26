@@ -9,6 +9,10 @@ const stages = ["Detect drift", "Compare options", "Approve action", "Learn"];
 
 const optionTitle = (options, id) => options.find((option) => option.option_id === id)?.title || id;
 
+function focusAfterRender(id) {
+  window.requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: true }));
+}
+
 const emptyIntake = {
   question: "",
   current_commitment: "",
@@ -133,6 +137,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     try {
       const next = await startDecisionTwin();
       applyDecisionCase(next);
+      focusAfterRender("decision-room-title");
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
   };
 
@@ -193,6 +198,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       };
       if (!payload.affected_segment.trim()) delete payload.affected_segment;
       applyDecisionCase(await startDecisionTwinIntake(payload));
+      focusAfterRender("decision-room-title");
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
   };
 
@@ -200,6 +206,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     setBusy("approval"); setError("");
     try {
       setDecisionCase(await approveDecisionTwin(decisionCase.case_id, selectedId, decisionCase.council.synthesis_hash, decisionCase.generation, approverName.trim()));
+      focusAfterRender("learning-receipt-title");
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
   };
 
@@ -241,6 +248,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     const url = new URL(window.location.href);
     url.searchParams.delete("decision");
     window.history.replaceState(null, "", url);
+    focusAfterRender("decision-room-hero-title");
   };
 
   const copyReturnLink = async () => {
@@ -436,7 +444,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       <header className="decision-room-header">
         <div>
           <div className="decision-room-meta"><span>Decision Twin</span><span>Generation {decisionCase.generation}</span></div>
-          <h2 id="decision-room-title">{decisionCase.title}</h2>
+          <h2 id="decision-room-title" tabIndex="-1">{decisionCase.title}</h2>
           <p>{decisionCase.question}</p>
         </div>
         <div className="decision-room-header-actions"><button className="secondary compact" type="button" onClick={copyDecisionBrief}><span aria-live="polite">{copyStatus === "Copied" ? <Check size={14} /> : <Copy size={14} />}{copyStatus || "Copy decision brief"}</span></button>{isProvidedIntake && <button className="secondary compact" type="button" onClick={copyReturnLink}><span aria-live="polite">{linkStatus ? <Check size={14} /> : <Copy size={14} />}{linkStatus || "Copy return link"}</span></button>}<button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button></div>

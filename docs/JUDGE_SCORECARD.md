@@ -214,9 +214,10 @@ the browser accessibility tree, proves the evidence dialog makes the
 background inert, traps and restores focus, fits each viewport, and verifies
 that the journey requests no smooth scrolling under reduced motion. The CSS
 contract separately preserves a system-color focus outline in forced-colors
-mode. The post-fix browser run reported no findings in these inspected
-surfaces; a named VoiceOver or NVDA session remains outside this automated
-proof.
+mode. Completed intake and approval transitions move keyboard focus to the new
+decision or learning heading instead of dropping it on the document body. The
+post-fix browser run reported no findings in these inspected surfaces; a named
+VoiceOver or NVDA session remains outside this automated proof.
 
 ## 30% — Demo and production readiness
 

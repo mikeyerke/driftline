@@ -160,6 +160,7 @@ try {
       throw new Error(`Decision intake failed for ${name}: HTTP ${intakeResponse.status()} ${await intakeResponse.text()}`);
     }
     await page.getByText(/PM-provided context · unverified/).first().waitFor();
+    const intakeResultFocused = await page.locator("#decision-room-title").evaluate((element) => document.activeElement === element);
 
     const selectedRadio = page.getByRole("radio", { checked: true });
     const originalRadioName = await selectedRadio.innerText();
@@ -188,6 +189,7 @@ try {
     await page.keyboard.press("Enter");
     await page.getByText(/Attach the real measurement when the review window closes/).waitFor();
     await page.getByText(/Measurement opens/).waitFor();
+    const approvalResultFocused = await page.locator("#learning-receipt-title").evaluate((element) => document.activeElement === element);
     const body = await page.locator("body").innerText();
     const bodyLower = body.toLowerCase();
 
@@ -270,6 +272,8 @@ try {
       skipLinkVisibleOnFocus,
       keyboardRadioRoving,
       keyboardApprovalCompleted: body.includes("Named human approval") && body.includes("Independent PM"),
+      intakeResultFocused,
+      approvalResultFocused,
       modalInitialFocus,
       modalBackgroundInert: backgroundInert,
       modalReverseTabTrapped: reverseTabTrapped,
