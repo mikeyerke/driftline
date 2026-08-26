@@ -96,6 +96,20 @@ def _retention_expiry(tenant_id: str | None = None) -> datetime:
     return datetime.now(UTC) + timedelta(days=days)
 
 
+def _payload_expired(payload: dict[str, Any]) -> bool:
+    """Fail closed at read/mutation time instead of waiting for TTL cleanup."""
+    raw = payload.get("expires_at")
+    if raw is None:
+        return False
+    try:
+        expiry = raw if isinstance(raw, datetime) else datetime.fromisoformat(str(raw))
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=UTC)
+    except (TypeError, ValueError):
+        return True
+    return expiry <= datetime.now(UTC)
+
+
 def _client() -> firestore.Client:
     kwargs: dict[str, Any] = {
         "database": os.getenv("FIRESTORE_DATABASE", "(default)"),
@@ -258,6 +272,8 @@ def load_workflow(workflow_id: str) -> WorkflowState | None:
 def persist_decision_case(case: DecisionCase) -> None:
     """Persist a complete Decision Twin generation without raw credentials."""
     payload = case.model_dump(mode="json")
+    if case.mutation_capability_hash:
+        payload["_mutation_capability_hash"] = case.mutation_capability_hash
     if not _enabled():
         with _decision_cases_lock:
             _decision_cases_memory[case.case_id] = payload
@@ -279,13 +295,24 @@ def persist_decision_case(case: DecisionCase) -> None:
 def load_decision_case(case_id: str) -> DecisionCase | None:
     if not _enabled():
         with _decision_cases_lock:
-            payload = _decision_cases_memory.get(case_id)
+            stored = _decision_cases_memory.get(case_id)
+            payload = dict(stored) if stored else None
+            if payload and payload.get("_mutation_capability_hash"):
+                payload["mutation_capability_hash"] = payload.pop(
+                    "_mutation_capability_hash"
+                )
             return DecisionCase.model_validate(payload) if payload else None
     snapshot = _client().collection(DECISION_CASES_COLLECTION).document(case_id).get()
     if not snapshot.exists:
         return None
     payload = snapshot.to_dict() or {}
+    if _payload_expired(payload):
+        return None
     payload.pop("expires_at", None)
+    if payload.get("_mutation_capability_hash"):
+        payload["mutation_capability_hash"] = payload.pop(
+            "_mutation_capability_hash"
+        )
     return DecisionCase.model_validate(payload)
 
 
@@ -297,6 +324,8 @@ def compare_and_set_decision_case(
 ) -> bool:
     """Commit one decision transition only from the reviewed generation/state."""
     payload = case.model_dump(mode="json")
+    if case.mutation_capability_hash:
+        payload["_mutation_capability_hash"] = case.mutation_capability_hash
     if not _enabled():
         with _decision_cases_lock:
             current = _decision_cases_memory.get(case.case_id)
@@ -319,6 +348,8 @@ def compare_and_set_decision_case(
         if not snapshot.exists:
             return False
         current = snapshot.to_dict() or {}
+        if _payload_expired(current):
+            return False
         if int(current.get("generation", 0)) != expected_generation:
             return False
         if str(current.get("status")) not in expected_statuses:

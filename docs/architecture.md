@@ -6,14 +6,32 @@ Hosting. Hosting applies a same-origin `**` rewrite to the isolated Cloud Run
 second backend, data store, identity boundary, or connector credential path.
 The generated Cloud Run URL remains an operational health/fallback origin.
 
-Verified baseline production identity (August 24, 2026): Git SHA
+Historical baseline production identity (August 24, 2026): Git SHA
 `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`, Cloud Run revision
 `driftline-00291-v89`, Cloud Build
 `154547e7-36ae-4eb2-a79a-35064e293191`, and immutable image digest
 `sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`.
-The service sends 100% of traffic to that revision with min scale zero and max
-For later releases, `/health` plus `./scripts/verify_production.sh` is the
-authoritative identity check; this snapshot remains historical evidence.
+That revision sent 100% of traffic with min scale zero and max scale one.
+
+The currently verified public release (August 25, 2026) is Git SHA
+`03ec8f12fc23d265c89b462a345a5b599a6411e8`, Cloud Run revision
+`driftline-00305-xln`, Cloud Build
+`c01bec2e-a950-407c-873b-b1d4fdc6bae6`, and immutable image digest
+`sha256:fca505ce56c6bd933f9cde8d55ff1e4ea7f9cad099d6fe39e8bb8321c96ea6d3`.
+For every later release, `/health` plus `./scripts/verify_production.sh` is the
+authoritative identity check; both snapshots above remain historical evidence.
+
+## Unreleased Decision Twin candidate
+
+The local candidate adds a PM-authored decision contract, one explicitly
+internal reversible allocation, paired primary/risk outcome measurements, and
+TTL-bounded case-return links. It is not part of the currently serving release
+and must not be described as live. Its judge-facing architecture source is
+`submission/assets/driftline-decision-twin-candidate-architecture.svg`; the
+matching PNG is a local review render. The asset can replace the current
+submission architecture only after the candidate commit is bound to a verified
+Cloud Run revision, Cloud Build ID, immutable image digest, live ADK trace, and
+fresh desktop/mobile browser journey.
 
 ```mermaid
 flowchart TD

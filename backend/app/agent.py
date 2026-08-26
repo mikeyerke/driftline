@@ -128,11 +128,19 @@ def inspect_source_change(source_id: str) -> dict:
 
 def get_workflow_state(workflow_id: str) -> dict:
     """Return the evidence, stage, impacts, and audit events for a workflow."""
-    # Models occasionally use a placeholder after a tool response. Resolve it
-    # only to the workflow created in this ADK turn; never select another
-    # tenant's or another request's latest workflow.
-    if workflow_id.strip().casefold() in {"", "default", "current"}:
-        workflow_id = _workflow_id.get() or workflow_id
+    # A model-supplied identifier is never authority. The source inspection
+    # tool binds the one workflow this turn may read; placeholders resolve to
+    # it and every other explicit identifier must match it exactly.
+    bound_workflow_id = _workflow_id.get()
+    if not bound_workflow_id:
+        raise PermissionError("workflow_turn_binding_required")
+    requested_workflow_id = workflow_id.strip()
+    if (
+        requested_workflow_id.casefold() not in {"", "default", "current"}
+        and requested_workflow_id != bound_workflow_id
+    ):
+        raise PermissionError("workflow_turn_mismatch")
+    workflow_id = bound_workflow_id
     try:
         state = workflow_store.get(workflow_id)
     except KeyError:
@@ -140,6 +148,10 @@ def get_workflow_state(workflow_id: str) -> dict:
         if state is None:
             raise KeyError(f"Unknown workflow: {workflow_id}")
         state = workflow_store.restore(state)
+    if state.workflow_id != bound_workflow_id:
+        raise PermissionError("workflow_turn_mismatch")
+    if state.tenant_id != _tenant_id.get():
+        raise PermissionError("workflow_tenant_mismatch")
     # Never expose raw operator-registered source text to the coordinator. The
     # UI/API reads the persisted state directly through their own route.
     return model_safe_state(state.to_dict())

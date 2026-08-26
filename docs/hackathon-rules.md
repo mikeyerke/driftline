@@ -1,8 +1,9 @@
 # Google All Things Agentic — verified submission requirements
 
 Checked against the official Devpost rules, judging criteria, prizes,
-submission requirements, key-date feed, and all seven organizer announcements
-on August 24, 2026. The
+submission requirements, key-date feed, and all seven organizer announcements.
+The rules, requirements, criteria, dates, and prizes were fetched again in full
+on August 26, 2026. The
 canonical sources are:
 
 - [Contest overview](https://allthingsagentichackathon.devpost.com/)
@@ -58,12 +59,28 @@ and third-party code, and leave the repository, video, and linked materials
 unchanged after the deadline until winners are announced. Those are explicit
 final-form and post-deadline freeze gates for Driftline.
 
-The optional content bonus includes public build content that explicitly says
-it was created for this hackathon, a separate social post using the required
-`#AllThingsAgenticHackathon` hashtag on the listed social platforms, and
-additional Google AI model integrations. Each contribution is optional and
-scored under the rules; Driftline does not claim any bonus unless the artifact
-is actually published or integrated.
+The prepared rules-aligned answers use submitter type
+`Individuals`, its start date must be entered as `08-18-26`, and the SDK option
+is `Agent Development Kit (ADK)`. The Google Cloud multi-select offers Cloud Run,
+Cloud SQL, Firestore, GKE, and Pub/Sub; Driftline selects only `Cloud Run` and
+`Firestore` there. Firebase Hosting, BigQuery, Vertex AI, Cloud Tasks, Cloud
+Scheduler, Cloud Storage, Secret Manager, Cloud Build, and Artifact Registry
+belong in the additional-services narrative. The model answer is `Gemini 3.5
+Flash via Vertex AI (global endpoint)`. The private testing instructions provide a logged-out,
+credential-free judge path through approval, autonomous generation-2 reopening,
+lineage, and `/health` release identity.
+
+The authenticated live form was not available in the August 26 browser audit;
+both browser sessions were logged out. These prepared values must be reconciled
+against the actual labels, selectors, limits, and confirmations after entrant
+sign-in and before any form entry or submission.
+
+The optional content bonus includes public—not unlisted—build content that
+explicitly says it was created for the purpose of entering this hackathon, a
+separate social post using the required `#AllThingsAgenticHackathon` hashtag on
+the listed social platforms, and additional Google AI model integrations. Each
+contribution is optional and scored under the rules; Driftline does not claim
+any bonus unless the artifact is actually published or integrated.
 
 ## Categories and selection
 
@@ -95,14 +112,18 @@ incorporation and corporate-email eligibility.
 
 The rules require projects to be newly created during the submission period and
 require disclosure of pre-existing code or work incorporated into the entry.
-Driftline is a continuation of an earlier concept conversation and includes the
-source package supplied for this build. The Devpost disclosure therefore
-describes that prior ideation and identifies the current implementation work
-completed during the submission period; it does not claim that earlier
-ideation was created during the contest.
-The repository's first commit is dated August 18, 2026, inside the August 3–31
-submission period; that timestamp is a reproducible implementation-history
-anchor, not a claim that the earlier concept conversation was contest work.
+Driftline is a continuation of an earlier concept conversation and includes a
+source package supplied for this build. That exact archive has now been
+recovered: SHA-256
+`9026ee2eccc94fd925ec00a54228c8b858442baaf8ac695e2ca56f54bbce37b0`,
+50 regular files, all member timestamps on August 18 inside the contest window.
+It contained the initial FastAPI/Google ADK backend, React frontend, tests,
+deployment/dependency files, submission drafts, and two concept images. The
+Devpost disclosure enumerates that foundation and does not claim that the
+earlier ideation originated during the contest. The repository's first commit
+is dated later on August 18 and materially evolved the archive. The entrant
+still personally attests ownership/rights and accepts the live eligibility
+terms.
 
 ## Judging emphasis
 
@@ -114,11 +135,9 @@ workflow completion, with a distinctive “Bring Your Own Friction” problem. T
 architecture rubric looks for modular agents, tools, state, and Google
 technology used substantively. The demo rubric asks for an unedited “Proof of
 Action,” Google Cloud deployment proof, and reproducible documentation. The
-August 24 organizer announcement separately recommends removing load time and
-using jump cuts. Driftline's conservative interpretation is to edit setup,
-waiting, and narration for pace while keeping the core live decision → approval
-→ measured outcome → reopen sequence continuous and free of cuts that could
-imply an action occurred when it did not.
+canonical Driftline plan uses one continuous native 2:58 recording at 1×. It
+preloads the product, direct Cloud Run health proof, repository, and
+architecture in tabs, but makes no cut, splice, or reorder anywhere in the take.
 
 ## Current submission gates
 
@@ -126,7 +145,11 @@ imply an action occurred when it did not.
 - The demo video must be publicly viewable on YouTube or Vimeo and no longer
   than four minutes; only the first four minutes are evaluated.
 - The final form must identify Google ADK, the August 18 implementation start,
-  and the disclosed pre-existing ideation/source package.
+  and the entrant-verified pre-existing ideation/source-package boundary.
+- The exact form selections are `Individuals`, `08-18-26`, `Agent Development
+  Kit (ADK)`, `Cloud Run`, and `Firestore`; Firebase Hosting, BigQuery, and
+  Vertex AI are described in the additional-services narrative rather than
+  selected in that dropdown.
 - After the deadline, freeze the submitted repository, video, and linked
   materials until winners are announced; continue any work only in a separate
   copy that cannot change the submitted evidence.

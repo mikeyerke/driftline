@@ -1,6 +1,7 @@
 # Driftline autonomous winning checklist
 
-Mode: autonomous
+Mode: autonomous for local work only; every external mutation remains blocked
+until separately authorized
 Verification: enabled at release checkpoints; no participant pause for local checks
 Comprehension checks: disabled
 Git cadence: one focused planning/package commit, then one final proof commit if needed
@@ -37,17 +38,17 @@ Wow moment: signed evidence-bound Jira action, idempotent reuse, and scoped reve
   Acceptance: PNG is legible at Devpost preview size and contains no aspirational services.
   Verify: Open the rendered image and compare every node to deployed code/proof.
 
-- [ ] **6. Finalize the sub-four-minute proof-of-action package**
+- [x] **6. Finalize the local sub-four-minute proof-of-action package**
   Spec ref: `spec.md > Demo failure strategy`
-  What to build: Tighten the script to a 3:45 target, create matching shot list/captions, and clearly separate public packet-safe and signed Jira action lanes.
-  Acceptance: The plan shows live action and Google Cloud proof before 3:20 and closes by 3:45.
-  Verify: Timestamp sum and asset inspection.
+  What to build: Tighten the script to a 2:58 target, create matching shot list/captions, and clearly separate public packet-safe and signed Jira action lanes.
+  Acceptance: The local plan shows continuous action, human authority, autonomous reopen, and direct Cloud Run proof before closing at 2:58.
+  Verify: Timestamp sum, caption checks, rehearsal QA, and `scripts/verify_final_demo_package.sh` controls. Public exact-release capture and upload remain owner-gated and are not complete.
 
-- [x] **7. Publish the optional build-content artifact**
+- [ ] **7. Publish the optional build-content artifact**
   Spec ref: `spec.md > Submission artifacts`
   What to build: Write a concise public build story stating it was created for this hackathon, focused on the evidence/authorization/action architecture.
-  Acceptance: Public-repo URL is usable in the bonus-content field after merge.
-  Verify: Markdown links and disclosure text pass inspection.
+  Acceptance: A public URL is usable in the bonus-content field after an authorized candidate release or separate publication.
+  Verify: The local story and disclosure text pass inspection; no public URL exists yet because publication is not authorized.
 
 - [x] **8. Create the exact Devpost form packet**
   Spec ref: `spec.md > Submission artifacts`
@@ -55,11 +56,11 @@ Wow moment: signed evidence-bound Jira action, idempotent reuse, and scoped reve
   Acceptance: Every required official field has either final copy or one explicit owner-only TODO.
   Verify: Compare with the live Devpost submission requirements.
 
-- [x] **9. Push the reviewed branch and open one PR**
+- [ ] **9. Push the current reviewed candidate and open one PR**
   Spec ref: `spec.md > Release contract`
   What to build: Commit the package, push the branch, open a focused PR, and let GitHub verification complete.
-  Acceptance: Public diff is reviewable and all CI checks pass.
-  Verify: GitHub PR checks and changed-file audit.
+  Acceptance: The exact current candidate diff is public and reviewable and all CI checks pass.
+  Verify: The prior release PR passed, but the current local candidate remains ahead of its remote branch and is intentionally unpublished.
 
 - [ ] **10. Complete Devpost registration, project setup, and handoff**
   Spec ref: `scope.md > Definition of done`

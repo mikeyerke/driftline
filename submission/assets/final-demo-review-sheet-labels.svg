@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <style>
+    .band { fill: #0b1424; fill-opacity: 0.94; }
+    .number { fill: #ffffff; font: 700 22px Arial, Helvetica, sans-serif; }
+    .label { fill: #ffffff; font: 700 20px Arial, Helvetica, sans-serif; letter-spacing: 0.5px; }
+  </style>
+  <g transform="translate(0 0)">
+    <rect class="band" x="3" y="3" width="954" height="48" rx="0"/>
+    <circle cx="31" cy="27" r="16" fill="#155eef"/>
+    <text class="number" x="31" y="35" text-anchor="middle">1</text>
+    <text class="label" x="58" y="34">NAMED HUMAN APPROVAL</text>
+  </g>
+  <g transform="translate(960 0)">
+    <rect class="band" x="3" y="3" width="954" height="48" rx="0"/>
+    <circle cx="31" cy="27" r="16" fill="#155eef"/>
+    <text class="number" x="31" y="35" text-anchor="middle">2</text>
+    <text class="label" x="58" y="34">BOUNDED ACTION RECEIPT</text>
+  </g>
+  <g transform="translate(0 540)">
+    <rect class="band" x="3" y="3" width="954" height="48" rx="0"/>
+    <circle cx="31" cy="27" r="16" fill="#155eef"/>
+    <text class="number" x="31" y="35" text-anchor="middle">3</text>
+    <text class="label" x="58" y="34">GENERATION 2 REOPEN</text>
+  </g>
+  <g transform="translate(960 540)">
+    <rect class="band" x="3" y="3" width="954" height="48" rx="0"/>
+    <circle cx="31" cy="27" r="16" fill="#155eef"/>
+    <text class="number" x="31" y="35" text-anchor="middle">4</text>
+    <text class="label" x="58" y="34">VISIBLE GOOGLE CLOUD PROOF</text>
+  </g>
+</svg>

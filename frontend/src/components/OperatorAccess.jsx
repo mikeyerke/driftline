@@ -170,7 +170,7 @@ export default function OperatorAccess() {
   }
 
   if (!config.enabled) {
-    return <span className="operator-access unavailable"><ShieldCheck size={14} />Operator sign-in unavailable</span>;
+    return <span className="operator-access public"><ShieldCheck size={14} />Public demo · no sign-in needed</span>;
   }
 
   if (!session.identityToken) {

@@ -55,11 +55,49 @@ def test_workflow_id_is_recovered_when_model_stops_after_source_tool() -> None:
     token = adk_runtime.set_workflow_id("workflow-from-tool-context")
     try:
         assert adk_runtime._workflow_id_from_turn(None) == "workflow-from-tool-context"
-        assert adk_runtime._workflow_id_from_turn("workflow-from-response") == (
-            "workflow-from-response"
+        assert (
+            adk_runtime._workflow_id_from_turn("workflow-from-tool-context")
+            == "workflow-from-tool-context"
         )
+        with pytest.raises(PermissionError, match="workflow_turn_mismatch"):
+            adk_runtime._workflow_id_from_turn("workflow-from-response")
     finally:
         adk_runtime.reset_workflow_id(token)
+
+
+def test_workflow_id_response_requires_a_turn_binding() -> None:
+    token = adk_runtime.set_workflow_id(None)
+    try:
+        with pytest.raises(PermissionError, match="workflow_turn_mismatch"):
+            adk_runtime._workflow_id_from_turn("foreign-workflow")
+    finally:
+        adk_runtime.reset_workflow_id(token)
+
+
+def test_post_turn_state_requires_exact_workflow_and_tenant() -> None:
+    state = type(
+        "State",
+        (),
+        {"workflow_id": "wf-a", "tenant_id": "tenant-a"},
+    )()
+    adk_runtime._require_bound_state(
+        state,
+        workflow_id="wf-a",
+        tenant_id="tenant-a",
+    )
+
+    with pytest.raises(PermissionError, match="workflow_turn_mismatch"):
+        adk_runtime._require_bound_state(
+            state,
+            workflow_id="wf-b",
+            tenant_id="tenant-a",
+        )
+    with pytest.raises(PermissionError, match="workflow_tenant_mismatch"):
+        adk_runtime._require_bound_state(
+            state,
+            workflow_id="wf-a",
+            tenant_id="tenant-b",
+        )
 
 
 def test_runtime_verifier_records_missing_state_read(monkeypatch) -> None:

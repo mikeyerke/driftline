@@ -20,3 +20,9 @@ credentials*.json
 service-account*.json
 .secrets/
 firebase-debug.log
+
+# Local-only candidate rehearsal. It is watermarked as unreleased and must be
+# regenerated from reviewed sources rather than committed or published.
+submission/assets/driftline-candidate-rehearsal-tight.mp4
+submission/assets/driftline-continuous-candidate-presentation.mp4
+submission/assets/driftline-final-demo-rehearsal.mp4

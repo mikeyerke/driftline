@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
+
 if ! grep -Fq 'Evidence readiness: 0 of 3 checks corroborated' frontend/src/components/EvidenceCouncil.jsx \
   || ! grep -Fq 'Next validation: quantify the segment split' frontend/src/components/DecisionRoom.jsx; then
   printf 'PM intake corroboration contract is missing from the decision brief.\n' >&2
@@ -149,7 +153,56 @@ check_frontend_literal() {
   fi
 }
 
+if ! check_frontend_literal '"/api": localApiTarget' frontend/vite.config.js \
+  || ! check_frontend_literal '"/health": localApiTarget' frontend/vite.config.js \
+  || ! check_frontend_literal 'http://127.0.0.1:8080' frontend/vite.config.js \
+  || ! check_frontend_literal 'You are offline. Nothing was changed; reconnect and try again.' frontend/src/api.js \
+  || ! check_frontend_literal 'Driftline could not reach the service. Nothing was changed; check your connection and try again.' frontend/src/api.js \
+  || ! check_frontend_literal 'start the backend on port 8080 and try again' frontend/src/api.js; then
+  printf 'Clean-checkout development routing or actionable API recovery copy is missing.\n' >&2
+  exit 1
+fi
+
+if ! node --check scripts/capture_decision_twin_candidate.mjs >/dev/null \
+  || ! check_frontend_literal 'Input.dispatchMouseEvent' scripts/capture_decision_twin_candidate.mjs \
+  || ! check_frontend_literal 'driftline-capture-pointer' scripts/capture_decision_twin_candidate.mjs \
+  || ! check_frontend_literal 'pointerClicks' scripts/capture_decision_twin_candidate.mjs; then
+  printf 'Continuous candidate capture lost its visible Chrome mouse-event proof contract.\n' >&2
+  exit 1
+fi
+
+if ! node --check scripts/verify_custom_decision_browser.mjs >/dev/null \
+  || ! check_frontend_literal 'CUSTOM_BROWSER_ALLOW_REMOTE' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'earlyMeasurementBlocked' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'conciseDistinctTitle' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'clearApprovalLabel' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'freshContextRestored' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'keyboardRadioRoving' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'namedInteractiveControls' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'minimumControlTargets' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'validAriaReferences' scripts/verify_custom_decision_browser.mjs; then
+  printf 'Custom-decision browser gate lost its loopback, review-window, fresh-context, or accessibility contract.\n' >&2
+  exit 1
+fi
+
+if ! check_frontend_literal 'role="radiogroup"' frontend/src/components/CounterfactualCompare.jsx \
+  || ! check_frontend_literal 'ArrowRight' frontend/src/components/CounterfactualCompare.jsx \
+  || ! check_frontend_literal 'tabIndex={activeId === option.option_id ? 0 : -1}' frontend/src/components/CounterfactualCompare.jsx \
+  || ! check_frontend_literal '@media (forced-colors: active)' frontend/src/styles.css; then
+  printf 'Decision option keyboard semantics or forced-colors focus support regressed.\n' >&2
+  exit 1
+fi
+
+if ! check_frontend_literal 'Public demo · no sign-in needed' frontend/src/components/OperatorAccess.jsx \
+  || check_frontend_literal 'Operator sign-in unavailable' frontend/src/components/OperatorAccess.jsx; then
+  printf 'Public judge lane exposes a broken-sign-in message instead of intentional no-sign-in access.\n' >&2
+  exit 1
+fi
+
 if ! check_frontend_literal 'Turn conflicting evidence into a decision your team can defend.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Autonomous decision inbox' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Compounding memory' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'decision_debt_history' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'The alignment meeting, evidence hunt, and post-launch guesswork.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'What the PM leaves with' frontend/src/components/DecisionRoom.jsx \
@@ -157,13 +210,46 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Open source-connected workspace flow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Run the decision workflow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'One approval starts the autonomous monitor · no second PM prompt' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'intakeSectionRef.current?.scrollIntoView' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'prefers-reduced-motion: reduce' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'tabIndex="-1" id="decision-intake-title"' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Human approver' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'setSelectedId(latest.council.recommendation)' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'PM-provided decisions never receive synthetic outcomes.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'This never generates a synthetic result.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Named human approval' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'actionApproval.approver' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Attach the PM-observed outcome' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Measurement opens' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Driftline will reject early measurements at the API boundary.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Evaluate real measurement' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'The action completed inside its guardrail' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Observed measurement' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal '/outcomes/measured' frontend/src/api.js \
+  || ! check_frontend_literal 'Bounded internal action executed' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Guardrail rolled the internal action back' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'External writes' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Use my decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Build my decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Continue to operating contract' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Back to decision context' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Decision intake progress' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'error && !intakeOpen' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Define the operating contract before approval' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Primary outcome metric' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Risk guardrail metric' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Action owner' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'measurement_contract' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'PM-provided · unverified' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Copy decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Operating contract:' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Risk stop:' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'days after approval' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Copy view-only link' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'The copied link is view-only.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Read-only shared view.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'decisionCase?.can_edit !== false' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'url.searchParams.set("decision", next.case_id)' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'getDecisionTwin(caseId)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal '/api/decision-twin/intake' frontend/src/api.js \
   || ! check_frontend_literal 'This decision has a precedent.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'window.location.assign(destination)' frontend/src/components/OperatorAccess.jsx \
@@ -173,6 +259,8 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'independent agents' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Autonomous monitor active' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'No second PM action is required.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'monitor_status === "fallback_required"' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Run demo measurement fallback' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'getDecisionTwin(decisionCase.case_id)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'ReleaseProof compact' frontend/src/App.jsx \
   || ! check_frontend_literal 'Trace refresh needed' frontend/src/components/ReleaseProof.jsx; then

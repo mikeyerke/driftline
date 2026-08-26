@@ -6,11 +6,13 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from app import product_council
 from app.decision_twin import (
     CouncilPosition,
     DecisionTwinPolicyError,
+    PMMeasurementContract,
     approve_decision_case,
     attach_aggregate_metrics,
     build_demo_decision_case,
@@ -27,6 +29,42 @@ from app.product_council import (
     deterministic_council,
 )
 from app.trace_eval import evaluate_decision_twin_case
+
+
+def _pm_measurement_contract() -> PMMeasurementContract:
+    return PMMeasurementContract(
+        primary_metric="workflow completion rate",
+        risk_metric="failed workflow rate",
+        metric_unit="%",
+        baseline=38,
+        success_operator="gte",
+        success_threshold=45,
+        risk_baseline=3,
+        stop_operator="gte",
+        stop_threshold=8,
+        review_days=7,
+        action_owner="Taylor PM",
+    )
+
+
+def _approved_pm_case():
+    case = build_intake_decision_case(
+        case_id="decision-intake-outcomes",
+        question="Should we expand the beta to all mid-market accounts next month?",
+        current_commitment="Launch to every mid-market account on September 15.",
+        urgency="Sales committed the date and allocation is due this Friday.",
+        positive_signal="Beta users complete the core workflow faster than the control group.",
+        risk_signal="Admins report permission confusion and support volume is rising.",
+        measurement_contract=_pm_measurement_contract(),
+        affected_segment="mid-market admins",
+    )
+    return approve_decision_case(
+        case,
+        option_id="segment",
+        approver="Taylor PM",
+        expected_synthesis_hash=case.council.synthesis_hash,
+        expected_generation=1,
+    )
 
 
 def test_demo_case_is_complete_grounded_and_preserves_real_disagreement() -> None:
@@ -49,6 +87,13 @@ def test_demo_case_is_complete_grounded_and_preserves_real_disagreement() -> Non
     assert case.council.recommendation == "segment"
     assert case.council.decisive_conflict
     assert case.council.synthesis_hash
+    assert case.decision_debt is not None
+    assert case.decision_debt.detection_mode == "autonomous_monitor"
+    assert case.decision_debt.state == "open"
+    assert case.decision_debt.score == 88
+    assert set(case.decision_debt.evidence_node_ids) <= {
+        node.node_id for node in case.evidence_nodes
+    }
 
 
 def test_evidence_graph_rejects_missing_provenance_and_unknown_edges() -> None:
@@ -131,12 +176,32 @@ def test_approval_requires_current_synthesis_named_human_and_complete_plan() -> 
     assert approved.experiment_plan.option_id == "segment"
     assert approved.experiment_plan.stop_conditions
     assert approved.experiment_plan.rollback
+    assert len(approved.action_records) == 1
+    assert approved.action_records[0].status == "active"
+    assert approved.action_records[0].action_type == "internal_allocation"
+    assert approved.action_records[0].external_write is False
+    assert (
+        approved.action_records[0].evidence_manifest_hash
+        == case.council.evidence_manifest_hash
+    )
+    assert approved.action_records[0].synthesis_hash == case.council.synthesis_hash
+    assert approved.decision_debt.state == "monitoring"
+    assert "reopen automatically" in approved.decision_debt.recommended_next_step
+    assert any(
+        event.get("action") == "internal_allocation_executor"
+        and event.get("outcome") == "internal_allocation_active"
+        for event in approved.events
+    )
     assert datetime.fromisoformat(approved.approval.approved_at) <= datetime.now(UTC)
     assert (
         datetime.fromisoformat(approved.experiment_plan.review_at)
         - datetime.fromisoformat(approved.approval.approved_at)
         == timedelta(days=7)
     )
+    tampered = approved.model_dump(mode="json")
+    tampered["action_records"][0]["external_write"] = True
+    with pytest.raises(ValidationError):
+        type(approved).model_validate(tampered)
 
 
 def test_each_approval_option_builds_its_own_experiment_contract() -> None:
@@ -215,6 +280,22 @@ def test_invalidated_outcome_reopens_same_case_with_preserved_lineage() -> None:
         observation["observation_id"]
     )
     assert reopened.outcomes[-1].evaluation.verdict == "invalidated"
+    assert reopened.action_records[0].status == "rolled_back"
+    assert reopened.action_records[0].finished_at == observation["observed_at"]
+    assert reopened.action_records[0].reason == reopened.reopen_reason
+    assert reopened.decision_debt.state == "reopened"
+    assert reopened.decision_debt.generation == 2
+    assert reopened.decision_debt.previous_score == 88
+    assert reopened.decision_debt.score == 98
+    assert reopened.decision_debt_history[0].state == "reopened"
+    assert reopened.decision_debt.evidence_node_ids == [
+        "outcome-g1-enterprise-activation-rate"
+    ]
+    assert any(
+        event.get("outcome") == "internal_allocation_rolled_back"
+        and event.get("trigger_observation_id") == observation["observation_id"]
+        for event in reopened.events
+    )
     assert reopened.council.synthesis_hash != approved.council.synthesis_hash
     assert reopened.council.recommendation == "rollback"
     assert reopened.council.evidence_node_ids == [
@@ -254,6 +335,12 @@ def test_successful_outcome_validates_and_duplicate_is_idempotent() -> None:
 
     assert active.status == "validated"
     assert len(active.outcomes) == 1
+    assert active.action_records[0].status == "completed"
+    assert active.action_records[0].finished_at == observation["observed_at"]
+    assert active.decision_debt.state == "resolved"
+    assert active.decision_debt.previous_score == 88
+    assert active.decision_debt.score == 0
+    assert active.decision_debt_history[0].state == "resolved"
     assert duplicate.model_dump() == active.model_dump()
 
 
@@ -685,11 +772,14 @@ def test_pm_intake_case_keeps_user_context_unverified_and_policy_bounded() -> No
         urgency="Sales committed the date and allocation is due this Friday.",
         positive_signal="Beta users complete the core workflow faster than the control group.",
         risk_signal="Admins report permission confusion and support volume is rising.",
+        measurement_contract=_pm_measurement_contract(),
         affected_segment="mid-market admins",
     )
 
     validate_evidence_graph(case)
     validate_council(case)
+    assert case.title == "Mid-market admins decision review"
+    assert case.title != case.question.rstrip(" ?.")
     assert case.council.recommendation == "segment"
     assert {node.source_label for node in case.evidence_nodes} == {
         "PM-provided context · unverified"
@@ -703,7 +793,7 @@ def test_pm_intake_case_keeps_user_context_unverified_and_policy_bounded() -> No
     )
 
 
-def test_pm_intake_approval_builds_a_generic_reversible_measurement_contract() -> None:
+def test_pm_intake_approval_preserves_the_authored_measurement_contract() -> None:
     case = build_intake_decision_case(
         case_id="decision-intake-approval",
         question="Should we expand the beta to all mid-market accounts next month?",
@@ -711,6 +801,7 @@ def test_pm_intake_approval_builds_a_generic_reversible_measurement_contract() -
         urgency="Sales committed the date and allocation is due this Friday.",
         positive_signal="Beta users complete the core workflow faster than the control group.",
         risk_signal="Admins report permission confusion and support volume is rising.",
+        measurement_contract=_pm_measurement_contract(),
         affected_segment="mid-market admins",
     )
 
@@ -723,9 +814,123 @@ def test_pm_intake_approval_builds_a_generic_reversible_measurement_contract() -
     )
 
     assert approved.experiment_plan is not None
-    assert approved.experiment_plan.primary_metric == "decision_success_metric"
+    assert approved.experiment_plan.primary_metric == "workflow completion rate"
+    assert approved.experiment_plan.risk_metric == "failed workflow rate"
+    assert approved.experiment_plan.metric_unit == "%"
+    assert approved.experiment_plan.primary_baseline == 38
+    assert approved.experiment_plan.risk_baseline == 3
+    assert approved.experiment_plan.owner == "Taylor PM"
+    assert approved.experiment_plan.success_threshold == 45
+    assert approved.experiment_plan.stop_threshold == 8
+    assert "38 % baseline" in approved.experiment_plan.success_condition
+    assert "3 % baseline" in approved.experiment_plan.stop_conditions[0]
     assert approved.experiment_plan.target_segment == "mid-market admins"
     assert approved.experiment_plan.reversible is True
+
+
+def test_pm_contract_rejects_thresholds_that_do_not_move_from_baseline() -> None:
+    with pytest.raises(ValueError, match="Success threshold must improve"):
+        PMMeasurementContract.model_validate(
+            {
+                **_pm_measurement_contract().model_dump(),
+                "success_threshold": 38,
+            }
+        )
+
+    with pytest.raises(ValueError, match="Stop threshold must worsen"):
+        PMMeasurementContract.model_validate(
+            {
+                **_pm_measurement_contract().model_dump(),
+                "stop_threshold": 3,
+            }
+        )
+
+
+def test_pm_outcome_requires_success_and_safe_risk_in_either_order() -> None:
+    approved = _approved_pm_case()
+    primary = {
+        "observation_id": "pm-primary-success",
+        "metric_id": "workflow completion rate",
+        "segment": "mid-market admins",
+        "value": 46,
+        "baseline": 38,
+        "unit": "%",
+        "observed_at": "2026-08-30T18:00:00+00:00",
+        "source_label": "PM-provided measurement",
+        "content_hash": "7" * 64,
+    }
+    risk = {
+        "observation_id": "pm-risk-safe",
+        "metric_id": "failed workflow rate",
+        "segment": "mid-market admins",
+        "value": 4,
+        "baseline": 3,
+        "unit": "%",
+        "observed_at": "2026-08-30T18:01:00+00:00",
+        "source_label": "PM-provided measurement",
+        "content_hash": "8" * 64,
+    }
+
+    primary_first = record_outcome(approved, primary, expected_generation=1)
+    assert primary_first.status == "inconclusive"
+    assert primary_first.action_records[0].status == "active"
+    resolved = record_outcome(primary_first, risk, expected_generation=1)
+    assert resolved.status == "validated"
+    assert resolved.action_records[0].status == "completed"
+
+    risk_first = record_outcome(
+        _approved_pm_case(),
+        {**risk, "observation_id": "pm-risk-safe-first", "content_hash": "9" * 64},
+        expected_generation=1,
+    )
+    assert risk_first.status == "inconclusive"
+    resolved_reverse = record_outcome(
+        risk_first,
+        {
+            **primary,
+            "observation_id": "pm-primary-success-second",
+            "content_hash": "a" * 64,
+        },
+        expected_generation=1,
+    )
+    assert resolved_reverse.status == "validated"
+    assert resolved_reverse.action_records[0].status == "completed"
+
+
+def test_pm_risk_breach_rolls_back_and_reopens_with_safe_metric_id() -> None:
+    reopened = record_outcome(
+        _approved_pm_case(),
+        {
+            "observation_id": "pm-risk-breach",
+            "metric_id": "failed workflow rate",
+            "segment": "mid-market admins",
+            "value": 9,
+            "baseline": 3,
+            "unit": "%",
+            "observed_at": "2026-08-30T18:00:00+00:00",
+            "source_label": "PM-provided measurement",
+            "content_hash": "b" * 64,
+        },
+        expected_generation=1,
+    )
+
+    assert reopened.status == "reopened"
+    assert reopened.generation == 2
+    assert reopened.action_records[0].status == "rolled_back"
+    assert reopened.outcomes[-1].evaluation.reason == (
+        "failed workflow rate crossed the approved stop guardrail."
+    )
+    assert any(
+        node.node_id == "outcome-g1-failed-workflow-rate"
+        for node in reopened.evidence_nodes
+    )
+    outcome_node = next(
+        node
+        for node in reopened.evidence_nodes
+        if node.node_id == "outcome-g1-failed-workflow-rate"
+    )
+    assert outcome_node.confidence == 0.6
+    assert outcome_node.source_label.endswith("PM-provided measurement")
 
 
 def test_product_council_prompts_encode_distinct_decision_mandates() -> None:
@@ -804,4 +1009,5 @@ def test_decision_twin_trace_eval_scores_grounding_disagreement_and_falsifiabili
         "falsifiability",
         "human_authority",
         "reopening_lineage",
+        "decision_debt_lineage",
     }

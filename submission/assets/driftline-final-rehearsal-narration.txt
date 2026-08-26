@@ -1,0 +1,19 @@
+A roadmap decision becomes dangerous when the evidence changes but the commitment does not. Driftline catches that drift, compares the safest responses, and keeps the measured outcome attached to the original call.
+
+This is one contested onboarding rollout. Without a prompt loop, Driftline attaches five cited signals, including a privacy-thresholded BigQuery aggregate. Small teams activate faster after the redesign, while enterprise activation falls and permission setup becomes confusing. Every claim keeps its source and customer segment.
+
+Five independent Google ADK agents inspect bounded projections: customer, usage, strategy, feasibility, and challenger. They cannot approve or write anywhere. A Gemini synthesis preserves citations and disagreement instead of averaging it away. Here the council rejects a universal rollout.
+
+Driftline makes four alternatives concrete before anyone commits. Shipping protects momentum but risks enterprise conversion. Rolling back loses small-team gains. Deferring buys information but misses the launch window. A segmented rollout preserves upside and contains the observed failure mode.
+
+The model recommends; a named human authorizes. Approval freezes a falsifiable experiment and creates one bounded internal allocation in Driftline's own decision state: exact segment, owner, metric, guardrail, stop rule, rollback, and review date. The receipt states external writes: none.
+
+Now stop clicking. One approval starts the monitor; there is no second prompt or product-manager action. The measurement is evaluated against the exact thresholds committed at approval. When the enterprise guardrail breaks, Driftline rolls the internal allocation back, writes a learning receipt, and reopens the same decision as generation two. The evidence, dissent, approval, result, and original council remain linked. A fresh human approval is required.
+
+The final public take must bind this exact journey to one released identity. Firebase Hosting provides the stable judge URL and rewrites to Cloud Run. Firestore stores cases and lineage. Google ADK and Gemini power the bounded council. BigQuery supplies privacy-thresholded aggregates and vector precedent memory. Cloud Tasks runs the outcome loop. Seven deterministic checks cover provenance, role independence, disagreement, citations, falsifiability, human authority, and reopening.
+
+This rehearsal is an unreleased local candidate, not production proof. Before submission, the same continuous journey must match public main, the health endpoint, Cloud Run revision, Cloud Build, image digest, and live trace.
+
+That chain makes the submission reproducible: judges can compare the working screen, health metadata, repository, build, and architecture instead of trusting a claim.
+
+Driftline turns product judgment from a meeting artifact into an auditable learning loop: evidence, dissent, decision, outcome.

@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DecisionOptionId = Literal["ship", "rollback", "segment", "defer"]
 MAX_DECISION_GENERATION = 20
@@ -39,7 +40,7 @@ class EvidenceNode(BaseModel):
     content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     confidence: float = Field(ge=0.0, le=1.0)
     segment: str | None = Field(default=None, max_length=80)
-    value: float | None = None
+    value: float | None = Field(default=None, allow_inf_nan=False)
     unit: str | None = Field(default=None, max_length=40)
 
 
@@ -113,17 +114,58 @@ class ExperimentPlan(BaseModel):
     hypothesis: str = Field(min_length=1, max_length=320)
     target_segment: str = Field(min_length=1, max_length=100)
     primary_metric: str = Field(min_length=1, max_length=100)
+    risk_metric: str | None = Field(default=None, min_length=1, max_length=100)
+    metric_unit: str | None = Field(default=None, min_length=1, max_length=20)
+    primary_baseline: float | None = Field(default=None, allow_inf_nan=False)
+    risk_baseline: float | None = Field(default=None, allow_inf_nan=False)
+    owner: str | None = Field(default=None, min_length=2, max_length=120)
     success_condition: str = Field(min_length=1, max_length=240)
     success_operator: Literal["gte", "lte"]
-    success_threshold: float
+    success_threshold: float = Field(allow_inf_nan=False)
     guardrails: list[str] = Field(min_length=1, max_length=4)
     stop_conditions: list[str] = Field(min_length=1, max_length=4)
     stop_operator: Literal["gte", "lte"]
-    stop_threshold: float
+    stop_threshold: float = Field(allow_inf_nan=False)
     review_at: str = Field(min_length=1, max_length=50)
     owner_actions: list[str] = Field(min_length=1, max_length=6)
     rollback: str = Field(min_length=1, max_length=240)
     reversible: bool = True
+
+
+class PMMeasurementContract(BaseModel):
+    """A PM-authored operating contract for a public, unverified intake."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    primary_metric: str = Field(min_length=2, max_length=100)
+    risk_metric: str = Field(min_length=2, max_length=100)
+    metric_unit: str = Field(min_length=1, max_length=20)
+    baseline: float = Field(allow_inf_nan=False)
+    success_operator: Literal["gte", "lte"]
+    success_threshold: float = Field(allow_inf_nan=False)
+    risk_baseline: float = Field(allow_inf_nan=False)
+    stop_operator: Literal["gte", "lte"]
+    stop_threshold: float = Field(allow_inf_nan=False)
+    review_days: int = Field(ge=1, le=90)
+    action_owner: str = Field(min_length=2, max_length=120)
+
+    @model_validator(mode="after")
+    def validate_directional_thresholds(self) -> PMMeasurementContract:
+        success_moves = (
+            self.success_threshold > self.baseline
+            if self.success_operator == "gte"
+            else self.success_threshold < self.baseline
+        )
+        if not success_moves:
+            raise ValueError("Success threshold must improve on the stated baseline")
+        risk_worsens = (
+            self.stop_threshold > self.risk_baseline
+            if self.stop_operator == "gte"
+            else self.stop_threshold < self.risk_baseline
+        )
+        if not risk_worsens:
+            raise ValueError("Stop threshold must worsen from the stated risk baseline")
+        return self
 
 
 class OutcomeEvaluation(BaseModel):
@@ -140,8 +182,8 @@ class OutcomeObservation(BaseModel):
     observation_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,100}$")
     metric_id: str = Field(min_length=1, max_length=100)
     segment: str = Field(min_length=1, max_length=100)
-    value: float
-    baseline: float
+    value: float = Field(allow_inf_nan=False)
+    baseline: float = Field(allow_inf_nan=False)
     unit: str = Field(min_length=1, max_length=40)
     observed_at: str = Field(min_length=1, max_length=50)
     source_label: str = Field(min_length=1, max_length=160)
@@ -163,6 +205,50 @@ class DecisionPrecedent(BaseModel):
     source_label: str = Field(min_length=1, max_length=160)
 
 
+class DecisionDebtAssessment(BaseModel):
+    """A cited reason an active product commitment needs attention now."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    debt_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,100}$")
+    generation: int = Field(ge=1, le=MAX_DECISION_GENERATION)
+    state: Literal[
+        "open", "monitoring", "resolved", "reopened", "requires_human_review"
+    ]
+    severity: Literal["watch", "material", "urgent"]
+    score: int = Field(ge=0, le=100)
+    previous_score: int | None = Field(default=None, ge=0, le=100)
+    detection_mode: Literal["autonomous_monitor", "pm_intake"]
+    title: str = Field(min_length=1, max_length=120)
+    trigger: str = Field(min_length=1, max_length=320)
+    affected_commitment: str = Field(min_length=1, max_length=320)
+    why_now: str = Field(min_length=1, max_length=320)
+    detected_at: str = Field(min_length=1, max_length=50)
+    evidence_node_ids: list[str] = Field(min_length=1, max_length=8)
+    missing_evidence: list[str] = Field(default_factory=list, max_length=4)
+    recommended_next_step: str = Field(min_length=1, max_length=280)
+    resolved_at: str | None = Field(default=None, min_length=1, max_length=50)
+
+
+class BoundedActionRecord(BaseModel):
+    """A reversible internal allocation created only after human approval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,100}$")
+    generation: int = Field(ge=1, le=MAX_DECISION_GENERATION)
+    option_id: DecisionOptionId
+    action_type: Literal["internal_allocation"] = "internal_allocation"
+    status: Literal["active", "rolled_back", "completed"]
+    target_segment: str = Field(min_length=1, max_length=100)
+    evidence_manifest_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    synthesis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    created_at: str = Field(min_length=1, max_length=50)
+    finished_at: str | None = Field(default=None, min_length=1, max_length=50)
+    reason: str | None = Field(default=None, min_length=1, max_length=280)
+    external_write: Literal[False] = False
+
+
 class DecisionHistoryRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -181,6 +267,11 @@ class DecisionCase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     case_id: str
+    mutation_capability_hash: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+        exclude=True,
+    )
     tenant_id: str | None = None
     title: str
     question: str
@@ -195,7 +286,12 @@ class DecisionCase(BaseModel):
     ] = "needs_approval"
     current_commitment: str
     urgency: str
+    measurement_contract: PMMeasurementContract | None = None
     precedents: list[DecisionPrecedent] = Field(default_factory=list, max_length=3)
+    decision_debt: DecisionDebtAssessment | None = None
+    decision_debt_history: list[DecisionDebtAssessment] = Field(
+        default_factory=list, max_length=MAX_DECISION_GENERATION
+    )
     evidence_nodes: list[EvidenceNode] = Field(min_length=1, max_length=32)
     evidence_edges: list[EvidenceEdge] = Field(default_factory=list, max_length=64)
     council: CouncilSynthesis
@@ -203,6 +299,9 @@ class DecisionCase(BaseModel):
     experiment_plan: ExperimentPlan | None = None
     outcomes: list[OutcomeObservation] = Field(default_factory=list, max_length=32)
     decision_history: list[DecisionHistoryRecord] = Field(
+        default_factory=list, max_length=MAX_DECISION_GENERATION
+    )
+    action_records: list[BoundedActionRecord] = Field(
         default_factory=list, max_length=MAX_DECISION_GENERATION
     )
     reopen_reason: str | None = None
@@ -441,6 +540,75 @@ def _build_synthesis(nodes: list[EvidenceNode]) -> CouncilSynthesis:
     )
 
 
+def _demo_decision_debt() -> DecisionDebtAssessment:
+    return DecisionDebtAssessment(
+        debt_id="debt-enterprise-rollout-guardrail",
+        generation=1,
+        state="open",
+        severity="urgent",
+        score=88,
+        detection_mode="autonomous_monitor",
+        title="Enterprise rollout commitment is contradicted",
+        trigger=(
+            "The source monitor found enterprise activation down 11% while "
+            "small-workspace activation improved and a full rollout remains committed."
+        ),
+        affected_commitment=(
+            "Roll out the redesigned onboarding flow to every workspace next week."
+        ),
+        why_now=(
+            "The rollout window is seven days away; waiting would expose every "
+            "enterprise workspace to an unresolved permission failure mode."
+        ),
+        detected_at=datetime.now(UTC).isoformat(),
+        evidence_node_ids=[
+            "metric-activation-split",
+            "commitment-full-rollout",
+            "support-permission-confusion",
+        ],
+        missing_evidence=[
+            "Controlled enterprise result for the permission preview",
+            "Workspace-mix analysis for the activation decline",
+        ],
+        recommended_next_step=(
+            "Review the bounded rollout options and authorize a measurable response."
+        ),
+    )
+
+
+def _intake_decision_debt(
+    *, current_commitment: str, urgency: str
+) -> DecisionDebtAssessment:
+    return DecisionDebtAssessment(
+        debt_id="debt-pm-intake-conflict",
+        generation=1,
+        state="open",
+        severity="material",
+        score=64,
+        detection_mode="pm_intake",
+        title="PM surfaced a commitment with unresolved evidence",
+        trigger=(
+            "The supplied positive and risk signals point in opposing directions; "
+            "neither has been independently verified."
+        ),
+        affected_commitment=current_commitment,
+        why_now=urgency,
+        detected_at=datetime.now(UTC).isoformat(),
+        evidence_node_ids=[
+            "commitment-provided",
+            "positive-signal-provided",
+            "risk-signal-provided",
+        ],
+        missing_evidence=[
+            "Independent evidence for the decision-driving signal",
+            "Observed outcome from the named measurement contract",
+        ],
+        recommended_next_step=(
+            "Validate one independent signal, then review the bounded options."
+        ),
+    )
+
+
 def build_demo_decision_case(
     *, case_id: str = "decision-onboarding-segment"
 ) -> DecisionCase:
@@ -451,6 +619,7 @@ def build_demo_decision_case(
         question="Should the onboarding redesign ship to every workspace next week?",
         current_commitment="Roll out the redesigned onboarding flow to every workspace next week.",
         urgency="Enterprise activation is down while the public rollout commitment is seven days away.",
+        decision_debt=_demo_decision_debt(),
         precedents=[
             DecisionPrecedent(
                 precedent_id="precedent-permission-preview",
@@ -510,6 +679,7 @@ def build_intake_decision_case(
     urgency: str,
     positive_signal: str,
     risk_signal: str,
+    measurement_contract: PMMeasurementContract,
     affected_segment: str | None = None,
 ) -> DecisionCase:
     """Build an honest evidence packet from PM-provided, unverified context."""
@@ -658,6 +828,7 @@ def build_intake_decision_case(
         "positions": [position.model_dump(mode="json") for position in positions],
         "options": [option.model_dump(mode="json") for option in options],
         "evidence_manifest_hash": manifest_hash,
+        "measurement_contract": measurement_contract.model_dump(mode="json"),
     }
     council = CouncilSynthesis(
         question=question,
@@ -671,12 +842,19 @@ def build_intake_decision_case(
         synthesis_hash=_digest(raw),
         mode="deterministic_demo_fallback",
     )
+    segment_title = segment[:60].strip()
+    segment_title = f"{segment_title[:1].upper()}{segment_title[1:]} decision review"
     case = DecisionCase(
         case_id=case_id,
-        title=(question.rstrip(" ?.")[:76] or "PM decision review"),
+        title=segment_title,
         question=question,
         current_commitment=current_commitment,
         urgency=urgency,
+        measurement_contract=measurement_contract,
+        decision_debt=_intake_decision_debt(
+            current_commitment=current_commitment,
+            urgency=urgency,
+        ),
         evidence_nodes=nodes,
         evidence_edges=[
             EvidenceEdge(
@@ -876,6 +1054,7 @@ def _experiment_plan(
     evidence_nodes: list[EvidenceNode],
     *,
     approved_at: datetime,
+    measurement_contract: PMMeasurementContract | None = None,
 ) -> ExperimentPlan:
     metric_node = next(
         (node for node in evidence_nodes if node.node_id == "metric-activation-split"),
@@ -883,6 +1062,26 @@ def _experiment_plan(
     )
     if metric_node is None:
         target = option.affected_segments[0]
+        if measurement_contract is None:
+            raise DecisionTwinPolicyError(
+                "A PM-provided decision requires a measurement contract"
+            )
+        success_direction = (
+            "at least" if measurement_contract.success_operator == "gte" else "at most"
+        )
+        stop_direction = (
+            "at least" if measurement_contract.stop_operator == "gte" else "at most"
+        )
+        success_condition = (
+            f"{measurement_contract.primary_metric} reaches {success_direction} "
+            f"{measurement_contract.success_threshold:g} {measurement_contract.metric_unit} "
+            f"from a {measurement_contract.baseline:g} {measurement_contract.metric_unit} baseline."
+        )
+        stop_condition = (
+            f"Stop if {measurement_contract.risk_metric} reaches {stop_direction} "
+            f"{measurement_contract.stop_threshold:g} {measurement_contract.metric_unit} "
+            f"from a {measurement_contract.risk_baseline:g} {measurement_contract.metric_unit} baseline."
+        )
         return ExperimentPlan(
             plan_id=f"experiment-{option.option_id}-intake",
             option_id=option.option_id,
@@ -891,20 +1090,23 @@ def _experiment_plan(
                 "human-approved risk threshold."
             ),
             target_segment=target,
-            primary_metric="decision_success_metric",
-            success_condition=(
-                "The PM-defined success measure improves from baseline within the review window."
-            ),
-            success_operator="gte",
-            success_threshold=0.05,
+            primary_metric=measurement_contract.primary_metric,
+            risk_metric=measurement_contract.risk_metric,
+            metric_unit=measurement_contract.metric_unit,
+            primary_baseline=measurement_contract.baseline,
+            risk_baseline=measurement_contract.risk_baseline,
+            owner=measurement_contract.action_owner,
+            success_condition=success_condition,
+            success_operator=measurement_contract.success_operator,
+            success_threshold=measurement_contract.success_threshold,
             guardrails=option.guardrails,
-            stop_conditions=["Stop if the PM-defined risk measure worsens from baseline."],
-            stop_operator="lte",
-            stop_threshold=-0.01,
-            review_at=(approved_at + timedelta(days=7)).isoformat(),
+            stop_conditions=[stop_condition],
+            stop_operator=measurement_contract.stop_operator,
+            stop_threshold=measurement_contract.stop_threshold,
+            review_at=(approved_at + timedelta(days=measurement_contract.review_days)).isoformat(),
             owner_actions=[
-                "Name one success measure and its baseline before starting.",
-                "Name one risk measure and the threshold that stops the action.",
+                f"{measurement_contract.action_owner} owns the measurement and stop decision.",
+                f"Record the {measurement_contract.primary_metric} and {measurement_contract.risk_metric} baselines before starting.",
                 f"Limit the first action to {target}.",
                 "Return to the human decision gate when the review window closes.",
             ],
@@ -1038,9 +1240,28 @@ def approve_decision_case(
         option,
         case.evidence_nodes,
         approved_at=approved_at,
+        measurement_contract=case.measurement_contract,
     )
     approved.status = "experiment_active"
     approved.reopen_reason = None
+    if approved.decision_debt is not None:
+        approved.decision_debt.state = "monitoring"
+        approved.decision_debt.recommended_next_step = (
+            "Monitor the human-approved success and stop conditions; reopen "
+            "automatically if the guardrail is crossed."
+        )
+    approved.action_records.append(
+        BoundedActionRecord(
+            action_id=f"allocation-g{approved.generation}-{option_id}",
+            generation=approved.generation,
+            option_id=option_id,
+            status="active",
+            target_segment=approved.experiment_plan.target_segment,
+            evidence_manifest_hash=approved.council.evidence_manifest_hash,
+            synthesis_hash=approved.council.synthesis_hash,
+            created_at=approved_at.isoformat(),
+        )
+    )
     approved.events.append(
         {
             "event_id": f"decision-approved-g{approved.generation}",
@@ -1050,6 +1271,26 @@ def approve_decision_case(
             "synthesis_hash": approved.council.synthesis_hash,
         }
     )
+    approved.events.append(
+        {
+            "event_id": f"bounded-action-executed-g{approved.generation}",
+            "action": "internal_allocation_executor",
+            "outcome": "internal_allocation_active",
+            "generation": approved.generation,
+            "action_id": approved.action_records[-1].action_id,
+            "external_write": False,
+        }
+    )
+    if approved.decision_debt is not None:
+        approved.events.append(
+            {
+                "event_id": f"decision-debt-monitoring-g{approved.generation}",
+                "action": "decision_debt_detector",
+                "outcome": "approved_bet_under_monitoring",
+                "generation": approved.generation,
+                "debt_id": approved.decision_debt.debt_id,
+            }
+        )
     return approved
 
 
@@ -1063,16 +1304,122 @@ def evaluate_outcome(
     )
     if case.experiment_plan is None:
         raise DecisionTwinPolicyError("Outcome requires an approved experiment plan")
-    if outcome.metric_id != case.experiment_plan.primary_metric:
-        return OutcomeEvaluation(
-            verdict="inconclusive",
-            reason="Observation does not measure the approved primary metric.",
-            reopen_required=False,
-        )
-    if outcome.segment != case.experiment_plan.target_segment:
+    plan = case.experiment_plan
+    if outcome.segment != plan.target_segment:
         return OutcomeEvaluation(
             verdict="inconclusive",
             reason="Observation does not cover the approved target segment.",
+            reopen_required=False,
+        )
+    if plan.metric_unit is not None and outcome.unit != plan.metric_unit:
+        return OutcomeEvaluation(
+            verdict="inconclusive",
+            reason="Observation does not use the approved metric unit.",
+            reopen_required=False,
+        )
+
+    def threshold_reached(value: float, operator: Literal["gte", "lte"], threshold: float) -> bool:
+        return value >= threshold if operator == "gte" else value <= threshold
+
+    measurement_group = (
+        outcome.observation_id.rsplit("-", 1)[0]
+        if outcome.observation_id.endswith(("-primary", "-risk"))
+        else None
+    )
+
+    def latest_prior(metric_id: str) -> OutcomeObservation | None:
+        return next(
+            (
+                item
+                for item in reversed(case.outcomes)
+                if item.metric_id == metric_id
+                and item.segment == plan.target_segment
+                and (plan.metric_unit is None or item.unit == plan.metric_unit)
+                and (
+                    measurement_group is None
+                    or item.observation_id.rsplit("-", 1)[0] == measurement_group
+                )
+            ),
+            None,
+        )
+
+    if plan.risk_metric is not None:
+        if outcome.metric_id not in {plan.primary_metric, plan.risk_metric}:
+            return OutcomeEvaluation(
+                verdict="inconclusive",
+                reason="Observation does not measure an approved outcome or risk metric.",
+                reopen_required=False,
+            )
+        if outcome.metric_id == plan.risk_metric:
+            if threshold_reached(
+                outcome.value, plan.stop_operator, plan.stop_threshold
+            ):
+                return OutcomeEvaluation(
+                    verdict="invalidated",
+                    reason=f"{plan.risk_metric} crossed the approved stop guardrail.",
+                    reopen_required=True,
+                )
+            prior_primary = latest_prior(plan.primary_metric)
+            if prior_primary is not None and threshold_reached(
+                prior_primary.value, plan.success_operator, plan.success_threshold
+            ):
+                return OutcomeEvaluation(
+                    verdict="validated",
+                    reason=(
+                        f"{plan.primary_metric} met the approved success threshold "
+                        f"and {plan.risk_metric} remained within its guardrail."
+                    ),
+                    reopen_required=False,
+                )
+            return OutcomeEvaluation(
+                verdict="inconclusive",
+                reason=(
+                    "The risk guardrail remains within bounds, but the approved "
+                    "primary outcome has not resolved the hypothesis."
+                ),
+                reopen_required=False,
+            )
+
+        if not threshold_reached(
+            outcome.value, plan.success_operator, plan.success_threshold
+        ):
+            return OutcomeEvaluation(
+                verdict="inconclusive",
+                reason=(
+                    "The primary outcome has not reached its success threshold, "
+                    "and the risk guardrail has not invalidated the plan."
+                ),
+                reopen_required=False,
+            )
+        prior_risk = latest_prior(plan.risk_metric)
+        if prior_risk is None:
+            return OutcomeEvaluation(
+                verdict="inconclusive",
+                reason=(
+                    "The primary outcome met its success threshold, but a current "
+                    "risk guardrail observation is still required."
+                ),
+                reopen_required=False,
+            )
+        if threshold_reached(prior_risk.value, plan.stop_operator, plan.stop_threshold):
+            return OutcomeEvaluation(
+                verdict="invalidated",
+                reason=f"{plan.risk_metric} crossed the approved stop guardrail.",
+                reopen_required=True,
+            )
+        return OutcomeEvaluation(
+            verdict="validated",
+            reason=(
+                f"{plan.primary_metric} met the approved success threshold and "
+                f"{plan.risk_metric} remained within its guardrail."
+            ),
+            reopen_required=False,
+        )
+
+    if outcome.metric_id != plan.primary_metric:
+        return OutcomeEvaluation(
+            verdict="inconclusive",
+            reason="Observation does not measure the approved primary metric.",
             reopen_required=False,
         )
     # Every Decision Twin metric is normalized as an absolute relative-change
@@ -1080,11 +1427,8 @@ def evaluate_outcome(
     # generated in the same coordinate system, so subtracting the observation's
     # informational baseline would compare unlike units and can invert results.
     measured_value = outcome.value
-    plan = case.experiment_plan
-    stop_crossed = (
-        measured_value <= plan.stop_threshold
-        if plan.stop_operator == "lte"
-        else measured_value >= plan.stop_threshold
+    stop_crossed = threshold_reached(
+        measured_value, plan.stop_operator, plan.stop_threshold
     )
     if stop_crossed:
         return OutcomeEvaluation(
@@ -1092,10 +1436,8 @@ def evaluate_outcome(
             reason=f"{plan.primary_metric} crossed the approved stop guardrail.",
             reopen_required=True,
         )
-    success_reached = (
-        measured_value >= plan.success_threshold
-        if plan.success_operator == "gte"
-        else measured_value <= plan.success_threshold
+    success_reached = threshold_reached(
+        measured_value, plan.success_operator, plan.success_threshold
     )
     if success_reached:
         return OutcomeEvaluation(
@@ -1114,7 +1456,14 @@ def _rebuild_council_after_outcome(
     case: DecisionCase, outcome: OutcomeObservation
 ) -> None:
     """Bind an invalidating observation into the next reviewable generation."""
-    node_id = f"outcome-g{case.generation}-{outcome.metric_id}".replace("_", "-")
+    metric_slug = re.sub(
+        r"[^a-z0-9_-]+",
+        "-",
+        outcome.metric_id.casefold().replace("_", "-"),
+    ).strip("-")
+    node_id = f"outcome-g{case.generation}-{metric_slug or 'metric'}"
+    if len(node_id) > 80:
+        node_id = f"{node_id[:71].rstrip('-')}-{outcome.content_hash[:8]}"
     outcome_node = EvidenceNode(
         node_id=node_id,
         kind="metric",
@@ -1126,7 +1475,9 @@ def _rebuild_council_after_outcome(
         source_label=outcome.source_label,
         observed_at=outcome.observed_at,
         content_hash=outcome.content_hash,
-        confidence=0.98,
+        confidence=(
+            0.6 if "pm-provided" in outcome.source_label.casefold() else 0.98
+        ),
         segment=outcome.segment,
         value=outcome.value,
         unit=outcome.unit,
@@ -1233,6 +1584,35 @@ def record_outcome(
             "content_hash": outcome.content_hash,
         }
     )
+    active_action = next(
+        (
+            item
+            for item in reversed(recorded.action_records)
+            if item.generation == recorded.generation and item.status == "active"
+        ),
+        None,
+    )
+    if evaluation.verdict in {"invalidated", "validated"}:
+        if active_action is None:
+            raise DecisionTwinPolicyError(
+                "A resolving outcome requires an active bounded action"
+            )
+        active_action.status = (
+            "rolled_back" if evaluation.verdict == "invalidated" else "completed"
+        )
+        active_action.finished_at = outcome.observed_at
+        active_action.reason = evaluation.reason
+        recorded.events.append(
+            {
+                "event_id": f"bounded-action-{active_action.status}-g{recorded.generation}",
+                "action": "internal_allocation_executor",
+                "outcome": f"internal_allocation_{active_action.status}",
+                "generation": recorded.generation,
+                "action_id": active_action.action_id,
+                "trigger_observation_id": outcome.observation_id,
+                "external_write": False,
+            }
+        )
     if evaluation.reopen_required:
         if recorded.approval is None:
             raise DecisionTwinPolicyError("Reopening requires a prior human decision")
@@ -1259,6 +1639,46 @@ def record_outcome(
         if recorded.status == "reopened":
             recorded.approval = None
             recorded.experiment_plan = None
+        if recorded.decision_debt is not None:
+            previous_debt = recorded.decision_debt.model_copy(deep=True)
+            previous_debt.state = (
+                "reopened"
+                if recorded.status == "reopened"
+                else "requires_human_review"
+            )
+            previous_debt.resolved_at = outcome.observed_at
+            recorded.decision_debt_history.append(previous_debt)
+            recorded.decision_debt = DecisionDebtAssessment(
+                debt_id=f"debt-outcome-g{recorded.generation}",
+                generation=recorded.generation,
+                state=(
+                    "reopened"
+                    if recorded.status == "reopened"
+                    else "requires_human_review"
+                ),
+                severity="urgent",
+                score=min(100, previous_debt.score + 10),
+                previous_score=previous_debt.score,
+                detection_mode="autonomous_monitor",
+                title="Measured outcome invalidated the approved bet",
+                trigger=evaluation.reason,
+                affected_commitment=previous_debt.affected_commitment,
+                why_now=(
+                    "The named stop condition was crossed. The active internal "
+                    "allocation was rolled back and the prior approval no longer holds."
+                ),
+                detected_at=outcome.observed_at,
+                evidence_node_ids=list(recorded.council.evidence_node_ids),
+                missing_evidence=[
+                    "Confirm the rollback restored the guardrail metric",
+                    f"Identify which assumption failed before authorizing generation {recorded.generation}",
+                ],
+                recommended_next_step=(
+                    "Review the rebuilt council and authorize a new bounded response."
+                    if recorded.status == "reopened"
+                    else "Resolve or archive the decision with a named human review."
+                ),
+            )
         recorded.events.append(
             {
                 "event_id": (
@@ -1278,6 +1698,25 @@ def record_outcome(
         )
     elif evaluation.verdict == "validated":
         recorded.status = "validated"
+        if recorded.decision_debt is not None:
+            previous_debt = recorded.decision_debt.model_copy(deep=True)
+            previous_debt.state = "resolved"
+            previous_debt.resolved_at = outcome.observed_at
+            recorded.decision_debt_history.append(previous_debt)
+            recorded.decision_debt.state = "resolved"
+            recorded.decision_debt.previous_score = previous_debt.score
+            recorded.decision_debt.score = 0
+            recorded.decision_debt.resolved_at = outcome.observed_at
+            recorded.decision_debt.recommended_next_step = (
+                "Preserve this outcome as a cited precedent for the next similar bet."
+            )
     elif evaluation.verdict == "inconclusive":
         recorded.status = "inconclusive"
+        if recorded.decision_debt is not None:
+            recorded.decision_debt.previous_score = recorded.decision_debt.score
+            recorded.decision_debt.score = max(40, recorded.decision_debt.score - 8)
+            recorded.decision_debt.state = "monitoring"
+            recorded.decision_debt.recommended_next_step = (
+                "Collect the missing measurement and keep the approved guardrail active."
+            )
     return recorded

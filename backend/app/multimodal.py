@@ -14,6 +14,8 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from threading import Lock
+from time import monotonic
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import parse_qs, urlparse
@@ -25,6 +27,7 @@ from .guardrails import untrusted_evidence_instruction
 
 MAX_ASSET_BYTES = 2_500_000
 _REF_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+_IMMUTABLE_REF_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
 _MIME_BY_SUFFIX = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -116,6 +119,11 @@ VISUAL_DEFINITIONS: dict[str, VisualDefinition] = {
     ),
 }
 _DEMO_EVIDENCE_CACHE: dict[tuple[str, str], VisualEvidence] = {}
+_PUBLIC_ASSET_CACHE: dict[tuple[str, str, str], tuple[VisualAsset, float]] = {}
+_PUBLIC_ASSET_FAILURES: dict[tuple[str, str, str], float] = {}
+_PUBLIC_ASSET_CACHE_LOCK = Lock()
+PUBLIC_ASSET_FAILURE_BACKOFF_SECONDS = 30
+_PUBLIC_ASSET_MUTABLE_REF_TTL_SECONDS = 60
 
 
 def _visual_url(path: str) -> str:
@@ -180,6 +188,41 @@ def _synthetic_asset(asset_id: str, side: str) -> VisualAsset:
 
 def _fetch_asset(definition: VisualDefinition, side: str) -> VisualAsset:
     url = _asset_url(definition, side)
+    ref = os.getenv("DRIFTLINE_VISUAL_ASSET_REF", "main")
+    cache_key = (definition.asset_id, side, ref)
+    # All route, metadata, and Gemini callers converge here. Keep the lock
+    # through a cache miss so a cold anonymous burst cannot stampede the same
+    # pinned upstream object before the first response populates the cache.
+    with _PUBLIC_ASSET_CACHE_LOCK:
+        cached = _PUBLIC_ASSET_CACHE.get(cache_key)
+        if cached is not None:
+            asset, cached_at = cached
+            if _IMMUTABLE_REF_PATTERN.fullmatch(ref) or (
+                monotonic() - cached_at < _PUBLIC_ASSET_MUTABLE_REF_TTL_SECONDS
+            ):
+                return asset
+            _PUBLIC_ASSET_CACHE.pop(cache_key, None)
+        failed_at = _PUBLIC_ASSET_FAILURES.get(cache_key)
+        if (
+            failed_at is not None
+            and monotonic() - failed_at < PUBLIC_ASSET_FAILURE_BACKOFF_SECONDS
+        ):
+            raise MultimodalUnavailable("visual_asset_fetch_backoff")
+        try:
+            asset = _fetch_asset_uncached(definition, side, url)
+        except MultimodalUnavailable:
+            _PUBLIC_ASSET_FAILURES[cache_key] = monotonic()
+            raise
+        _PUBLIC_ASSET_CACHE[cache_key] = (asset, monotonic())
+        _PUBLIC_ASSET_FAILURES.pop(cache_key, None)
+        return asset
+
+
+def _fetch_asset_uncached(
+    definition: VisualDefinition,
+    side: str,
+    url: str,
+) -> VisualAsset:
     suffix = "." + url.rsplit(".", 1)[-1].casefold()
     mime_type = _MIME_BY_SUFFIX.get(suffix)
     if mime_type is None:

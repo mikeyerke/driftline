@@ -21,6 +21,30 @@ from app.tenant import principal_for_hmac, tenant_operator_signing_secret_name
 client = TestClient(app)
 
 
+def _pm_measurement_contract_payload() -> dict:
+    return {
+        "primary_metric": "workflow completion rate",
+        "risk_metric": "failed workflow rate",
+        "metric_unit": "%",
+        "baseline": 38,
+        "success_operator": "gte",
+        "success_threshold": 45,
+        "risk_baseline": 3,
+        "stop_operator": "gte",
+        "stop_threshold": 8,
+        "review_days": 7,
+        "action_owner": "Taylor PM",
+    }
+
+
+def _open_pm_measurement_window(case_id: str) -> None:
+    case = persistence.load_decision_case(case_id)
+    assert case is not None
+    assert case.experiment_plan is not None
+    case.experiment_plan.review_at = "2000-01-01T00:00:00+00:00"
+    persistence.persist_decision_case(case)
+
+
 def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
@@ -68,6 +92,8 @@ def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
     assert approved.status_code == 200
     assert approved.json()["status"] == "experiment_active"
     assert approved.json()["experiment_plan"]["reversible"] is True
+    assert approved.json()["action_records"][0]["status"] == "active"
+    assert approved.json()["action_records"][0]["external_write"] is False
 
     reopened = client.post(
         f"/api/decision-twin/{case['case_id']}/outcomes/demo",
@@ -79,10 +105,105 @@ def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
     assert payload["generation"] == 2
     assert payload["decision_history"][0]["option_id"] == "segment"
     assert payload["outcomes"][0]["evaluation"]["verdict"] == "invalidated"
+    assert payload["action_records"][0]["status"] == "rolled_back"
 
     restored = client.get(f"/api/decision-twin/{case['case_id']}")
     assert restored.status_code == 200
     assert restored.json() == payload
+
+
+def test_shared_decision_link_is_read_only_and_owner_cookie_is_case_bound(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    owner = TestClient(app)
+    shared_viewer = TestClient(app)
+
+    created_response = owner.post("/api/decision-twin/demo")
+    case = created_response.json()
+    cookie_header = created_response.headers["set-cookie"]
+    assert "HttpOnly" in cookie_header
+    assert "SameSite=strict" in cookie_header
+    assert f"Path=/api/decision-twin/{case['case_id']}" in cookie_header
+    assert "mutation_capability" not in str(case)
+    stored = persistence._decision_cases_memory[case["case_id"]]
+    assert "_mutation_capability_hash" in stored
+    assert api.DECISION_MUTATION_COOKIE_PREFIX not in str(stored)
+
+    shared = shared_viewer.get(f"/api/decision-twin/{case['case_id']}")
+    assert shared.status_code == 200
+    assert shared.json()["can_edit"] is False
+    assert "mutation_capability_hash" not in shared.json()
+    denied = shared_viewer.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Link Recipient",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "This shared decision link is read-only."
+
+    owner_view = owner.get(f"/api/decision-twin/{case['case_id']}")
+    assert owner_view.status_code == 200
+    assert owner_view.json()["can_edit"] is True
+    approved = owner.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Owner PM",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    assert approved.status_code == 200
+
+
+def test_decision_mutation_cookie_cannot_edit_another_case(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    first_owner = TestClient(app)
+    second_owner = TestClient(app)
+    first = first_owner.post("/api/decision-twin/demo").json()
+    second = second_owner.post("/api/decision-twin/demo").json()
+
+    denied = second_owner.post(
+        f"/api/decision-twin/{first['case_id']}/approve",
+        json={
+            "approver": "Wrong Case Owner",
+            "option_id": "segment",
+            "expected_synthesis_hash": first["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    assert denied.status_code == 403
+    assert second_owner.get(
+        f"/api/decision-twin/{second['case_id']}"
+    ).json()["can_edit"] is True
+
+
+def test_one_browser_retains_edit_authority_for_multiple_decisions(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    owner = TestClient(app)
+    first = owner.post("/api/decision-twin/demo").json()
+    second = owner.post("/api/decision-twin/demo").json()
+
+    assert owner.get(f"/api/decision-twin/{first['case_id']}").json()[
+        "can_edit"
+    ] is True
+    assert owner.get(f"/api/decision-twin/{second['case_id']}").json()[
+        "can_edit"
+    ] is True
 
 
 def test_decision_twin_intake_builds_an_honestly_labelled_pm_case(monkeypatch) -> None:
@@ -100,12 +221,15 @@ def test_decision_twin_intake_builds_an_honestly_labelled_pm_case(monkeypatch) -
             "positive_signal": "Beta users complete the core workflow faster than the control group.",
             "risk_signal": "Admins report permission confusion and support volume is rising.",
             "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
         },
     )
 
     assert response.status_code == 200
     case = response.json()
     assert case["case_id"].startswith("decision-intake-")
+    assert case["title"] == "Mid-market admins decision review"
+    assert case["title"] != case["question"].rstrip(" ?.")
     assert case["status"] == "needs_approval"
     assert case["council"]["mode"] == "deterministic_demo_fallback"
     assert {node["source_label"] for node in case["evidence_nodes"]} == {
@@ -126,12 +250,31 @@ def test_decision_twin_intake_rejects_extra_or_underspecified_context(monkeypatc
         "urgency": "Sales committed the date and allocation is due this Friday.",
         "positive_signal": "too short",
         "risk_signal": "Admins report permission confusion and support volume is rising.",
+        "measurement_contract": _pm_measurement_contract_payload(),
         "invented_connected_source": "salesforce",
     }
 
     response = client.post("/api/decision-twin/intake", json=payload)
 
     assert response.status_code == 422
+
+
+def test_decision_twin_intake_requires_an_operating_contract(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    response = client.post(
+        "/api/decision-twin/intake",
+        json={
+            "question": "Should we expand the beta to all mid-market accounts next month?",
+            "current_commitment": "Launch to every mid-market account on September 15.",
+            "urgency": "Sales committed the date and allocation is due this Friday.",
+            "positive_signal": "Beta users complete the core workflow faster than the control group.",
+            "risk_signal": "Admins report permission confusion and support volume is rising.",
+            "affected_segment": "mid-market admins",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"][-1] == "measurement_contract"
 
 
 def test_decision_twin_approval_enqueues_autonomous_monitor(monkeypatch) -> None:
@@ -160,7 +303,36 @@ def test_decision_twin_approval_enqueues_autonomous_monitor(monkeypatch) -> None
 
     assert approved.status_code == 200
     assert approved.json()["status"] == "experiment_active"
+    assert approved.json()["monitor_status"] == "scheduled"
     assert queued == [(case["case_id"], 1)]
+
+
+def test_decision_twin_approval_exposes_monitor_enqueue_failure(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setenv("DRIFTLINE_TASKS_ENABLED", "true")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+
+    def fail_enqueue(_case_id: str, _generation: int) -> None:
+        raise RuntimeError("queue unavailable")
+
+    monkeypatch.setattr(api, "_enqueue_decision_twin_monitor", fail_enqueue)
+    persistence._decision_cases_memory.clear()
+
+    case = client.post("/api/decision-twin/demo").json()
+    approved = client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Demo Product Manager",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "experiment_active"
+    assert approved.json()["monitor_status"] == "fallback_required"
 
 
 def test_pm_intake_approval_never_enqueues_or_accepts_synthetic_outcome(
@@ -186,6 +358,7 @@ def test_pm_intake_approval_never_enqueues_or_accepts_synthetic_outcome(
             "positive_signal": "Beta users complete the core workflow faster than the control group.",
             "risk_signal": "Admins report permission confusion and support volume is rising.",
             "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
         },
     ).json()
 
@@ -204,9 +377,173 @@ def test_pm_intake_approval_never_enqueues_or_accepts_synthetic_outcome(
     )
 
     assert approved.status_code == 200
+    assert approved.json()["monitor_status"] == "not_applicable"
     assert queued == []
     assert synthetic.status_code == 409
     assert "unavailable for PM-provided decisions" in synthetic.json()["detail"]
+
+
+def test_pm_intake_accepts_real_two_metric_measurement_and_is_idempotent(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    case = client.post(
+        "/api/decision-twin/intake",
+        json={
+            "question": "Should we expand the beta to all mid-market accounts next month?",
+            "current_commitment": "Launch to every mid-market account on September 15.",
+            "urgency": "Sales committed the date and allocation is due this Friday.",
+            "positive_signal": "Beta users complete the core workflow faster than the control group.",
+            "risk_signal": "Admins report permission confusion and support volume is rising.",
+            "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
+        },
+    ).json()
+    client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Taylor PM",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    measurement = {
+        "expected_generation": 1,
+        "measurement_id": "manual-safe-1",
+        "primary_value": 46,
+        "risk_value": 4,
+        "source_label": "Weekly product analytics",
+    }
+
+    early = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json={**measurement, "measurement_id": "manual-early-1"},
+    )
+    assert early.status_code == 409
+    assert "Measurement window opens at" in early.json()["detail"]
+    unchanged = persistence.load_decision_case(case["case_id"])
+    assert unchanged is not None
+    assert unchanged.outcomes == []
+    assert unchanged.action_records[0].status == "active"
+
+    assert unchanged.experiment_plan is not None
+    unchanged.experiment_plan.review_at = "invalid-review-date"
+    persistence.persist_decision_case(unchanged)
+    invalid_window = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json={**measurement, "measurement_id": "manual-invalid-window-1"},
+    )
+    assert invalid_window.status_code == 409
+    assert "review date is invalid" in invalid_window.json()["detail"]
+
+    _open_pm_measurement_window(case["case_id"])
+
+    unresolved = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json={
+            **measurement,
+            "measurement_id": "manual-unresolved-1",
+            "primary_value": 40,
+        },
+    )
+    measured = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json=measurement,
+    )
+    duplicate = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json=measurement,
+    )
+
+    assert unresolved.status_code == 200
+    assert unresolved.json()["status"] == "inconclusive"
+    assert unresolved.json()["action_records"][0]["status"] == "active"
+    assert measured.status_code == 200
+    payload = measured.json()
+    assert payload["status"] == "validated"
+    assert payload["action_records"][0]["status"] == "completed"
+    assert [item["evaluation"]["verdict"] for item in payload["outcomes"]] == [
+        "inconclusive",
+        "inconclusive",
+        "inconclusive",
+        "validated",
+    ]
+    assert all(
+        item["source_label"].endswith("PM-provided · unverified")
+        for item in payload["outcomes"]
+    )
+    assert duplicate.status_code == 200
+    assert duplicate.json() == payload
+
+
+def test_pm_risk_measurement_rolls_back_and_manual_measurement_rejects_demo(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    case = client.post(
+        "/api/decision-twin/intake",
+        json={
+            "question": "Should we expand the beta to all mid-market accounts next month?",
+            "current_commitment": "Launch to every mid-market account on September 15.",
+            "urgency": "Sales committed the date and allocation is due this Friday.",
+            "positive_signal": "Beta users complete the core workflow faster than the control group.",
+            "risk_signal": "Admins report permission confusion and support volume is rising.",
+            "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
+        },
+    ).json()
+    client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Taylor PM",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    _open_pm_measurement_window(case["case_id"])
+    breached = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json={
+            "expected_generation": 1,
+            "measurement_id": "manual-breach-1",
+            "primary_value": 46,
+            "risk_value": 9,
+            "source_label": "Weekly product analytics",
+        },
+    )
+
+    assert breached.status_code == 200
+    assert breached.json()["status"] == "reopened"
+    assert breached.json()["action_records"][0]["status"] == "rolled_back"
+    measured_node = next(
+        node
+        for node in breached.json()["evidence_nodes"]
+        if node["title"] == "Measured guardrail outcome"
+    )
+    assert measured_node["confidence"] == 0.6
+    assert measured_node["source_label"].endswith("PM-provided · unverified")
+
+    demo = client.post("/api/decision-twin/demo").json()
+    rejected = client.post(
+        f"/api/decision-twin/{demo['case_id']}/outcomes/measured",
+        json={
+            "expected_generation": 1,
+            "measurement_id": "manual-demo-1",
+            "primary_value": 1,
+            "risk_value": 1,
+            "source_label": "Not applicable",
+        },
+    )
+    assert rejected.status_code == 409
+    assert "only for PM-provided decisions" in rejected.json()["detail"]
 
 
 def test_decision_twin_monitor_records_autonomous_lineage(monkeypatch) -> None:
@@ -5224,6 +5561,7 @@ def test_identity_free_demo_mutations_are_rate_limited(monkeypatch) -> None:
     monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 1)
     with api._demo_mutation_lock:
         api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
 
     first = client.post("/api/workflows/demo")
     second = client.post("/api/workflows/demo")
@@ -5234,6 +5572,171 @@ def test_identity_free_demo_mutations_are_rate_limited(monkeypatch) -> None:
     assert second.headers["retry-after"] == str(api.DEMO_WINDOW_SECONDS)
     with api._demo_mutation_lock:
         api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+
+
+def test_public_mutation_quota_is_fair_per_browser_not_proxy_header(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 1)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 3)
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+    first_browser = TestClient(app)
+    second_browser = TestClient(app)
+    proxy_headers = {
+        "x-forwarded-for": "203.0.113.8",
+        "forwarded": "for=203.0.113.8;proto=https",
+    }
+
+    first = first_browser.post("/api/workflows/demo", headers=proxy_headers)
+    exhausted = first_browser.post(
+        "/api/decision-twin/demo",
+        headers={
+            "x-forwarded-for": "198.51.100.19",
+            "forwarded": "for=198.51.100.19;proto=https",
+        },
+    )
+    independent = second_browser.post("/api/workflows/demo", headers=proxy_headers)
+
+    assert first.status_code == 200
+    assert exhausted.status_code == 429
+    assert independent.status_code == 200
+    assert len(api._demo_mutation_times) == 2
+    assert sorted(len(times) for times in api._public_demo_mutation_times.values()) == [
+        1,
+        1,
+    ]
+
+
+def test_public_mutation_quota_keeps_a_global_emergency_ceiling(monkeypatch) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 2)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 2)
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+
+    responses = [
+        TestClient(app).post("/api/workflows/demo")
+        for _index in range(3)
+    ]
+
+    assert [response.status_code for response in responses] == [200, 200, 429]
+    assert responses[-1].headers["retry-after"] == str(api.DEMO_WINDOW_SECONDS)
+    assert len(api._demo_mutation_times) == 2
+
+
+def test_public_mutation_quota_does_not_retain_rejected_or_stale_sessions(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 2)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 1)
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+    assert TestClient(app).post("/api/workflows/demo").status_code == 200
+    assert len(api._public_demo_mutation_times) == 1
+
+    for index in range(20):
+        attacker = TestClient(app)
+        attacker.cookies.set(
+            api.PUBLIC_MUTATION_SESSION_COOKIE,
+            f"invalid-{index}",
+        )
+        rejected = attacker.post("/api/workflows/demo")
+        assert rejected.status_code == 429
+    assert len(api._public_demo_mutation_times) == 1
+
+    expired = api.monotonic() - api.DEMO_WINDOW_SECONDS - 1
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        for bucket in api._public_demo_mutation_times.values():
+            bucket.clear()
+            bucket.append(expired)
+    assert TestClient(app).post("/api/workflows/demo").status_code == 200
+    assert len(api._public_demo_mutation_times) == 1
+
+
+def test_invalid_demo_source_is_quota_neutral(monkeypatch) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 1)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 1)
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+
+    invalid = TestClient(app).post(
+        "/api/workflows/demo",
+        params={"source_id": "not/allowlisted"},
+    )
+
+    assert invalid.status_code == 422
+    assert not api._demo_mutation_times
+    assert not api._public_demo_mutation_times
+
+
+def test_public_mutation_cookie_is_server_validated_and_hardened(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 2)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 10)
+    monkeypatch.setenv("K_SERVICE", "driftline")
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+    browser = TestClient(app)
+    browser.cookies.set(api.PUBLIC_MUTATION_SESSION_COOKIE, "attacker-chosen")
+
+    response = browser.post("/api/workflows/demo")
+
+    assert response.status_code == 200
+    cookie_header = response.headers["set-cookie"]
+    assert f"{api.PUBLIC_MUTATION_SESSION_COOKIE}=" in cookie_header
+    assert "attacker-chosen" not in cookie_header
+    assert "HttpOnly" in cookie_header
+    assert "SameSite=strict" in cookie_header
+    assert "Secure" in cookie_header
+    assert "Path=/api" in cookie_header
+
+
+def test_unauthorized_decision_requests_do_not_consume_public_quota(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 2)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 10)
+    persistence._decision_cases_memory.clear()
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+    owner = TestClient(app)
+    shared_viewer = TestClient(app)
+    case = owner.post("/api/decision-twin/demo").json()
+    payload = {
+        "approver": "Owner PM",
+        "option_id": "segment",
+        "expected_synthesis_hash": case["council"]["synthesis_hash"],
+        "expected_generation": 1,
+    }
+
+    missing = shared_viewer.post(
+        "/api/decision-twin/not-a-case/approve",
+        json=payload,
+    )
+    denied = shared_viewer.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json=payload,
+    )
+    approved = owner.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json=payload,
+    )
+
+    assert missing.status_code == 404
+    assert denied.status_code == 403
+    assert approved.status_code == 200
+    assert len(api._demo_mutation_times) == 2
 
 
 def test_live_agent_rate_limit_includes_retry_after_header(monkeypatch) -> None:

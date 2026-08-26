@@ -4,7 +4,7 @@ This is the single source of truth for the current product state. It separates
 implemented code, deployed proof, externally verified behavior, and customer
 evidence. Historical release notes remain in `docs/RESOURCE_INVENTORY.md`.
 
-Updated: 2026-08-25 (America/Chicago)
+Updated: 2026-08-26 (America/Chicago)
 
 ## Product contract
 
@@ -83,15 +83,35 @@ The following are deliberately not claimed:
 - a public visitor writing to Jira or any other external system;
 - a completed customer pilot.
 
+## Unreleased candidate custody
+
+The current isolated worktree on
+`codex/driftline-submission-custody-20260825` is ahead of the public repository
+and is not deployed. It adds the PM-authored two-metric operating contract,
+bounded internal allocation, real-measurement follow-up, opaque return link,
+review-window lock, progressive custom-decision intake, clean-checkout API
+routing, explicit retry recovery, tenant-bound agent tools, read-only shared
+links, fair anonymous mutation quotas, and bounded visual-asset fetches described
+in the judge scorecard.
+
+The local candidate passed 481 backend tests, Ruff, the 14/14 trace evaluation,
+the locked frontend build, dependency audit, frontend and submission contracts,
+and shell/diff hygiene on August 26. That is local candidate evidence only.
+`scripts/verify_release_candidate_local.sh --release-candidate` now fails before
+any Cloud mutation unless the tree is clean and its exact `HEAD` equals the
+public `origin/main` tip. At this checkpoint it correctly rejects the candidate
+because publication has not been authorized.
+
 ## Definition of done for the remaining work
 
 1. One current-candidate hosted signed Jira create/reuse/reverse proof —
    **complete** for the isolated `driftline-demo` tenant. The current proof is
    preserved in `docs/INTERNAL_PILOT_2026-08-23.md` and the resource inventory.
 2. One small, real operator pilot with aggregate before/after measurements.
-3. Immutable Decision Twin deployment, BigQuery provisioning, CI, and all
-   production verification scripts — **complete** at the release above.
-4. One release candidate with a single SHA and complete automated/live API
-   proof — **complete**; final entrant-owned video/browser QA remains open.
+3. Immutable Decision Twin baseline deployment, BigQuery provisioning, CI, and
+   production verification scripts — **complete** at the serving release above.
+4. The current local candidate has complete local automated proof. Its public
+   `main` merge, immutable Cloud release, live API/browser proof, and final
+   entrant-owned video remain **open** pending explicit publication approval.
 5. Freeze scope, run real PM validation, record the demo, and submit. No additional connector or UI
    feature work after these gates unless a gate fails.

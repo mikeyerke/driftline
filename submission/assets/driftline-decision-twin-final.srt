@@ -1,0 +1,113 @@
+1
+00:00:00,000 --> 00:00:08,000
+LIVE: https://driftline-ops.web.app/
+I kept making roadmap calls whose evidence changed after commitment.
+
+2
+00:00:08,000 --> 00:00:16,000
+Then I rebuilt the same decision trail by hand.
+Driftline keeps the measured outcome attached to the original call.
+
+3
+00:00:16,000 --> 00:00:26,000
+Without a prompt loop, Driftline attaches five cited signals,
+including a privacy-thresholded BigQuery aggregate.
+
+4
+00:00:26,000 --> 00:00:37,000
+Small teams activate faster, while enterprise activation falls
+and permission setup becomes confusing.
+
+5
+00:00:37,000 --> 00:00:47,000
+Every claim keeps its source and customer segment.
+The evidence conflict stays visible.
+
+6
+00:00:47,000 --> 00:00:58,000
+Five independent Google ADK agents inspect bounded projections
+with Gemini 3.5 Flash.
+
+7
+00:00:58,000 --> 00:01:09,000
+Customer, usage, strategy, feasibility, and challenger agents
+cannot approve or write anywhere.
+
+8
+00:01:09,000 --> 00:01:20,000
+The synthesis preserves citations and disagreement.
+The council rejects a universal rollout.
+
+9
+00:01:20,000 --> 00:01:30,000
+Driftline compares ship, rollback, segment, and defer
+before anyone commits.
+
+10
+00:01:30,000 --> 00:01:41,000
+Each option exposes upside, downside, reversibility,
+unknowns, and cited evidence.
+
+11
+00:01:41,000 --> 00:01:52,000
+A segmented rollout preserves the small-team gain
+and contains the enterprise failure mode.
+
+12
+00:01:52,000 --> 00:02:02,000
+The model recommends; a named human authorizes.
+Approval freezes a falsifiable experiment.
+
+13
+00:02:02,000 --> 00:02:13,000
+The bounded internal allocation records the segment, owner,
+metric, guardrail, stop rule, and review date.
+
+14
+00:02:13,000 --> 00:02:20,000
+External writes: none.
+The action changes only Driftline's decision state.
+
+15
+00:02:20,000 --> 00:02:28,000
+Compare-and-set persistence rejects stale generations
+and conflicting approvals.
+
+16
+00:02:28,000 --> 00:02:39,000
+One approval starts the bounded Cloud Tasks monitor.
+There is no second prompt or PM click.
+
+17
+00:02:39,000 --> 00:02:50,000
+The measured guardrail breaks, so Driftline rolls back
+the internal allocation and writes a learning receipt.
+
+18
+00:02:50,000 --> 00:03:00,000
+Generation 2 reopens automatically with rollback selected
+and the prior approver cleared.
+
+19
+00:03:00,000 --> 00:03:05,000
+Evidence, dissent, approval, result, and lineage stay linked.
+
+20
+00:03:05,000 --> 00:03:15,000
+This is the exact serving release. Firebase Hosting provides the public URL.
+It rewrites to Cloud Run; Firestore stores decision lineage.
+
+21
+00:03:15,000 --> 00:03:25,000
+Google ADK and Gemini power the bounded council.
+BigQuery supplies privacy-thresholded aggregates.
+
+22
+00:03:25,000 --> 00:03:38,000
+Seven deterministic checks cover provenance, independence,
+citations, falsifiability, human authority, and reopening.
+
+23
+00:03:38,000 --> 00:03:48,000
+Driftline turns product judgment into an auditable learning loop:
+evidence, dissent, decision, outcome.

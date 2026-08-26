@@ -14,16 +14,18 @@ bet for the Grand Prize because the strongest path is still a pinned public
 case, no genuine PM validation is recorded, the final video is not uploaded,
 and Devpost registration/submission are unfinished.
 
-| Score | Current verified product | Winning target after entrant gates |
+| Score | Current verified production | Defensible target after remaining gates |
 | --- | ---: | ---: |
-| Innovation & Operational Utility | 32/40 | 36/40 |
-| Architectural Discipline & Tech Stack | 28/30 | 29/30 |
-| Demo & Production Readiness | 23/30 | 28/30 |
-| **Total** | **83/100** | **93/100** |
+| Innovation & Operational Utility | 36/40 | 38/40 |
+| Architectural Discipline & Tech Stack | 29/30 | 30/30 |
+| Demo & Production Readiness | 26/30 | 29/30 |
+| **Total** | **91/100** | **97/100** |
 
-The current product can place. The 93-point target requires the final release
-proof, video, registration, and honest validation evidence; it cannot be
-reached by adding more screens.
+The current product can place. A strong public video supports roughly 94/100.
+Releasing and re-proving the local bounded-action candidate can support roughly
+95/100. The 96–97 range additionally requires genuine independent PM evidence,
+not more screens or stronger adjectives. A guaranteed 100 is not an honest
+forecast because judges award subjective 1–5 criterion scores.
 
 ## 1. Innovation & Operational Utility — 40%
 
@@ -43,9 +45,16 @@ reached by adding more screens.
 
 - The public Decision Twin uses one pinned, redacted onboarding case. This is
   excellent demo control but weak evidence of general PM utility.
-- The public path prepares owner work rather than executing a real downstream
-  product-system mutation. That is responsible, but it makes the Taskmaster
-  autonomy claim less visceral than a safe reversible sandbox write.
+- The serving public path prepares owner work rather than executing a real
+  downstream product-system mutation. The unreleased candidate now executes a
+  reversible internal allocation tied to the approval and automatically rolls
+  it back on invalidation, while explicitly disclosing that it performs no
+  external write. It also accepts a real PM's primary and risk aggregates after
+  the review window, retains them as unverified, and requires both success and
+  safety before completing the action. This improves Taskmaster legibility and
+  closes the custom-decision learning loop. An opaque, explicitly non-secret
+  return link restores that same case for the later measurement. None of this is
+  live proof yet.
 - No genuine PM interviews, time saved, decision-quality comparison, adoption,
   or willingness-to-pay evidence exists. Never imply otherwise.
 - The full council recommendation is still model prose; the UI must foreground
@@ -61,10 +70,8 @@ reached by adding more screens.
 3. Run at least three short PM validation sessions before submission. Record
    only observed task comprehension, time-to-decision, and usefulness; do not
    invent ROI. Six to eight sessions would materially strengthen the claim.
-4. If time remains after the final video, add one safe reversible sandbox
-   action (for example, create then remove an internal demo allocation record)
-   only if it can be proven and undone within the same decision lineage. Do not
-   risk the stable release for this.
+4. Release and re-prove the completed bounded internal-allocation candidate only
+   after the demo narrative, mobile state, and exact-SHA release gates agree.
 
 ## 2. Architectural Discipline & Tech Stack — 30%
 
@@ -86,9 +93,8 @@ reached by adding more screens.
 
 - The architecture is sophisticated enough that a four-minute demo can feel
   like infrastructure theater unless every service is tied to one user value.
-- Release telemetry is append-only and honest, but the live surface exposed a
-  stale trace SHA after deployment because the final command sequence omitted
-  the live trace refresh.
+- Release telemetry is append-only and the canonical verifier now refreshes the
+  live trace before checking the serving release.
 - The repository contains extensive historical evidence that can obscure the
   canonical current-release path.
 
@@ -137,8 +143,12 @@ reached by adding more screens.
   has not been submitted.
 - Final release screenshots and captions must be regenerated from the exact
   serving SHA after the last deploy.
-- A visible stale trace label would materially damage the production-readiness
-  impression even though the underlying release is healthy.
+- Any future candidate must refresh and verify the release-bound trace before
+  recording; local passing tests are not a substitute for that proof.
+- In a fresh 1453 × 726 Chrome viewport, the live primary workflow CTA began
+  31 pixels below the fold. The unreleased candidate moves both workflow
+  actions directly beneath the value proposition and keeps the primary CTA
+  fully visible on desktop and at 390 × 844. This is not live proof yet.
 
 ### Winning polish
 
@@ -177,7 +187,7 @@ After the candidate is frozen, capture the low-risk optional points:
 - Frontend production build: pass.
 - Frontend judge-surface contract: pass.
 - Backend Ruff gate: pass.
-- Backend tests: 408 passed, 2 warnings.
+- Backend tests: 433 passed, 2 dependency deprecation warnings.
 - Trace evaluation: 14/14 checks, overall 1.0, safety 1.0, usefulness 1.0.
 - Frontend production dependency audit: 0 vulnerabilities reported offline.
 - Python dependency audit could not be rerun in the restricted audit sandbox;
@@ -197,13 +207,14 @@ After the candidate is frozen, capture the low-risk optional points:
 
 | Step | Result | Health |
 | --- | --- | --- |
-| First viewport | Decision, urgency, PM utility, and primary CTA are immediately legible. | Pass |
+| First viewport | Decision, urgency, and PM utility are immediately legible; the live CTA starts just below one tested desktop fold. Candidate fix is locally verified. | Pass with local fix pending release |
 | Council run | Live ADK mode, BigQuery aggregate, five cited perspectives, and real dissent appear. | Pass |
 | Option comparison | Four bounded choices expose guardrail, mind-change condition, rollback, and risk. | Pass |
 | Human approval | Human authority is explicit and creates a measurable, reversible plan. | Pass |
+| Bounded internal action | Local candidate creates, completes, or rolls back a decision-state allocation and discloses external writes as none. | Local only; release proof required |
 | Outcome | Pinned aggregate measurement is honestly disclosed. | Pass |
 | Generation-2 reopen | Guardrail breach reopens the same case and preserves prior lineage. | Pass |
-| Architecture proof | Serving release and monitors are healthy; release-bound trace was stale in the audited deployment. | Fix required before recording |
+| Architecture proof | Serving release, release-bound trace, and monitors are healthy for the current immutable production identity. | Pass |
 | Browser console | No application-origin errors observed; cloud-browser extension metadata errors are environment noise. | Pass with note |
 
 ## Release-blocking checklist

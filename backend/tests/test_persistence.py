@@ -145,6 +145,115 @@ def test_decision_case_firestore_audit_failure_rolls_back_parent(monkeypatch) ->
     ] == "needs_approval"
 
 
+def test_decision_case_firestore_read_rejects_expired_or_invalid_ttl(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+    case = build_demo_decision_case(case_id="decision-expired-return-link")
+    payload = {
+        **case.model_dump(mode="json"),
+        "expires_at": datetime.now(UTC).isoformat(),
+    }
+
+    class FakeSnapshot:
+        exists = True
+
+        @staticmethod
+        def to_dict():
+            return dict(payload)
+
+    class FakeDocument:
+        @staticmethod
+        def get():
+            return FakeSnapshot()
+
+    class FakeCollection:
+        @staticmethod
+        def document(_document_id):
+            return FakeDocument()
+
+    class FakeClient:
+        @staticmethod
+        def collection(_name):
+            return FakeCollection()
+
+    monkeypatch.setattr(persistence, "_client", lambda: FakeClient())
+
+    assert persistence.load_decision_case(case.case_id) is None
+    payload["expires_at"] = "not-a-timestamp"
+    assert persistence.load_decision_case(case.case_id) is None
+    payload["expires_at"] = datetime(2099, 1, 1, tzinfo=UTC)
+    assert persistence.load_decision_case(case.case_id) == case
+
+
+def test_decision_case_firestore_transition_rejects_expired_ttl(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "firestore")
+    case = build_demo_decision_case(case_id="decision-expired-transition")
+    approved = approve_decision_case(
+        case,
+        option_id="segment",
+        approver="TTL Tester",
+        expected_synthesis_hash=case.council.synthesis_hash,
+        expected_generation=1,
+    )
+    current = {
+        **case.model_dump(mode="json"),
+        "expires_at": datetime.now(UTC),
+    }
+
+    class FakeSnapshot:
+        exists = True
+
+        @staticmethod
+        def to_dict():
+            return dict(current)
+
+    class FakeDocument:
+        @staticmethod
+        def get(transaction=None):
+            return FakeSnapshot()
+
+        @staticmethod
+        def collection(_name):
+            return SimpleNamespace(document=lambda _document_id: object())
+
+    class FakeCollection:
+        @staticmethod
+        def document(_document_id):
+            return FakeDocument()
+
+    class FakeTransaction:
+        @staticmethod
+        def set(_reference, _payload):
+            raise AssertionError("expired case must not be written")
+
+        @staticmethod
+        def create(_reference, _payload):
+            raise AssertionError("expired case must not append audit events")
+
+    class FakeClient:
+        @staticmethod
+        def collection(_name):
+            return FakeCollection()
+
+        @staticmethod
+        def transaction():
+            return FakeTransaction()
+
+    monkeypatch.setattr(persistence, "_client", lambda: FakeClient())
+    monkeypatch.setattr(
+        persistence.firestore,
+        "transactional",
+        lambda callback: lambda transaction: callback(transaction),
+    )
+
+    assert not persistence.compare_and_set_decision_case(
+        approved,
+        expected_generation=1,
+        expected_statuses={"needs_approval"},
+    )
+
+
 def test_tenant_bootstrap_is_atomic_in_memory(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     tenant_id = "atomic-bootstrap-acme"

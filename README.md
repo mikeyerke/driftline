@@ -1,44 +1,62 @@
 # Driftline
 
-Driftline is a Product Decision Control Plane for PMs. It detects when new
-customer, usage, support, interface, or market evidence invalidates a roadmap
-commitment; compares the smallest safe responses; records a named human
-decision; and reopens the same decision when a measured guardrail breaks. The
-public judge journey is a complete evidence-to-outcome loop, not a chat answer:
-the agent turns ambiguity into a reversible experiment and a durable learning
-receipt. The existing Promise Drift workflow remains as the adjacent
-Taskmaster proof for turning an external change into owner-ready downstream
-work.
+**Contradictory product evidence becomes a reversible experiment—and the
+measured outcome can reopen the original decision.**
 
-The hosted service has two explicit lanes: the anonymous judge console is
-packet-safe, while the Google-OIDC tenant operator lane uses the same durable
-Firestore workflow to execute least-privilege, idempotent, reversible connector
-actions. This is a real deployed control plane with a deliberately safe public
-surface, not a claim that an unauthenticated visitor can mutate a customer's
-systems.
+Driftline is a Google ADK and Gemini product-decision control plane for PMs. It
+preserves evidence provenance and specialist disagreement, compares four
+counterfactual responses, leaves approval with a named human, and carries the
+result back into the same durable decision lineage.
 
-For the current truth about what is deployed, externally verified, and still
-unmeasured, start with [`docs/STATUS.md`](docs/STATUS.md). The concise release
-contract is: one evidence-bound change, one human decision, one reversible
-downstream handoff. Historical release proof is retained for auditability but
-is not a substitute for a customer pilot.
+| Judge entry point | Link |
+| --- | --- |
+| Run the no-sign-in workflow | [driftline-ops.web.app](https://driftline-ops.web.app/) |
+| Verify the serving identity | [`/health`](https://driftline-ops.web.app/health) |
+| See the 40/30/30 evidence map | [Judge scorecard](submission/JUDGE_SCORECARD.md) |
+| Inspect current deployment truth | [Status](docs/STATUS.md) |
+| Reproduce the release checks | [Verification](#reproducible-verification) |
 
-For the fastest rubric-aligned review, see the [judge scorecard](submission/JUDGE_SCORECARD.md):
-it maps the official 40/30/30 judging weights to the live journey, architecture,
-and reproducible release checks.
+## Judge it in 60 seconds
 
-The release also carries a fail-closed [trace-to-eval quality gate](docs/TRACE_EVAL.md):
-the same bounded agent trace is scored for human gating, tool/evidence safety,
-rollback, artifact coverage, decision usefulness, and audit provenance. CI blocks
-critical safety regressions, and the deployed verifier persists redacted live
-reports. The console shows the latest score, one-step regression delta, and a
-bounded oldest-to-newest trajectory from `GET /api/evals/history`; these are
-evaluation metrics, not customer ROI or willingness-to-pay claims.
+1. Open the live application logged out and click **Run the decision workflow**.
+2. Inspect the five cited signals, five independent Google ADK positions, and
+   the preserved challenger dissent.
+3. Compare **ship**, **rollback**, **segment**, and **defer**; enter a reviewer
+   name and approve the segmented experiment.
+4. Stop clicking. The bounded monitor evaluates the committed guardrail and the
+   same case reopens as generation 2 with rollback selected, the approver
+   cleared, and the generation-1 approval and result still attached.
+5. Open [`/health`](https://driftline-ops.web.app/health) and compare its release
+   SHA and Cloud Build ID with the immutable proof below.
+
+![Driftline Decision Twin architecture](submission/assets/driftline-decision-twin-architecture.png)
+
+### Release truth
+
+The currently serving release is application commit
+`03ec8f12fc23d265c89b462a345a5b599a6411e8`, Cloud Run revision
+`driftline-00305-xln`, Cloud Build
+`c01bec2e-a950-407c-873b-b1d4fdc6bae6`, and Artifact Registry digest
+`sha256:fca505ce56c6bd933f9cde8d55ff1e4ea7f9cad099d6fe39e8bb8321c96ea6d3`.
+The public desktop and 390-pixel journeys were freshly rechecked August 26,
+2026. `/health` is authoritative if this prose ever becomes stale.
+
+The local candidate is **not deployed**. It adds one explicitly internal,
+rollback-capable allocation record and a PM-authored two-metric measurement
+contract; the UI states **External writes: none**. Do not describe those two
+candidate additions as live until the candidate is released and the SHA,
+revision, build, digest, trace, and browser journeys are reverified.
+
+Driftline's anonymous judge console is packet-safe. A separate Google-OIDC
+operator lane uses the same durable Firestore workflow for least-privilege,
+idempotent, reversible connector actions. A public visitor cannot mutate a
+customer system, and no customer ROI, adoption, or willingness-to-pay result is
+claimed without an independent pilot.
 
 ## Decision Twin: evidence to outcome
 
-The production release adds a focused product-management decision loop above the
-existing change-to-action workflow. A pinned onboarding case combines bounded
+The current production release provides a focused product-management decision
+loop above the existing change-to-action workflow. A pinned onboarding case combines bounded
 product analytics, customer evidence, strategy constraints, and delivery risk
 into a provenance-preserving evidence graph. Five independent Google ADK
 specialists take customer, usage, strategy, feasibility, and challenger
@@ -46,27 +64,33 @@ positions before one bounded synthesis compares four counterfactuals: ship,
 rollback, segment, or defer. The model recommends; a named human alone approves
 a falsifiable experiment with success, guardrail, and stop conditions.
 
-The loop does not end at approval. A measured aggregate outcome is evaluated
+The live pinned loop does not end at approval. A measured aggregate outcome is evaluated
 against the precommitted thresholds, produces a learning receipt, and can
 reopen the same decision as the next generation while preserving its lineage.
-PMs can also choose **Use my decision** and submit a bounded, non-confidential
-decision question, current commitment, urgency, strongest upside signal, and
-strongest risk signal. `POST /api/decision-twin/intake` labels every resulting
+
+The unreleased candidate extends **Use my decision** so a PM can submit a
+bounded, non-confidential decision question, current commitment, urgency,
+strongest upside signal, and
+strongest risk signal before a second, progressive step binds the affected
+segment, owner, primary metric, risk metric, thresholds, and review window.
+`POST /api/decision-twin/intake` labels every resulting
 node `PM-provided context · unverified`, rejects extra or oversized fields, and
 never upgrades those notes to connected evidence. The same human gate produces
 a reversible measurement contract, while **Copy decision brief** exports the
 question, recommendation, decisive conflict, evidence labels, guardrail, and
-rollback path for an alignment doc or roadmap review.
-The public fixture is deterministic and explicitly labeled; live council mode
+rollback path for an alignment doc or roadmap review. The manual-measurement API
+fails closed before the committed review timestamp; the UI exposes the exact
+opening time rather than accepting a premature result.
+The live public fixture is deterministic and explicitly labeled; live council mode
 uses Gemini 3.5 Flash through Google ADK, and the optional BigQuery adapter reads
 only allowlisted aggregate metrics through parameterized, dry-run-checked,
 bytes-capped queries. See the [judge scorecard](submission/JUDGE_SCORECARD.md)
 and [Decision Twin implementation plan](docs/superpowers/plans/2026-08-23-decision-twin-implementation.md).
 
-The August 24 verified baseline production proof is release
-`1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`, Cloud Run revision
-`driftline-00291-v89`, and Cloud Build
-`154547e7-36ae-4eb2-a79a-35064e293191`. The live Decision Twin verifier proved
+The August 25 verified production proof is release
+`03ec8f12fc23d265c89b462a345a5b599a6411e8`, Cloud Run revision
+`driftline-00305-xln`, and Cloud Build
+`c01bec2e-a950-407c-873b-b1d4fdc6bae6`. The live Decision Twin verifier proved
 five evidence-grounded ADK roles with preserved `ship`/`segment`/`defer`
 disagreement, a privacy-thresholded BigQuery attachment, named-human approval,
 measured outcome, and generation-2 reopening with prior approval and experiment
@@ -74,6 +98,9 @@ lineage intact.
 The authoritative identity for any later release is read from `/health` and
 cross-checked against Cloud Run, Cloud Build, and Artifact Registry by
 `./scripts/verify_production.sh` rather than copied forward in prose.
+
+<details>
+<summary><strong>Deep technical and operator reference</strong></summary>
 
 The adjacent Promise Drift demonstration models a competitor price change from
 $49 to $59 per seat per month, then traces the impact into a comparison map,
@@ -564,6 +591,8 @@ Every connector returns an explicit per-system status (`created`, `reused`,
 `reversed`, `prepared_only`, `not_configured`, `not_eligible`,
 `invalid_config`, or `failed`) in the action record.
 
+</details>
+
 ## Repository layout
 
 ~~~text
@@ -583,6 +612,11 @@ npm install
 npm run dev
 ~~~
 
+The Vite development server proxies `/api` and `/health` to
+`http://127.0.0.1:8080`, so a clean checkout works without creating a frontend
+environment file. Set `VITE_DEV_API_TARGET` only when the local backend uses a
+different origin. `VITE_API_BASE_URL` remains the production-build override.
+
 ### Backend
 
 ~~~bash
@@ -601,7 +635,28 @@ cd frontend && npm run build
 cd ../backend && uv run --extra dev pytest
 ~~~
 
-The verified local suite also runs Ruff lint and format checks. For dependency
+The optional real-PM browser gate exercises the complete custom-decision path
+at 1453 × 726 and 390 × 844. Start the local API on port 8080 and Vite on 5173,
+then point it at any local Node package root that contains Playwright:
+
+~~~bash
+PLAYWRIGHT_MODULE_ROOT=/path/to/node-project-with-playwright \
+  node scripts/verify_custom_decision_browser.mjs
+~~~
+
+It is loopback-only by default and fails unless both viewports preserve the
+PM-provided/unverified disclosure, named approval, bounded internal action,
+decision-state-only/no-external-write boundary, early-measurement lock, copied
+view-only return link, fresh-browser restoration, console cleanliness, and zero
+horizontal overflow. It also verifies the keyboard radiogroup and approval
+path, visible skip link, accessible control names, 24-pixel minimum standalone
+targets, landmarks, unique IDs, ARIA references, and the absence of positive
+tab indexes or focusable `aria-hidden` content. It does not contact production
+or require credentials.
+
+The verified local suite also runs Ruff lint checks. Formatting is not a CI
+gate; do not describe `ruff format --check` as passing unless the current
+toolchain has been run explicitly. For dependency
 security, run `./scripts/verify_dependencies.sh` with `uv` and `pip-audit`
 installed; it exports the frozen backend lockfile and audits the complete
 transitive resolution without changing application dependencies. The current
@@ -629,9 +684,12 @@ gcloud config set project driftline-hackathon-2026
 ~~~
 
 For the final candidate, use the release wrapper instead of stopping after the
-build. It deploys one clean commit, refreshes the live ADK trace evaluation for
-that exact SHA, verifies the Decision Twin approval/outcome/reopen loop, and
-runs the production proof gate in the required order:
+build. Before any Google Cloud mutation, the wrapper runs the complete locked
+local suite and refuses unless local `HEAD` is clean and exactly equals the
+public `origin/main` tip of `mikeyerke/driftline`. It then deploys that one
+commit, refreshes the live ADK trace evaluation for the same SHA, verifies the
+Decision Twin approval/outcome/reopen loop, and runs the production proof gate
+in the required order:
 
 ~~~bash
 DRIFTLINE_BASE_URL=https://driftline-ops.web.app \
@@ -645,8 +703,8 @@ API key is embedded in the client. The production image installs the frozen
 `pyproject.toml` cannot silently change a deployed build. Verify the lockfile
 before a release with `uv lock --check --directory backend`. The deployment
 script refuses any active project other than `driftline-hackathon-2026`, refuses
-a dirty or untracked release context, and explicitly selects the isolated
-`driftline-build` Cloud Build service account;
+a dirty, untracked, locally failing, or public-main-mismatched release context,
+and explicitly selects the isolated `driftline-build` Cloud Build service account;
 it never falls back to the default Compute service account. The checked-in
 `.gcloudignore` also excludes credentials, local environments, dependency
 trees, generated bundles, and screenshots from the uploaded build context.
@@ -794,6 +852,16 @@ their cadence deadlines.
 - Internal technical pilot (not customer evidence): https://github.com/mikeyerke/driftline/blob/main/docs/INTERNAL_PILOT_2026-08-23.md
 
 ## Reproducible verification
+
+To prove the committed repository works without any untracked local files or
+pre-existing project environments, run the clean-checkout gate. It exports only
+`HEAD` into a temporary directory, installs the locked dependencies, and reruns
+the backend, agent evaluation, frontend build, contract, submission, and shell
+syntax checks:
+
+~~~bash
+./scripts/verify_clean_checkout.sh
+~~~
 
 ~~~bash
 BASE=https://driftline-ops.web.app

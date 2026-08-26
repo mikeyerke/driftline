@@ -76,6 +76,7 @@ from .credential_broker import (
 from .decision_copilot import validate_approval_choice
 from .decision_twin import (
     DecisionTwinPolicyError,
+    PMMeasurementContract,
     approve_decision_case,
     attach_aggregate_metrics,
     attach_decision_precedents,
@@ -87,6 +88,7 @@ from .materiality import build_change_card, normalize_internal_context
 from .memory import build_memory_summary
 from .models import ActionItemStatus, JobState, WorkflowState, WorkflowStatus, utc_now
 from .multimodal import (
+    PUBLIC_ASSET_FAILURE_BACKOFF_SECONDS,
     MultimodalUnavailable,
     analyze_visual_evidence,
     get_visual_evidence,
@@ -152,6 +154,80 @@ from .trace_eval import (
     run_quality_gate,
 )
 
+DECISION_MUTATION_COOKIE_PREFIX = "driftline_decision_mutation_"
+PUBLIC_MUTATION_SESSION_COOKIE = "driftline_public_mutation_session"
+_PUBLIC_MUTATION_SESSION_KEY = secrets.token_bytes(32)
+_PUBLIC_MUTATION_SESSION_TOKEN = re.compile(r"^[A-Za-z0-9_-]{32}$")
+
+
+def _decision_capability_hash(capability: str) -> str:
+    return hashlib.sha256(capability.encode()).hexdigest()
+
+
+def _decision_mutation_cookie_name(case_id: str) -> str:
+    suffix = hashlib.sha256(case_id.encode()).hexdigest()[:16]
+    return f"{DECISION_MUTATION_COOKIE_PREFIX}{suffix}"
+
+
+def _sign_public_mutation_session(token: str) -> str:
+    signature = hmac.new(
+        _PUBLIC_MUTATION_SESSION_KEY,
+        token.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{token}.{signature}"
+
+
+def _public_mutation_session(cookie_value: str | None) -> tuple[str, str | None]:
+    """Return a server-validated quota key and an optional replacement cookie."""
+    if cookie_value:
+        token, separator, supplied_signature = cookie_value.partition(".")
+        if separator and _PUBLIC_MUTATION_SESSION_TOKEN.fullmatch(token):
+            expected = _sign_public_mutation_session(token).partition(".")[2]
+            if hmac.compare_digest(supplied_signature, expected):
+                return hashlib.sha256(token.encode()).hexdigest(), None
+    token = secrets.token_urlsafe(24)
+    return hashlib.sha256(token.encode()).hexdigest(), _sign_public_mutation_session(token)
+
+
+def _issue_decision_mutation_capability(case: object, response: Response) -> None:
+    capability = secrets.token_urlsafe(32)
+    case.mutation_capability_hash = _decision_capability_hash(capability)
+    response.set_cookie(
+        _decision_mutation_cookie_name(case.case_id),
+        capability,
+        max_age=max(1, int(os.getenv("DRIFTLINE_RETENTION_DAYS", "30"))) * 86400,
+        httponly=True,
+        secure=bool(os.getenv("K_SERVICE")),
+        samesite="strict",
+        path=f"/api/decision-twin/{case.case_id}",
+    )
+
+
+def _has_decision_mutation_capability(case: object, request: Request) -> bool:
+    expected = getattr(case, "mutation_capability_hash", None)
+    capability = request.cookies.get(
+        _decision_mutation_cookie_name(case.case_id),
+        "",
+    )
+    return bool(
+        expected
+        and capability
+        and hmac.compare_digest(expected, _decision_capability_hash(capability))
+    )
+
+
+def _require_decision_mutation_capability(case: object, request: Request) -> None:
+    if not _has_decision_mutation_capability(case, request):
+        raise HTTPException(
+            status_code=403,
+            detail="This shared decision link is read-only.",
+        )
+
+
+def _public_decision_case(case: object, *, can_edit: bool) -> dict[str, object]:
+    return {**case.model_dump(mode="json"), "can_edit": can_edit}
+
 
 def _read_tenant_secret(tenant_id: str, secret_name: str, *, version: str = "latest") -> str:
     """Read through the tenant identity with compatibility for local fakes."""
@@ -215,6 +291,9 @@ logger = logging.getLogger("driftline.api")
 app = FastAPI(title="Driftline API", version="0.2.0")
 _request_auth: ContextVar[tuple[str | None, str | None]] = ContextVar(
     "driftline_request_auth", default=(None, None)
+)
+_public_mutation_request: ContextVar[dict[str, object] | None] = ContextVar(
+    "driftline_public_mutation_request", default=None
 )
 app.add_middleware(
     CORSMiddleware,
@@ -318,9 +397,30 @@ async def secure_get_auth(request: Request, call_next):
     auth_token = _request_auth.set(
         (request.headers.get("x-driftline-approval"), request.headers.get("authorization"))
     )
+    session_key, replacement_cookie = _public_mutation_session(
+        request.cookies.get(PUBLIC_MUTATION_SESSION_COOKIE)
+    )
+    public_session = {
+        "key": session_key,
+        "replacement_cookie": replacement_cookie,
+        "used": False,
+    }
+    public_session_token = _public_mutation_request.set(public_session)
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        if public_session["used"] and public_session["replacement_cookie"]:
+            response.set_cookie(
+                PUBLIC_MUTATION_SESSION_COOKIE,
+                str(public_session["replacement_cookie"]),
+                max_age=DEMO_WINDOW_SECONDS,
+                httponly=True,
+                secure=bool(os.getenv("K_SERVICE")),
+                samesite="strict",
+                path="/api",
+            )
+        return response
     finally:
+        _public_mutation_request.reset(public_session_token)
         _request_auth.reset(auth_token)
 
 
@@ -367,6 +467,7 @@ class DecisionTwinIntakeRequest(BaseModel):
     positive_signal: str = Field(min_length=12, max_length=500)
     risk_signal: str = Field(min_length=12, max_length=500)
     affected_segment: str | None = Field(default=None, min_length=2, max_length=80)
+    measurement_contract: PMMeasurementContract
 
 
 class DecisionTwinOutcomeRequest(BaseModel):
@@ -374,6 +475,18 @@ class DecisionTwinOutcomeRequest(BaseModel):
     scenario: Literal["guardrail_breach", "successful_recovery"] = (
         "guardrail_breach"
     )
+
+
+class DecisionTwinMeasuredOutcomeRequest(BaseModel):
+    """Two-metric, PM-reported measurement for a custom public decision."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    expected_generation: int = Field(ge=1, le=20)
+    measurement_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,63}$")
+    primary_value: float = Field(allow_inf_nan=False)
+    risk_value: float = Field(allow_inf_nan=False)
+    source_label: str = Field(min_length=3, max_length=120)
 
 
 class DismissRequest(BaseModel):
@@ -639,8 +752,15 @@ _tenant_agent_call_times: dict[str, deque[float]] = {}
 _agent_call_lock = Lock()
 
 DEMO_MAX_MUTATIONS = _positive_int("DRIFTLINE_DEMO_MAX_MUTATIONS", 30)
+PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS = _positive_int(
+    "DRIFTLINE_PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", DEMO_MAX_MUTATIONS * 10
+)
 DEMO_WINDOW_SECONDS = _positive_int("DRIFTLINE_DEMO_WINDOW_SECONDS", 3600)
+# Public browser sessions receive their own normal allowance. This aggregate
+# deque is a higher emergency ceiling that still bounds cookie rotation/Sybil
+# traffic while the deployed service remains at max-instances=1.
 _demo_mutation_times: deque[float] = deque()
+_public_demo_mutation_times: dict[str, deque[float]] = {}
 _tenant_demo_mutation_times: dict[str, deque[float]] = {}
 _demo_mutation_lock = Lock()
 CONNECTOR_MAX_CALLS = _positive_int("DRIFTLINE_CONNECTOR_MAX_CALLS", 60)
@@ -906,11 +1026,40 @@ def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
     now = monotonic()
     cutoff = now - DEMO_WINDOW_SECONDS
     with _demo_mutation_lock:
-        times = (
-            _tenant_demo_mutation_times.setdefault(tenant_id, deque())
-            if tenant_id
-            else _demo_mutation_times
-        )
+        if not tenant_id:
+            request_session = _public_mutation_request.get()
+            session_key = (
+                str(request_session["key"])
+                if request_session is not None
+                else "direct-call"
+            )
+            while _demo_mutation_times and _demo_mutation_times[0] <= cutoff:
+                _demo_mutation_times.popleft()
+            for key, bucket in list(_public_demo_mutation_times.items()):
+                while bucket and bucket[0] <= cutoff:
+                    bucket.popleft()
+                if not bucket:
+                    del _public_demo_mutation_times[key]
+            if len(_demo_mutation_times) >= PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS:
+                return False
+            if (
+                session_key not in _public_demo_mutation_times
+                and len(_public_demo_mutation_times)
+                >= PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS
+            ):
+                return False
+            session_times = _public_demo_mutation_times.setdefault(
+                session_key, deque()
+            )
+            if len(session_times) >= limit:
+                return False
+            session_times.append(now)
+            _demo_mutation_times.append(now)
+            if request_session is not None:
+                request_session["used"] = True
+            _record_tenant_usage(None, "workflow_mutations")
+            return True
+        times = _tenant_demo_mutation_times.setdefault(tenant_id, deque())
         while times and times[0] <= cutoff:
             times.popleft()
         if len(times) >= limit:
@@ -5944,7 +6093,23 @@ def get_multimodal_asset(
     try:
         asset = visual_asset_bytes(asset_id, side, mode)
     except MultimodalUnavailable as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        detail = str(exc)
+        if detail in {
+            "visual_asset_fetch_failed",
+            "visual_asset_fetch_backoff",
+            "visual_asset_out_of_bounds",
+        }:
+            headers = (
+                {"Retry-After": str(PUBLIC_ASSET_FAILURE_BACKOFF_SECONDS)}
+                if detail == "visual_asset_fetch_backoff"
+                else None
+            )
+            raise HTTPException(
+                status_code=503,
+                detail=detail,
+                headers=headers,
+            ) from exc
+        raise HTTPException(status_code=404, detail=detail) from exc
     return Response(content=asset.body, media_type=asset.mime_type)
 
 
@@ -6026,7 +6191,10 @@ def get_workflow_scenarios(
 
 
 @app.post("/api/decision-twin/intake")
-async def start_decision_twin_intake(request: DecisionTwinIntakeRequest) -> dict:
+async def start_decision_twin_intake(
+    request: DecisionTwinIntakeRequest,
+    response: Response,
+) -> dict:
     """Create a Decision Twin from bounded, explicitly unverified PM context."""
     if not _reserve_demo_mutation():
         raise _demo_mutation_rate_limit_error(
@@ -6040,6 +6208,7 @@ async def start_decision_twin_intake(request: DecisionTwinIntakeRequest) -> dict
         positive_signal=request.positive_signal,
         risk_signal=request.risk_signal,
         affected_segment=request.affected_segment,
+        measurement_contract=request.measurement_contract,
     )
     if os.getenv("DECISION_TWIN_LIVE_COUNCIL", "false").casefold() == "true":
         if not _reserve_product_council_calls():
@@ -6076,12 +6245,13 @@ async def start_decision_twin_intake(request: DecisionTwinIntakeRequest) -> dict
                         "reason": str(exc)[:240],
                     }
                 )
+    _issue_decision_mutation_capability(case, response)
     persist_decision_case(case)
-    return case.model_dump(mode="json")
+    return _public_decision_case(case, can_edit=True)
 
 
 @app.post("/api/decision-twin/demo")
-async def start_decision_twin_demo() -> dict:
+async def start_decision_twin_demo(response: Response) -> dict:
     """Create the pinned PM decision case and optionally run the live ADK council."""
     if not _reserve_demo_mutation():
         raise _demo_mutation_rate_limit_error(
@@ -6180,18 +6350,22 @@ async def start_decision_twin_demo() -> dict:
                         "reason": str(exc)[:240],
                     }
                 )
+    _issue_decision_mutation_capability(case, response)
     persist_decision_case(case)
-    return case.model_dump(mode="json")
+    return _public_decision_case(case, can_edit=True)
 
 
 @app.get("/api/decision-twin/{case_id}")
-def get_decision_twin(case_id: str) -> dict:
+def get_decision_twin(case_id: str, request: Request) -> dict:
     case = load_decision_case(case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="Decision case not found")
     if case.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
-    return case.model_dump(mode="json")
+    return _public_decision_case(
+        case,
+        can_edit=_has_decision_mutation_capability(case, request),
+    )
 
 
 @app.get("/api/decision-twin/{case_id}/evaluation")
@@ -6207,14 +6381,16 @@ def approve_decision_twin(
     case_id: str,
     request: DecisionTwinApprovalRequest,
     background_tasks: BackgroundTasks,
+    http_request: Request,
 ) -> dict:
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    _require_decision_mutation_capability(current, http_request)
     if not _reserve_demo_mutation():
         raise _demo_mutation_rate_limit_error(
             "Decision Twin approval rate limit reached; retry later."
         )
-    current = load_decision_case(case_id)
-    if current is None or current.tenant_id is not None:
-        raise HTTPException(status_code=404, detail="Decision case not found")
     previous_status = current.status
     previous_generation = current.generation
     try:
@@ -6247,6 +6423,9 @@ def approve_decision_twin(
         if autonomous_monitor is not None
         else _tasks_enabled()
     )
+    monitor_status: Literal["scheduled", "fallback_required", "not_applicable"] = (
+        "not_applicable" if not is_pinned_demo else "fallback_required"
+    )
     if is_pinned_demo and monitor_enabled:
         try:
             if _tasks_enabled():
@@ -6260,13 +6439,18 @@ def approve_decision_twin(
                         scenario="guardrail_breach",
                     ),
                 )
+            monitor_status = "scheduled"
         except Exception:
             # Approval remains valid even if the monitor queue is temporarily
             # unavailable. The UI keeps the explicit demo measurement fallback.
             logger.exception(
                 "Unable to enqueue Decision Twin monitor for %s", approved.case_id
             )
-    return approved.model_dump(mode="json")
+    return {
+        **approved.model_dump(mode="json"),
+        "monitor_status": monitor_status,
+        "can_edit": True,
+    }
 
 
 def _record_decision_twin_demo_outcome(
@@ -6342,13 +6526,150 @@ def _record_decision_twin_demo_outcome(
 
 @app.post("/api/decision-twin/{case_id}/outcomes/demo")
 def record_decision_twin_demo_outcome(
-    case_id: str, request: DecisionTwinOutcomeRequest
+    case_id: str,
+    request: DecisionTwinOutcomeRequest,
+    http_request: Request,
 ) -> dict:
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    _require_decision_mutation_capability(current, http_request)
     if not _reserve_demo_mutation():
         raise _demo_mutation_rate_limit_error(
             "Decision Twin outcome rate limit reached; retry later."
         )
-    return _record_decision_twin_demo_outcome(case_id, request)
+    return {
+        **_record_decision_twin_demo_outcome(case_id, request),
+        "can_edit": True,
+    }
+
+
+@app.post("/api/decision-twin/{case_id}/outcomes/measured")
+def record_decision_twin_measured_outcome(
+    case_id: str,
+    request: DecisionTwinMeasuredOutcomeRequest,
+    http_request: Request,
+) -> dict:
+    """Attach explicit, unverified PM measurements without fabricating an outcome."""
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    _require_decision_mutation_capability(current, http_request)
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin measurement rate limit reached; retry later."
+        )
+    is_pm_provided = any(
+        event.get("source_mode") == "pm_provided_unverified"
+        for event in current.events
+    )
+    if not is_pm_provided:
+        raise HTTPException(
+            status_code=409,
+            detail="Manual measurements are available only for PM-provided decisions.",
+        )
+    if current.generation != request.expected_generation:
+        raise HTTPException(
+            status_code=409,
+            detail="Measurement references a stale decision generation.",
+        )
+    plan = current.experiment_plan
+    if plan is None or plan.risk_metric is None or plan.metric_unit is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Measurement requires an active two-metric experiment contract.",
+        )
+    try:
+        review_at = datetime.fromisoformat(plan.review_at)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Measurement window is unavailable because the review date is invalid.",
+        ) from exc
+    if review_at.tzinfo is None:
+        review_at = review_at.replace(tzinfo=UTC)
+    if datetime.now(UTC) < review_at.astimezone(UTC):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Measurement window opens at {review_at.astimezone(UTC).isoformat()}.",
+        )
+    primary_id = (
+        f"outcome-g{request.expected_generation}-{request.measurement_id}-primary"
+    )
+    risk_id = f"outcome-g{request.expected_generation}-{request.measurement_id}-risk"
+    existing_ids = {item.observation_id for item in current.outcomes}
+    if {primary_id, risk_id}.issubset(existing_ids):
+        return _public_decision_case(current, can_edit=True)
+    observed_at = datetime.now(UTC).isoformat()
+
+    def observation(
+        observation_id: str,
+        metric_id: str,
+        value: float,
+        baseline: float | None,
+    ) -> dict[str, object]:
+        canonical = {
+            "observation_id": observation_id,
+            "metric_id": metric_id,
+            "segment": plan.target_segment,
+            "value": value,
+            "baseline": baseline,
+            "unit": plan.metric_unit,
+            "observed_at": observed_at,
+            "source_label": f"{request.source_label} · PM-provided · unverified",
+        }
+        return {
+            **canonical,
+            "baseline": baseline if baseline is not None else 0.0,
+            "content_hash": hashlib.sha256(
+                json.dumps(canonical, sort_keys=True).encode()
+            ).hexdigest(),
+        }
+
+    try:
+        updated = record_outcome(
+            current,
+            observation(
+                primary_id,
+                plan.primary_metric,
+                request.primary_value,
+                plan.primary_baseline,
+            ),
+            expected_generation=request.expected_generation,
+        )
+        updated = record_outcome(
+            updated,
+            observation(
+                risk_id,
+                plan.risk_metric,
+                request.risk_value,
+                plan.risk_baseline,
+            ),
+            expected_generation=request.expected_generation,
+        )
+    except DecisionTwinPolicyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    updated.events.append(
+        {
+            "event_id": f"{request.measurement_id}-attached",
+            "action": "pm_measurement_intake",
+            "outcome": updated.outcomes[-1].evaluation.verdict,
+            "generation": request.expected_generation,
+            "source_mode": "pm_provided_unverified",
+            "observation_ids": [primary_id, risk_id],
+        }
+    )
+    committed = compare_and_set_decision_case(
+        updated,
+        expected_generation=current.generation,
+        expected_statuses={current.status},
+    )
+    if not committed:
+        raise HTTPException(
+            status_code=409,
+            detail="Decision changed before the measurement was recorded; reload it.",
+        )
+    return _public_decision_case(updated, can_edit=True)
 
 
 @app.post("/api/decision-twin/{case_id}/monitor/run")
@@ -6365,10 +6686,6 @@ def run_decision_twin_monitor(
 @app.post("/api/workflows/demo")
 def start_demo(source_id: str = "public/pricing") -> dict:
     """Legacy deterministic fixture endpoint retained for reproducible tests."""
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Demo workflow rate limit reached; retry later."
-        )
     definition = source_definition(source_id)
     if definition is None:
         raise HTTPException(status_code=422, detail="Source is not allowlisted")
@@ -6376,6 +6693,10 @@ def start_demo(source_id: str = "public/pricing") -> dict:
         raise HTTPException(
             status_code=422,
             detail="Operator-registered sources require a public monitor run",
+        )
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Demo workflow rate limit reached; retry later."
         )
     state = workflow_store.start_demo(
         source_id=source_id,

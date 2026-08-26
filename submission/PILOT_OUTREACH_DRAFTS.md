@@ -1,0 +1,162 @@
+# Driftline pilot outreach drafts
+
+Status: local draft only. Do not send, post, register, or publish without Mike approving the exact recipient, channel, and final text.
+
+## Recommended sequence
+
+Use a small, high-fit first wave rather than bulk outreach:
+
+1. ProductTank Austin hosts Edwin and Ian B. through the Meetup organizer-message route.
+2. Kevin Smith through the Just Add PRODUCT contact form or published business email.
+3. Hatch Labs through its official collaborator contact route.
+4. VentureKind through its official **Start a Conversation** route.
+5. Ashok through the Clarity for Product contact route.
+6. Path through its official **Talk to our team** route.
+7. Robert Gilbreath through his public business route if a product-adjacent GTM
+   decision would satisfy the qualification gate.
+8. John Leonard through the RoadMapVenture LinkedIn route only if the first wave does not produce a session.
+
+The objective is one qualified real decision, not response volume. Stop recruiting once a participant is scheduled and qualified; complete the session before widening the list.
+
+## ProductTank Austin hosts
+
+Channel: Meetup organizer message. Event: “Shipping on Someone Else's Roadmap,” August 27, 2026.
+
+Subject: One private real-decision test for a ProductTank attendee
+
+> Hi Edwin and Ian — Thursday's session is unusually close to a workflow I have been building: helping a product leader compare options when a platform, API, cloud service, or AI model changes the roadmap underneath them.
+>
+> I am not looking to pitch the room. I am looking for one opt-in product leader with a real decision due in the next 30 days. In a private 30-minute session, we would use redacted inputs, compare the result with their current view, and define a named owner, success metric, stop threshold, and review window. Nothing is posted or quoted without separate permission.
+>
+> If this sounds appropriate for the community, would you be willing to introduce me to one attendee who has that decision right now? A candid failure is as useful to me as a positive result.
+
+Why this is personalized: the event specifically covers roadmap decisions shaped by platforms, APIs, integrations, cloud services, and AI models.
+
+## Amanda Bradford — Hatch Labs
+
+Channel: official Hatch Labs collaborator contact route.
+
+Subject: One portfolio decision, tested before the next build commitment
+
+> Hi Amanda — Hatch Labs' identify, validate, build, and scale model creates a recurring decision problem: promising signals compete for product, platform, analytics, and growth resources across multiple apps.
+>
+> I built Driftline for one narrow version of that problem. It takes a current, safely redacted product commitment, preserves conflicting evidence, compares the smallest reversible responses, and binds the human-approved choice to a primary metric, risk guardrail, stop threshold, and review window.
+>
+> I am looking for one founder-operator to test it on a real decision due within 30 days—not review a generic demo. In 30 private minutes, we would compare Driftline with your current judgment and identify the first place it fails. Nothing is published or attributed without separate permission.
+>
+> Would you test one current portfolio allocation, rollout, or validation decision?
+
+Why this is personalized: Hatch Labs publicly reports 10+ apps in development,
+portfolio-wide analytics and infrastructure, and a founder-led product process.
+
+## VentureKind
+
+Channel: official **Start a Conversation** route.
+
+Subject: Pressure-test one live portfolio commitment
+
+> Hi VentureKind team — your studio works across ideation, validation, launch, and scale for five portfolio companies and more than 20 products. I am testing a decision workflow for the moment when those stages produce conflicting evidence but a founder still has to commit resources.
+>
+> Driftline compares competing responses, keeps the evidence and dissent inspectable, and requires a named human to define the metric, guardrail, stop threshold, rollback, and review window. It does not make the decision or write to customer systems.
+>
+> Would one founder or studio operator be willing to run a current, safely redacted portfolio decision through it in a private 30-minute session? A negative result is useful, and nothing is quoted or posted without separate permission.
+
+Why this is personalized: VentureKind publicly describes five portfolio
+companies, 20+ products, and explicit validate, build, launch, and scale gates.
+
+## Billy Kraft — Path
+
+Channel: official **Talk to our team** route.
+
+Subject: One AI-platform tradeoff, tested against your current judgment
+
+> Hi Billy — Path is making a difficult product promise: powerful AI-generated business software with no learning curve or bloat. That usually creates real tradeoffs among platform scope, simplicity, launch timing, and quality.
+>
+> I built Driftline to structure one such contested decision without handing authority to AI. It preserves conflicting evidence, compares reversible responses, and binds the human choice to a primary metric, risk guardrail, stop threshold, rollback, and review date.
+>
+> Would you be open to testing one current, safely redacted platform, launch, or segment decision in a private 30-minute session? I am looking for the first reason the workflow would fail a real founder decision, not an endorsement. Nothing is published or attributed without separate permission.
+
+Why this is personalized: Path's official site names a small Austin founding
+team and an explicit product tension among simplicity, AI innovation, and
+quality.
+
+## Kevin Smith — Just Add PRODUCT
+
+Channel: website contact form or `info@justaddprod.com`, both publicly listed for the business.
+
+Subject: Could you falsify a product-decision workflow on one real call?
+
+> Hi Kevin — your work spans product strategy, key outcome metrics, prioritization, customer feedback, and product-market fit across B2B and enterprise teams. That combination is why I am asking for a tougher test than general product feedback.
+>
+> I built Driftline for a specific moment: a PM has conflicting evidence, a real commitment, and no defensible operating contract for the decision. I am looking for one Austin fractional product leader willing to run a current, safely redacted decision through it in a private 30-minute session.
+>
+> We would compare the output with your own judgment, inspect every evidence claim, and require a named owner, success metric, stop threshold, rollback, and review window. No pitch and nothing is published or attributed without separate permission.
+>
+> Would you be open to testing one real decision and telling me where the workflow fails?
+
+Why this is personalized: his public services explicitly include product strategy, key outcome metrics, roadmaps, prioritization, pricing, customer feedback, and solution validation.
+
+## Ashok — Clarity for Product
+
+Channel: public business contact form or published business email.
+
+Subject: A 30-minute product-clarity test, with a real decision
+
+> Hi Ashok — your work names ad-hoc product decisions, roadmap churn, stakeholder misalignment, AI paralysis, and platform confusion as operating failures. I am testing a product built for that exact decision boundary, and I need a real operator to try to break it.
+>
+> Driftline takes one currently contested product decision, keeps PM-provided context explicitly unverified, compares competing responses, and requires the human to define the owner, success metric, stop threshold, rollback, and review window before approval.
+>
+> Would you be open to a private 30-minute session using one current, safely redacted decision? I am not asking for an endorsement. I want to learn whether the output improves the decision or merely adds ceremony. Nothing is published or quoted without separate permission.
+
+Why this is personalized: his current public site centers on turning ad-hoc
+decisions and feature-output roadmaps into aligned, measurable product bets.
+
+## John Leonard — RoadMapVenture
+
+Channel: publicly linked LinkedIn profile.
+
+Subject: One roadmap decision, tested against your own judgment
+
+> Hi John — your work sits at the intersection of SaaS, complex product portfolios, data and AI, roadmap strategy, and 0-to-1 launches. I am looking for one experienced product leader to pressure-test a decision workflow on a real choice rather than review another demo.
+>
+> In 30 private minutes, Driftline would structure a safely redacted current decision, preserve conflicting evidence, compare four reversible responses, and bind the selected action to an owner, success threshold, stop threshold, rollback, and review date. We would then compare it directly with your own recommendation.
+>
+> Would you be willing to test one current or client-safe decision and identify the first reason you would refuse to use the result? Nothing is published or attributed without separate permission.
+
+Why this is personalized: his public profile emphasizes multi-platform portfolios, roadmap and innovation strategy, data and AI, SaaS, and product advisory work.
+
+## Robert Gilbreath — fractional CMO/COO
+
+Channel: public business contact form or published business email.
+
+Subject: One B2B SaaS decision, tested against the operating commitment
+
+> Hi Robert — your work is unusually close to the decision boundary I am
+> testing: you operate inside seed-to-Series-B B2B SaaS teams with authority
+> over positioning, market entry, pipeline, and operating rhythm rather than
+> handing over an outside-advisor deck.
+>
+> I built Driftline for one current commitment where customer, market, product,
+> and execution evidence disagree. It compares reversible responses and
+> requires the human owner to precommit the primary metric, risk guardrail,
+> stop threshold, rollback, and review window.
+>
+> Would you pressure-test one safely redacted positioning, segment, channel, or
+> operating-priority decision due within 30 days in a private 30-minute
+> session? I am looking for the first reason the workflow fails an accountable
+> operator—not an endorsement. Nothing is published or attributed without
+> separate permission.
+
+Why this is personalized: his public site explicitly describes embedded B2B
+SaaS and AI-product operating work, measurable outcome accountability, and
+decisions around positioning, market entry, and operating rhythm.
+
+## Qualification reply
+
+If someone says yes, send only after approval:
+
+> Thank you. To make sure this is a real test rather than a demo, could you confirm that the decision is due within 30 days, has at least two plausible options, and can be discussed with safely redacted non-confidential inputs? If so, please bring your current preferred option, confidence from 1–7, the strongest signal in favor, the strongest risk signal, and the metric that should determine success or stop the action.
+
+## Non-response rule
+
+One concise follow-up after 24–48 hours is acceptable if Mike approves it. Do not send more than one follow-up, do not scrape personal contact details, and do not automate sending.
