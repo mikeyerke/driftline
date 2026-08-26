@@ -21,6 +21,9 @@ for file in \
   submission/DEMO_SCRIPT.md \
   submission/JUDGE_SCORECARD.md \
   docs/JUDGE_SCORECARD.md \
+  scripts/build_candidate_rehearsal.sh \
+  submission/assets/driftline-candidate-rehearsal-narration.txt \
+  submission/assets/driftline-candidate-rehearsal-overlays.svg \
   submission/assets/driftline-decision-twin-candidate-architecture.svg \
   submission/assets/driftline-decision-twin-candidate-architecture.png; do
   [[ -s "$file" ]] || fail "$file is missing or empty"
@@ -39,6 +42,8 @@ require_text devpost-submission.md 'Status: draft-ready, not release-ready or fo
 require_text devpost-submission.md '| Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'UNRELEASED CANDIDATE'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'release proof required before publication'
+require_text submission/assets/driftline-candidate-rehearsal-overlays.svg 'UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION'
+require_text submission/assets/driftline-candidate-rehearsal-narration.txt 'not production proof'
 
 if rg -Fq -- 'submission/assets/driftline-architecture.png' devpost-submission.md; then
   fail "form packet still points at the historical architecture diagram"

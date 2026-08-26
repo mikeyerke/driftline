@@ -39,6 +39,15 @@ synthesized.
 - `driftline-continuous-candidate-proof.mp4`: 31.17-second local-only
   visible-click continuity rehearsal. It is unreleased candidate QA, not a
   deploy or customer-outcome claim.
+- `driftline-candidate-rehearsal-narration.txt` and
+  `driftline-candidate-rehearsal-overlays.svg`: exact local-only narration,
+  watermark, and captions for a 52-second candidate rehearsal. Build it with
+  `scripts/build_candidate_rehearsal.sh`. The result is permanently watermarked
+  **UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION** and must not be submitted as
+  live proof.
+- `driftline-final-demo-candidate.mp4`: 3:40 local fallback that mixes candidate
+  screens with pre-candidate release narration. Do not submit it; its custody
+  language is intentionally superseded by the watermarked rehearsal above.
 
 The final entry still needs a public YouTube or Vimeo URL. Prefer a continuous
 native browser recording that follows `submission/DEMO_SCRIPT.md`; use the

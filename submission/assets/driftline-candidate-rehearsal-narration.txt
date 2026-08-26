@@ -1,0 +1,9 @@
+Product decisions become dangerous when evidence changes but the commitment does not. Driftline turns conflicting evidence into a bounded action-to-learning loop.
+
+Five independent Google ADK specialists inspect cited customer, usage, strategy, feasibility, and challenger evidence. Gemini preserves the disagreement instead of averaging it away, and the agent cannot approve or write to an external system.
+
+A named human chooses the smallest reversible response. That approval creates an internal allocation bound to the exact decision generation, success metric, risk guardrail, rollback, owner, and review window.
+
+The monitor evaluates the same contract. Here the risk guardrail breaks, the allocation rolls back, and generation two reopens with the original evidence, approval, and outcome intact. A fresh human approval is required.
+
+This is an unreleased local candidate rehearsal, not production proof. Before submission, this exact candidate must be released and independently bound to its public commit, Cloud Run revision, Cloud Build, image digest, live trace, and browser journey.

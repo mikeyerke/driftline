@@ -168,8 +168,17 @@ preferable, and no video is complete for submission until it has a public
 YouTube or Vimeo URL.
 
 The 3:40 candidate MP4 passed format, loudness, and black-frame checks, but it
-uses long static browser holds. Treat it as an emergency fallback, not as the
-rubric's strongest proof of a working agent.
+uses long static browser holds and combines candidate screens with
+pre-candidate release narration. Do not submit it.
+
+A separate 52-second local rehearsal now combines the 31-second continuous
+visible-click state-machine proof with the candidate architecture. It is
+watermarked throughout as **UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION**, and
+its narration ends on the pending commit/Cloud Run/build/digest/live-trace/
+browser gate. The reproducible build passed 1080p/30fps H.264, stereo AAC,
+playback pixel-format, duration, black-frame, and -18 to -14 LUFS checks. This
+is the strongest candidate rehearsal, but it remains ineligible as live proof
+until the exact candidate is released and the native browser journey is rerun.
 
 ## Requirement checklist
 
