@@ -23,23 +23,39 @@ evaluation spend and cannot produce customer evidence by itself.
 
 ## Pain worth targeting
 
-Current first-party product research points to four connected problems:
+These are market hypotheses, not Driftline customer evidence. Current primary
+research points to one connected job: help an accountable PM make and revisit a
+high-consequence decision when time, evidence, stakeholders, and AI output all
+pull in different directions.
 
-- customer evidence already lives across support, sales, analytics, research,
-  and delivery tools, and the hard part is organizing it into action;
-- disconnected discovery makes prioritization look ad hoc or driven by the
-  loudest stakeholder;
-- teams want feedback and reasoning connected to delivery so priorities can be
-  revisited continuously rather than handed off once;
-- budget pressure and data silos are driving tool consolidation, so a new tool
-  must prove a distinct outcome rather than add another inbox.
+- Atlassian's survey of more than 1,000 product professionals found that 49%
+  lacked enough time for strategic planning and the same share lacked enough
+  time for data analysis and metric tracking. Nearly 40% named feature or
+  initiative prioritization as a significant challenge.
+- The same research found that 77% were not using AI to manage shifting
+  priorities and timelines, while 46% cited workflow fit or integration and
+  45% cited output trust as AI-adoption barriers.
+- Productboard's enterprise survey found that strategic thinking, customer
+  insight synthesis, systems thinking, and data literacy are becoming the most
+  important PM skills; only 40% measured AI ROI through a business outcome such
+  as ARR.
+- Delight Path's survey of 107 senior product leaders found that 77% faced
+  C-suite pressure to move faster on AI, but only 10% reported strong alignment
+  on what AI should do. It also found that 44% saw output trust as the largest
+  AI-feature adoption barrier and only 7% could identify and act on adoption
+  problems in real time.
+
+Driftline should therefore be falsified on decision quality and feedback-loop
+speed, not on how quickly it writes another PRD. The critical question is
+whether a real PM finds a cited, dissent-preserving, measurable, reversible
+decision materially better than their current meeting, document, roadmap tool,
+or non-repeatable process.
 
 Sources:
 
-- https://www.atlassian.com/agile/product-management/customer-feedback
-- https://www.atlassian.com/agile/product-management/discovery
-- https://www.productplan.com/blog/trends-shaping-product-management-in-2025
-- https://www.productboard.com/blog/the-state-of-product-ops-in-2025/
+- https://www.atlassian.com/software/jira/product-discovery/resources/state-of-product-2026
+- https://www.productboard.com/blog/ai-in-product-management-report/
+- https://www.delightpath.com/product-leadership-report-2026
 
 ## Smallest qualified participant
 
@@ -59,6 +75,29 @@ B2B software company. Qualify the session only when all of these are true:
 
 Disqualify generic curiosity, retrospective toy examples, decisions with only
 one viable answer, or anyone unable to return for an outcome check.
+
+## Pre-registered falsification questions
+
+Ask these after the participant has completed the decision, without coaching
+them toward a favorable answer:
+
+1. Which single problem brought this decision here: competing priorities,
+   stakeholder alignment, evidence synthesis, lack of strategy time, proving
+   impact, trusting AI output, slow adoption feedback, or something else?
+2. What would you have used otherwise: meetings/chat, a spreadsheet/document,
+   a roadmap/ticket tool, a dedicated product tool, or no repeatable process?
+3. Did Driftline change the decision, sharpen it, or leave it unchanged? Record
+   the answer even when it is unchanged.
+4. What is the largest reason you would not use it again: data-entry burden,
+   trust, integration, workflow fit, security, timing, or another reason?
+5. Would you use it for another consequential decision: yes, no, or unsure?
+   Treat this as weak self-report. Only a second live decision, teammate invite,
+   qualified introduction, price conversation, signed paid pilot, or payment is
+   a costly commitment.
+
+The anonymized pilot schema enumerates every answer. Free-text identity or raw
+customer data is rejected, and a favorable answer is never required for the
+record to validate.
 
 ## The offer
 

@@ -42,7 +42,10 @@ REQUIRED_FIELDS = {
     "all_citations_reviewed",
     "human_control_understood",
     "external_writes_none_understood",
+    "primary_decision_pain",
+    "incumbent_decision_workflow",
     "adoption_blocker",
+    "willingness_to_reuse",
     "costly_commitments",
     "commercial_status",
     "paid_amount_usd",
@@ -100,6 +103,25 @@ ENUMS = {
         "timing",
         "other",
     },
+    "primary_decision_pain": {
+        "competing_priorities",
+        "stakeholder_alignment",
+        "evidence_synthesis",
+        "strategy_time",
+        "impact_proof",
+        "ai_output_trust",
+        "slow_adoption_feedback",
+        "other",
+    },
+    "incumbent_decision_workflow": {
+        "meeting_or_chat_only",
+        "spreadsheet_or_document",
+        "roadmap_or_ticket_tool",
+        "dedicated_product_tool",
+        "no_repeatable_process",
+        "other",
+    },
+    "willingness_to_reuse": {"yes", "no", "unsure"},
     "commercial_status": {"none", "signed_paid_pilot", "payment_received"},
     "outcome_followup": {"pending", "completed"},
     "threshold_verdict": {"not_measured", "validated", "invalidated", "inconclusive"},
@@ -277,6 +299,8 @@ def summarize(record: dict[str, Any]) -> str:
     app_state = LABELS[record["app_state"]]
     commitments = record["costly_commitments"]
     recruitment_channel = record["participant_recruitment_channel"].replace("_", " ")
+    primary_pain = record["primary_decision_pain"].replace("_", " ")
+    incumbent_workflow = record["incumbent_decision_workflow"].replace("_", " ")
 
     if record["commercial_status"] == "payment_received":
         customer_status = (
@@ -353,7 +377,10 @@ Status: **qualified single-session evidence (n=1)**.
 - Every citation reviewed by the participant: **{'yes' if record['all_citations_reviewed'] else 'no'}**
 - Human authority understood: **{'yes' if record['human_control_understood'] else 'no'}**
 - External-writes-none boundary understood: **{'yes' if record['external_writes_none_understood'] else 'no'}**
+- Primary decision pain: **{primary_pain}**
+- Incumbent decision workflow: **{incumbent_workflow}**
 - Largest adoption blocker: {record['adoption_blocker']}
+- Stated willingness to reuse: **{record['willingness_to_reuse']}**
 - Costly commitments observed: {commitment_text}
 - Commercial classification: {customer_status}
 - Outcome follow-up: {outcome_status}
@@ -366,7 +393,7 @@ Status: **qualified single-session evidence (n=1)**.
 
 ## Interpretation boundary
 
-This is one directional, self-reported session—not causal or statistically representative evidence. It does not prove ROI, revenue, retention, time saved across users, or product-market fit. A decision effect is not a measured business outcome. Recruiting fees and participant incentives are evaluation spend, never customer revenue. Customer status requires the commercial evidence shown above.
+This is one directional, self-reported session—not causal or statistically representative evidence. It does not prove ROI, revenue, retention, time saved across users, or product-market fit. Stated willingness to reuse is weaker than an observed costly commitment and cannot support a customer claim. A decision effect is not a measured business outcome. Recruiting fees and participant incentives are evaluation spend, never customer revenue. Customer status requires the commercial evidence shown above.
 """
 
 
