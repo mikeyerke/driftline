@@ -96,6 +96,20 @@ def _retention_expiry(tenant_id: str | None = None) -> datetime:
     return datetime.now(UTC) + timedelta(days=days)
 
 
+def _payload_expired(payload: dict[str, Any]) -> bool:
+    """Fail closed at read/mutation time instead of waiting for TTL cleanup."""
+    raw = payload.get("expires_at")
+    if raw is None:
+        return False
+    try:
+        expiry = raw if isinstance(raw, datetime) else datetime.fromisoformat(str(raw))
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=UTC)
+    except (TypeError, ValueError):
+        return True
+    return expiry <= datetime.now(UTC)
+
+
 def _client() -> firestore.Client:
     kwargs: dict[str, Any] = {
         "database": os.getenv("FIRESTORE_DATABASE", "(default)"),
@@ -285,6 +299,8 @@ def load_decision_case(case_id: str) -> DecisionCase | None:
     if not snapshot.exists:
         return None
     payload = snapshot.to_dict() or {}
+    if _payload_expired(payload):
+        return None
     payload.pop("expires_at", None)
     return DecisionCase.model_validate(payload)
 
@@ -319,6 +335,8 @@ def compare_and_set_decision_case(
         if not snapshot.exists:
             return False
         current = snapshot.to_dict() or {}
+        if _payload_expired(current):
+            return False
         if int(current.get("generation", 0)) != expected_generation:
             return False
         if str(current.get("status")) not in expected_statuses:

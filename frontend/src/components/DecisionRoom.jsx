@@ -384,7 +384,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         </div>
         <div className="decision-room-header-actions"><button className="secondary compact" type="button" onClick={copyDecisionBrief}><span aria-live="polite">{copyStatus === "Copied" ? <Check size={14} /> : <Copy size={14} />}{copyStatus || "Copy decision brief"}</span></button>{isProvidedIntake && <button className="secondary compact" type="button" onClick={copyReturnLink}><span aria-live="polite">{linkStatus ? <Check size={14} /> : <Copy size={14} />}{linkStatus || "Copy return link"}</span></button>}<button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button></div>
       </header>
-      {isProvidedIntake && <p className="decision-return-disclosure"><ShieldCheck size={13} />Use this link after the review window. Anyone with it can view this non-confidential case, so never enter secrets or customer-identifying data.</p>}
+      {isProvidedIntake && <p className="decision-return-disclosure"><ShieldCheck size={13} />Use this link after the review window. Anyone with it can view this non-confidential case, so never enter secrets or customer-identifying data. It expires under the deployment's bounded retention policy.</p>}
       <nav className="decision-room-stages" aria-label="Decision Twin progress">
         {stages.map((stage, index) => <span className={index < activeStage ? "complete" : index === activeStage ? "current" : ""} key={stage}>
           {index < activeStage ? <CheckCircle2 size={15} /> : <b>{index + 1}</b>}{stage}{index < stages.length - 1 && <ArrowRight size={14} />}

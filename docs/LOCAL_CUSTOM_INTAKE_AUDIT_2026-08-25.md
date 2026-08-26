@@ -64,10 +64,12 @@ reversible state transition, not a Jira or customer-system side-effect claim.
 ## Verification evidence
 
 - Targeted decision/API tests: 204 passed.
-- Complete backend suite: 430 passed, with two dependency deprecation warnings.
+- Complete backend suite: 432 passed, with two dependency deprecation warnings.
 - Frontend production build: passed.
 - Frontend literal contract: passed.
 - Python static checks on changed backend and tests: passed.
+- Persistence boundary tests: 17 passed, including expired-read and
+  expired-compare-and-set rejection.
 - Desktop browser journey: intake → generated brief → named approval → authored contract receipt passed.
 - Mobile browser check: full intake rendered at 390 × 844 without clipped fields or horizontal overflow.
 - Mobile rollback check: the generation-one allocation visibly changed from
@@ -85,6 +87,9 @@ reversible state transition, not a Jira or customer-system side-effect claim.
   URL, restored in a fresh browser tab, retained the approval state after a
   second fresh-tab load, and exposed the real-measurement form. The capability
   disclosure warns that anyone with the link can view the non-confidential case.
+- Firestore cases already carry the deployment retention TTL. The candidate now
+  also rejects an expired or malformed TTL at the read and compare-and-set
+  boundaries instead of depending on eventually consistent TTL deletion.
 - Restored follow-up at 390 × 844 also held document and body scroll widths at
   exactly 390 pixels.
 - Browser diagnostics: no application-origin errors; visible errors were emitted only by the installed Grammarly extension.
