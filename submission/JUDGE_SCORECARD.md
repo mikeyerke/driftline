@@ -1,6 +1,6 @@
 # Driftline judge scorecard
 
-Fresh official-source audit: August 25, 2026. The Devpost website and official
+Fresh official-source audit: August 26, 2026. The Devpost website and official
 rules prevail over this working scorecard.
 
 ## Verified final live release
@@ -23,7 +23,7 @@ above on August 25. Later `main` commits update submission media only.
 
 ## Unreleased local candidate
 
-The isolated candidate is not part of the live score above. It adds six
+The isolated candidate is not part of the live score above. It adds seven
 judge-facing improvements:
 
 - custom decisions require a PM-authored measurement contract instead of
@@ -39,7 +39,11 @@ judge-facing improvements:
   once, without weakening any required threshold; and
 - PM measurements fail closed until the committed review timestamp. Before
   then, the UI shows the exact opening time and the API returns 409 without
-  changing the active action, outcomes, or decision generation.
+  changing the active action, outcomes, or decision generation; and
+- a clean checkout now routes the Vite judge UI to the local FastAPI service
+  without undocumented frontend configuration. Offline and unreachable-service
+  failures state that nothing changed and give a concrete retry path instead of
+  exposing raw browser or HTTP errors.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
 The candidate passed the complete backend suite, Ruff, the production frontend build,
@@ -51,6 +55,12 @@ and desktop/mobile Lighthouse snapshots at 100 across accessibility, best
 practices, SEO, and agentic browsing with no horizontal overflow. It cannot be
 scored as production proof until released and independently reverified against
 its serving SHA.
+
+The clean-checkout browser retest also passed first click, refresh/deep-link
+resume, double-click approval idempotency, outcome-triggered generation-2
+reopening, offline failure, and same-control recovery after reconnecting. A
+fresh unthrottled local performance trace measured 523 ms LCP and 0.00 CLS;
+these are lab observations, not production field data.
 
 The candidate also fixes a first-impression issue found through a fresh live
 browser run: at 1453 × 726 the production workflow CTA started 31 pixels below

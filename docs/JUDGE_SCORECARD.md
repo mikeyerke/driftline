@@ -1,6 +1,6 @@
 # Driftline judge scorecard
 
-Fresh official-source audit: August 25, 2026. The Devpost website and official
+Fresh official-source audit: August 26, 2026. The Devpost website and official
 rules prevail over this working scorecard.
 
 ## Verified final live release
@@ -23,7 +23,7 @@ above on August 25. Later `main` commits update submission media only.
 
 ## Unreleased local candidate
 
-The isolated candidate is not part of the live score above. It adds two
+The isolated candidate is not part of the live score above. It adds seven
 judge-facing improvements:
 
 - custom decisions require a PM-authored measurement contract instead of
@@ -33,13 +33,39 @@ judge-facing improvements:
 - a real PM can attach the primary and risk aggregates after the review window,
   with both retained as unverified and evaluated as a two-metric contract; and
 - an opaque return link restores the same non-confidential approved case in a
-  fresh browser session for that follow-up measurement.
+  fresh browser session for that follow-up measurement;
+- the real-decision intake reveals decision context and the operating contract
+  as two progressive steps instead of presenting sixteen required fields at
+  once, without weakening any required threshold; and
+- PM measurements fail closed until the committed review timestamp. Before
+  then, the UI shows the exact opening time and the API returns 409 without
+  changing the active action, outcomes, or decision generation; and
+- a clean checkout now routes the Vite judge UI to the local FastAPI service
+  without undocumented frontend configuration. Offline and unreachable-service
+  failures state that nothing changed and give a concrete retry path instead of
+  exposing raw browser or HTTP errors.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
 The candidate passed the complete backend suite, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
-rollback/reopen journey. It cannot be scored as production proof until released
-and independently reverified against its serving SHA.
+rollback/reopen journey. The custom PM path additionally passed two-step
+context/contract entry, back-navigation preservation, directional-threshold
+rejection, named approval, premature-measurement locking, complete brief copy,
+and desktop/mobile Lighthouse snapshots at 100 across accessibility, best
+practices, SEO, and agentic browsing with no horizontal overflow. It cannot be
+scored as production proof until released and independently reverified against
+its serving SHA.
+
+The clean-checkout browser retest also passed first click, refresh/deep-link
+resume, double-click approval idempotency, outcome-triggered generation-2
+reopening, offline failure, and same-control recovery after reconnecting. A
+fresh unthrottled local performance trace measured 523 ms LCP and 0.00 CLS;
+these are lab observations, not production field data.
+
+The candidate also fixes a first-impression issue found through a fresh live
+browser run: at 1453 × 726 the production workflow CTA started 31 pixels below
+the fold. The local CTA is now fully visible at 1453 × 670 and 390 × 844 with
+zero horizontal overflow.
 
 ## 40% — Innovation and operational utility
 
@@ -134,8 +160,14 @@ council → approval → outcome → reopen sequence tied to the same case.
 
 Exact-release desktop/mobile screenshots, the Decision Twin architecture, and
 a three-minute 1080p captioned local review cut are complete. A continuous
-native browser take remains preferable, and no video is complete for submission
-until it has a public YouTube or Vimeo URL.
+local candidate proof now also runs the actual browser state machine and asserts
+the generation-2 rollback outcome. It is silent, cursor-free, and unreleased;
+a narrated native browser take remains preferable, and no video is complete for
+submission until it has a public YouTube or Vimeo URL.
+
+The 3:40 candidate MP4 passed format, loudness, and black-frame checks, but it
+uses long static browser holds. Treat it as an emergency fallback, not as the
+rubric's strongest proof of a working agent.
 
 ## Requirement checklist
 
@@ -149,7 +181,7 @@ until it has a public YouTube or Vimeo URL.
 | Hosted URL | Public Firebase facade to Cloud Run | Proven live |
 | Repository and spin-up instructions | Public repo and README | Proven |
 | Architecture diagram | Submission PNG/SVG assets | Prepared; final upload QA open |
-| Public demo under four minutes | 3:00 1080p review cut, script, captions, and native-take runbook | Prepared locally; unproven until publicly uploaded |
+| Public demo under four minutes | 3:00 1080p review cut, 16.47s continuous candidate proof, script, captions, and native-take runbook | Prepared locally; unproven until publicly uploaded |
 | SDK and start date answers | Google ADK; implementation repo began August 18 | Prepared; entrant must enter |
 | Originality/third-party disclosure | Earlier ideation/source package and dependencies disclosed | Prepared; entrant must confirm |
 | PM validation | Study kit and fail-closed summarizer | Unproven; no sessions |

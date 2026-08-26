@@ -51,6 +51,12 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_M
     if (error?.name === "AbortError") {
       throw new Error("Driftline API request timed out; retry the operation.");
     }
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new Error("You are offline. Nothing was changed; reconnect and try again.");
+    }
+    if (error instanceof TypeError) {
+      throw new Error("Driftline could not reach the service. Nothing was changed; check your connection and try again.");
+    }
     throw error;
   } finally {
     globalThis.clearTimeout(timer);
@@ -122,7 +128,14 @@ async function request(path, options = {}) {
         detail = detail ? `${detail} ${recovery}` : recovery;
       }
     }
-    throw new Error(detail || `Driftline API returned ${response.status}`);
+    const recoveryByStatus = {
+      404: "The Driftline API route is unavailable. If you are running locally, start the backend on port 8080 and try again.",
+      500: "Driftline could not complete this operation. Nothing was changed; try again.",
+      502: "The Driftline service is temporarily unavailable. Nothing was changed; try again.",
+      503: "The Driftline service is temporarily unavailable. Nothing was changed; try again.",
+      504: "The Driftline service timed out. Nothing was changed; try again.",
+    };
+    throw new Error(detail || recoveryByStatus[response.status] || `Driftline could not complete this operation (${response.status}).`);
   }
   return response.json();
 }

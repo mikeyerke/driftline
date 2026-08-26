@@ -587,6 +587,11 @@ npm install
 npm run dev
 ~~~
 
+The Vite development server proxies `/api` and `/health` to
+`http://127.0.0.1:8080`, so a clean checkout works without creating a frontend
+environment file. Set `VITE_DEV_API_TARGET` only when the local backend uses a
+different origin. `VITE_API_BASE_URL` remains the production-build override.
+
 ### Backend
 
 ~~~bash

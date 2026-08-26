@@ -153,6 +153,16 @@ check_frontend_literal() {
   fi
 }
 
+if ! check_frontend_literal '"/api": localApiTarget' frontend/vite.config.js \
+  || ! check_frontend_literal '"/health": localApiTarget' frontend/vite.config.js \
+  || ! check_frontend_literal 'http://127.0.0.1:8080' frontend/vite.config.js \
+  || ! check_frontend_literal 'You are offline. Nothing was changed; reconnect and try again.' frontend/src/api.js \
+  || ! check_frontend_literal 'Driftline could not reach the service. Nothing was changed; check your connection and try again.' frontend/src/api.js \
+  || ! check_frontend_literal 'start the backend on port 8080 and try again' frontend/src/api.js; then
+  printf 'Clean-checkout development routing or actionable API recovery copy is missing.\n' >&2
+  exit 1
+fi
+
 if ! check_frontend_literal 'Turn conflicting evidence into a decision your team can defend.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'The alignment meeting, evidence hunt, and post-launch guesswork.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \
