@@ -13,6 +13,24 @@ const outputPath = resolve(
   process.argv[2] ||
     "submission/assets/driftline-continuous-candidate-proof.mp4",
 );
+const finalScreenshotPath = process.env.CAPTURE_FINAL_SCREENSHOT
+  ? resolve(process.env.CAPTURE_FINAL_SCREENSHOT)
+  : null;
+const captureWidth = Number(process.env.CAPTURE_WIDTH || "1280");
+const captureHeight = Number(process.env.CAPTURE_HEIGHT || "720");
+const captureWaitMs = Number(process.env.CAPTURE_WAIT_MS || "12000");
+const captureExpectAction = process.env.CAPTURE_EXPECT_ACTION !== "false";
+if (
+  !Number.isInteger(captureWidth) ||
+  !Number.isInteger(captureHeight) ||
+  captureWidth < 320 ||
+  captureHeight < 320
+) {
+  throw new Error(`Invalid capture viewport: ${captureWidth}x${captureHeight}`);
+}
+if (!Number.isFinite(captureWaitMs) || captureWaitMs < 1_000) {
+  throw new Error(`Invalid capture wait: ${captureWaitMs}ms`);
+}
 const debugPort = Number(process.env.CHROME_DEBUG_PORT || "9333");
 const captureRoot = await mkdtemp(join(tmpdir(), "driftline-capture-"));
 const profileDir = join(captureRoot, "chrome-profile");
@@ -129,10 +147,10 @@ try {
   await client.send("Page.enable");
   await client.send("Runtime.enable");
   await client.send("Emulation.setDeviceMetricsOverride", {
-    width: 1280,
-    height: 720,
+    width: captureWidth,
+    height: captureHeight,
     deviceScaleFactor: 1,
-    mobile: false,
+    mobile: captureWidth <= 500,
   });
 
   const evaluate = async (expression, awaitPromise = true) => {
@@ -151,7 +169,7 @@ try {
     return result.result?.value;
   };
 
-  const waitFor = async (expression, label, timeoutMs = 12_000) => {
+  const waitFor = async (expression, label, timeoutMs = captureWaitMs) => {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (await evaluate(expression)) return;
@@ -223,12 +241,12 @@ try {
       document.body.append(pulse);
       setTimeout(() => pulse.remove(), 600);
     };
-    window.__driftlineCapturePointer(1190, 670);
+    window.__driftlineCapturePointer(${captureWidth - 90}, ${captureHeight - 50});
     return true;
   })()`);
 
-  let pointerX = 1190;
-  let pointerY = 670;
+  let pointerX = captureWidth - 90;
+  let pointerY = captureHeight - 50;
   let pointerClicks = 0;
 
   const movePointer = async (x, y) => {
@@ -357,8 +375,8 @@ try {
   await client.send("Page.startScreencast", {
     format: "jpeg",
     quality: 90,
-    maxWidth: 1280,
-    maxHeight: 720,
+    maxWidth: captureWidth,
+    maxHeight: captureHeight,
     everyNthFrame: 1,
   });
 
@@ -438,8 +456,54 @@ try {
       actionRolledBack: document.body.innerText.toLowerCase().includes('rolled back'),
     };
   })()`);
-  if (!Object.values(finalState).every(Boolean)) {
-    throw new Error(`Candidate final-state proof failed: ${JSON.stringify(finalState)}`);
+  const requiredFinalState = captureExpectAction
+    ? finalState
+    : {
+        generation2: finalState.generation2,
+        rollbackSelected: finalState.rollbackSelected,
+        approverCleared: finalState.approverCleared,
+      };
+  if (!Object.values(requiredFinalState).every(Boolean)) {
+    const mode = captureExpectAction ? "candidate action" : "current release";
+    throw new Error(
+      `${mode} final-state proof failed: ${JSON.stringify(finalState)}`,
+    );
+  }
+
+  if (finalScreenshotPath) {
+    const screenshotReady = await evaluate(`(() => {
+      const target = document.querySelector('.learning-receipt');
+      if (!target) return false;
+      target.scrollIntoView({ behavior: 'instant', block: 'start' });
+      scrollBy({ top: -160, behavior: 'instant' });
+      document.querySelector('#driftline-capture-pointer')?.remove();
+      document.querySelectorAll('.driftline-capture-pulse').forEach((node) => node.remove());
+      return true;
+    })()`);
+    if (!screenshotReady) {
+      throw new Error("Could not prepare the generation-2 learning receipt screenshot");
+    }
+    await sleep(500);
+    const screenshot = await client.send("Page.captureScreenshot", {
+      format: "png",
+      fromSurface: true,
+      captureBeyondViewport: false,
+    });
+    const screenshotBytes = Buffer.from(screenshot.data, "base64");
+    const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    if (!screenshotBytes.subarray(0, 8).equals(pngSignature)) {
+      throw new Error("Final-state screenshot is not a PNG");
+    }
+    const screenshotWidth = screenshotBytes.readUInt32BE(16);
+    const screenshotHeight = screenshotBytes.readUInt32BE(20);
+    if (screenshotWidth !== captureWidth || screenshotHeight !== captureHeight) {
+      throw new Error(
+        `Final-state screenshot is ${screenshotWidth}x${screenshotHeight}; ` +
+          `expected ${captureWidth}x${captureHeight}`,
+      );
+    }
+    await mkdir(dirname(finalScreenshotPath), { recursive: true });
+    await writeFile(finalScreenshotPath, screenshotBytes);
   }
 
   await evaluate(`scrollTo({ top: 0, behavior: 'smooth' })`);
@@ -482,7 +546,7 @@ try {
       "-i",
       concatPath,
       "-vf",
-      "fps=30,scale=1280:720:force_original_aspect_ratio=decrease:in_range=pc:out_range=tv,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
+      `fps=30,scale=${captureWidth}:${captureHeight}:force_original_aspect_ratio=decrease:in_range=pc:out_range=tv,pad=${captureWidth}:${captureHeight}:(ow-iw)/2:(oh-ih)/2,format=yuv420p`,
       "-c:v",
       "libx264",
       "-preset",
@@ -510,7 +574,11 @@ try {
         frames: frames.length,
         pointerClicks,
         finalState,
-        label: "local unreleased candidate proof",
+        finalScreenshot: finalScreenshotPath,
+        viewport: `${captureWidth}x${captureHeight}`,
+        label: captureExpectAction
+          ? "local unreleased candidate proof"
+          : "current-release decision-loop proof",
       },
       null,
       2,

@@ -197,7 +197,7 @@ until the exact candidate is released and the native browser journey is rerun.
 | One category | Taskmaster | Prepared; entrant must select |
 | Hosted URL | Public Firebase facade to Cloud Run | Proven live |
 | Repository and spin-up instructions | Public repo and README | Proven |
-| Architecture diagram | Submission PNG/SVG assets | Prepared; final upload QA open |
+| Architecture diagram | 1600×900 PNG/SVG plus checksum-bound full-resolution review | Prepared; local asset QA complete, entrant upload open |
 | Public demo under four minutes | 3:00 1080p review cut, 31.17s continuous visible-click candidate proof, script, captions, and native-take runbook | Prepared locally; unproven until publicly uploaded |
 | SDK and start date answers | Google ADK; implementation repo began August 18 | Prepared; entrant must enter |
 | Originality/third-party disclosure | Earlier ideation/source package and dependencies disclosed | Prepared; entrant must confirm |

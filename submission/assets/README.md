@@ -12,11 +12,13 @@
 - `driftline-architecture.png` / `.svg`: historical operational-foundation
   diagram; do not use as the primary Devpost image.
 
-The PNGs in this folder are submission-frame references captured from the
-public Cloud Run application at 1440×810. Replace them after each release
-capture; the synthetic/public-source badge is part of the product UI. The
-captions are written for a silent, caption-led demo so no voice or likeness is
-synthesized.
+The historical workflow PNGs are 1280×720; the current exact-release Decision
+Twin desktop captures and architecture images are 1600×900; the current mobile
+proof is 390×844; the captioned demo slides are 1920×1080; and the final slide
+is 1440×810. See `ASSET_REVIEW.md` for the reviewed primary/supporting set and
+checksums. Replace the release-bound captures after each release; the
+synthetic/public-source badge is part of the product UI. The captions are
+written for a caption-led demo so no likeness is synthesized.
 
 - `driftline-pending-approval.png`: live scan paused at the deterministic gate.
 - `driftline-evidence-modal.png`: live SHA-256 evidence modal.
@@ -31,6 +33,9 @@ synthesized.
 - `driftline-live-demo.mp4`: 43-second historical proof clip; do not submit it.
 - `decision-twin-*-final.png`: exact-release browser captures from serving app
   `03ec8f12fc23d265c89b462a345a5b599a6411e8`.
+- `decision-twin-mobile-result-candidate.png`: local-only unreleased action
+  result. It is deliberately separate from the fresh production-bound
+  `decision-twin-mobile-result-final.png`; do not upload or call it live.
 - `demo-slide-*.png`: 1920×1080 captioned frames rendered from those captures.
 - `driftline-final-demo-review.mp4`: three-minute, 1080p/30fps, captioned local
   review cut with English reference narration. It is upload-ready as a fallback,

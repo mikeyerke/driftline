@@ -31,6 +31,7 @@ for file in \
   docs/validation/real-pm-pilot-template.json \
   submission/assets/driftline-candidate-rehearsal-narration.txt \
   submission/assets/driftline-candidate-rehearsal-overlays.svg \
+  submission/assets/ASSET_REVIEW.md \
   submission/assets/driftline-decision-twin-final.srt \
   submission/assets/driftline-decision-twin-candidate-architecture.svg \
   submission/assets/driftline-decision-twin-candidate-architecture.png; do
@@ -52,6 +53,10 @@ require_text scripts/verify_final_demo_package.sh 'approval_to_reopen_continuous
 require_text scripts/verify_final_demo_package.sh 'External writes: none'
 require_text scripts/verify_final_demo_package.sh 'quarantined rehearsal or historical proof asset'
 require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'verify_final_demo_package.sh'
+require_text submission/assets/ASSET_REVIEW.md 'inspected at original resolution'
+require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_EXPECT_ACTION'
+require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_FINAL_SCREENSHOT'
+require_text scripts/capture_decision_twin_candidate.mjs 'current-release decision-loop proof'
 require_text scripts/summarize_real_pm_pilot.py 'unexpected fields are forbidden to reduce identity/raw-data risk'
 require_text scripts/summarize_real_pm_pilot.py 'not a customer'
 require_text scripts/summarize_real_pm_pilot.py 'No public pilot statement is authorized.'
@@ -101,9 +106,19 @@ def png_dimensions(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", data[16:24])
 
 
+for path in Path("submission/assets").glob("decision-twin-*-final.png"):
+    png_dimensions(path)
+
+
 expected_dimensions = {
     Path("submission/assets/driftline-decision-twin-architecture.png"): (1600, 900),
     Path("submission/assets/driftline-decision-twin-candidate-architecture.png"): (1600, 900),
+    Path("submission/assets/decision-twin-generation-1-final.png"): (1600, 900),
+    Path("submission/assets/decision-twin-generation-2-final.png"): (1600, 900),
+    Path("submission/assets/decision-twin-generation-2-receipt-final.png"): (1600, 900),
+    Path("submission/assets/decision-twin-mobile-hero-final.png"): (390, 844),
+    Path("submission/assets/decision-twin-mobile-result-final.png"): (390, 844),
+    Path("submission/assets/decision-twin-mobile-result-candidate.png"): (390, 844),
     Path("submission/assets/driftline-final-slide.png"): (1440, 810),
 }
 for path, expected_size in expected_dimensions.items():
@@ -117,16 +132,24 @@ for path, expected_size in expected_dimensions.items():
             f"{expected_size[0]}x{expected_size[1]}"
         )
 
-path = Path("submission/assets/driftline-decision-twin-candidate-architecture.png")
-data = path.read_bytes()
-expected = "d03fa9106a860ce94fef5c6ca13b6cd967a0b4fa5b5c276092e233aea165c7db"
-actual = hashlib.sha256(data).hexdigest()
-if actual != expected:
-    raise SystemExit(
-        "Submission packet check failed: candidate architecture render does not "
-        "match the reviewed full-frame asset; regenerate and review it before "
-        f"updating the checksum (actual {actual})"
-    )
+reviewed_assets = {
+    Path("submission/assets/driftline-decision-twin-architecture.png"): "8b2d310178f484884360965b512a99237d75c202f8e0cc4a3115cf067837eaf6",
+    Path("submission/assets/driftline-decision-twin-candidate-architecture.png"): "d03fa9106a860ce94fef5c6ca13b6cd967a0b4fa5b5c276092e233aea165c7db",
+    Path("submission/assets/decision-twin-generation-1-final.png"): "b5bef1a0ac833a145784d8c60cdd83c89fc8c15b850011b7aee1e4cfaae93ab9",
+    Path("submission/assets/decision-twin-generation-2-final.png"): "d0aaaa42995fbcb0fee961fb2d849f341e817396f0cef7ca4ff3919b190e2158",
+    Path("submission/assets/decision-twin-generation-2-receipt-final.png"): "476ad1e87466d758ab7bc1ce26b0bb51a91de8e60d258f73da9d0d834620c2dd",
+    Path("submission/assets/decision-twin-mobile-hero-final.png"): "14641f53460b068a457e9070e502b538d201498d71004f257c85dc88e2c74096",
+    Path("submission/assets/decision-twin-mobile-result-final.png"): "886b04a6ce35de033453e282631cd2c17d94ba3c664c48adabf5a9617f050255",
+    Path("submission/assets/decision-twin-mobile-result-candidate.png"): "aec229829e2d2800375f0195e2810e06a1e9423b2dc3bf25be750c5ea097ff22",
+}
+for path, expected in reviewed_assets.items():
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != expected:
+        raise SystemExit(
+            f"Submission packet check failed: {path} does not match its reviewed "
+            "full-frame asset; inspect the replacement before deliberately "
+            f"updating the checksum (actual {actual})"
+        )
 
 link_pattern = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 for document in (Path("devpost-submission.md"), Path("submission/DEVPOST.md")):
