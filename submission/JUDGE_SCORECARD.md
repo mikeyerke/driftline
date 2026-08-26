@@ -166,10 +166,12 @@ errors.
 
 The video must be public on YouTube or Vimeo, under four minutes, English or
 English-subtitled, show the working agent, and visibly prove the backend runs on
-Google Cloud. The August 24 organizer checklist recommends trimming load time
-and using jump cuts; the judging criterion asks for a live, unedited proof of
-action. Safest execution: edit intros/waits, but keep one continuous visible
-council → approval → outcome → reopen sequence tied to the same case.
+Google Cloud. Current official FAQ guidance names the Cloud Run console or live
+`.run.app` URL as acceptable deployment proof. The judging criterion asks for a
+live, unedited proof of action. The canonical 2:58 plan therefore uses one
+continuous native recording at 1×, including browser action, tab switches,
+direct Cloud Run `/health`, and the release-bound architecture; it permits no
+cuts or splices.
 
 Exact-release desktop/mobile screenshots, the Decision Twin architecture, and
 a three-minute 1080p captioned local review cut are complete. A continuous

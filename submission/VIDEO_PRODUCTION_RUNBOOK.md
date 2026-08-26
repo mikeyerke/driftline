@@ -44,7 +44,8 @@ deployed or used as the entrant's final narrated take.
 
 - 1920×1080, 30 fps, browser zoom 100%, notifications off.
 - Use a fresh logged-out window for the public lane.
-- Preload `/health` and Google Cloud proof in separate tabs; verify there are no
+- Preload `/health` and either the Cloud Run service/revision console or the
+  live `*.run.app` backend URL in separate tabs; verify there are no
   tokens, tenant names, private records, or editable secret fields on screen.
 - Use the serving release only. Record the release SHA and build ID in the take
   log before capture.
@@ -87,8 +88,10 @@ deployed or used as the entrant's final narrated take.
    recommended and selected.
 9. Show the cleared approver, disabled new action, 7/7 policy checks, measured
    invalidation, evidence/synthesis hashes, and preserved generation-1 lineage.
-10. Finish on `/health`, the exact serving application SHA preserved at the
-    public `main` tip, and the Google architecture diagram.
+10. Show the Cloud Run console or live `*.run.app` backend URL in-frame, then
+    finish on `/health`, the exact serving application SHA preserved at the
+    public `main` tip, and the Google architecture diagram. The architecture is
+    explanation; it is not a substitute for visible deployment proof.
 
 Do not splice across the approval click and receipt. A judge should be able to
 see that the result came from the visible action in the same workflow.
@@ -113,12 +116,16 @@ see that the result came from the visible action in the same workflow.
   current 2:58 blueprint proves the complete loop without spending the extra
   minute on static holds.
 - Remove waits, not policy steps. Never accelerate narration beyond clarity.
-- Burn in English captions and attach the matching `.srt`.
+- Burn in English captions and attach
+  `submission/assets/driftline-final-take.srt`.
 - Normalize speech, remove long silences, and confirm no music masks narration.
 - Watch once at 1× without pausing, once muted for caption comprehension, and
   once at 720p for small-text legibility.
 - Confirm the first 30 seconds shows the live URL and the last frame contains
   project name, URL, repository, category, and Google technology.
+- Record the exact timestamp where the Cloud Run console or live `*.run.app`
+  backend first becomes visible. The final manifest must name which proof type
+  was used and bind it to the same release identity.
 - Copy `submission/final-demo-manifest.template.json`, replace every placeholder
   from the exact released take, hash the final MP4 and SRT, and run:
   `scripts/verify_final_demo_package.sh VIDEO.mp4 CAPTIONS.srt MANIFEST.json`.

@@ -12,7 +12,7 @@ usage() {
 
 [[ -n "$VIDEO_PATH" && -n "$CAPTIONS_PATH" && -n "$MANIFEST_PATH" ]] || usage
 
-for command_name in ffmpeg ffprobe python3 rg; do
+for command_name in ffmpeg ffprobe python3 rg shasum; do
   command -v "$command_name" >/dev/null 2>&1 || {
     printf 'Final demo check failed: missing required command %s\n' "$command_name" >&2
     exit 1
@@ -25,6 +25,20 @@ for input_path in "$VIDEO_PATH" "$CAPTIONS_PATH" "$MANIFEST_PATH"; do
     exit 1
   }
 done
+
+VIDEO_PREFLIGHT_SHA="$(shasum -a 256 "$VIDEO_PATH" | awk '{print $1}')"
+case "$VIDEO_PREFLIGHT_SHA" in
+  3bcc2e98c0133a8caf2d6089609b3055b2b3f03574079c7c05f7fabfe63841ac|\
+  f79abadb65bf393a3221db810efa7a8212ac5430e7e3d3efa03c8def489bd42e|\
+  24a693d2f0bb4633f337c06429dff871fd5c565135f088ba12009aee17f96645|\
+  db0c59c4f52e020ba2d1d6a46b1f5d874925a1e4bdb55d306ee22f04e46b769a|\
+  14b50b61d8674be7ff5f48e38411c732bbbaf2b93c73cc190c8b8e6a6223472e|\
+  4605822e7726d280eaf8f8da67191b13b2c3d7bc6ab4f4ee45f3ba310c81d9e6|\
+  f12467768113ed106d5c5a9bb43c3f8b6229c5990809b0c333568d15151171dc)
+    printf 'Final demo check failed: video content matches a quarantined rehearsal or historical proof asset.\n' >&2
+    exit 1
+    ;;
+esac
 
 case "$(basename "$VIDEO_PATH")" in
   driftline-final-demo-candidate.mp4|driftline-final-demo-rehearsal.mp4|driftline-candidate-rehearsal-tight.mp4|driftline-continuous-candidate-proof.mp4|driftline-continuous-candidate-presentation.mp4|driftline-live-demo.mp4)
@@ -219,6 +233,10 @@ required_fields = {
     "approval_to_reopen_continuous",
     "secrets_reviewed",
     "external_writes_none_visible",
+    "google_cloud_proof_type",
+    "google_cloud_proof_timestamp_seconds",
+    "google_cloud_proof_visible",
+    "google_cloud_proof_identity_matches_release",
     "release_proof_visible",
     "candidate_watermark_absent",
 }
@@ -263,11 +281,27 @@ for key in (
     "approval_to_reopen_continuous",
     "secrets_reviewed",
     "external_writes_none_visible",
+    "google_cloud_proof_visible",
+    "google_cloud_proof_identity_matches_release",
     "release_proof_visible",
     "candidate_watermark_absent",
 ):
     if manifest[key] is not True:
         fail(f"manifest gate is not affirmed: {key}")
+
+proof_type = manifest["google_cloud_proof_type"]
+if proof_type not in {"cloud_run_console", "cloud_run_url"}:
+    fail(
+        "google_cloud_proof_type must be cloud_run_console or cloud_run_url"
+    )
+try:
+    proof_timestamp = float(manifest["google_cloud_proof_timestamp_seconds"])
+except (TypeError, ValueError):
+    fail("google_cloud_proof_timestamp_seconds must be numeric")
+if not 0 <= proof_timestamp <= duration - 10:
+    fail(
+        "Google Cloud proof must begin at least ten seconds before the video ends"
+    )
 
 print(
     "Final demo package checks passed: "

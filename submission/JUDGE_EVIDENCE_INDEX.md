@@ -25,7 +25,7 @@ take, not evidence that the candidate is already live.
 | 2:10–2:23 | Architecture: Firebase Hosting, Cloud Run, Firestore, Google ADK, Gemini, BigQuery, Cloud Tasks | Is the backend genuinely implemented on Google technology? |
 | 2:23–2:36 | Seven deterministic policy checks | Are safety and correctness architectural rather than prompt promises? |
 | 2:36–2:43 | Candidate custody warning and exact-release gate | Is the demo honest about what is and is not deployed? |
-| 2:43–2:52 | Health, repository, build, and architecture comparison | Can a judge independently verify the claims? |
+| 2:43–2:52 | Rehearsal release gate; final take must replace it with Cloud Run console or live `.run.app` backend plus health/build identity | Can a judge independently verify Google Cloud deployment? |
 | 2:52–2:58 | Product name and public URL | Can the judge immediately continue testing? |
 
 ## Rubric map
@@ -50,9 +50,17 @@ shows that model recommendation and human authority are different states, and
 that the autonomous monitor is constrained by deterministic checks. Strongest
 window: **1:09–2:36**.
 
-The final take must additionally show `/health`, the serving commit, Cloud Run
-revision, Cloud Build ID, image digest, and public `main` equality. A diagram
-alone is supporting explanation, not release proof.
+The final take must additionally show either the Cloud Run console or the live
+`.run.app` backend URL, plus `/health`, the serving commit, Cloud Run revision,
+Cloud Build ID, image digest, and public `main` equality. A diagram or caption
+alone is supporting explanation, not deployment proof.
+
+Read-only preflight on August 26 confirmed that both the Firebase facade and
+`https://driftline-xvxczqg62a-uc.a.run.app/health` returned status `ok`, service
+`driftline-agent`, Firestore persistence, asynchronous jobs enabled, release
+`03ec8f12fc23d265c89b462a345a5b599a6411e8`, and build
+`c01bec2e-a950-407c-873b-b1d4fdc6bae6`. That proves the current release has a
+safe direct Cloud Run proof tab; it does not pre-prove the unreleased candidate.
 
 ### Demo and production readiness — 30%
 
@@ -77,8 +85,11 @@ Reject the take if any of these is true:
 - the approval-to-reopen core is spliced or requires a hidden second action;
 - candidate-only behavior is described as live before release verification;
 - a rehearsal custody watermark remains, even if the file was renamed;
+- the video bytes match any known quarantined rehearsal or historical proof,
+  even if the asset was copied under another filename;
 - **External writes: none** is absent from the public-lane action proof;
 - the architecture appears without observable product action;
+- neither the Cloud Run console nor the live `.run.app` backend is visible;
 - captions overlap, omit a critical Google/authority claim, or become unreadable
   at 720p;
 - any secret, private customer record, tenant identifier, or editable credential

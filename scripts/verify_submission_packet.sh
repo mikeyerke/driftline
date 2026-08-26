@@ -36,6 +36,7 @@ for file in \
   submission/assets/driftline-candidate-rehearsal-overlays.svg \
   submission/assets/driftline-final-rehearsal-narration.txt \
   submission/assets/driftline-final-rehearsal.srt \
+  submission/assets/driftline-final-take.srt \
   submission/assets/driftline-final-rehearsal-watermark.svg \
   submission/assets/driftline-final-rehearsal-caption-overlays.svg \
   submission/assets/ASSET_REVIEW.md \
@@ -61,13 +62,18 @@ require_text scripts/verify_release_candidate_local.sh 'expected mikeyerke/drift
 require_text scripts/verify_release_candidate_local.sh 'refs/heads/$release_ref'
 require_text scripts/verify_final_demo_package.sh 'approval_to_reopen_continuous'
 require_text scripts/verify_final_demo_package.sh 'External writes: none'
+require_text scripts/verify_final_demo_package.sh 'google_cloud_proof_type'
+require_text scripts/verify_final_demo_package.sh 'Google Cloud proof must begin at least ten seconds before the video ends'
 require_text scripts/verify_final_demo_package.sh 'quarantined rehearsal or historical proof asset'
 require_text scripts/verify_final_demo_package.sh 'driftline-final-demo-rehearsal.mp4'
 require_text scripts/verify_final_demo_package.sh 'persistent red top-band custody watermark detected'
+require_text scripts/verify_final_demo_package.sh 'video content matches a quarantined rehearsal or historical proof asset'
 require_text submission/JUDGE_EVIDENCE_INDEX.md '0:00–0:11'
 require_text submission/JUDGE_EVIDENCE_INDEX.md 'Not demonstrated by the video'
 require_text submission/assets/README.md 'detects a 4.53-second narration silence'
 require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'verify_final_demo_package.sh'
+require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'it is not a substitute for visible deployment proof'
+require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'driftline-final-take.srt'
 require_text submission/assets/ASSET_REVIEW.md 'inspected at original resolution'
 require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_EXPECT_ACTION'
 require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_FINAL_SCREENSHOT'
@@ -104,9 +110,11 @@ require_text devpost-submission.md '| Google AI model | Gemini 3.5 Flash via Ver
 require_text devpost-submission.md '| Private testing instructions | Open https://driftline-ops.web.app/'
 require_text devpost-submission.md '| Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |'
 require_text submission/DEMO_SCRIPT.md 'I kept making roadmap calls whose evidence changed after the'
-require_text submission/DEMO_SCRIPT.md 'driftline-decision-twin-final.srt'
-require_text submission/assets/driftline-decision-twin-final.srt 'External writes: none.'
-require_text submission/assets/driftline-decision-twin-final.srt 'Gemini 3.5 Flash'
+require_text submission/DEMO_SCRIPT.md 'driftline-final-take.srt'
+require_text submission/DEMO_SCRIPT.md 'one continuous native screen capture'
+require_text submission/DEMO_SCRIPT.md 'driftline-xvxczqg62a-uc.a.run.app/health'
+require_text submission/assets/driftline-final-take.srt 'External writes: none'
+require_text submission/assets/driftline-final-take.srt 'LIVE GOOGLE CLOUD PROOF'
 require_text submission/BUILD_STORY.md 'for the purpose of entering the Google All Things'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'UNRELEASED CANDIDATE'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'release proof required before publication'
@@ -198,6 +206,43 @@ for document in (
             raise SystemExit(
                 f"Submission packet check failed: {document} links to missing {target}"
             )
+
+timestamp_pattern = re.compile(
+    r"(?P<sh>\d{2}):(?P<sm>\d{2}):(?P<ss>\d{2}),(?P<sms>\d{3})\s+-->\s+"
+    r"(?P<eh>\d{2}):(?P<em>\d{2}):(?P<es>\d{2}),(?P<ems>\d{3})"
+)
+
+
+def srt_seconds(match: re.Match[str], prefix: str) -> float:
+    return (
+        int(match[f"{prefix}h"]) * 3600
+        + int(match[f"{prefix}m"]) * 60
+        + int(match[f"{prefix}s"])
+        + int(match[f"{prefix}ms"]) / 1000
+    )
+
+
+for caption_path in (
+    Path("submission/assets/driftline-final-rehearsal.srt"),
+    Path("submission/assets/driftline-final-take.srt"),
+):
+    cues = [
+        (srt_seconds(match, "s"), srt_seconds(match, "e"))
+        for match in timestamp_pattern.finditer(caption_path.read_text())
+    ]
+    if len(cues) != 15 or cues[0][0] != 0 or cues[-1][1] != 178:
+        raise SystemExit(
+            f"Submission packet check failed: {caption_path} must contain "
+            "15 cues covering exactly 0-178 seconds"
+        )
+    previous_end = 0.0
+    for start, end in cues:
+        if start < previous_end or end <= start:
+            raise SystemExit(
+                f"Submission packet check failed: {caption_path} has "
+                "overlapping or invalid caption timings"
+            )
+        previous_end = end
 PY
 
 todo_lines="$(rg -n -i 'todo|placeholder|tbd|fixme|lorem' \

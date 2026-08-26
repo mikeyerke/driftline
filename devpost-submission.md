@@ -81,7 +81,8 @@ proof all resolve to the same released candidate.
 
 - Confirm registration answers, eligibility, official rules, Devpost terms,
   privacy consent, and the optional marketing answer.
-- Record and publish the final public video at 3:45 or shorter.
+- Record and publish the final public video from the canonical 2:58 continuous
+  script; reject at 3:56 or longer.
 - Approve and publish one optional social draft if pursuing that bonus.
 - Review the rendered project, attached architecture image, links, and category.
 - Explicitly confirm the final Devpost submission action.

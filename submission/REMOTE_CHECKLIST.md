@@ -58,7 +58,8 @@ mutation, registration, upload, publication, or submission.
    720p for comprehension and small-text legibility.
 5. Verify H.264/AAC playback compatibility, loudness, black intervals, secrets,
    customer identifiers, custody labels, final URL, repository, category, and
-   Google technology.
+   Google technology. Show either the Cloud Run console or the live `*.run.app`
+   backend in-frame; an architecture diagram or caption alone is insufficient.
 6. Upload publicly to YouTube or Vimeo only after entrant approval. The working
    rules snapshot says an unlisted video is insufficient; verify visibility in
    a fresh logged-out browser.

@@ -13,6 +13,10 @@
   "approval_to_reopen_continuous": false,
   "secrets_reviewed": false,
   "external_writes_none_visible": false,
+  "google_cloud_proof_type": "cloud_run_console_or_run_url",
+  "google_cloud_proof_timestamp_seconds": 0,
+  "google_cloud_proof_visible": false,
+  "google_cloud_proof_identity_matches_release": false,
   "release_proof_visible": false,
   "candidate_watermark_absent": false
 }

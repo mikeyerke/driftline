@@ -43,9 +43,11 @@ written for a caption-led demo so no likeness is synthesized.
   sequence is weaker than the continuous native browser path. Do not upload it
   as the final submission.
 - `driftline-final-demo.srt`: matching accessible caption track.
-- `driftline-decision-twin-final.srt`: timed caption master for the unreleased
-  3:48 Decision Twin script. It includes every judge-critical Google, authority,
-  action, and release-proof claim; bind its checksum to the final take manifest.
+- `driftline-final-take.srt`: canonical 2:58 final-take captions. They include
+  every judge-critical Google, authority, action, direct Cloud Run, and
+  release-proof claim; bind their checksum to the final manifest.
+- `driftline-decision-twin-final.srt`: superseded 3:48 caption draft retained
+  only as historical production planning; do not attach it to the final take.
 - `driftline-continuous-candidate-proof.mp4`: 31.17-second local-only
   visible-click continuity rehearsal. It is unreleased candidate QA, not a
   deploy or customer-outcome claim.
