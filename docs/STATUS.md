@@ -93,7 +93,7 @@ links, fair anonymous mutation quotas, bounded visual-asset fetches, the
 continuous PM operating loop, and the redacted multi-source evidence pack
 described in the judge scorecard. These merged runtime changes are not deployed.
 
-The public-main candidate passed 525 backend tests, Ruff, the 14/14 trace
+The public-main candidate passed 532 backend tests, Ruff, the 14/14 trace
 evaluation, the locked frontend build, dependency audit, frontend and
 submission contracts, and shell/diff hygiene on August 26. PRs #23-#29 passed
 all four hosted jobs. For PRs #26-#29, each tested tree was identical to its

@@ -53,6 +53,13 @@ rehearsal-marked input produces no release packet. These are verified release
 controls, not evidence that the current public deployment or a public video has
 changed.
 
+The authorized release command also emits an atomic identity receipt only after
+the production verifier proves public main, `/health`, Cloud Run revision,
+Cloud Build, image digest, and the release-bound trace agree. It generates the
+final-demo manifest seed from that receipt outside the repository and refuses
+manual overwrite, preventing release identity from being copied between tools
+by hand. This control is implemented and tested; no new release was performed.
+
 Together, these public-main changes add these
 judge-facing improvements:
 
@@ -108,7 +115,7 @@ different labels. Stakeholder positions are explicitly evidence-bound decision
 lenses rather than fabricated human quotes.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 525 backend tests, Ruff, the production frontend build,
+The candidate passed 532 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold
@@ -277,7 +284,7 @@ ownership attestation.
 
 `scripts/verify_clean_checkout.sh` separately exports only committed `HEAD`
 into a new temporary directory, creates a fresh backend environment, installs
-the locked frontend tree, and reruns all 525 backend tests, the 14-case agent
+the locked frontend tree, and reruns all 532 backend tests, the 14-case agent
 evaluation, frontend production build, frontend contract, submission packet,
 and shell syntax checks. This closes the gap between “works in the development
 worktree” and the reproducibility claim a judge receives from the repository.

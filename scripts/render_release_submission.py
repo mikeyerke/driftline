@@ -42,6 +42,7 @@ REQUIRED_MANIFEST_FIELDS = {
     "cloud_run_revision",
     "cloud_build_id",
     "image_digest",
+    "release_identity_receipt_sha256",
     "video_sha256",
     "captions_sha256",
     "duration_seconds",
@@ -114,6 +115,7 @@ def _validate_manifest(manifest: dict[str, object]) -> dict[str, str]:
     revision = str(manifest.get("cloud_run_revision", ""))
     build_id = str(manifest.get("cloud_build_id", ""))
     digest = str(manifest.get("image_digest", ""))
+    receipt_sha256 = str(manifest.get("release_identity_receipt_sha256", ""))
     video_sha256 = str(manifest.get("video_sha256", ""))
     captions_sha256 = str(manifest.get("captions_sha256", ""))
     if not REVISION_RE.fullmatch(revision):
@@ -122,6 +124,8 @@ def _validate_manifest(manifest: dict[str, object]) -> dict[str, str]:
         raise ReleaseRenderError("Cloud Build ID is invalid")
     if not DIGEST_RE.fullmatch(digest):
         raise ReleaseRenderError("image digest is invalid")
+    if not HASH_RE.fullmatch(receipt_sha256) or receipt_sha256 == "0" * 64:
+        raise ReleaseRenderError("release identity receipt hash is invalid")
     if any(
         not HASH_RE.fullmatch(value) or value == "0" * 64
         for value in (video_sha256, captions_sha256)
@@ -190,6 +194,7 @@ def _validate_manifest(manifest: dict[str, object]) -> dict[str, str]:
         "revision": revision,
         "build_id": build_id,
         "digest": digest,
+        "release_identity_receipt_sha256": receipt_sha256,
         "video_sha256": video_sha256,
         "captions_sha256": captions_sha256,
     }

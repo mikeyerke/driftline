@@ -33,6 +33,7 @@ for file in \
   scripts/build_final_demo_rehearsal.sh \
   scripts/build_candidate_rehearsal.sh \
   scripts/verify_final_demo_package.sh \
+  scripts/prepare_final_demo_manifest.py \
   scripts/render_release_submission.py \
   scripts/render_final_demo_review_sheet.sh \
   scripts/verify_contest_provenance.sh \
@@ -69,12 +70,21 @@ fi
 require_text submission/DEMO_SCRIPT.md 'This is the pre-candidate release,'
 require_text submission/DEMO_SCRIPT.md 'Reject the take unless public `main`,'
 require_text scripts/release_and_verify.sh './scripts/verify_release_candidate_local.sh --release-candidate'
+require_text scripts/release_and_verify.sh 'DRIFTLINE_RELEASE_IDENTITY_OUT'
+require_text scripts/release_and_verify.sh 'prepare_final_demo_manifest.py'
+require_text scripts/verify_production.sh 'Release identity receipt:'
+require_text scripts/verify_production.sh 'public main %s does not equal serving SHA %s'
+require_text scripts/verify_production.sh 'refuses unexpected origin'
+require_text scripts/release_and_verify.sh 'requires the canonical Firebase judge URL'
+require_text scripts/prepare_final_demo_manifest.py 'release, health, public-main, and trace SHAs must match'
+require_text scripts/prepare_final_demo_manifest.py 'manifest seed output must be outside the repository'
 require_text scripts/verify_release_candidate_local.sh 'expected mikeyerke/driftline'
 require_text scripts/verify_release_candidate_local.sh 'refs/heads/$release_ref'
 require_text scripts/verify_final_demo_package.sh 'approval_to_reopen_continuous'
 require_text scripts/verify_final_demo_package.sh 'first_agent_action_timestamp_seconds'
 require_text scripts/verify_final_demo_package.sh 'the first visible agent action must occur within the first 15 seconds'
 require_text scripts/verify_final_demo_package.sh 'preapproval_background_workflow_visible'
+require_text scripts/verify_final_demo_package.sh 'release identity receipt hash is missing or invalid'
 require_text scripts/verify_final_demo_package.sh 'continuous_native_take'
 require_text scripts/verify_final_demo_package.sh 'setup_and_loading_omitted'
 require_text scripts/verify_final_demo_package.sh 'named_human_approval_visible'
@@ -158,7 +168,7 @@ require_text submission/PILOT_PROSPECT_PIPELINE.md 'driftline-pm-prospect-watch'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'Compensation is for the participant'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'not revenue'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'Do not create an account'
-require_text submission/DEVPOST.md '525 backend tests'
+require_text submission/DEVPOST.md '532 backend tests'
 require_text scripts/verify_custom_decision_browser.mjs 'Custom-decision browser verification is loopback-only'
 require_text scripts/verify_custom_decision_browser.mjs 'freshContextRestored'
 require_text scripts/verify_custom_decision_browser.mjs 'namedApproverVisible'

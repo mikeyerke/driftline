@@ -19,6 +19,7 @@ IDENTITY = {
     "revision": "driftline-12345-abc",
     "build_id": "12345678-1234-1234-1234-123456789abc",
     "digest": "sha256:" + "2" * 64,
+    "release_identity_receipt_sha256": "5" * 64,
     "video_sha256": "3" * 64,
     "captions_sha256": "4" * 64,
 }
@@ -34,6 +35,9 @@ def valid_manifest() -> dict[str, object]:
         "cloud_run_revision": IDENTITY["revision"],
         "cloud_build_id": IDENTITY["build_id"],
         "image_digest": IDENTITY["digest"],
+        "release_identity_receipt_sha256": IDENTITY[
+            "release_identity_receipt_sha256"
+        ],
         "video_sha256": IDENTITY["video_sha256"],
         "captions_sha256": IDENTITY["captions_sha256"],
         "duration_seconds": 178,
