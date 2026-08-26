@@ -1,13 +1,33 @@
+import { useRef } from "react";
 import { CheckCircle2, ChevronRight, RotateCcw } from "lucide-react";
 
 export default function CounterfactualCompare({ options, recommendedId, selectedId, onSelect }) {
   const selected = options.find((option) => option.option_id === selectedId) || options[0];
+  const optionRefs = useRef([]);
+  const activeId = selectedId || selected?.option_id;
+
+  const moveSelection = (event, currentIndex) => {
+    const navigation = {
+      ArrowRight: (currentIndex + 1) % options.length,
+      ArrowDown: (currentIndex + 1) % options.length,
+      ArrowLeft: (currentIndex - 1 + options.length) % options.length,
+      ArrowUp: (currentIndex - 1 + options.length) % options.length,
+      Home: 0,
+      End: options.length - 1,
+    };
+    const nextIndex = navigation[event.key];
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    onSelect(options[nextIndex].option_id);
+    optionRefs.current[nextIndex]?.focus();
+  };
+
   return (
     <section className="decision-room-section counterfactual-section" aria-labelledby="counterfactual-title">
       <header className="decision-room-section-header"><div><span className="decision-room-kicker">Choose safely</span><h3 id="counterfactual-title">Choose the smallest safe response</h3><p className="section-dek">Every option is tied to evidence, a guardrail, and a rollback path.</p></div><span className="bounded-label">No writes until approval</span></header>
       <div className="counterfactual-tabs" role="radiogroup" aria-label="Decision options">
-        {options.map((option) => (
-          <button className={`counterfactual-tab${selectedId === option.option_id ? " selected" : ""}`} type="button" role="radio" aria-checked={selectedId === option.option_id} key={option.option_id} onClick={() => onSelect(option.option_id)}>
+        {options.map((option, index) => (
+          <button className={`counterfactual-tab${activeId === option.option_id ? " selected" : ""}`} type="button" role="radio" aria-checked={activeId === option.option_id} tabIndex={activeId === option.option_id ? 0 : -1} ref={(element) => { optionRefs.current[index] = element; }} key={option.option_id} onClick={() => onSelect(option.option_id)} onKeyDown={(event) => moveSelection(event, index)}>
             <span>{option.title}</span>{recommendedId === option.option_id && <small><CheckCircle2 size={12} />Recommended</small>}
           </button>
         ))}

@@ -176,8 +176,20 @@ if ! node --check scripts/verify_custom_decision_browser.mjs >/dev/null \
   || ! check_frontend_literal 'earlyMeasurementBlocked' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'conciseDistinctTitle' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'clearApprovalLabel' scripts/verify_custom_decision_browser.mjs \
-  || ! check_frontend_literal 'freshContextRestored' scripts/verify_custom_decision_browser.mjs; then
-  printf 'Custom-decision browser gate lost its loopback, review-window, or fresh-context contract.\n' >&2
+  || ! check_frontend_literal 'freshContextRestored' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'keyboardRadioRoving' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'namedInteractiveControls' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'minimumControlTargets' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'validAriaReferences' scripts/verify_custom_decision_browser.mjs; then
+  printf 'Custom-decision browser gate lost its loopback, review-window, fresh-context, or accessibility contract.\n' >&2
+  exit 1
+fi
+
+if ! check_frontend_literal 'role="radiogroup"' frontend/src/components/CounterfactualCompare.jsx \
+  || ! check_frontend_literal 'ArrowRight' frontend/src/components/CounterfactualCompare.jsx \
+  || ! check_frontend_literal 'tabIndex={activeId === option.option_id ? 0 : -1}' frontend/src/components/CounterfactualCompare.jsx \
+  || ! check_frontend_literal '@media (forced-colors: active)' frontend/src/styles.css; then
+  printf 'Decision option keyboard semantics or forced-colors focus support regressed.\n' >&2
   exit 1
 fi
 

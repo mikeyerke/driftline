@@ -648,7 +648,11 @@ It is loopback-only by default and fails unless both viewports preserve the
 PM-provided/unverified disclosure, named approval, bounded internal action,
 decision-state-only/no-external-write boundary, early-measurement lock, copied
 opaque return link, fresh-browser restoration, console cleanliness, and zero
-horizontal overflow. It does not contact production or require credentials.
+horizontal overflow. It also verifies the keyboard radiogroup and approval
+path, visible skip link, accessible control names, 24-pixel minimum standalone
+targets, landmarks, unique IDs, ARIA references, and the absence of positive
+tab indexes or focusable `aria-hidden` content. It does not contact production
+or require credentials.
 
 The verified local suite also runs Ruff lint checks. Formatting is not a CI
 gate; do not describe `ruff format --check` as passing unless the current

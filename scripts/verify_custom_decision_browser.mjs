@@ -32,6 +32,65 @@ const { chromium } = loadPlaywright();
 const browser = await chromium.launch({ headless: true });
 const results = {};
 
+async function auditAccessibility(page) {
+  return page.evaluate(() => {
+    const visible = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const accessibleName = (element) => {
+      const labelledBy = element.getAttribute("aria-labelledby");
+      if (labelledBy) {
+        const label = labelledBy.split(/\s+/).map((id) => document.getElementById(id)?.textContent || "").join(" ").trim();
+        if (label) return label;
+      }
+      const ariaLabel = element.getAttribute("aria-label")?.trim();
+      if (ariaLabel) return ariaLabel;
+      const labels = [...(element.labels || [])].map((label) => label.textContent || "").join(" ").trim();
+      if (labels) return labels;
+      if (element instanceof HTMLImageElement && element.alt.trim()) return element.alt.trim();
+      return (element.textContent || element.getAttribute("title") || "").trim();
+    };
+
+    const interactive = [...document.querySelectorAll(
+      'button, a[href], input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="radio"]',
+    )].filter(visible);
+    const unnamed = interactive.filter((element) => !accessibleName(element));
+    const undersized = interactive.filter((element) => {
+      if (element instanceof HTMLAnchorElement && getComputedStyle(element).display === "inline") return false;
+      const rect = element.getBoundingClientRect();
+      return rect.width < 24 || rect.height < 24;
+    });
+    const positiveTabIndex = [...document.querySelectorAll("[tabindex]")]
+      .filter((element) => Number(element.getAttribute("tabindex")) > 0);
+    const hiddenFocusable = [...document.querySelectorAll('[aria-hidden="true"]')]
+      .flatMap((root) => [root, ...root.querySelectorAll("*")])
+      .filter((element) => visible(element) && element.tabIndex >= 0);
+    const ids = [...document.querySelectorAll("[id]")].map((element) => element.id);
+    const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
+    const invalidReferences = [...document.querySelectorAll("[aria-labelledby], [aria-describedby], [aria-controls]")]
+      .flatMap((element) => ["aria-labelledby", "aria-describedby", "aria-controls"].flatMap((attribute) => {
+        const value = element.getAttribute(attribute);
+        if (!value) return [];
+        return value.split(/\s+/).filter((id) => !document.getElementById(id)).map((id) => `${attribute}:${id}`);
+      }));
+
+    return {
+      semanticLandmarks: document.querySelectorAll("main").length === 1 && document.querySelectorAll("h1").length === 1,
+      namedInteractiveControls: unnamed.map((element) => element.outerHTML.slice(0, 160)),
+      minimumControlTargets: undersized.map((element) => {
+        const rect = element.getBoundingClientRect();
+        return `${accessibleName(element)}:${rect.width.toFixed(1)}x${rect.height.toFixed(1)}`;
+      }),
+      noPositiveTabIndex: positiveTabIndex.map((element) => element.outerHTML.slice(0, 160)),
+      noAriaHiddenFocus: hiddenFocusable.map((element) => element.outerHTML.slice(0, 160)),
+      uniqueIds: [...new Set(duplicateIds)],
+      validAriaReferences: invalidReferences,
+    };
+  });
+}
+
 try {
   for (const [name, width, height] of [
     ["desktop", 1453, 726],
@@ -49,6 +108,12 @@ try {
     });
 
     await page.goto(baseUrl.href, { waitUntil: "networkidle" });
+    const skipLink = page.getByRole("link", { name: "Skip to main content" });
+    await skipLink.focus();
+    const skipLinkVisibleOnFocus = await skipLink.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
+    });
     await page.getByRole("button", { name: "Use my decision" }).click();
     await page.getByLabel("Decision question").fill("Should we expand the beta to every mid-market account next month?");
     await page.getByLabel("Current commitment").fill("Launch to every mid-market account on September 15.");
@@ -69,6 +134,20 @@ try {
     await page.getByRole("button", { name: "Build my decision brief" }).click();
     await page.getByText(/PM-provided context · unverified/).first().waitFor();
 
+    const selectedRadio = page.getByRole("radio", { checked: true });
+    const originalRadioName = await selectedRadio.innerText();
+    await selectedRadio.focus();
+    await page.keyboard.press("ArrowRight");
+    const nextRadio = page.getByRole("radio", { checked: true });
+    const nextRadioName = await nextRadio.innerText();
+    const arrowMovedFocus = await nextRadio.evaluate((element) => document.activeElement === element);
+    await page.keyboard.press("ArrowLeft");
+    const restoredRadio = page.getByRole("radio", { checked: true });
+    const keyboardRadioRoving = nextRadioName !== originalRadioName
+      && arrowMovedFocus
+      && (await restoredRadio.innerText()) === originalRadioName
+      && (await restoredRadio.evaluate((element) => document.activeElement === element));
+
     const decisionUrl = page.url();
     const caseId = new URL(decisionUrl).searchParams.get("decision");
     const decisionTitle = await page.locator("#decision-room-title").innerText();
@@ -78,7 +157,8 @@ try {
     await page.getByLabel("Human approver").fill("Independent PM");
     const approve = page.getByRole("button", { name: /^Approve:/ });
     const approvalLabel = await approve.innerText();
-    await approve.click();
+    await approve.focus();
+    await page.keyboard.press("Enter");
     await page.getByText(/Attach the real measurement when the review window closes/).waitFor();
     await page.getByText(/Measurement opens/).waitFor();
     const body = await page.locator("body").innerText();
@@ -110,6 +190,7 @@ try {
     await restored.goto(decisionUrl, { waitUntil: "networkidle" });
     await restored.getByText(/Attach the real measurement when the review window closes/).waitFor();
     const restoredLower = (await restored.locator("body").innerText()).toLowerCase();
+    const accessibility = await auditAccessibility(page);
 
     results[name] = {
       approvalLabel,
@@ -125,6 +206,17 @@ try {
       windowLocked: body.includes("Driftline will reject early measurements at the API boundary"),
       earlyMeasurementBlocked: early.status() === 409 && String(earlyBody.detail).startsWith("Measurement window opens at "),
       freshContextRestored: restoredLower.includes("workflow completion rate") && restoredLower.includes("measurement opens") && restoredLower.includes("bounded internal action executed") && restoredLower.includes("named human approval") && restoredLower.includes("independent pm"),
+      skipLinkVisibleOnFocus,
+      keyboardRadioRoving,
+      keyboardApprovalCompleted: body.includes("Named human approval") && body.includes("Independent PM"),
+      semanticLandmarks: accessibility.semanticLandmarks,
+      namedInteractiveControls: accessibility.namedInteractiveControls.length === 0,
+      minimumControlTargets: accessibility.minimumControlTargets.length === 0,
+      noPositiveTabIndex: accessibility.noPositiveTabIndex.length === 0,
+      noAriaHiddenFocus: accessibility.noAriaHiddenFocus.length === 0,
+      uniqueIds: accessibility.uniqueIds.length === 0,
+      validAriaReferences: accessibility.validAriaReferences.length === 0,
+      accessibilityFindings: accessibility,
       noConsoleErrors: consoleErrors.length === 0 && restoredErrors.length === 0,
       noHorizontalOverflow: await page.evaluate(() => document.documentElement.scrollWidth === innerWidth),
     };
@@ -138,7 +230,7 @@ try {
 
 const failures = Object.entries(results).flatMap(([viewport, checks]) =>
   Object.entries(checks)
-    .filter(([key, value]) => key !== "approvalLabel" && value !== true)
+    .filter(([key, value]) => !["approvalLabel", "accessibilityFindings"].includes(key) && value !== true)
     .map(([key, value]) => `${viewport}.${key}=${JSON.stringify(value)}`),
 );
 console.log(JSON.stringify({ results, failures }, null, 2));
