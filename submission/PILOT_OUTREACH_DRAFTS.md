@@ -7,11 +7,11 @@ Status: local draft only. Do not send, post, register, or publish without Mike a
 Use a small, high-fit first wave rather than bulk outreach:
 
 1. ProductTank Austin hosts Edwin and Ian B. through the Meetup organizer-message route.
-2. Hatch Labs through its official collaborator contact route.
-3. VentureKind through its official **Start a Conversation** route.
-4. Path through its official **Talk to our team** route.
-5. Kevin Smith through the Just Add PRODUCT contact form or published business email.
-6. Ashok through the Clarity for Product contact form or published business email.
+2. Kevin Smith through the Just Add PRODUCT contact form or published business email.
+3. Hatch Labs through its official collaborator contact route.
+4. VentureKind through its official **Start a Conversation** route.
+5. Ashok through the Clarity for Product contact route.
+6. Path through its official **Talk to our team** route.
 7. Robert Gilbreath through his public business route if a product-adjacent GTM
    decision would satisfy the qualification gate.
 8. John Leonard through the RoadMapVenture LinkedIn route only if the first wave does not produce a session.
@@ -102,13 +102,14 @@ Channel: public business contact form or published business email.
 
 Subject: A 30-minute product-clarity test, with a real decision
 
-> Hi Ashok — your public consult description starts with “your biggest product challenge right now” and promises clear next steps without a sales pitch. I am testing a product built for exactly that constraint, but I need a real operator to try to break it.
+> Hi Ashok — your work names ad-hoc product decisions, roadmap churn, stakeholder misalignment, AI paralysis, and platform confusion as operating failures. I am testing a product built for that exact decision boundary, and I need a real operator to try to break it.
 >
 > Driftline takes one currently contested product decision, keeps PM-provided context explicitly unverified, compares competing responses, and requires the human to define the owner, success metric, stop threshold, rollback, and review window before approval.
 >
 > Would you be open to a private 30-minute session using one current, safely redacted decision? I am not asking for an endorsement. I want to learn whether the output improves the decision or merely adds ceremony. Nothing is published or quoted without separate permission.
 
-Why this is personalized: his public intake centers on the participant's biggest current product challenge, strategic clarity, and clear next steps.
+Why this is personalized: his current public site centers on turning ad-hoc
+decisions and feature-output roadmaps into aligned, measurable product bets.
 
 ## John Leonard — RoadMapVenture
 
