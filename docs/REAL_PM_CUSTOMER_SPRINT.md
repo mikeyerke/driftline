@@ -84,6 +84,12 @@ network, fractional product leaders, and portfolio/community operators who can
 bring a live decision. Cold outreach is a lower-probability backup because the
 deadline is close and a real decision requires trust.
 
+Warm does not mean "an email thread exists." Exclude recruiting and interview
+threads, investor or fundraising conversations, sensitive professional
+relationships, and any relationship where the original context would make a
+pilot request feel coercive or opportunistic. Use an organizer-mediated opt-in
+introduction when no clean direct relationship is established.
+
 ## What Codex can do continuously
 
 An ongoing read-only task can:

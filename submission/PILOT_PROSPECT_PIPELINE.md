@@ -16,6 +16,27 @@ Venkatraj's active fractional-CPO positioning around ad-hoc decisions, roadmap
 churn, AI paralysis, and platform confusion. Those facts support fit, not
 availability or willingness to participate.
 
+## Warm-network audit
+
+On August 26, a read-only mailbox search checked recent product-leadership,
+roadmap, product-community, and introduction conversations. No message, draft,
+reply, RSVP, label change, or other mailbox mutation was made.
+
+The search did **not** establish a clean, reciprocal relationship with a PM who
+is both appropriate to approach and demonstrably owns a current Driftline-fit
+decision. Several superficially strong product and executive relationships were
+recruiting or interview conversations. They are disqualified as default pilot
+routes: repurposing an active or past hiring conversation for a hackathon ask
+would mix contexts, create social pressure, and risk trust. A genuine civic-data
+relationship was also found, but it does not establish a product decision owner
+for this use case.
+
+Result: there is no evidence-backed warm-contact shortcut to add to the ranked
+pipeline yet. ProductTank's organizer-mediated, opt-in introduction remains the
+highest-integrity near-term route. A personal referral should be added only if
+Mike names or explicitly approves a relationship whose context makes the ask
+appropriate; the existence of an email thread alone is not qualification.
+
 ## Commercial distinction
 
 A product advisor who critiques Driftline is an expert evaluator, not a
@@ -60,6 +81,10 @@ reduce participation than strengthen the entry.
 5. Ask about payment only after the participant makes a second costly
    commitment or requests continued use. The deadline does not justify forcing
    a customer claim.
+
+Never use an active recruiting, interview, investor, medical, legal, or other
+context-sensitive relationship as a pilot route merely because the person has
+the right title. Relationship context is part of qualification.
 
 ## The one ask that fits the deadline
 
