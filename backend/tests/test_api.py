@@ -242,6 +242,78 @@ def test_decision_twin_intake_builds_an_honestly_labelled_pm_case(monkeypatch) -
     assert client.get(f"/api/decision-twin/{case['case_id']}").json() == case
 
 
+def test_private_pilot_starter_is_product_bound_and_owner_only(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DRIFTLINE_RELEASE_SHA", "a" * 40)
+    monkeypatch.setenv("K_SERVICE", "driftline")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    owner = TestClient(app, base_url="https://testserver")
+    shared_viewer = TestClient(app, base_url="https://testserver")
+    decision_text = "Should we expand the beta to all mid-market accounts next month?"
+    commitment_text = "Launch to every mid-market account on September 15."
+    created = owner.post(
+        "/api/decision-twin/intake",
+        json={
+            "question": decision_text,
+            "current_commitment": commitment_text,
+            "urgency": "Sales committed the date and allocation is due this Friday.",
+            "positive_signal": "Beta users complete the core workflow faster than the control group.",
+            "risk_signal": "Admins report permission confusion and support volume is rising.",
+            "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
+        },
+    ).json()
+
+    response = owner.get(
+        f"/api/decision-twin/{created['case_id']}/pilot-evidence-starter"
+    )
+    assert response.status_code == 200
+    assert "no-store" in response.headers["cache-control"]
+    starter = response.json()
+    assert starter["record"]["app_release_sha"] == "a" * 40
+    assert starter["record"]["app_state"] == "verified_production"
+    assert starter["record"]["participant_role"] is None
+    assert starter["evidence_binding"]["evidence_manifest_hash"] == created["council"][
+        "evidence_manifest_hash"
+    ]
+    assert starter["evidence_binding"]["external_writes_none"] is True
+    serialized = response.text
+    assert created["case_id"] not in serialized
+    assert decision_text not in serialized
+    assert commitment_text not in serialized
+
+    denied = shared_viewer.get(
+        f"/api/decision-twin/{created['case_id']}/pilot-evidence-starter"
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "This shared decision link is read-only."
+
+
+def test_pilot_starter_rejects_demo_case_and_unknown_release(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    owner = TestClient(app)
+    demo = owner.post("/api/decision-twin/demo").json()
+
+    monkeypatch.setenv("DRIFTLINE_RELEASE_SHA", "a" * 40)
+    wrong_kind = owner.get(
+        f"/api/decision-twin/{demo['case_id']}/pilot-evidence-starter"
+    )
+    assert wrong_kind.status_code == 409
+    assert "PM-provided decision" in wrong_kind.json()["detail"]
+
+    monkeypatch.setenv("DRIFTLINE_RELEASE_SHA", "unknown")
+    missing_identity = owner.get(
+        f"/api/decision-twin/{demo['case_id']}/pilot-evidence-starter"
+    )
+    assert missing_identity.status_code == 503
+    assert "no pilot starter was generated" in missing_identity.json()["detail"]
+
+
 def test_decision_twin_intake_rejects_extra_or_underspecified_context(monkeypatch) -> None:
     monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
     payload = {

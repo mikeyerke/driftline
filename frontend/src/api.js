@@ -224,6 +224,20 @@ export function getDecisionTwinEvaluation(caseId) {
   return request(`/api/decision-twin/${encodeURIComponent(caseId)}/evaluation`);
 }
 
+export async function downloadDecisionTwinPilotStarter(caseId) {
+  const payload = await request(`/api/decision-twin/${encodeURIComponent(caseId)}/pilot-evidence-starter`);
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "driftline-private-pilot-evidence-starter.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return payload;
+}
+
 export function approveDecisionTwin(caseId, optionId, synthesisHash, generation, approver) {
   return request(`/api/decision-twin/${encodeURIComponent(caseId)}/approve`, {
     method: "POST",

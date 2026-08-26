@@ -144,6 +144,7 @@ from .persistence import (
     reserve_tenant_rate_limit,
     update_jobs_for_workflow,
 )
+from .pilot_evidence import PilotEvidenceError, build_pilot_evidence_starter
 from .product_analytics import (
     AnalyticsPolicyError,
     query_aggregate_metric,
@@ -6379,6 +6380,34 @@ def get_decision_twin_evaluation(case_id: str) -> dict:
     if case is None or case.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
     return evaluate_decision_twin_case(case)
+
+
+@app.get("/api/decision-twin/{case_id}/pilot-evidence-starter")
+def get_decision_twin_pilot_evidence_starter(
+    case_id: str,
+    request: Request,
+    response: Response,
+) -> dict[str, object]:
+    """Export product-bound pilot custody without decision text or identity."""
+    case = load_decision_case(case_id)
+    if case is None or case.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    _require_decision_mutation_capability(case, request)
+    response.headers["Cache-Control"] = "no-store, private"
+    release_sha = os.getenv("DRIFTLINE_RELEASE_SHA", "")
+    if not re.fullmatch(r"[0-9a-f]{40}", release_sha) or release_sha == "0" * 40:
+        raise HTTPException(
+            status_code=503,
+            detail="Exact release identity is unavailable; no pilot starter was generated.",
+        )
+    try:
+        return build_pilot_evidence_starter(
+            case,
+            release_sha=release_sha,
+            verified_production=bool(os.getenv("K_SERVICE")),
+        )
+    except PilotEvidenceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.post("/api/decision-twin/{case_id}/approve")

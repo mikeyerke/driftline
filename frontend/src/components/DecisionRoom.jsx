@@ -1,6 +1,6 @@
-import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Plus, Radar, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, Download, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Plus, Radar, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, startDecisionTwin, startDecisionTwinIntake } from "../api";
+import { approveDecisionTwin, downloadDecisionTwinPilotStarter, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, startDecisionTwin, startDecisionTwinIntake } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
 import EvidenceCouncil from "./EvidenceCouncil";
 import LearningReceipt from "./LearningReceipt";
@@ -94,6 +94,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const [intake, setIntake] = useState(emptyIntake);
   const [copyStatus, setCopyStatus] = useState("");
   const [linkStatus, setLinkStatus] = useState("");
+  const [pilotExportStatus, setPilotExportStatus] = useState("");
   const [approverName, setApproverName] = useState("");
   const intakeSectionRef = useRef(null);
   const intakeTitleRef = useRef(null);
@@ -323,6 +324,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     setError("");
     setCopyStatus("");
     setLinkStatus("");
+    setPilotExportStatus("");
     setApproverName("");
     setIntakeOpen(false);
     setIntakeStep(1);
@@ -340,6 +342,19 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       window.setTimeout(() => setLinkStatus(""), 1800);
     } catch {
       setError("Copy was blocked by the browser. Copy the current address manually.");
+    }
+  };
+
+  const downloadPilotStarter = async () => {
+    setPilotExportStatus("Preparing private starter…");
+    setError("");
+    try {
+      await downloadDecisionTwinPilotStarter(decisionCase.case_id);
+      setPilotExportStatus("Private starter downloaded");
+      window.setTimeout(() => setPilotExportStatus(""), 1800);
+    } catch (nextError) {
+      setPilotExportStatus("");
+      setError(nextError.message);
     }
   };
 
@@ -554,9 +569,10 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <h2 id="decision-room-title" tabIndex="-1">{decisionCase.title}</h2>
           <p>{decisionCase.question}</p>
         </div>
-        <div className="decision-room-header-actions"><button className="secondary compact" type="button" onClick={copyDecisionBrief}><span aria-live="polite">{copyStatus === "Copied" ? <Check size={14} /> : <Copy size={14} />}{copyStatus || "Copy decision brief"}</span></button>{isProvidedIntake && <button className="secondary compact" type="button" onClick={copyReturnLink}><span aria-live="polite">{linkStatus ? <Check size={14} /> : <Copy size={14} />}{linkStatus || "Copy view-only link"}</span></button>}<button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button></div>
+        <div className="decision-room-header-actions"><button className="secondary compact" type="button" onClick={copyDecisionBrief}><span aria-live="polite">{copyStatus === "Copied" ? <Check size={14} /> : <Copy size={14} />}{copyStatus || "Copy decision brief"}</span></button>{isProvidedIntake && <button className="secondary compact" type="button" onClick={copyReturnLink}><span aria-live="polite">{linkStatus ? <Check size={14} /> : <Copy size={14} />}{linkStatus || "Copy view-only link"}</span></button>}{isProvidedIntake && canEdit && <button className="secondary compact" type="button" onClick={downloadPilotStarter} disabled={pilotExportStatus === "Preparing private starter…"}><Download size={14} /><span aria-live="polite">{pilotExportStatus || "Download private pilot starter"}</span></button>}<button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button></div>
       </header>
       {isProvidedIntake && <p className="decision-return-disclosure"><ShieldCheck size={13} />The copied link is view-only. This browser keeps a separate private edit capability for approval and measurements. Never enter secrets or customer-identifying data; the case expires under the deployment's bounded retention policy.</p>}
+      {isProvidedIntake && canEdit && <p className="decision-return-disclosure"><ShieldCheck size={13} />The private pilot starter exports hashes and bounded counts—not your decision text, identity, consent, or a validation claim. Complete its manual fields only after a qualified session.</p>}
       {!canEdit && <p className="decision-return-disclosure"><ShieldCheck size={13} />Read-only shared view. Approval, measurements, and reopening require the originating browser's private edit capability.</p>}
       <nav className="decision-room-stages" aria-label="Decision Twin progress">
         {stages.map((stage, index) => <span className={index < activeStage ? "complete" : index === activeStage ? "current" : ""} key={stage}>

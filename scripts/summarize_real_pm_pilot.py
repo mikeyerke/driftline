@@ -154,6 +154,40 @@ LABELS = {
     "resource_allocation": "resource-allocation",
 }
 
+STARTER_FIELDS = {
+    "schema_version",
+    "generated_at",
+    "evidence_binding",
+    "record",
+    "automated_fields",
+    "manual_fields",
+    "disclosure",
+}
+AUTOMATED_FIELDS = {
+    "session_id",
+    "session_date",
+    "app_release_sha",
+    "app_state",
+    "plausible_option_count",
+    "evidence_input_count",
+    "review_window_days",
+}
+BINDING_FIELDS = {
+    "case_reference_hash",
+    "release_sha",
+    "generation",
+    "case_status",
+    "evidence_manifest_hash",
+    "synthesis_hash",
+    "evidence_input_count",
+    "plausible_option_count",
+    "review_window_days",
+    "human_approval_present",
+    "outcome_count",
+    "external_writes_none",
+}
+HASH_RE = re.compile(r"[0-9a-f]{64}")
+
 
 def _enum(record: dict[str, Any], key: str) -> str:
     value = record[key]
@@ -181,9 +215,7 @@ def _number(
     return number
 
 
-def _integer(
-    record: dict[str, Any], key: str, *, minimum: int, maximum: int
-) -> int:
+def _integer(record: dict[str, Any], key: str, *, minimum: int, maximum: int) -> int:
     value = record[key]
     if isinstance(value, bool) or not isinstance(value, int):
         raise PilotValidationError(f"invalid {key}")
@@ -240,9 +272,13 @@ def validate(record: dict[str, Any]) -> None:
     if review_window not in {3, 7, 14, 30}:
         raise PilotValidationError("review_window_days must be 3, 7, 14, or 30")
     if not record["meaningful_downside"] or not record["safe_redaction_confirmed"]:
-        raise PilotValidationError("session did not pass the real-decision qualification gate")
+        raise PilotValidationError(
+            "session did not pass the real-decision qualification gate"
+        )
     if due_days > 30 or option_count < 2 or evidence_count < 3:
-        raise PilotValidationError("session did not pass the real-decision qualification gate")
+        raise PilotValidationError(
+            "session did not pass the real-decision qualification gate"
+        )
 
     commitments = record["costly_commitments"]
     if not isinstance(commitments, list) or any(
@@ -256,9 +292,7 @@ def validate(record: dict[str, Any]) -> None:
 
     commercial_status = record["commercial_status"]
     amount = _number(record, "paid_amount_usd", minimum=0, maximum=100000)
-    incentive = _number(
-        record, "participant_incentive_usd", minimum=0, maximum=5000
-    )
+    incentive = _number(record, "participant_incentive_usd", minimum=0, maximum=5000)
     if (
         record["participant_recruitment_channel"] == "paid_research_panel"
         and incentive <= 0
@@ -288,8 +322,95 @@ def validate(record: dict[str, Any]) -> None:
         raise PilotValidationError("completed follow-up requires a threshold verdict")
 
 
-def summarize(record: dict[str, Any]) -> str:
+def validate_starter(starter: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    """Verify that product-observed fields survive private completion unchanged."""
+    if set(starter) != STARTER_FIELDS or starter.get("schema_version") != 1:
+        raise PilotValidationError("invalid product-bound starter structure")
+    try:
+        generated_at = dt.datetime.fromisoformat(str(starter["generated_at"]))
+    except ValueError as exc:
+        raise PilotValidationError("invalid starter generated_at") from exc
+    if generated_at.tzinfo is None:
+        raise PilotValidationError("starter generated_at must include a timezone")
+
+    starter_record = starter.get("record")
+    if not isinstance(starter_record, dict) or set(starter_record) != REQUIRED_FIELDS:
+        raise PilotValidationError("invalid starter record fields")
+    automated = starter.get("automated_fields")
+    manual = starter.get("manual_fields")
+    if (
+        not isinstance(automated, list)
+        or set(automated) != AUTOMATED_FIELDS
+        or len(automated) != len(AUTOMATED_FIELDS)
+        or not isinstance(manual, list)
+        or set(manual) != REQUIRED_FIELDS - AUTOMATED_FIELDS
+        or len(manual) != len(REQUIRED_FIELDS - AUTOMATED_FIELDS)
+    ):
+        raise PilotValidationError("invalid starter field custody partition")
+    if any(starter_record[field] is not None for field in manual):
+        raise PilotValidationError("starter must not prefill human-observed fields")
+    for field in automated:
+        if record[field] != starter_record[field]:
+            raise PilotValidationError(
+                f"product-bound field changed after export: {field}"
+            )
+
+    binding = starter.get("evidence_binding")
+    if not isinstance(binding, dict) or set(binding) != BINDING_FIELDS:
+        raise PilotValidationError("invalid starter evidence binding")
+    for field in (
+        "case_reference_hash",
+        "evidence_manifest_hash",
+        "synthesis_hash",
+    ):
+        if not isinstance(binding[field], str) or not HASH_RE.fullmatch(binding[field]):
+            raise PilotValidationError(f"invalid starter {field}")
+    if (
+        not isinstance(binding["release_sha"], str)
+        or not re.fullmatch(r"[0-9a-f]{40}", binding["release_sha"])
+        or binding["release_sha"] == "0" * 40
+    ):
+        raise PilotValidationError("invalid starter release_sha")
+    if binding["release_sha"] != record["app_release_sha"]:
+        raise PilotValidationError("starter release binding does not match record")
+    for field in (
+        "evidence_input_count",
+        "plausible_option_count",
+        "review_window_days",
+    ):
+        if binding[field] != record[field]:
+            raise PilotValidationError(f"starter binding mismatch: {field}")
+    if (
+        isinstance(binding["generation"], bool)
+        or not isinstance(binding["generation"], int)
+        or binding["generation"] < 1
+    ):
+        raise PilotValidationError("invalid starter generation")
+    if not isinstance(binding["case_status"], str) or not binding["case_status"]:
+        raise PilotValidationError("invalid starter case_status")
+    if (
+        isinstance(binding["outcome_count"], bool)
+        or not isinstance(binding["outcome_count"], int)
+        or binding["outcome_count"] < 0
+    ):
+        raise PilotValidationError("invalid starter outcome_count")
+    if not isinstance(binding["human_approval_present"], bool):
+        raise PilotValidationError("invalid starter human_approval_present")
+    if binding["external_writes_none"] is not True:
+        raise PilotValidationError(
+            "starter does not prove the external-writes-none boundary"
+        )
+    if (
+        not isinstance(starter.get("disclosure"), str)
+        or "no decision text" not in starter["disclosure"]
+    ):
+        raise PilotValidationError("invalid starter privacy disclosure")
+    return binding
+
+
+def summarize(record: dict[str, Any], starter: dict[str, Any] | None = None) -> str:
     validate(record)
+    binding = validate_starter(starter, record) if starter is not None else None
     canonical = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
     record_hash = hashlib.sha256(canonical).hexdigest()
 
@@ -307,9 +428,7 @@ def summarize(record: dict[str, Any]) -> str:
             f"**paid customer evidence** (${record['paid_amount_usd']:.0f} received)"
         )
     elif record["commercial_status"] == "signed_paid_pilot":
-        customer_status = (
-            f"**signed paid-pilot customer evidence** (${record['paid_amount_usd']:.0f} committed)"
-        )
+        customer_status = f"**signed paid-pilot customer evidence** (${record['paid_amount_usd']:.0f} committed)"
     else:
         customer_status = "**not a customer** (no payment or signed paid commitment)"
 
@@ -362,25 +481,36 @@ def summarize(record: dict[str, Any]) -> str:
         outcome_status = "Pending; no measured outcome claim is allowed."
 
     commitment_text = ", ".join(commitments) if commitments else "none"
+    if binding:
+        custody = f"""- Evidence custody: **product-bound private starter verified**
+- Private case reference SHA-256: `{binding["case_reference_hash"]}`
+- Evidence manifest SHA-256: `{binding["evidence_manifest_hash"]}`
+- Synthesis SHA-256: `{binding["synthesis_hash"]}`
+- Exported case state: generation {binding["generation"]}; status `{binding["case_status"]}`; human approval present: **{"yes" if binding["human_approval_present"] else "no"}**; recorded outcomes: {binding["outcome_count"]}
+- Product-observed external writes: **none**"""
+    else:
+        custody = "- Evidence custody: **manual record only; not product-bound**"
+
     return f"""# Driftline real-PM pilot evidence
 
 Status: **qualified single-session evidence (n=1)**.
 
-- Session: `{record['session_id']}` on {record['session_date']}
-- Application custody: **{app_state}** at `{record['app_release_sha']}`
-- Participant: anonymized {role}; {stage}; decision authority: {record['decision_authority']}
-- Participant independent of the build and judging: **{'yes' if record['participant_independent'] else 'no'}**
-- Recruitment channel: **{recruitment_channel}**; participant research incentive: **${record['participant_incentive_usd']:.0f}**
-- Decision: {decision}; due in {record['decision_due_days']:.0f} days; {record['plausible_option_count']:.0f} plausible options; {record['evidence_input_count']:.0f} redacted evidence inputs
-- Decision effect: **{record['decision_effect']}**; confidence {record['before_confidence_1_7']:.0f} → {record['after_confidence_1_7']:.0f} / 7; {record['minutes_to_brief']:.0f} minutes from complete intake
-- Citation errors identified: {record['citation_error_count']:.0f}
-- Every citation reviewed by the participant: **{'yes' if record['all_citations_reviewed'] else 'no'}**
-- Human authority understood: **{'yes' if record['human_control_understood'] else 'no'}**
-- External-writes-none boundary understood: **{'yes' if record['external_writes_none_understood'] else 'no'}**
+- Session: `{record["session_id"]}` on {record["session_date"]}
+- Application custody: **{app_state}** at `{record["app_release_sha"]}`
+{custody}
+- Participant: anonymized {role}; {stage}; decision authority: {record["decision_authority"]}
+- Participant independent of the build and judging: **{"yes" if record["participant_independent"] else "no"}**
+- Recruitment channel: **{recruitment_channel}**; participant research incentive: **${record["participant_incentive_usd"]:.0f}**
+- Decision: {decision}; due in {record["decision_due_days"]:.0f} days; {record["plausible_option_count"]:.0f} plausible options; {record["evidence_input_count"]:.0f} redacted evidence inputs
+- Decision effect: **{record["decision_effect"]}**; confidence {record["before_confidence_1_7"]:.0f} → {record["after_confidence_1_7"]:.0f} / 7; {record["minutes_to_brief"]:.0f} minutes from complete intake
+- Citation errors identified: {record["citation_error_count"]:.0f}
+- Every citation reviewed by the participant: **{"yes" if record["all_citations_reviewed"] else "no"}**
+- Human authority understood: **{"yes" if record["human_control_understood"] else "no"}**
+- External-writes-none boundary understood: **{"yes" if record["external_writes_none_understood"] else "no"}**
 - Primary decision pain: **{primary_pain}**
 - Incumbent decision workflow: **{incumbent_workflow}**
-- Largest adoption blocker: {record['adoption_blocker']}
-- Stated willingness to reuse: **{record['willingness_to_reuse']}**
+- Largest adoption blocker: {record["adoption_blocker"]}
+- Stated willingness to reuse: **{record["willingness_to_reuse"]}**
 - Costly commitments observed: {commitment_text}
 - Commercial classification: {customer_status}
 - Outcome follow-up: {outcome_status}
@@ -400,13 +530,23 @@ This is one directional, self-reported session—not causal or statistically rep
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("record", type=Path)
+    parser.add_argument(
+        "--starter",
+        type=Path,
+        help="private starter exported by the originating Decision Twin browser",
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
         record = json.loads(args.record.read_text(encoding="utf-8"))
         if not isinstance(record, dict):
             raise PilotValidationError("record must be a JSON object")
-        report = summarize(record)
+        starter = None
+        if args.starter:
+            starter = json.loads(args.starter.read_text(encoding="utf-8"))
+            if not isinstance(starter, dict):
+                raise PilotValidationError("starter must be a JSON object")
+        report = summarize(record, starter)
     except (json.JSONDecodeError, OSError, PilotValidationError) as exc:
         raise SystemExit(f"Real-PM pilot record rejected: {exc}") from exc
     if args.output:
