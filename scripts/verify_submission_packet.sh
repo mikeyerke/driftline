@@ -33,6 +33,7 @@ for file in \
   scripts/build_final_demo_rehearsal.sh \
   scripts/build_candidate_rehearsal.sh \
   scripts/verify_final_demo_package.sh \
+  scripts/render_release_submission.py \
   scripts/render_final_demo_review_sheet.sh \
   scripts/verify_contest_provenance.sh \
   scripts/verify_third_party_licenses.py \
@@ -96,6 +97,11 @@ require_text scripts/verify_final_demo_package.sh 'Google Cloud proof must begin
 require_text scripts/verify_final_demo_package.sh 'quarantined rehearsal or historical proof asset'
 require_text scripts/verify_final_demo_package.sh 'driftline-final-demo-rehearsal.mp4'
 require_text scripts/verify_final_demo_package.sh 'persistent red top-band custody watermark detected'
+require_text scripts/render_release_submission.py 'release-bound output directory must be outside the repository'
+require_text scripts/render_release_submission.py 'candidate_watermark_absent'
+require_text scripts/render_release_submission.py 'public_main_sha'
+require_text scripts/render_release_submission.py 'RELEASE VERIFIED'
+require_text scripts/render_release_submission.py '10/10 policy checks'
 require_text scripts/verify_final_demo_package.sh 'video content matches a quarantined rehearsal or historical proof asset'
 require_text submission/JUDGE_EVIDENCE_INDEX.md '0:00–0:11'
 require_text submission/JUDGE_EVIDENCE_INDEX.md 'Not demonstrated by the video'
@@ -136,7 +142,7 @@ require_text submission/PILOT_PROSPECT_PIPELINE.md 'driftline-pm-prospect-watch'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'Compensation is for the participant'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'not revenue'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'Do not create an account'
-require_text submission/DEVPOST.md '487 backend tests'
+require_text submission/DEVPOST.md '511 backend tests'
 require_text scripts/verify_custom_decision_browser.mjs 'Custom-decision browser verification is loopback-only'
 require_text scripts/verify_custom_decision_browser.mjs 'freshContextRestored'
 require_text scripts/verify_custom_decision_browser.mjs 'namedApproverVisible'

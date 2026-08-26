@@ -93,10 +93,11 @@ links, fair anonymous mutation quotas, bounded visual-asset fetches, the
 continuous PM operating loop, and the redacted multi-source evidence pack
 described in the judge scorecard. These merged runtime changes are not deployed.
 
-The public-main candidate passed 487 backend tests, Ruff, the 14/14 trace evaluation,
-the locked frontend build, dependency audit, frontend and submission contracts,
-and shell/diff hygiene on August 26. PRs #23, #24, and #25 passed all four hosted
-jobs, and the exact public-main release preflight passed from a clean checkout.
+The public-main candidate passed 511 backend tests, Ruff, the 14/14 trace
+evaluation, the locked frontend build, dependency audit, frontend and
+submission contracts, and shell/diff hygiene on August 26. PRs #23, #24, and
+#25 passed all four hosted jobs, and the exact public-main release preflight
+passed from a clean checkout.
 That is repository and local candidate evidence only.
 `scripts/verify_release_candidate_local.sh --release-candidate` now fails before
 any Cloud mutation unless the tree is clean and its exact `HEAD` equals the
