@@ -110,6 +110,15 @@ The onboarding case and outcome are bounded demo evidence. No customer time
 saved, revenue, retention, willingness-to-pay, or PM adoption result has been
 measured. The pre-registered 6–8 participant study remains open.
 
+Current market evidence establishes urgency but not product validation:
+Atlassian's 1,000+ respondent 2026 study puts competing priorities,
+prioritization, strategy, customer insight, stakeholder alignment, and proving
+impact among the leading PM challenges; Product Focus's 677-person survey puts
+firefighting first at 58%; and ProductPlan reports that leadership escalations
+override more than 60% of prioritization frameworks. This supports Driftline's
+decision-contract wedge. It does not show that a PM adopted Driftline or would
+pay for it.
+
 A separate single-real-PM evidence gate is ready for the deadline-constrained
 `n=1` case: it rejects identity/raw-data fields, weak qualification, premature
 outcome claims, publication without consent or authority comprehension, and a
@@ -284,11 +293,14 @@ Reference projects:
    that pass the pre-registered human-control and data-quality gates.
 3. Record the under-four-minute public demo from the verified release. Show the
    working product in the first 10–15 seconds and keep the core proof continuous.
-4. Fill the Devpost form with category, Google SDK, August 18 start date,
+4. Inspect the actual pre-contest source package and select the factually exact
+   originality-disclosure branch. Git and Cloud timestamps prove when this
+   repository and deployment began; they do not prove the package contents.
+5. Fill the Devpost form with category, Google SDK, August 18 start date,
    disclosure, repo, hosted URL, architecture, and video.
-5. Read and explicitly accept the official rules, register, then separately
+6. Read and explicitly accept the official rules, register, then separately
    authorize final submission.
-6. After submission, freeze the submitted repo/video/links until winners are
+7. After submission, freeze the submitted repo/video/links until winners are
    announced. Optional public content/social bonuses require separate approval.
 
 No registration, submission, email, social post, or public bonus content is

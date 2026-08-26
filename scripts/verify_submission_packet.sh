@@ -262,6 +262,22 @@ for caption_path in (
                 "overlapping or invalid caption timings"
             )
         previous_end = end
+
+devpost_first_300 = " ".join(Path("submission/DEVPOST.md").read_text().split()[:300])
+for required_phrase in (
+    "Taskmaster proof",
+    "Gemini 3.5 Flash",
+    "Google ADK",
+    "Cloud Run",
+    "named human",
+    "Jira marker",
+    "not customer ROI",
+):
+    if required_phrase not in devpost_first_300:
+        raise SystemExit(
+            "Submission packet check failed: the first 300 words of "
+            f"submission/DEVPOST.md do not contain {required_phrase!r}"
+        )
 PY
 
 todo_lines="$(rg -n -i 'todo|placeholder|tbd|fixme|lorem' \

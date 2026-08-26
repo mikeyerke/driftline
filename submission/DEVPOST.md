@@ -28,6 +28,12 @@ workflow. After that approval, Driftline evaluates the committed measurement,
 writes the learning receipt, and reopens the decision without another prompt or
 PM click.
 
+The live system uses Gemini 3.5 Flash through Vertex AI and Google ADK on Cloud
+Run. The public judge lane changes only Driftline decision state; a separately
+verified signed-operator run reversibly updated one Driftline-owned Jira marker.
+The model never receives approval authority. This is deployed engineering
+proof, not customer ROI or independent PM adoption.
+
 ## Inspiration
 
 I kept recreating the same friction while building products: the decision was
