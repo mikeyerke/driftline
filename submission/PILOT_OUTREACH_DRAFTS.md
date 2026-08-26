@@ -12,7 +12,9 @@ Use a small, high-fit first wave rather than bulk outreach:
 4. Path through its official **Talk to our team** route.
 5. Kevin Smith through the Just Add PRODUCT contact form or published business email.
 6. Ashok through the Clarity for Product contact form or published business email.
-7. John Leonard through the RoadMapVenture LinkedIn route only if the first wave does not produce a session.
+7. Robert Gilbreath through his public business route if a product-adjacent GTM
+   decision would satisfy the qualification gate.
+8. John Leonard through the RoadMapVenture LinkedIn route only if the first wave does not produce a session.
 
 The objective is one qualified real decision, not response volume. Stop recruiting once a participant is scheduled and qualified; complete the session before widening the list.
 
@@ -121,6 +123,32 @@ Subject: One roadmap decision, tested against your own judgment
 > Would you be willing to test one current or client-safe decision and identify the first reason you would refuse to use the result? Nothing is published or attributed without separate permission.
 
 Why this is personalized: his public profile emphasizes multi-platform portfolios, roadmap and innovation strategy, data and AI, SaaS, and product advisory work.
+
+## Robert Gilbreath — fractional CMO/COO
+
+Channel: public business contact form or published business email.
+
+Subject: One B2B SaaS decision, tested against the operating commitment
+
+> Hi Robert — your work is unusually close to the decision boundary I am
+> testing: you operate inside seed-to-Series-B B2B SaaS teams with authority
+> over positioning, market entry, pipeline, and operating rhythm rather than
+> handing over an outside-advisor deck.
+>
+> I built Driftline for one current commitment where customer, market, product,
+> and execution evidence disagree. It compares reversible responses and
+> requires the human owner to precommit the primary metric, risk guardrail,
+> stop threshold, rollback, and review window.
+>
+> Would you pressure-test one safely redacted positioning, segment, channel, or
+> operating-priority decision due within 30 days in a private 30-minute
+> session? I am looking for the first reason the workflow fails an accountable
+> operator—not an endorsement. Nothing is published or attributed without
+> separate permission.
+
+Why this is personalized: his public site explicitly describes embedded B2B
+SaaS and AI-product operating work, measurable outcome accountability, and
+decisions around positioning, market entry, and operating rhythm.
 
 ## Qualification reply
 

@@ -1,7 +1,12 @@
 # Driftline PM pilot prospect pipeline
 
-Status: research-only local artifact, refreshed August 25, 2026. No message,
+Status: research-only local artifact, refreshed August 26, 2026. No message,
 registration, RSVP, contact-form submission, or outreach has been performed.
+
+Current availability was rechecked from public sources. ProductTank Austin's
+official event page still lists **August 27, 6:00–8:00 PM CDT**, Productside at
+Victory Plaza, hosted by Edwin and Ian B. This is research evidence only; no
+registration or attendance action has been taken.
 
 ## Commercial distinction
 
@@ -27,10 +32,25 @@ reduce participation than strengthen the entry.
 | 5 | [Kevin Smith, Just Add PRODUCT](https://www.justaddprod.com/) | Expert evaluator and referral channel | Public services span product strategy, outcome metrics, roadmaps, prioritization, pricing, feedback, and validation; a public business contact route exists. | Send the prepared falsification-first email and request one client-safe current decision. | His critique is not customer evidence unless he personally adopts or pays. |
 | 6 | [Ashok Venkatraj, Clarity for Product](https://clarityforproduct.com/) | Expert evaluator and potential design partner | His current positioning names ad-hoc decisions, roadmap churn, stakeholder misalignment, AI paralysis, and platform confusion—the exact operating failure Driftline targets. | Ask him to compare one safely redacted current decision against his own judgment and operating process. | A fit call or advice alone is not a pilot. |
 | 7 | [John Leonard, RoadMapVenture](https://www.roadmapventure.com/) | Expert evaluator and referral channel | Publicly available for fractional CPO/advisory work in Austin, with SaaS, data/AI, roadmap, and 0-to-1 experience. | Request one current or client-safe decision and ask for the first reason he would reject the result. | A historical example without a current commitment is weaker evidence. |
-| 8 | [Steyaert Consulting](https://steyaert.com/) | Technical-product evaluator | Public work covers AI agent workflows, build-versus-buy, platform choices, and AI that elevates rather than replaces human decisions. | Ask for a trust, authority, and failure-mode test using one live product choice. | Strong architecture feedback may not establish buyer demand. |
-| 9 | [C2B](https://www.c2bsuite.com/) | Product firm, possible channel or pilot buyer | The firm sells product ownership, launch, pricing, competitive intelligence, partner assessment, and explicit human-in-the-loop methodology from Austin. | Ask one senior operator to run a current internal or client-safe decision and identify fatal adoption friction. | Firm-level procurement may exceed the deadline. |
-| 10 | [Women In Product Austin](https://womenpm.org/join-our-community/austin/) | Opt-in community introduction | The current Austin page provides direct community channels and names Zuzana Sekerova and Lalitha Sridhar as chapter leads. | Ask a lead for one opt-in introduction; never blast the chapter or mailing list. | Community permission and participant consent are separate. |
-| 11 | [ProductCamp Austin](https://www.productcampaustin.org/) | Longer-term community channel | The community reports 5,000+ Austin members, but its next conference is September 19—after the hackathon deadline. | Ask the 2025–2026 board for one private introduction only if the faster routes fail. | The conference itself cannot produce pre-deadline evidence. |
+| 8 | [Robert Gilbreath](https://www.robertgilbreath.com/) | Embedded B2B SaaS operator and referral channel | The Austin fractional CMO/COO works inside seed-to-Series-B B2B SaaS and AI-product teams on positioning, market entry, pipeline, and operating rhythm, with stated decision authority and outcome accountability. | Ask him to pressure-test one current positioning, segment, channel, or operating-priority decision and, only if useful, introduce one portfolio operator. | GTM ownership is product-adjacent; qualify that the decision has real product implications before counting it as PM evidence. |
+| 9 | [Steyaert Consulting](https://steyaert.com/) | Technical-product evaluator | Public work covers AI agent workflows, build-versus-buy, platform choices, and AI that elevates rather than replaces human decisions. | Ask for a trust, authority, and failure-mode test using one live product choice. | Strong architecture feedback may not establish buyer demand. |
+| 10 | [C2B](https://www.c2bsuite.com/) | Product firm, possible channel or pilot buyer | The firm sells product ownership, launch, pricing, competitive intelligence, partner assessment, and explicit human-in-the-loop methodology from Austin. | Ask one senior operator to run a current internal or client-safe decision and identify fatal adoption friction. | Firm-level procurement may exceed the deadline. |
+| 11 | [Women In Product Austin](https://womenpm.org/join-our-community/austin/) | Opt-in community introduction | The current Austin page provides direct community channels and names Zuzana Sekerova and Lalitha Sridhar as chapter leads. | Ask a lead for one opt-in introduction; never blast the chapter or mailing list. | Community permission and participant consent are separate. |
+| 12 | [ProductCamp Austin](https://www.productcampaustin.org/) | Longer-term community channel | The community reports 5,000+ Austin members, but its next conference is September 19—after the hackathon deadline. | Ask the 2025–2026 board for one private introduction only if the faster routes fail. | The conference itself cannot produce pre-deadline evidence. |
+
+## Next-48-hour recruiting sequence if Mike authorizes it
+
+1. Use ProductTank Austin for one opt-in introduction, not a room-wide pitch.
+2. In parallel, send at most two direct, personalized requests: Hatch Labs and
+   one embedded operator, preferably Kevin Smith or Robert Gilbreath.
+3. Stop widening the pipeline as soon as one participant confirms a decision
+   due within 30 days, two real options, meaningful downside, safe redaction,
+   and decision authority.
+4. Run the session before sending any follow-up wave. A scheduled generic demo
+   does not satisfy the qualification gate.
+5. Ask about payment only after the participant makes a second costly
+   commitment or requests continued use. The deadline does not justify forcing
+   a customer claim.
 
 ## The one ask that fits the deadline
 
