@@ -15,6 +15,38 @@ readonly dashboard_id="9f00a615-b74c-4567-aae9-211cd66e97fc"
 readonly runtime_service_account="driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com"
 readonly operator_signin_origin="https://driftline-xvxczqg62a-uc.a.run.app"
 readonly expected_release_sha="${DRIFTLINE_EXPECTED_SHA:-$(git rev-parse HEAD)}"
+readonly release_identity_out="${DRIFTLINE_RELEASE_IDENTITY_OUT:-}"
+
+if [[ -n "${release_identity_out}" ]]; then
+  readonly repository_root="$(git rev-parse --show-toplevel)"
+  readonly release_remote_url="$(git remote get-url origin)"
+  [[ "${public_url}" == "https://driftline-ops.web.app" ]] || {
+    printf 'Release identity output requires the canonical Firebase judge URL.\n' >&2
+    exit 2
+  }
+  [[ "${release_remote_url}" =~ github\.com[:/]mikeyerke/driftline(\.git)?$ ]] || {
+    printf 'Release identity output refuses unexpected origin: %s\n' "${release_remote_url}" >&2
+    exit 2
+  }
+  [[ "${release_identity_out}" == /* ]] || {
+    printf 'Release identity output path must be absolute.\n' >&2
+    exit 2
+  }
+  case "${release_identity_out}" in
+    "${repository_root}"|"${repository_root}"/*)
+      printf 'Release identity output must be outside the repository.\n' >&2
+      exit 2
+      ;;
+  esac
+  [[ ! -e "${release_identity_out}" ]] || {
+    printf 'Release identity output already exists: %s\n' "${release_identity_out}" >&2
+    exit 2
+  }
+  [[ -d "$(dirname "${release_identity_out}")" ]] || {
+    printf 'Release identity output parent does not exist.\n' >&2
+    exit 2
+  }
+fi
 
 actual_project="$(gcloud config get-value project 2>/dev/null)"
 if [[ "${actual_project}" != "${expected_project}" ]]; then
@@ -87,6 +119,7 @@ printf '%s\n' "${trace_eval}" | jq -e \
 printf 'Trace-to-eval gate: PASS (%s, %s)\n' \
   "$(printf '%s' "${trace_eval}" | jq -er '.evaluation.evaluation_id')" \
   "$(printf '%s' "${trace_eval}" | jq -er '.evaluation.trend.status')"
+trace_evaluation_id="$(printf '%s' "${trace_eval}" | jq -er '.evaluation.evaluation_id')"
 
 health_headers="$(curl --fail --silent --show-error --max-time 20 --dump-header - --output /dev/null "${public_url}/health")"
 grep -Fqi 'cache-control: no-store' <<<"${health_headers}"
@@ -205,5 +238,41 @@ error_count="$(gcloud logging read \
   --format='value(timestamp)' | sed '/^$/d' | wc -l | tr -d ' ')"
 [[ "${error_count}" == "0" ]]
 printf 'Current revision Cloud Run errors (15m): %s\n' "${error_count}"
+
+if [[ -n "${release_identity_out}" ]]; then
+  public_main_sha="$(git ls-remote --exit-code origin refs/heads/main | awk 'NR == 1 {print $1}')"
+  [[ "${public_main_sha}" == "${serving_release_sha}" ]] || {
+    printf 'Release identity receipt refused: public main %s does not equal serving SHA %s.\n' \
+      "${public_main_sha:-<missing>}" "${serving_release_sha}" >&2
+    exit 1
+  }
+  release_identity_tmp="$(mktemp "${release_identity_out}.tmp.XXXXXX")"
+  trap 'rm -f "${release_identity_tmp:-}"' EXIT
+  jq -n \
+    --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg source_url "${public_url}" \
+    --arg release_sha "${serving_release_sha}" \
+    --arg revision "${revision}" \
+    --arg build_id "${serving_build_id}" \
+    --arg image_digest "${revision_image##*@}" \
+    --arg trace_evaluation_id "${trace_evaluation_id}" \
+    '{
+      verified_at: $verified_at,
+      source_url: $source_url,
+      release_sha: $release_sha,
+      health_sha: $release_sha,
+      public_main_sha: $release_sha,
+      cloud_run_revision: $revision,
+      cloud_build_id: $build_id,
+      image_digest: $image_digest,
+      traffic_percent: 100,
+      trace_evaluation_id: $trace_evaluation_id,
+      trace_release_sha: $release_sha
+    }' >"${release_identity_tmp}"
+  chmod 600 "${release_identity_tmp}"
+  mv "${release_identity_tmp}" "${release_identity_out}"
+  trap - EXIT
+  printf 'Release identity receipt: %s\n' "${release_identity_out}"
+fi
 
 printf 'Production verification: PASS\n'

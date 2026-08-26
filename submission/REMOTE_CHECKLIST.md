@@ -41,6 +41,11 @@ mutation, registration, upload, publication, or submission.
    image digest, and 100% traffic result.
 5. Require `/health`, Artifact Registry, Cloud Run, the release-bound ADK trace,
    Decision Twin workflow, and production verifier to resolve to that identity.
+   The command atomically writes a machine-readable release identity receipt and
+   a prefilled final-demo manifest seed under `/tmp`; it refuses an existing,
+   relative, in-repository, mismatched-public-main, or partially verified target.
+   Use those files as the only identity source for the final capture—never copy
+   the SHA, revision, build, or digest from terminal prose by hand.
 6. Rerun the logged-out desktop and 390-pixel journeys. Keep approval → outcome
    → internal rollback → generation-2 reopen continuous; require a clean console.
 7. Stop and roll back if any identity, live trace, task, policy, browser, or
@@ -60,7 +65,10 @@ mutation, registration, upload, publication, or submission.
    customer identifiers, custody labels, final URL, repository, category, and
    Google technology. Show either the Cloud Run console or the live `*.run.app`
    backend in-frame; an architecture diagram or caption alone is insufficient.
-6. Scrub the manifest timestamp for the first visible agent action and require
+6. Start from the manifest seed emitted by `release_and_verify.sh`. Fill only
+   recording/media hashes, timestamps, and visible-proof affirmations; preserve
+   its serving identity and release-receipt hash. Scrub the timestamp for the
+   first visible agent action and require
    it by 0:15. Then scrub named-human approval, the bounded action receipt, and
    generation-2 reopen. Require those states to be visibly distinct, with the
    approver cleared and generation-1 lineage preserved after reopening;

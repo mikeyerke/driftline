@@ -122,7 +122,8 @@ loop: evidence, dissent, decision, outcome.”
   Firebase `/health`, direct Cloud Run `/health`, Cloud Run
   revision, Cloud Build, and image digest resolve to the exact same candidate.
 - `./scripts/release_and_verify.sh` passes and refreshes the release-bound live
-  trace before recording.
+  trace before recording. Use its machine-generated release identity receipt
+  and final-demo manifest seed; do not transcribe release identity by hand.
 - The browser source visibly shows `google_adk` and `gemini-3.5-flash`; otherwise
   narrate the bounded fallback honestly.
 - BigQuery is provisioned and the production workflow identifies the aggregate

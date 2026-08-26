@@ -227,6 +227,7 @@ required_fields = {
     "cloud_run_revision",
     "cloud_build_id",
     "image_digest",
+    "release_identity_receipt_sha256",
     "video_sha256",
     "captions_sha256",
     "duration_seconds",
@@ -281,6 +282,8 @@ if not re.fullmatch(
     fail("Cloud Build ID format is invalid")
 if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(manifest["image_digest"])):
     fail("image digest format is invalid")
+if not re.fullmatch(r"[0-9a-f]{64}", str(manifest["release_identity_receipt_sha256"])) or manifest["release_identity_receipt_sha256"] == "0" * 64:
+    fail("release identity receipt hash is missing or invalid")
 
 if manifest["video_sha256"] != sha256(video_path):
     fail("video SHA-256 does not match the manifest")
