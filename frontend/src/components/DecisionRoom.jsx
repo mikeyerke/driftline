@@ -39,6 +39,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [intake, setIntake] = useState(emptyIntake);
   const [copyStatus, setCopyStatus] = useState("");
+  const [linkStatus, setLinkStatus] = useState("");
   const [approverName, setApproverName] = useState("");
   const isProvidedIntake = Boolean(decisionCase?.events?.some((event) => event.source_mode === "pm_provided_unverified"));
 
@@ -46,7 +47,28 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     setDecisionCase(next);
     setEvaluation(null);
     setSelectedId(next.council.recommendation);
+    const url = new URL(window.location.href);
+    url.searchParams.set("decision", next.case_id);
+    window.history.replaceState(null, "", url);
   };
+
+  useEffect(() => {
+    const caseId = new URLSearchParams(window.location.search).get("decision");
+    if (!caseId || !/^[a-z0-9][a-z0-9_-]{2,100}$/.test(caseId)) return;
+    let cancelled = false;
+    setBusy("restore");
+    getDecisionTwin(caseId)
+      .then((next) => {
+        if (!cancelled) applyDecisionCase(next);
+      })
+      .catch(() => {
+        if (!cancelled) setError("This decision return link is unavailable or expired.");
+      })
+      .finally(() => {
+        if (!cancelled) setBusy("");
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!decisionCase?.case_id) return;
@@ -178,7 +200,21 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     setBusy("");
     setError("");
     setCopyStatus("");
+    setLinkStatus("");
     setApproverName("");
+    const url = new URL(window.location.href);
+    url.searchParams.delete("decision");
+    window.history.replaceState(null, "", url);
+  };
+
+  const copyReturnLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setLinkStatus("Copied return link");
+      window.setTimeout(() => setLinkStatus(""), 1800);
+    } catch {
+      setError("Copy was blocked by the browser. Copy the current address manually.");
+    }
   };
 
   const copyDecisionBrief = async () => {
@@ -346,8 +382,9 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <h2 id="decision-room-title">{decisionCase.title}</h2>
           <p>{decisionCase.question}</p>
         </div>
-        <div className="decision-room-header-actions"><button className="secondary compact" type="button" onClick={copyDecisionBrief}><span aria-live="polite">{copyStatus === "Copied" ? <Check size={14} /> : <Copy size={14} />}{copyStatus || "Copy decision brief"}</span></button><button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button></div>
+        <div className="decision-room-header-actions"><button className="secondary compact" type="button" onClick={copyDecisionBrief}><span aria-live="polite">{copyStatus === "Copied" ? <Check size={14} /> : <Copy size={14} />}{copyStatus || "Copy decision brief"}</span></button>{isProvidedIntake && <button className="secondary compact" type="button" onClick={copyReturnLink}><span aria-live="polite">{linkStatus ? <Check size={14} /> : <Copy size={14} />}{linkStatus || "Copy return link"}</span></button>}<button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button></div>
       </header>
+      {isProvidedIntake && <p className="decision-return-disclosure"><ShieldCheck size={13} />Use this link after the review window. Anyone with it can view this non-confidential case, so never enter secrets or customer-identifying data.</p>}
       <nav className="decision-room-stages" aria-label="Decision Twin progress">
         {stages.map((stage, index) => <span className={index < activeStage ? "complete" : index === activeStage ? "current" : ""} key={stage}>
           {index < activeStage ? <CheckCircle2 size={15} /> : <b>{index + 1}</b>}{stage}{index < stages.length - 1 && <ArrowRight size={14} />}

@@ -1119,6 +1119,8 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .decision-intake-submit .primary { min-height: 46px; }
 .decision-room-header-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .decision-room-header-actions button > span { display: inline-flex; align-items: center; gap: 6px; }
+.decision-return-disclosure { display: flex; align-items: center; gap: 6px; margin: 0; padding: 9px 28px; border-top: 1px solid #e5ebf3; border-bottom: 1px solid #e5ebf3; background: #f8fafc; color: #5d6d83; font-size: 10px; line-height: 1.4; }
+.decision-return-disclosure svg { flex: 0 0 auto; color: var(--green); }
 
 .decision-recommendation-strip { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto; gap: 9px 18px; align-items: center; margin: 18px 28px 0; padding: 14px 16px; border: 1px solid #b9dfc9; border-radius: 7px 7px 0 0; background: #f4fcf7; }
 .decision-recommendation-heading { display: flex; align-items: center; gap: 7px; color: var(--green); white-space: nowrap; }
@@ -1246,6 +1248,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-room-hero-copy, .decision-room-promise { padding: 28px 20px; }
   .decision-room-hero h2 { font-size: 35px; }
   .decision-room-header { padding: 22px 18px 18px; }
+  .decision-return-disclosure { align-items: flex-start; padding: 9px 18px; }
   .decision-room-meta { flex-wrap: wrap; }
   .decision-at-risk { grid-template-columns: minmax(0, 1fr); }
   .decision-at-risk div + div { padding: 13px 0 0; border-top: 1px solid #ecd6c9; border-left: 0; }

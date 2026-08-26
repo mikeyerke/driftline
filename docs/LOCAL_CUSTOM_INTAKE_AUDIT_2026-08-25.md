@@ -81,6 +81,12 @@ reversible state transition, not a Jira or customer-system side-effect claim.
   risk value 9% → automatic action rollback → generation-two reopen passed.
 - Phone-width result: the complete reopened journey rendered at 390 × 844 with
   document and body scroll widths both exactly 390 pixels.
+- Return-link journey: a newly created PM case wrote its opaque case ID into the
+  URL, restored in a fresh browser tab, retained the approval state after a
+  second fresh-tab load, and exposed the real-measurement form. The capability
+  disclosure warns that anyone with the link can view the non-confidential case.
+- Restored follow-up at 390 × 844 also held document and body scroll widths at
+  exactly 390 pixels.
 - Browser diagnostics: no application-origin errors; visible errors were emitted only by the installed Grammarly extension.
 
 Synthetic browser inputs used for verification:

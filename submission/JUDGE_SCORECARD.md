@@ -31,7 +31,9 @@ judge-facing improvements:
 - named approval creates a bounded internal allocation record that is active,
   completed, or automatically rolled back within the same decision lineage; and
 - a real PM can attach the primary and risk aggregates after the review window,
-  with both retained as unverified and evaluated as a two-metric contract.
+  with both retained as unverified and evaluated as a two-metric contract; and
+- an opaque return link restores the same non-confidential approved case in a
+  fresh browser session for that follow-up measurement.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
 The candidate passed the complete backend suite, Ruff, the production frontend build,

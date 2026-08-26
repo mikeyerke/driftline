@@ -24,6 +24,9 @@ One pilot counts only if all of these are true:
 - Driftline produces a cited brief, competing recommendations, a bounded action, and a named approval step.
 - The participant records before/after measures and completes a follow-up after reviewing the brief.
 - Any public use is separately consented to and anonymized by default.
+- The participant keeps the opaque return link and can reopen the same
+  non-confidential case after the review window; anyone with that link can view
+  it, so the input remains safely redacted.
 
 ## Best-fit first segment
 
@@ -85,6 +88,8 @@ not be mislabeled as customer evidence.
 
 - Strong signal: schedules a second live decision, brings a teammate, offers another qualified introduction, discusses a paid pilot, or permits a narrowly anonymized result.
 - Weak signal: praise, feature ideas, or “keep me posted” without another costly action.
+- Before ending, verify that the participant can open the return link and sees
+  the approved case plus the real-measurement form.
 
 ## Evidence record
 

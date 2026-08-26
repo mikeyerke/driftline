@@ -177,6 +177,10 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'measurement_contract' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'PM-provided · unverified' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Copy decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Copy return link' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Use this link after the review window.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'url.searchParams.set("decision", next.case_id)' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'getDecisionTwin(caseId)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal '/api/decision-twin/intake' frontend/src/api.js \
   || ! check_frontend_literal 'This decision has a precedent.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'window.location.assign(destination)' frontend/src/components/OperatorAccess.jsx \

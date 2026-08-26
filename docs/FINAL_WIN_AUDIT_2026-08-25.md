@@ -52,7 +52,9 @@ forecast because judges award subjective 1–5 criterion scores.
   external write. It also accepts a real PM's primary and risk aggregates after
   the review window, retains them as unverified, and requires both success and
   safety before completing the action. This improves Taskmaster legibility and
-  closes the custom-decision learning loop, but it is not live proof yet.
+  closes the custom-decision learning loop. An opaque, explicitly non-secret
+  return link restores that same case for the later measurement. None of this is
+  live proof yet.
 - No genuine PM interviews, time saved, decision-quality comparison, adoption,
   or willingness-to-pay evidence exists. Never imply otherwise.
 - The full council recommendation is still model prose; the UI must foreground

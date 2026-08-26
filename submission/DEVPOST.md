@@ -60,7 +60,9 @@ judge-visible action with an honest authority boundary, not a simulated customer
 system write. A PM-provided decision never receives a synthetic outcome: after
 the review window, the PM attaches the actual primary and risk aggregates, both
 labeled unverified. Success resolves only when both metrics support it; a risk
-breach rolls the action back and reopens the case.
+breach rolls the action back and reopens the case. An opaque return link restores
+the same non-confidential case after the review window; the UI warns that the
+link is view access and must never contain secret or customer-identifying data.
 
 The underlying operational foundation remains independently useful:
 
