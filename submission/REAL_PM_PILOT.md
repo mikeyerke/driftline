@@ -12,7 +12,26 @@ Do not claim customer validation from compliments, a demo view, a survey respons
 
 **Resolve one high-stakes, contested product decision with evidence while a named human keeps authority.**
 
-This is narrower and more credible than “AI for product managers.” Current research points to too much firefighting, lack of resources, weak or missing company strategy, stakeholder alignment, and uncertainty about delegating accountable work to AI. Driftline directly tests the overlap: a decision that is urgent, evidence-fragmented, politically contested, and unsafe to automate without approval.
+This is narrower and more credible than “AI for product managers.” Three current
+surveys converge on the same operating failure:
+
+- Atlassian's 1,000+ respondent State of Product 2026 reports balancing projects,
+  priorities, and capacity at 39%; prioritizing features or initiatives at 37%;
+  product strategy at 36%; customer insight at 33%; stakeholder alignment at
+  31%; and demonstrating impact at 29%.
+- Product Focus's 677-person 2026 survey reports too much firefighting at 58%,
+  lack of resource at 38%, weak or missing company strategy at 33%, and
+  prioritization at 29%.
+- ProductPlan's 250-leader 2026 study reports that more than 60% of
+  prioritization frameworks are overridden by leadership escalations and names
+  becoming outcome-focused as a top organizational challenge.
+
+The wedge is therefore not another backlog scorer or roadmap view. Driftline
+tests a narrower failure between prioritization and outcomes: can a PM turn
+fragmented evidence and stakeholder disagreement into a decision contract that
+survives escalation, keeps human authority explicit, and returns to measured
+results? The pilot must test that claim on a live decision; the survey evidence
+does not validate Driftline itself.
 
 ## Smallest credible proof before judging
 
@@ -53,12 +72,14 @@ not be mislabeled as customer evidence.
 | 4 | VentureKind | Austin venture studio reporting five portfolio companies, 20+ products, and explicit validate/build/launch/scale gates | https://venturekind.com/ | Ask one studio operator to test an active resource or experiment commitment |
 | 5 | Ashok Venkatraj, Clarity for Product | Current positioning names ad-hoc decisions, roadmap churn, AI paralysis, platform confusion, and misalignment | https://clarityforproduct.com/ | Compare one current decision with his normal operating process |
 | 6 | John Leonard, RoadMapVenture | Austin fractional CPO currently open to advisory work across SaaS, analytics, AI, and roadmaps | https://www.roadmapventure.com/ | Ask for one current client-safe decision and the first reason he would reject the result |
-| 7 | Path | Small Austin founding team building AI business software around simplicity, innovation, and quality | https://path.dev/about | Ask Billy Kraft to test one live platform-scope, launch, or segment decision |
-| 8 | Robert Gilbreath | Austin fractional CMO/COO embedded in seed-to-Series-B B2B SaaS and AI-product companies, with measurable positioning, market-entry, and operating-rhythm decisions | https://www.robertgilbreath.com/ | Qualify one current product-adjacent positioning, segment, channel, or operating-priority decision; his critique alone is not PM evidence |
-| 9 | Steyaert Consulting | Austin product/technology advisor focused on agent workflows and AI that supports rather than replaces human decisions | https://steyaert.com/ | Ask for a trust, authority, and failure-mode test using a real product choice |
-| 10 | C2B / Fractional Product Experts | Austin firm spanning product ownership, launch, pricing, competitive intelligence, partner assessment, and HITL methodology | https://www.c2bsuite.com/ | Ask one senior operator to test a current internal or client-safe decision |
-| 11 | Women In Product, Austin | Current chapter page provides direct community routes and names two chapter leads | https://womenpm.org/join-our-community/austin/ | Ask one lead for one opt-in PM introduction; do not contact the list |
-| 12 | ProductCamp Austin | 5,000+ local members, but the next conference is September 19—after the hackathon deadline | https://www.productcampaustin.org/ | Use only for a private board introduction if the faster routes fail |
+| 7 | Qvinci | Austin founder/product chief just launched expanded APIs, decision dashboards, reporting, and services | https://www.qvinci.com/summer-2026-product-launch-press-release/ | Ask Charles Nagel to test one safely redacted post-launch tradeoff; cold corporate routing makes pre-deadline response unlikely |
+| 8 | Path | Small Austin founding team building AI business software around simplicity, innovation, and quality | https://path.dev/about | Ask Billy Kraft to test one live platform-scope, launch, or segment decision |
+| 9 | Robert Gilbreath | Austin fractional CMO/COO embedded in seed-to-Series-B B2B SaaS and AI-product companies, with measurable positioning, market-entry, and operating-rhythm decisions | https://www.robertgilbreath.com/ | Qualify one current product-adjacent positioning, segment, channel, or operating-priority decision; his critique alone is not PM evidence |
+| 10 | Steyaert Consulting | Austin product/technology advisor focused on agent workflows and AI that supports rather than replaces human decisions | https://steyaert.com/ | Ask for a trust, authority, and failure-mode test using a real product choice |
+| 11 | Acoustic | Named CPO just launched an agent that recommends evidence-backed actions and preserves human launch control | https://www.acoustic.com/press-releases/acoustic-launches-acoustic-ai-an-agentic-marketing-teammate | Ask for a falsification session on one current rollout or prioritization choice; enterprise and competitive-adjacent fit lowers conversion odds |
+| 12 | C2B / Fractional Product Experts | Austin firm spanning product ownership, launch, pricing, competitive intelligence, partner assessment, and HITL methodology | https://www.c2bsuite.com/ | Ask one senior operator to test a current internal or client-safe decision |
+| 13 | Women In Product, Austin | Current chapter page provides direct community routes and names two chapter leads | https://womenpm.org/join-our-community/austin/ | Ask one lead for one opt-in PM introduction; do not contact the list |
+| 14 | ProductCamp Austin | 5,000+ local members, but the next conference is September 19—after the hackathon deadline | https://www.productcampaustin.org/ | Use only for a private board introduction if the faster routes fail |
 
 ## Qualification message
 
@@ -160,6 +181,8 @@ measurable outcome exist.
 ## Sources consulted
 
 - Product Focus, 2026 Product Management Profession Survey: https://www.productfocus.com/product-management-resources/profession-survey/
+- Atlassian, State of Product 2026: https://www.atlassian.com/software/jira/product-discovery/resources/state-of-product-2026
+- ProductPlan, State of Product Management 2026: https://www.productplan.com/ebooks/the-state-of-product-management-report-2026
 - Microsoft PM GenAI delegation study: https://arxiv.org/abs/2510.02504
 - ProductTank Austin: https://www.meetup.com/producttank-austin/
 - ProductCamp Austin: https://www.productcampaustin.org/
