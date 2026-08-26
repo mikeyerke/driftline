@@ -117,11 +117,13 @@ require_text devpost-submission.md '| Submitter type | Individuals |'
 require_text devpost-submission.md '| Project start date | 08-18-26 |'
 require_text devpost-submission.md '| Originality disclosure | **OWNER GATE:**'
 require_text devpost-submission.md '| Google SDK | Agent Development Kit (ADK) |'
+require_text devpost-submission.md '| Built with tags | Gemini 3.5 Flash; Vertex AI; Google Agent Development Kit;'
 require_text devpost-submission.md '| Google Cloud service selections | Cloud Run; Firestore |'
 require_text devpost-submission.md '| Additional Google Cloud services described in entry | Firebase Hosting; BigQuery; Vertex AI;'
 require_text devpost-submission.md '| Google AI model | Gemini 3.5 Flash via Vertex AI (global endpoint) |'
 require_text devpost-submission.md '| Private testing instructions | Open https://driftline-ops.web.app/'
 require_text devpost-submission.md '| Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |'
+require_text devpost-submission.md '| Image gallery order | 1. `submission/assets/decision-twin-hero-final.png`;'
 require_text submission/DEMO_SCRIPT.md 'I kept making roadmap calls whose evidence changed after the'
 require_text submission/DEMO_SCRIPT.md 'driftline-final-take.srt'
 require_text submission/DEMO_SCRIPT.md 'one continuous native screen capture'
@@ -172,6 +174,7 @@ for path in Path("submission/assets").glob("decision-twin-*-final.png"):
 
 
 expected_dimensions = {
+    Path("submission/assets/decision-twin-hero-final.png"): (1600, 900),
     Path("submission/assets/driftline-decision-twin-architecture.png"): (1600, 900),
     Path("submission/assets/driftline-decision-twin-candidate-architecture.png"): (1600, 900),
     Path("submission/assets/decision-twin-generation-1-final.png"): (1600, 900),
@@ -194,6 +197,7 @@ for path, expected_size in expected_dimensions.items():
         )
 
 reviewed_assets = {
+    Path("submission/assets/decision-twin-hero-final.png"): "1434148fe26f9b271c3a56d46b231a2a4774b693eb8623a454e6c2298d3cf111",
     Path("submission/assets/driftline-decision-twin-architecture.png"): "fe68de40fc7d07e29a5b55c9af425c2e2517f0e6c4fd9c3b65a6df31685486c4",
     Path("submission/assets/driftline-decision-twin-candidate-architecture.png"): "b439c5eb3062d89384dc0cc7046578b8d73b9c738c737e0b6e4e999d781d631e",
     Path("submission/assets/decision-twin-generation-1-final.png"): "b5bef1a0ac833a145784d8c60cdd83c89fc8c15b850011b7aee1e4cfaae93ab9",
@@ -292,6 +296,28 @@ if len(x_post) > 280:
     raise SystemExit(
         "Submission packet check failed: X social draft is "
         f"{len(x_post)} characters, expected at most 280"
+    )
+
+tagline = (
+    "Contradictory evidence becomes a reversible experiment—and the outcome "
+    "can reopen the decision."
+)
+if len(tagline) > 140:
+    raise SystemExit(
+        "Submission packet check failed: Devpost tagline is "
+        f"{len(tagline)} characters, expected at most 140"
+    )
+
+built_with = (
+    "Gemini 3.5 Flash; Vertex AI; Google Agent Development Kit; Cloud Run; "
+    "Firestore; BigQuery; Cloud Tasks; Cloud Scheduler; Firebase Hosting; "
+    "Cloud Build; Artifact Registry; Cloud Storage; Secret Manager; React; "
+    "FastAPI; Python"
+)
+if len(built_with.split("; ")) > 25:
+    raise SystemExit(
+        "Submission packet check failed: Built with exceeds Devpost's "
+        "25-tag generic limit"
     )
 PY
 

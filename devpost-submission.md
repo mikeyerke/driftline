@@ -19,12 +19,14 @@ publish or submit without explicit entrant approval.
 | Repository | https://github.com/mikeyerke/driftline |
 | Hosted application | https://driftline-ops.web.app/ |
 | Reproducible testing | Yes |
+| Built with tags | Gemini 3.5 Flash; Vertex AI; Google Agent Development Kit; Cloud Run; Firestore; BigQuery; Cloud Tasks; Cloud Scheduler; Firebase Hosting; Cloud Build; Artifact Registry; Cloud Storage; Secret Manager; React; FastAPI; Python |
 | Google SDK | Agent Development Kit (ADK) |
 | Google Cloud service selections | Cloud Run; Firestore |
 | Additional Google Cloud services described in entry | Firebase Hosting; BigQuery; Vertex AI; Cloud Tasks; Cloud Scheduler; Cloud Storage; Secret Manager; Cloud Build; Artifact Registry |
 | Google AI model | Gemini 3.5 Flash via Vertex AI (global endpoint) |
 | Originality disclosure | **OWNER GATE:** inspect the pre-contest source package and select the factually correct disclosure branch in `submission/ORIGINALITY_PROVENANCE.md`; enumerate any incorporated implementation material rather than relying on the repository date. |
 | Private testing instructions | Open https://driftline-ops.web.app/ while logged out. Click **Run the decision workflow**; inspect the five cited agents and disagreement; enter a review name; approve the segmented experiment; then stop clicking. Verify that Cloud Tasks reopens generation 2 with rollback selected, the approver cleared, 7/7 policy checks, and the original lineage preserved. Open https://driftline-ops.web.app/health to confirm the serving SHA and build. No credentials are required. |
+| Image gallery order | 1. `submission/assets/decision-twin-hero-final.png`; 2. `submission/assets/decision-twin-generation-1-final.png`; 3. `submission/assets/decision-twin-generation-2-receipt-final.png`; 4. `submission/assets/driftline-decision-twin-architecture.png`. Replace the release-bound browser captures after any authorized candidate release. |
 | Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |
 | Demo video | **ENTRANT TODO:** public YouTube or Vimeo URL, 4:00 maximum |
 | Bonus build content | **ENTRANT TODO:** publish the reviewed Decision Twin story from `submission/BUILD_STORY.md`, then paste its verified public URL; the current public `main` URL serves an older promise-drift story and must not be used. |

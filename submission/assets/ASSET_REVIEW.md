@@ -11,6 +11,7 @@ checksums. A new file with the old name must fail the submission gate.
 
 | Asset | Dimensions | SHA-256 | Local QA verdict |
 | --- | ---: | --- | --- |
+| `decision-twin-hero-final.png` | 1600×900 | `1434148fe26f9b271c3a56d46b231a2a4774b693eb8623a454e6c2298d3cf111` | First gallery image for the current verified release; immediately names the PM problem, live decision, public lane, and primary action without requiring small infrastructure text. |
 | `driftline-decision-twin-architecture.png` | 1600×900 | `fe68de40fc7d07e29a5b55c9af425c2e2517f0e6c4fd9c3b65a6df31685486c4` | Primary upload for the currently verified release; readable hierarchy, Firebase-to-Cloud-Run facade, Google services, autonomous monitor, human authority, visible state change, and exact production identity. |
 | `decision-twin-generation-1-final.png` | 1600×900 | `b5bef1a0ac833a145784d8c60cdd83c89fc8c15b850011b7aee1e4cfaae93ab9` | Desktop proof of the live ADK council, cited conflicting evidence, dissent, four responses, and human-gated action. |
 | `decision-twin-generation-2-final.png` | 1600×900 | `d0aaaa42995fbcb0fee961fb2d849f341e817396f0cef7ca4ff3919b190e2158` | Desktop proof of automatic generation-2 reopening with rollback recommended and selected. |
@@ -31,7 +32,8 @@ capture.
 
 The reviewed `decision-twin-*-final.png` capture set is encoded as actual PNG,
 not JPEG data behind a misleading extension. The architecture image is the
-primary still because it covers the complete rubric story at a glance. The
-generation-1 and generation-2 images are the strongest supporting pair.
+primary architecture upload because it covers the complete rubric story at a
+glance. The hero is the first gallery still; generation 1 and the generation-2
+receipt are the strongest supporting product pair.
 Historical 1280×720 workflow captures and the generic
 `driftline-architecture.png` are not primary submission assets.

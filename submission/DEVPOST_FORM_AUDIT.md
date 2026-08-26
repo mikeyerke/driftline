@@ -24,6 +24,13 @@ The rules and FAQ establish those requirements, but they do not prove the exact
 live form labels, select options, character limits, upload constraints, or final
 review rendering.
 
+Devpost's current generic submission documentation separately confirms the
+standard form includes a project name, tagline, **Built with** tags (25
+maximum), text description, try-it-out link, image gallery, and public video
+link. This supports preparing those fields now, but the contest's authenticated
+form remains authoritative for its exact requirements and rendering:
+https://help.devpost.com/article/126-know-your-submission-steps
+
 ## Re-entry condition
 
 After Mike signs in to Devpost in the connected Chrome profile, repeat the
@@ -39,6 +46,8 @@ and publication.
 ## Fields still unverified from the actual form
 
 - project-name and tagline character limits;
+- image-gallery count, ordering, crop, type, size, and whether a distinct cover
+  image is required;
 - whether description is one field or several prompted story fields;
 - exact Google SDK/model/service selectors;
 - architecture upload type and size limits;
