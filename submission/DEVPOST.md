@@ -267,6 +267,10 @@ components, dates, sources, rights, and current derived paths. See
 `submission/ORIGINALITY_PROVENANCE.md`. Until that attestation is complete, this
 disclosure is prepared but not final.
 
+The locked third-party runtime and build inventory is documented in
+`submission/THIRD_PARTY_DISCLOSURE.md` and fails closed on missing license
+evidence or review-required strong-copyleft/source-available license families.
+
 ## What's next
 
 The next milestone is a small independent Product Management or fractional

@@ -149,6 +149,13 @@ Firestore, Cloud Tasks, Scheduler, uptime check, alert policy, runtime IAM,
 security headers, bounded value windows, and zero current-revision Cloud Run
 errors.
 
+The release gate also resolves license evidence across all 82 third-party
+Python distributions and 44 Node lock entries, checks every declared direct
+dependency is present, and fails on missing evidence or review-required strong-
+copyleft/source-available license families. The current locked inventory passed;
+this is engineering evidence, not a substitute for the entrant's source-package
+ownership attestation.
+
 ## 30% — Demo and production readiness
 
 ### Production gates

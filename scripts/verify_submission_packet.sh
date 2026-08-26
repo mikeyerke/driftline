@@ -24,6 +24,7 @@ for file in \
   submission/DEVPOST_FORM_AUDIT.md \
   submission/JUDGE_EVIDENCE_INDEX.md \
   submission/ORIGINALITY_PROVENANCE.md \
+  submission/THIRD_PARTY_DISCLOSURE.md \
   submission/JUDGE_SCORECARD.md \
   submission/final-demo-manifest.template.json \
   docs/JUDGE_SCORECARD.md \
@@ -31,6 +32,7 @@ for file in \
   scripts/build_candidate_rehearsal.sh \
   scripts/verify_final_demo_package.sh \
   scripts/verify_contest_provenance.sh \
+  scripts/verify_third_party_licenses.py \
   scripts/summarize_real_pm_pilot.py \
   scripts/verify_release_candidate_local.sh \
   docs/REAL_PM_CUSTOMER_SPRINT.md \
@@ -128,6 +130,9 @@ require_text submission/BUILD_STORY.md 'It does not yet prove independent PM ado
 require_text submission/ORIGINALITY_PROVENANCE.md 'Entrant attestation required before submission'
 require_text submission/ORIGINALITY_PROVENANCE.md '2026-08-18 13:57:39Z'
 require_text scripts/verify_contest_provenance.sh 'EXPECTED_ROOT="b7a45f1b456f8e5e8cb630574b6e829bd4f575c4"'
+require_text submission/THIRD_PARTY_DISCLOSURE.md '82 third-party Python distributions'
+require_text submission/THIRD_PARTY_DISCLOSURE.md '44 Node package-lock entries'
+require_text scripts/verify_third_party_licenses.py 'Third-party license checks passed'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'UNRELEASED CANDIDATE'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'release proof required before publication'
 require_text submission/assets/driftline-decision-twin-architecture.svg 'Firebase → Cloud Run + Firestore'

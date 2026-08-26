@@ -66,7 +66,7 @@ fi
 (
   cd backend
   uv sync --locked --extra dev
-  uv run ruff check app tests ../scripts/summarize_validation.py ../scripts/summarize_real_pm_pilot.py
+  uv run ruff check app tests ../scripts/summarize_validation.py ../scripts/summarize_real_pm_pilot.py ../scripts/verify_third_party_licenses.py
   uv run pytest -q
   uv run python -m app.trace_eval --baseline trace_eval_baseline.json
 )
@@ -78,6 +78,7 @@ fi
 )
 
 ./scripts/verify_dependencies.sh
+uv --directory backend run python ../scripts/verify_third_party_licenses.py
 ./scripts/verify_frontend_contract.sh
 ./scripts/verify_submission_packet.sh
 
