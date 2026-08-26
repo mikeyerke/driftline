@@ -64,7 +64,7 @@ reversible state transition, not a Jira or customer-system side-effect claim.
 ## Verification evidence
 
 - Targeted decision/API tests: 204 passed.
-- Complete backend suite: 432 passed, with two dependency deprecation warnings.
+- Complete backend suite: 433 passed, with two dependency deprecation warnings.
 - Frontend production build: passed.
 - Frontend literal contract: passed.
 - First-viewport desktop check: at 1453 × 670, the primary workflow CTA is
@@ -98,6 +98,20 @@ reversible state transition, not a Jira or customer-system side-effect claim.
   boundaries instead of depending on eventually consistent TTL deletion.
 - Restored follow-up at 390 × 844 also held document and body scroll widths at
   exactly 390 pixels.
+- Continuous pinned-case rehearsal: first action → council → evidence detail →
+  three option comparisons → named approval → autonomous outcome → generation
+  two completed in 7.5 seconds locally with deliberate inspection pauses. The
+  action rolled back, the next human name cleared, rollback became the selected
+  recommendation, and the browser logged no warning or error.
+- Monitor enqueue failure is now explicit. The approval response reports
+  `monitor_status: fallback_required` when Cloud Tasks cannot accept the task;
+  the UI exposes the bounded demo fallback in about 0.3 seconds and never
+  claims that the autonomous monitor is active. A successfully accepted monitor
+  reports `scheduled`; PM-provided cases report `not_applicable`.
+- Clicking that explicitly disclosed fallback completed the measured rollback
+  and generation-two reopen in 3.1 seconds; rollback was checked and recommended,
+  the internal action was rolled back, the approver cleared, and browser logs
+  remained clean.
 - Browser diagnostics: no application-origin errors; visible errors were emitted only by the installed Grammarly extension.
 
 Synthetic browser inputs used for verification:

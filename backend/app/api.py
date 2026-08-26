@@ -6262,6 +6262,9 @@ def approve_decision_twin(
         if autonomous_monitor is not None
         else _tasks_enabled()
     )
+    monitor_status: Literal["scheduled", "fallback_required", "not_applicable"] = (
+        "not_applicable" if not is_pinned_demo else "fallback_required"
+    )
     if is_pinned_demo and monitor_enabled:
         try:
             if _tasks_enabled():
@@ -6275,13 +6278,17 @@ def approve_decision_twin(
                         scenario="guardrail_breach",
                     ),
                 )
+            monitor_status = "scheduled"
         except Exception:
             # Approval remains valid even if the monitor queue is temporarily
             # unavailable. The UI keeps the explicit demo measurement fallback.
             logger.exception(
                 "Unable to enqueue Decision Twin monitor for %s", approved.case_id
             )
-    return approved.model_dump(mode="json")
+    return {
+        **approved.model_dump(mode="json"),
+        "monitor_status": monitor_status,
+    }
 
 
 def _record_decision_twin_demo_outcome(

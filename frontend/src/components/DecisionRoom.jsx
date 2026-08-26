@@ -80,6 +80,10 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       setMonitoring(false);
       return undefined;
     }
+    if (decisionCase.monitor_status === "fallback_required") {
+      setMonitoring(false);
+      return undefined;
+    }
     let cancelled = false;
     let attempts = 0;
     let timer;

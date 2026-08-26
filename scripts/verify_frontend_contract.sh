@@ -190,6 +190,8 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'independent agents' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Autonomous monitor active' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'No second PM action is required.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'monitor_status === "fallback_required"' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Run demo measurement fallback' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'getDecisionTwin(decisionCase.case_id)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'ReleaseProof compact' frontend/src/App.jsx \
   || ! check_frontend_literal 'Trace refresh needed' frontend/src/components/ReleaseProof.jsx; then

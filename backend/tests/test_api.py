@@ -199,7 +199,36 @@ def test_decision_twin_approval_enqueues_autonomous_monitor(monkeypatch) -> None
 
     assert approved.status_code == 200
     assert approved.json()["status"] == "experiment_active"
+    assert approved.json()["monitor_status"] == "scheduled"
     assert queued == [(case["case_id"], 1)]
+
+
+def test_decision_twin_approval_exposes_monitor_enqueue_failure(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setenv("DRIFTLINE_TASKS_ENABLED", "true")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+
+    def fail_enqueue(_case_id: str, _generation: int) -> None:
+        raise RuntimeError("queue unavailable")
+
+    monkeypatch.setattr(api, "_enqueue_decision_twin_monitor", fail_enqueue)
+    persistence._decision_cases_memory.clear()
+
+    case = client.post("/api/decision-twin/demo").json()
+    approved = client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Demo Product Manager",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "experiment_active"
+    assert approved.json()["monitor_status"] == "fallback_required"
 
 
 def test_pm_intake_approval_never_enqueues_or_accepts_synthetic_outcome(
@@ -244,6 +273,7 @@ def test_pm_intake_approval_never_enqueues_or_accepts_synthetic_outcome(
     )
 
     assert approved.status_code == 200
+    assert approved.json()["monitor_status"] == "not_applicable"
     assert queued == []
     assert synthetic.status_code == 409
     assert "unavailable for PM-provided decisions" in synthetic.json()["detail"]

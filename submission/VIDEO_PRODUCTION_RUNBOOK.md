@@ -23,6 +23,12 @@ continuous in-product approval → outcome → reopen take below.
 - Do not record the candidate-only action narration until the serving release
   visibly contains the bounded allocation card and passes fresh release proof.
 - Rehearse the no-sign-in **Decision Twin** path twice without recording.
+- For a local-only rehearsal, set
+  `DECISION_TWIN_AUTONOMOUS_MONITOR=true` while leaving Cloud Tasks disabled so
+  the bounded background fallback exercises the same no-second-click timing.
+  This is not production proof. If the release cannot enqueue Cloud Tasks, the
+  UI must immediately show **Run demo measurement fallback** and must not claim
+  **Autonomous monitor active**.
 
 ## Single-take product sequence
 

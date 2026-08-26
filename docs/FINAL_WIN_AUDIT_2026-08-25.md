@@ -187,7 +187,7 @@ After the candidate is frozen, capture the low-risk optional points:
 - Frontend production build: pass.
 - Frontend judge-surface contract: pass.
 - Backend Ruff gate: pass.
-- Backend tests: 432 passed, 2 dependency deprecation warnings.
+- Backend tests: 433 passed, 2 dependency deprecation warnings.
 - Trace evaluation: 14/14 checks, overall 1.0, safety 1.0, usefulness 1.0.
 - Frontend production dependency audit: 0 vulnerabilities reported offline.
 - Python dependency audit could not be rerun in the restricted audit sandbox;
