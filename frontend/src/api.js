@@ -390,6 +390,28 @@ export function getValueProof() {
   });
 }
 
+export function getDecisionInbox() {
+  const params = new URLSearchParams();
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/ops/decision-inbox${params.toString() ? `?${params.toString()}` : ""}`, {
+    authenticated: Boolean(operatorSession.identityToken),
+  });
+}
+
+export function getWorkflow(workflowId) {
+  const params = new URLSearchParams();
+  if (operatorSession.identityToken && operatorSession.tenantId) {
+    params.set("operator", operatorSession.email || "Google operator");
+    params.set("tenant_id", operatorSession.tenantId);
+  }
+  return request(`/api/workflows/${encodeURIComponent(workflowId)}${params.toString() ? `?${params.toString()}` : ""}`, {
+    authenticated: Boolean(operatorSession.identityToken),
+  });
+}
+
 export function getLatestEvaluation() {
   const params = new URLSearchParams();
   if (operatorSession.identityToken && operatorSession.tenantId) {

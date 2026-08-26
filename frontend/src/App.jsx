@@ -12,7 +12,7 @@ import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence, demoEvidenceBySource } from "./data";
-import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, reconcileWorkflow, retryJob, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getDecisionInbox, getJob, getMonitorRegistry, getOperatorSession, getSources, getWorkflow, listJobs, packetUrl, reconcileWorkflow, retryJob, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
 import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
 import IntegrationPanel from "./components/IntegrationPanel";
@@ -29,6 +29,7 @@ import ReleaseProof from "./components/ReleaseProof";
 import UtilityNextStep from "./components/UtilityNextStep";
 import JudgeJourney from "./components/JudgeJourney";
 import DecisionRoom from "./components/DecisionRoom";
+import DecisionInbox from "./components/DecisionInbox";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -61,7 +62,10 @@ const initialDecisions = {
 };
 
 export default function App() {
-  const [selectedNav, setSelectedNav] = useState("Overview");
+  const [selectedNav, setSelectedNav] = useState("Inbox");
+  const [decisionInbox, setDecisionInbox] = useState(null);
+  const [decisionInboxLoading, setDecisionInboxLoading] = useState(true);
+  const [decisionInboxError, setDecisionInboxError] = useState("");
   const [workflowState, setWorkflowState] = useState(null);
   const [selectedArtifact, setSelectedArtifact] = useState("Pricing battlecard");
   const [evidenceCollapsed, setEvidenceCollapsed] = useState(false);
@@ -81,6 +85,7 @@ export default function App() {
   const [selectedSource, setSelectedSource] = useState("competitor/pricing");
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
   const [controlPlaneOpen, setControlPlaneOpen] = useState(() => Boolean(getOperatorSession().identityToken));
+  const [decisionWorkspaceOpen, setDecisionWorkspaceOpen] = useState(false);
   const [judgeMode, setJudgeMode] = useState(true);
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
@@ -153,6 +158,21 @@ export default function App() {
     }
   };
 
+  const refreshDecisionInbox = async (expectedEpoch = sessionEpochRef.current) => {
+    setDecisionInboxLoading(true);
+    setDecisionInboxError("");
+    try {
+      const payload = await getDecisionInbox();
+      if (sessionEpochRef.current !== expectedEpoch) return;
+      setDecisionInbox(payload);
+    } catch (error) {
+      if (sessionEpochRef.current !== expectedEpoch) return;
+      setDecisionInboxError(error.message || "Decision inbox is temporarily unavailable.");
+    } finally {
+      if (sessionEpochRef.current === expectedEpoch) setDecisionInboxLoading(false);
+    }
+  };
+
   const refreshSourceHealth = async (expectedEpoch = sessionEpochRef.current) => {
     const requestId = sourceHealthRequestRef.current + 1;
     sourceHealthRequestRef.current = requestId;
@@ -171,6 +191,7 @@ export default function App() {
 
   useEffect(() => {
     const callbackEpoch = sessionEpochRef.current;
+    refreshDecisionInbox(callbackEpoch);
     getSources().then((payload) => {
       if (sessionEpochRef.current === callbackEpoch) setSources(payload.sources || []);
     }).catch(() => {
@@ -187,6 +208,7 @@ export default function App() {
     const callbackEpoch = sessionEpochRef.current;
     setOperatorSession(next);
     refreshHistory(callbackEpoch);
+    refreshDecisionInbox(callbackEpoch);
     getSources().then((payload) => {
       if (sessionEpochRef.current === callbackEpoch) setSources(payload.sources || []);
     }).catch(() => {
@@ -194,6 +216,10 @@ export default function App() {
     });
     refreshSourceHealth(callbackEpoch);
   }), []);
+
+  useEffect(() => {
+    if (workflowState?.updated_at) refreshDecisionInbox();
+  }, [workflowState?.updated_at]);
 
   useEffect(() => {
     const previousTenant = lastTenantRef.current;
@@ -216,6 +242,7 @@ export default function App() {
 
   const selectNav = (label) => {
     setSelectedNav(label);
+    if (label === "Overview") setDecisionWorkspaceOpen(true);
     setControlPlaneOpen(true);
     const targetId = `${label.toLowerCase()}-section`;
     navScrollTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -244,6 +271,27 @@ export default function App() {
       }, 750);
       navScrollTimersRef.current.push(firstSettleTimer);
     });
+  };
+
+  const openInboxDecision = async (item) => {
+    const openEpoch = sessionEpochRef.current;
+    try {
+      setScanMessage("Loading decision thread · restoring observed evidence and owner state");
+      const restored = await getWorkflow(item.workflow_id);
+      if (sessionEpochRef.current !== openEpoch) return;
+      setWorkflowState(restored);
+      setWorkflowId(restored.workflow_id);
+      setJob((current) => ({ ...(current || {}), workflow: restored, status: restored.status }));
+      setSelectedSource(restored.evidence?.source_id || selectedSource);
+      setSelectedArtifact(restored.impacts?.[0]?.name || "Pricing battlecard");
+      setArtifactDecisions(restored.approval?.artifact_decisions || defaultDecisionsFor(restored));
+      setScanMessage("Decision thread restored · evidence and authority boundary ready");
+      setDecisionWorkspaceOpen(true);
+      selectNav("Overview");
+    } catch (error) {
+      if (sessionEpochRef.current !== openEpoch) return;
+      setScanMessage(`Unable to restore decision · ${error.message || "try again"}`);
+    }
   };
 
   const handleSourceChange = (nextSource) => {
@@ -320,6 +368,7 @@ export default function App() {
         ? "monitor"
         : null);
     setScanMessage("");
+    setDecisionWorkspaceOpen(true);
     setScanning(true);
     setWorkflowState(null);
     setWorkflowId(null);
@@ -626,7 +675,7 @@ export default function App() {
       <Sidebar selected={selectedNav} onSelect={selectNav} operatorSession={operatorSession} />
       <main id="main-content">
         <header className="topbar">
-          <h1>Product decisions, with evidence</h1>
+          <h1>Decision inbox</h1>
           <div className="topbar-actions">
             <OperatorAccess />
             {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : scanMessage}</span>}
@@ -637,7 +686,11 @@ export default function App() {
 
         <div className="content">
         <div className="workspace-banner"><div className="workspace-banner-copy"><strong>{operatorSession.identityToken ? "Signed PM workspace" : "Interactive product-decision example"}</strong><span>{operatorSession.identityToken ? `${operatorSession.tenantId} · source-connected evidence · approval-gated owner handoffs` : "See how a PM resolves conflicting signals without handing authority to AI"}</span></div><span className="banner-status">{operatorSession.identityToken ? (liveWorkflow ? "Signed workflow" : "Signed lane") : "No sign-in needed"}</span><details className="technical-proof-details"><summary>For judges: architecture &amp; safety</summary><ReleaseProof compact /></details></div>
-          <DecisionRoom workflowState={workflowState} job={job} scanning={scanning} scanMessage={scanMessage} scanFailed={scanFailed} scenarioTitle={decisionScenario.title} scenarioLabel={decisionScenario.label} onRunReview={() => runScan()} onOpenWorkflow={() => focusSection("overview-section")} />
+          <DecisionInbox inbox={decisionInbox} loading={decisionInboxLoading} error={decisionInboxError} onRefresh={() => refreshDecisionInbox()} onReview={openInboxDecision} onStart={() => selectNav("Sources")} />
+          <details className="decision-workspace-details" open={decisionWorkspaceOpen} onToggle={(event) => setDecisionWorkspaceOpen(event.currentTarget.open)}>
+            <summary><div><span>Decision workspace</span><strong>{workflowState?.title || "Explore one decision end to end"}</strong><p>Open the evidence, options, approval boundary, and measured outcome only when a decision needs judgment.</p></div><b>{decisionWorkspaceOpen ? "Hide" : "Open"}</b></summary>
+            <DecisionRoom workflowState={workflowState} job={job} scanning={scanning} scanMessage={scanMessage} scanFailed={scanFailed} scenarioTitle={decisionScenario.title} scenarioLabel={decisionScenario.label} onRunReview={() => runScan()} onOpenWorkflow={() => focusSection("overview-section")} />
+          </details>
           <details className="legacy-workflow-details" open={controlPlaneOpen} onToggle={(event) => setControlPlaneOpen(event.currentTarget.open)}>
             <summary className="legacy-workflow-summary"><span>Secondary control plane</span><strong>Owner work and evidence trace</strong><p>Optional technical walkthrough for source snapshots, handoffs, and deployment proof.</p><b>{controlPlaneOpen ? "Hide" : "Open"}</b></summary>
           <section id="overview-section" className="overview-section">

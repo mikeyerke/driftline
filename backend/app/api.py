@@ -146,6 +146,7 @@ from .persistence import (
     update_jobs_for_workflow,
 )
 from .pilot_evidence import PilotEvidenceError, build_pilot_evidence_starter
+from .portfolio import build_decision_inbox
 from .product_analytics import (
     AnalyticsPolicyError,
     query_aggregate_metric,
@@ -5611,6 +5612,49 @@ def get_value_proof(
             "they are not customer or revenue claims."
         ),
     }
+
+
+@app.get("/api/ops/decision-inbox")
+def get_decision_inbox(
+    operator: str | None = None,
+    tenant_id: str | None = None,
+    approval_token: str | None = None,
+    identity_token: str | None = None,
+) -> dict[str, object]:
+    """Return a read-only, tenant-bounded portfolio of material decisions."""
+    identity: dict[str, str] | None = None
+    if any(value is not None for value in (operator, tenant_id, approval_token, identity_token)):
+        if not operator or not tenant_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Signed approval is required for the tenant decision inbox",
+            )
+        identity = _verify_approval_mode(
+            "ops:decision-inbox",
+            operator,
+            "signed",
+            approval_token,
+            identity_token,
+            tenant_id,
+        )
+    metric_limit = _metric_history_limit(50, identity)
+    workflows = [
+        state
+        for state in _merge_durable_records(
+            list(workflow_store._runs.values()),
+            list_workflows,
+            limit=metric_limit,
+            key=lambda item: item.workflow_id,
+        )
+        if _visible_tenant_record(state, identity)
+    ]
+    inbox = build_decision_inbox(workflows, limit=metric_limit)
+    inbox["scope"] = (
+        "observed_tenant_records"
+        if identity
+        else "observed_driftline_public_evaluation_records"
+    )
+    return inbox
 
 
 @app.get("/api/ops/outcomes")
