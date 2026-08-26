@@ -21,9 +21,13 @@ rules prevail over this working scorecard.
 GitHub `main` history, and the production verifier all resolved to the identity
 above on August 25. Later `main` commits update submission media only.
 
-## Unreleased local candidate
+## Merged, production-unreleased candidate
 
-The isolated candidate is not part of the live score above. It adds ten
+Public `main` now contains the candidate at
+`c877595179ca73fb01854e93f46aaf90184bdf48` via PR #22. Hosted GitHub Actions
+run `32969584064` passed all four jobs, and the exact public-main release
+preflight passed from a clean checkout. It is not part of the live score above
+until Cloud Run serves that exact SHA. The merged candidate adds ten
 judge-facing improvements:
 
 - an autonomous Decision Debt Radar turns contradictory signals into a cited
@@ -58,7 +62,7 @@ judge-facing improvements:
   instead of presenting disabled operator authentication as a product failure.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 481 backend tests, Ruff, the production frontend build,
+The merged candidate passed 481 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold
