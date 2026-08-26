@@ -23,6 +23,7 @@ for file in \
   submission/GITHUB_REPOSITORY_METADATA.md \
   submission/DEVPOST_FORM_AUDIT.md \
   submission/JUDGE_EVIDENCE_INDEX.md \
+  submission/judge-evidence-manifest.json \
   submission/ORIGINALITY_PROVENANCE.md \
   submission/THIRD_PARTY_DISCLOSURE.md \
   submission/SOCIAL_POST_DRAFTS.md \
@@ -34,6 +35,7 @@ for file in \
   scripts/build_candidate_rehearsal.sh \
   scripts/verify_final_demo_package.sh \
   scripts/prepare_final_demo_manifest.py \
+  scripts/verify_judge_evidence.py \
   scripts/render_release_submission.py \
   scripts/render_final_demo_review_sheet.sh \
   scripts/verify_contest_provenance.sh \
@@ -136,7 +138,9 @@ require_text submission/JUDGE_SCORECARD.md '32986603518'
 require_text submission/JUDGE_SCORECARD.md 'a favorable self-report can never create a customer claim'
 require_text submission/JUDGE_SCORECARD.md 'captured 573'
 require_text submission/JUDGE_SCORECARD.md 'exactly 178.000'
-require_text submission/JUDGE_SCORECARD.md 'roughly 93/100 readiness'
+require_text submission/JUDGE_SCORECARD.md 'roughly 95/100 submission readiness'
+require_text submission/JUDGE_SCORECARD.md 'dfdbe2b22579135b9ebedab71ee2bfbe38fc897b'
+require_text submission/JUDGE_SCORECARD.md '32988583543'
 require_text submission/assets/README.md 'detects a 4.53-second narration silence'
 require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'verify_final_demo_package.sh'
 require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'it is not a substitute for visible deployment proof'
@@ -191,6 +195,11 @@ for field_id in \
   require_text submission/DEVPOST_FORM_AUDIT.md "| $field_id |"
 done
 require_text README.md '## Judge it in 60 seconds'
+require_text README.md 'python3 scripts/verify_judge_evidence.py --live'
+require_text scripts/verify_judge_evidence.py 'rubric weights do not match the official 40/30/30 criteria'
+require_text scripts/verify_judge_evidence.py 'submission is not ready; open gates:'
+require_text submission/judge-evidence-manifest.json '"taskmaster_preapproval_workflow"'
+require_text submission/judge-evidence-manifest.json '"record_and_publish_exact_release_video"'
 require_text README.md '**Taskmaster proof:** before the named approval'
 require_text README.md 'without a prompt loop or human'
 require_text README.md './scripts/verify_clean_checkout.sh'
@@ -448,5 +457,8 @@ unexpected_todo_lines="$(printf '%s\n' "$todo_lines" | grep -Ev \
   fail "unexpected placeholder text exists in the canonical submission copy"
 [[ "$(printf '%s\n' "$todo_lines" | grep -c '.' || true)" == "4" ]] || \
   fail "the submission packet must contain exactly the four approved owner-only placeholders"
+
+python3 scripts/verify_judge_evidence.py >/dev/null || \
+  fail "machine-readable judge evidence audit failed"
 
 printf 'Submission packet checks passed.\n'

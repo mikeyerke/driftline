@@ -13,6 +13,7 @@ result back into the same durable decision lineage.
 | Run the no-sign-in workflow | [driftline-ops.web.app](https://driftline-ops.web.app/) |
 | Verify the serving identity | [`/health`](https://driftline-ops.web.app/health) |
 | See the 40/30/30 evidence map | [Judge scorecard](submission/JUDGE_SCORECARD.md) |
+| Audit every rubric claim | [`python3 scripts/verify_judge_evidence.py --live`](scripts/verify_judge_evidence.py) |
 | Inspect current deployment truth | [Status](docs/STATUS.md) |
 | Reproduce the release checks | [Verification](#reproducible-verification) |
 
@@ -860,6 +861,20 @@ their cadence deadlines.
 - Internal technical pilot (not customer evidence): https://github.com/mikeyerke/driftline/blob/main/docs/INTERNAL_PILOT_2026-08-23.md
 
 ## Reproducible verification
+
+For the shortest judge-facing audit, run:
+
+~~~bash
+python3 scripts/verify_judge_evidence.py --live
+~~~
+
+This checks the official 40/30/30 rubric map, nine claim-to-artifact chains,
+the explicit open submission gates, and the current HTTPS serving identity. It
+must continue to report the public-main candidate as **tested, not deployed**
+until an authorized release makes the serving and candidate identities equal.
+Use `--require-submission-ready` as the final fail-closed gate; it intentionally
+fails while deployment, the public video, entrant attestations, Devpost, or
+independent-PM evidence remain open.
 
 To prove the committed repository works without any untracked local files or
 pre-existing project environments, run the clean-checkout gate. It exports only

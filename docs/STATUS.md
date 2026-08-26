@@ -107,6 +107,15 @@ PR #33 refreshed the mirrored judge evidence against that tested state. Its
 exact head passed all four hosted jobs, its squash-merged tree was identical,
 and a new clean release-candidate preflight plus hosted run `32986603518` passed
 at public-main SHA `484e764760c06350733189246a17dfa651502891`.
+PRs #34 and #35 made the exact pre-approval autonomous task, bounded human
+authority transition, and post-approval autonomous monitor/reopen task explicit
+in the final-take contract and README first viewport. PR #36 then removed the
+manual release-to-video identity handoff. Its atomic receipt and derived
+manifest seed bind serving SHA, public main, revision, build, image digest,
+traffic, and trace identity before capture. The exact tested tree equaled the
+squash-merged tree; fresh public-main preflight passed 532 backend tests and
+14/14 evaluations at `dfdbe2b22579135b9ebedab71ee2bfbe38fc897b`, and hosted
+run `32988583543` passed all four jobs.
 
 PRs #27-#29 also add a fail-closed external release renderer. It requires exact
 repository/deployment/health identity, verifies the actual final MP4 and SRT,

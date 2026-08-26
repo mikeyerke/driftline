@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "official_rules_url": "https://allthingsagentichackathon.devpost.com/rules",
+  "official_deadline": "2026-08-31T17:00:00-07:00",
+  "category": "Taskmaster",
+  "serving_release": {
+    "health_url": "https://driftline-ops.web.app/health",
+    "release_sha": "03ec8f12fc23d265c89b462a345a5b599a6411e8",
+    "build_id": "c01bec2e-a950-407c-873b-b1d4fdc6bae6",
+    "state": "live_verified"
+  },
+  "candidate_baseline": {
+    "last_verified_sha": "dfdbe2b22579135b9ebedab71ee2bfbe38fc897b",
+    "hosted_run_id": "32988583543",
+    "backend_tests": 532,
+    "trace_evaluations": "14/14",
+    "state": "tested",
+    "deployed": false
+  },
+  "criteria": [
+    {
+      "id": "innovation_operational_utility",
+      "weight": 40,
+      "claims": [
+        {
+          "id": "taskmaster_preapproval_workflow",
+          "state": "tested",
+          "claim": "Before human approval, Driftline intercepts commitment drift, gathers evidence, runs five bounded specialists, preserves dissent, and prepares reversible options without a prompt loop.",
+          "evidence": [
+            {"path": "README.md", "contains": "before the named approval"},
+            {"path": "submission/JUDGE_EVIDENCE_INDEX.md", "contains": "Before any human action"},
+            {"path": "backend/tests/test_decision_twin.py", "contains": "test_"}
+          ]
+        },
+        {
+          "id": "taskmaster_postapproval_workflow",
+          "state": "tested",
+          "claim": "After one bounded approval, the monitor evaluates the guardrail, rolls back the allocation, writes a learning receipt, and reopens generation 2 without a second PM action.",
+          "evidence": [
+            {"path": "README.md", "contains": "without a second PM action"},
+            {"path": "scripts/verify_final_demo_package.sh", "contains": "generation_2_reopen_visible"},
+            {"path": "backend/tests/test_decision_twin.py", "contains": "generation"}
+          ]
+        },
+        {
+          "id": "byof_personal_friction",
+          "state": "prepared",
+          "claim": "The project originates in the builder's repeated experience of product commitments outliving the evidence and assumptions that created them.",
+          "evidence": [
+            {"path": "submission/DEMO_SCRIPT.md", "contains": "I kept making roadmap calls"},
+            {"path": "submission/BUILD_STORY.md", "contains": "evidence"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "architecture_tech_stack",
+      "weight": 30,
+      "claims": [
+        {
+          "id": "required_google_stack",
+          "state": "live_verified",
+          "claim": "The serving system uses Gemini 3.5 Flash, Google ADK, Cloud Run, and Firestore; the bounded decision evidence path also uses BigQuery and asynchronous Cloud Tasks.",
+          "evidence": [
+            {"path": "README.md", "contains": "Google ADK and Gemini"},
+            {"path": "docs/architecture.md", "contains": "Cloud Run"},
+            {"path": "submission/assets/driftline-decision-twin-architecture.png"}
+          ]
+        },
+        {
+          "id": "state_and_failure_discipline",
+          "state": "tested",
+          "claim": "Durable workflow generations, provenance, deterministic policy checks, idempotency, and fail-closed release identity separate model recommendations from consequential authority.",
+          "evidence": [
+            {"path": "docs/architecture.md", "contains": "Firestore"},
+            {"path": "scripts/verify_trace_eval.sh", "contains": "trace"},
+            {"path": "scripts/prepare_final_demo_manifest.py", "contains": "release, health, public-main, and trace SHAs must match"}
+          ]
+        },
+        {
+          "id": "security_and_scope",
+          "state": "tested",
+          "claim": "The public lane is packet-safe, human approval is explicit, external writes are absent, and authenticated connector actions are tenant-scoped and reversible.",
+          "evidence": [
+            {"path": "README.md", "contains": "External writes: none"},
+            {"path": "docs/CONNECTOR_SECURITY.md", "contains": "tenant"},
+            {"path": "backend/tests/test_guardrails.py", "contains": "test_"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "demo_production_readiness",
+      "weight": 30,
+      "claims": [
+        {
+          "id": "working_public_project",
+          "state": "live_verified",
+          "claim": "A no-sign-in public project and health endpoint are available; they currently serve the explicitly recorded pre-candidate release.",
+          "evidence": [
+            {"path": "README.md", "contains": "driftline-ops.web.app"},
+            {"path": "docs/STATUS.md", "contains": "03ec8f12fc23d265c89b462a345a5b599a6411e8"}
+          ]
+        },
+        {
+          "id": "reproducible_repository",
+          "state": "tested",
+          "claim": "The public repository includes architecture, setup instructions, clean-checkout verification, locked dependencies, and an exact-SHA release gate.",
+          "evidence": [
+            {"path": "README.md", "contains": "Reproducible verification"},
+            {"path": "scripts/verify_clean_checkout.sh", "contains": "Clean-checkout verification: PASS"},
+            {"path": "scripts/verify_release_candidate_local.sh", "contains": "expected mikeyerke/driftline"}
+          ]
+        },
+        {
+          "id": "continuous_final_demo",
+          "state": "prepared",
+          "claim": "A continuous under-four-minute final-take blueprint and fail-closed media verifier exist, but the exact-release public video has not been recorded or uploaded.",
+          "evidence": [
+            {"path": "submission/DEMO_SCRIPT.md", "contains": "one continuous native screen capture"},
+            {"path": "scripts/verify_final_demo_package.sh", "contains": "continuous_native_take"},
+            {"path": "submission/REMOTE_CHECKLIST.md", "contains": "Upload publicly to YouTube or Vimeo only after entrant approval"}
+          ]
+        }
+      ]
+    }
+  ],
+  "stage_one_requirements": [
+    {"id": "gemini_3_5_or_newer", "state": "live_verified"},
+    {"id": "google_agent_framework", "state": "live_verified"},
+    {"id": "google_cloud_infrastructure", "state": "live_verified"},
+    {"id": "taskmaster_category", "state": "prepared"},
+    {"id": "hosted_project", "state": "live_verified"},
+    {"id": "public_repository", "state": "live_verified"},
+    {"id": "spin_up_instructions", "state": "tested"},
+    {"id": "architecture_diagram", "state": "prepared"},
+    {"id": "english_public_demo_under_four_minutes", "state": "open"},
+    {"id": "third_party_and_originality_disclosure", "state": "tested"}
+  ],
+  "submission_gates": [
+    {"id": "deploy_exact_public_main_candidate", "state": "open", "requires_authorization": true},
+    {"id": "record_and_publish_exact_release_video", "state": "open", "requires_authorization": true},
+    {"id": "entrant_eligibility_ownership_and_rules_attestations", "state": "open", "requires_authorization": true},
+    {"id": "devpost_form_save_and_submit", "state": "open", "requires_authorization": true},
+    {"id": "independent_pm_validation", "state": "open", "requires_authorization": true}
+  ]
+}
