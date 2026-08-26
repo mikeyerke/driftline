@@ -1000,7 +1000,7 @@ def test_decision_twin_trace_eval_scores_grounding_disagreement_and_falsifiabili
 
     assert report["gate_status"] == "pass"
     assert report["overall_score"] == 1.0
-    assert report["suite_version"] == "decision-twin-eval-v1"
+    assert report["suite_version"] == "decision-twin-eval-v2"
     assert {item["case_id"] for item in report["cases"]} == {
         "evidence_provenance",
         "council_roles",
@@ -1010,4 +1010,6 @@ def test_decision_twin_trace_eval_scores_grounding_disagreement_and_falsifiabili
         "human_authority",
         "reopening_lineage",
         "decision_debt_lineage",
+        "operating_loop_integrity",
+        "compounding_memory_calibration",
     }

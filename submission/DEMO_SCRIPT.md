@@ -86,13 +86,13 @@ approval, result, and council remain linked. A fresh human approval is required.
 
 ## 2:10–2:36 — Architecture and deterministic boundaries
 
-**Screen:** Switch to the release-bound architecture and seven-check evaluation.
+**Screen:** Switch to the release-bound architecture and ten-check evaluation.
 
 **Narration:** “Firebase Hosting rewrites to Cloud Run. Firestore stores cases
 and lineage. Google ADK and Gemini power the council. BigQuery supplies bounded
-aggregates and precedent memory. Cloud Tasks runs the outcome loop. Seven
+aggregates and precedent memory. Cloud Tasks runs the outcome loop. Ten
 deterministic checks cover provenance, independence, citations, falsifiability,
-human authority, and reopening.”
+human authority, debt lineage, the full operating loop, and calibrated memory.”
 
 ## 2:36–2:52 — Visible Google Cloud and release proof
 

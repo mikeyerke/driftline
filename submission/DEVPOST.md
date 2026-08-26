@@ -207,6 +207,11 @@ a tenant-scoped Secret Manager binding, and an allowlisted operation.
 - Bounded source registry with cadence and freshness health
 - Autonomous Decision Debt Radar with cited triggers, severity, missing
   evidence, and compounding generation history
+- Continuous PM operating loop with honest evidence-harvest modes, preserved
+  stakeholder disagreement, approval-bound execution, scheduled measurement,
+  and sample-sized product memory
+- Ten-step state rail from observed source change through measured learning;
+  completion is derived from durable case state rather than model narration
 - Immutable evidence diff and full SHA-256 provenance
 - Stable, retry-safe Change Card identity
 - Gemini-generated impact map across four named owner surfaces
@@ -216,6 +221,8 @@ a tenant-scoped Secret Manager binding, and an allowlisted operation.
 - Idempotent, reversible Jira action in the signed tenant lane
 - Append-only activity, source memory, and reversal history
 - Trace-to-eval gate covering 14 independent safety/usefulness cases
+- Decision Twin policy gate covering 10/10 provenance, authority, lineage,
+  operating-loop, and memory-calibration contracts
 - Credential-free public evaluation lane with explicit data labels
 
 ## Challenges

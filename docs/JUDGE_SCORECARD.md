@@ -21,9 +21,16 @@ rules prevail over this working scorecard.
 GitHub `main` history, and the production verifier all resolved to the identity
 above on August 25. Later `main` commits update submission media only.
 
-## Unreleased local candidate
+## Merged baseline plus production-unreleased candidates
 
-The isolated candidate is not part of the live score above. It adds ten
+Public `main` contains the prior candidate at
+`c877595179ca73fb01854e93f46aaf90184bdf48` via PR #22. Hosted GitHub Actions
+run `32969584064` passed all four jobs, and the exact public-main release
+preflight passed from a clean checkout. The operating-loop work described in
+this branch remains a separate PR candidate. Neither candidate is part of the
+live score above until Cloud Run serves its exact SHA.
+
+Together, the merged baseline and this operating-loop candidate add these
 judge-facing improvements:
 
 - an autonomous Decision Debt Radar turns contradictory signals into a cited
@@ -57,8 +64,16 @@ judge-facing improvements:
 - the public judge lane now identifies itself as an intentional no-sign-in demo
   instead of presenting disabled operator authentication as a product failure.
 
+The candidate now projects all seven PM operating capabilities through one
+validated interface: autonomous inbox, evidence harvest, decision-debt radar,
+stakeholder alignment, commitment/execution, outcome autopilot, and compounding
+memory. A visible ten-step rail advances only when the corresponding durable
+state exists; replayable, connected, PM-provided, and precedent sources retain
+different labels. Stakeholder positions are explicitly evidence-bound decision
+lenses rather than fabricated human quotes.
+
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 481 backend tests, Ruff, the production frontend build,
+The candidate passed 485 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold
@@ -72,8 +87,9 @@ The new Decision Debt lifecycle was separately exercised through real browser
 clicks on desktop and at 390 × 844: the cited inbox opened at 88/100, named
 approval moved it to monitoring, the measured stop-condition breach rolled back
 the bounded action, and generation 2 reopened at 98/100 with one prior debt
-cycle preserved. The Decision Twin evaluator now checks this lifecycle as an
-eighth deterministic case; the complete local policy surface passes 8/8.
+cycle preserved. The Decision Twin evaluator now checks debt lineage, operating
+loop integrity, and zero-sample memory calibration; the complete local policy
+surface passes 10/10.
 
 The clean-checkout browser retest also passed first click, refresh/deep-link
 resume, double-click approval idempotency, outcome-triggered generation-2

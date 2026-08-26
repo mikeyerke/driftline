@@ -9,6 +9,54 @@ const stages = ["Detect drift", "Compare options", "Approve action", "Learn"];
 
 const optionTitle = (options, id) => options.find((option) => option.option_id === id)?.title || id;
 
+const humanize = (value) => String(value || "").replaceAll("_", " ");
+
+function ProductOperatingLoop({ loop }) {
+  if (!loop) return null;
+  const harvest = loop.evidence_harvest;
+  const alignment = loop.stakeholder_alignment;
+  const execution = loop.execution_contract;
+  const outcome = loop.outcome_autopilot;
+  const memory = loop.compounding_memory;
+  return <section className="product-operating-loop" aria-labelledby="product-operating-loop-title">
+    <header>
+      <div><span>Continuous PM operating loop</span><h3 id="product-operating-loop-title">Every decision leaves the next one smarter.</h3></div>
+      <b>{humanize(loop.stage)}</b>
+    </header>
+    <ol className="product-operating-journey" aria-label="Signal to measured learning progress">
+      {loop.journey.map((item) => <li className={item.state} key={item.step} aria-current={item.state === "active" ? "step" : undefined}>
+        <span>{item.state === "done" ? <Check size={11} /> : item.step}</span><small>{item.label}</small>
+      </li>)}
+    </ol>
+    <div className="product-operating-cards">
+      <article>
+        <div className="product-operating-card-heading"><Database size={16} /><h4>Evidence harvest agents</h4><b>{harvest.source_count} sources</b></div>
+        <p>{harvest.disclosure}</p>
+        <ul>{harvest.sources.slice(0, 4).map((source) => <li key={source.source_id}><strong>{humanize(source.channel)}</strong><span>{humanize(source.mode)} · {Math.round(source.confidence * 100)}%</span></li>)}</ul>
+        {harvest.missing_channels.length > 0 && <small>Missing: {harvest.missing_channels.map(humanize).join(" · ")}</small>}
+      </article>
+      <article>
+        <div className="product-operating-card-heading"><GitCompareArrows size={16} /><h4>Stakeholder alignment agent</h4><b>{humanize(alignment.status)}</b></div>
+        <p>{alignment.unresolved_tradeoffs[0] || "The measured outcome resolved the active tradeoff."}</p>
+        <ul>{alignment.positions.slice(0, 3).map((position) => <li key={position.position_id}><strong>{position.label}</strong><span>{optionTitle([], position.preferred_option)}</span></li>)}</ul>
+        <small>{alignment.dissent_preserved ? "Dissent preserved" : "Consensus requires challenge"} · {alignment.evidence_requests[0] || "No open evidence request"}</small>
+      </article>
+      <article>
+        <div className="product-operating-card-heading"><ClipboardCheck size={16} /><h4>Commitment &amp; execution agent</h4><b>{humanize(execution.status)}</b></div>
+        <p>{execution.scope}</p>
+        <dl><div><dt>Owner</dt><dd>{execution.owner || "Human approval required"}</dd></div><div><dt>Review</dt><dd>{execution.review_at || "Starts after approval"}</dd></div><div><dt>External writes</dt><dd>{execution.external_writes ? "Yes" : "None in public lane"}</dd></div></dl>
+        <small>{execution.next_action}</small>
+      </article>
+      <article>
+        <div className="product-operating-card-heading"><History size={16} /><h4>Outcome autopilot + product memory</h4><b>{memory.cycle_count} measured cycle{memory.cycle_count === 1 ? "" : "s"}</b></div>
+        <p>{outcome.trigger}</p>
+        <dl><div><dt>Monitor</dt><dd>{humanize(outcome.status)}</dd></div><div><dt>Next check</dt><dd>{outcome.next_check_at || "After approval"}</dd></div><div><dt>Generation</dt><dd>{memory.current_generation}</dd></div></dl>
+        <small>{memory.insights.at(-1)?.statement} {memory.disclosure}</small>
+      </article>
+    </div>
+  </section>;
+}
+
 function focusAfterRender(id) {
   window.requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: true }));
 }
@@ -482,6 +530,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <div><dt>Compounding memory</dt><dd>{decisionCase.decision_debt_history?.length || 0} prior debt cycle{decisionCase.decision_debt_history?.length === 1 ? "" : "s"} preserved</dd></div>
         </dl>
       </section>}
+      <ProductOperatingLoop loop={decisionCase.operating_loop} />
       <section className="decision-at-risk" aria-label="Decision at risk">
         <div><span>Current commitment</span><strong>{decisionCase.current_commitment}</strong></div>
         <div><span>Why this needs a decision now</span><p>{decisionCase.urgency}</p></div>

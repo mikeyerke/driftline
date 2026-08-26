@@ -83,6 +83,7 @@ from .decision_twin import (
     build_demo_decision_case,
     build_intake_decision_case,
     record_outcome,
+    refresh_product_operating_loop,
 )
 from .materiality import build_change_card, normalize_internal_context
 from .memory import build_memory_summary
@@ -226,6 +227,7 @@ def _require_decision_mutation_capability(case: object, request: Request) -> Non
 
 
 def _public_decision_case(case: object, *, can_edit: bool) -> dict[str, object]:
+    refresh_product_operating_loop(case)
     return {**case.model_dump(mode="json"), "can_edit": can_edit}
 
 

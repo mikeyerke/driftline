@@ -45,7 +45,7 @@ _FORBIDDEN_TRACE_KEYS = frozenset(
     }
 )
 
-DECISION_TWIN_SUITE_VERSION = "decision-twin-eval-v1"
+DECISION_TWIN_SUITE_VERSION = "decision-twin-eval-v2"
 
 
 @dataclass(frozen=True)
@@ -1020,6 +1020,30 @@ def evaluate_decision_twin_case(case: DecisionCase) -> dict[str, Any]:
             or bool(case.decision_debt_history)
         )
     )
+    loop = case.operating_loop
+    journey_states = [item.state for item in loop.journey] if loop else []
+    operating_loop_integrity = (
+        loop is not None
+        and [item.step for item in loop.journey] == list(range(1, 11))
+        and journey_states.count("active") <= 1
+        and not (
+            "waiting" in journey_states
+            and "done" in journey_states[journey_states.index("waiting") :]
+        )
+        and loop.execution_contract.external_writes is False
+        and loop.stakeholder_alignment.dissent_preserved
+    )
+    memory = loop.compounding_memory if loop else None
+    compounding_memory_calibration = (
+        memory is not None
+        and memory.cycle_count == len(case.decision_history)
+        and memory.precedent_count == len(case.precedents)
+        and all(
+            insight.sample_size > 0 or insight.confidence == 0.0
+            for insight in memory.insights
+        )
+        and all(insight.recency and insight.provenance is not None for insight in memory.insights)
+    )
     cases = [
         result(
             "evidence_provenance",
@@ -1060,6 +1084,16 @@ def evaluate_decision_twin_case(case: DecisionCase) -> dict[str, Any]:
             "decision_debt_lineage",
             decision_debt_lineage,
             "The current debt state is evidence-cited and follows approval, monitoring, resolution, or reopening.",
+        ),
+        result(
+            "operating_loop_integrity",
+            operating_loop_integrity,
+            "The seven PM capabilities advance through one monotonic ten-step journey without external writes.",
+        ),
+        result(
+            "compounding_memory_calibration",
+            compounding_memory_calibration,
+            "Decision memory retains lineage and never assigns confidence to a zero-sample claim.",
         ),
     ]
     passed = sum(item["status"] == "pass" for item in cases)

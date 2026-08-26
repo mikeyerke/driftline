@@ -90,9 +90,9 @@ A separate signed tenant lane has exercised a least-privilege Jira marker and
 reversal, but it is supporting engineering proof—not the public demo’s action
 claim and not customer validation.
 
-## Seven checks before a decision can be trusted
+## Ten checks before a decision can be trusted
 
-The trace evaluator tests seven visible contracts:
+The Decision Twin evaluator tests ten visible contracts:
 
 1. evidence provenance is retained;
 2. specialist positions are genuinely independent;
@@ -100,7 +100,10 @@ The trace evaluator tests seven visible contracts:
 4. material disagreement remains visible;
 5. the experiment is falsifiable;
 6. human authority is required; and
-7. the outcome can reopen the original decision without erasing lineage.
+7. the outcome can reopen the original decision without erasing lineage;
+8. decision debt follows approval, monitoring, resolution, and reopening;
+9. all seven PM capabilities advance through one monotonic ten-step loop; and
+10. product memory never assigns confidence to a zero-sample claim.
 
 The release gate also checks privacy floors, billed-byte ceilings, bounded model
 calls, exact release identity, dependency safety, production browser journeys,

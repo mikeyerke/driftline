@@ -202,6 +202,12 @@ fi
 if ! check_frontend_literal 'Turn conflicting evidence into a decision your team can defend.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Autonomous decision inbox' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Compounding memory' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Continuous PM operating loop' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Evidence harvest agents' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Stakeholder alignment agent' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Commitment &amp; execution agent' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Outcome autopilot + product memory' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Memory updated or decision reopened' backend/app/product_operating_loop.py \
   || ! check_frontend_literal 'decision_debt_history' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'The alignment meeting, evidence hunt, and post-launch guesswork.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \
