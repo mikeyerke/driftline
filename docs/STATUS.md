@@ -95,9 +95,18 @@ described in the judge scorecard. These merged runtime changes are not deployed.
 
 The public-main candidate passed 521 backend tests, Ruff, the 14/14 trace
 evaluation, the locked frontend build, dependency audit, frontend and
-submission contracts, and shell/diff hygiene on August 26. PRs #23, #24, and
-#25 passed all four hosted jobs, and the exact public-main release preflight
-passed from a clean checkout.
+submission contracts, and shell/diff hygiene on August 26. PRs #23-#29 passed
+all four hosted jobs. For PRs #26-#29, each tested tree was identical to its
+squash-merged `main` tree, and the exact public-main release preflight passed
+from a clean checkout at `08e7be09551aa833efd5ed93018cb6c32a8b3886`.
+
+PRs #27-#29 also add a fail-closed external release renderer. It requires exact
+repository/deployment/health identity, verifies the actual final MP4 and SRT,
+binds the gallery to a same-session proof video, produces a timestamp review
+sheet, and emits the complete packet outside the repository. It has correctly
+rejected both non-canonical local capture identity and a rehearsal carrying a
+red custody watermark. This proves the release controls, not a new deployment
+or a public video.
 That is repository and local candidate evidence only.
 `scripts/verify_release_candidate_local.sh --release-candidate` now fails before
 any Cloud mutation unless the tree is clean and its exact `HEAD` equals the
