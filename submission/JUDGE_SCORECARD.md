@@ -23,7 +23,7 @@ above on August 25. Later `main` commits update submission media only.
 
 ## Unreleased local candidate
 
-The isolated candidate is not part of the live score above. It adds four
+The isolated candidate is not part of the live score above. It adds six
 judge-facing improvements:
 
 - custom decisions require a PM-authored measurement contract instead of
@@ -33,13 +33,24 @@ judge-facing improvements:
 - a real PM can attach the primary and risk aggregates after the review window,
   with both retained as unverified and evaluated as a two-metric contract; and
 - an opaque return link restores the same non-confidential approved case in a
-  fresh browser session for that follow-up measurement.
+  fresh browser session for that follow-up measurement;
+- the real-decision intake reveals decision context and the operating contract
+  as two progressive steps instead of presenting sixteen required fields at
+  once, without weakening any required threshold; and
+- PM measurements fail closed until the committed review timestamp. Before
+  then, the UI shows the exact opening time and the API returns 409 without
+  changing the active action, outcomes, or decision generation.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
 The candidate passed the complete backend suite, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
-rollback/reopen journey. It cannot be scored as production proof until released
-and independently reverified against its serving SHA.
+rollback/reopen journey. The custom PM path additionally passed two-step
+context/contract entry, back-navigation preservation, directional-threshold
+rejection, named approval, premature-measurement locking, complete brief copy,
+and desktop/mobile Lighthouse snapshots at 100 across accessibility, best
+practices, SEO, and agentic browsing with no horizontal overflow. It cannot be
+scored as production proof until released and independently reverified against
+its serving SHA.
 
 The candidate also fixes a first-impression issue found through a fresh live
 browser run: at 1453 × 726 the production workflow CTA started 31 pixels below

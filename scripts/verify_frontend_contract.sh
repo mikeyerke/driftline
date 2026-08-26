@@ -165,6 +165,8 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'setSelectedId(latest.council.recommendation)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'This never generates a synthetic result.' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Attach the PM-observed outcome' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Measurement opens' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Driftline will reject early measurements at the API boundary.' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Evaluate real measurement' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'The action completed inside its guardrail' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Observed measurement' frontend/src/components/LearningReceipt.jsx \
@@ -174,6 +176,10 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'External writes' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Use my decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Build my decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Continue to operating contract' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Back to decision context' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Decision intake progress' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'error && !intakeOpen' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Define the operating contract before approval' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Primary outcome metric' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Risk guardrail metric' frontend/src/components/DecisionRoom.jsx \
@@ -181,6 +187,9 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'measurement_contract' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'PM-provided · unverified' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Copy decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Operating contract:' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Risk stop:' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'days after approval' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Copy return link' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Use this link after the review window.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'url.searchParams.set("decision", next.case_id)' frontend/src/components/DecisionRoom.jsx \

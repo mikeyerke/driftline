@@ -6394,13 +6394,6 @@ def record_decision_twin_measured_outcome(
             status_code=409,
             detail="Manual measurements are available only for PM-provided decisions.",
         )
-    primary_id = (
-        f"outcome-g{request.expected_generation}-{request.measurement_id}-primary"
-    )
-    risk_id = f"outcome-g{request.expected_generation}-{request.measurement_id}-risk"
-    existing_ids = {item.observation_id for item in current.outcomes}
-    if {primary_id, risk_id}.issubset(existing_ids):
-        return current.model_dump(mode="json")
     if current.generation != request.expected_generation:
         raise HTTPException(
             status_code=409,
@@ -6412,6 +6405,27 @@ def record_decision_twin_measured_outcome(
             status_code=409,
             detail="Measurement requires an active two-metric experiment contract.",
         )
+    try:
+        review_at = datetime.fromisoformat(plan.review_at)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Measurement window is unavailable because the review date is invalid.",
+        ) from exc
+    if review_at.tzinfo is None:
+        review_at = review_at.replace(tzinfo=UTC)
+    if datetime.now(UTC) < review_at.astimezone(UTC):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Measurement window opens at {review_at.astimezone(UTC).isoformat()}.",
+        )
+    primary_id = (
+        f"outcome-g{request.expected_generation}-{request.measurement_id}-primary"
+    )
+    risk_id = f"outcome-g{request.expected_generation}-{request.measurement_id}-risk"
+    existing_ids = {item.observation_id for item in current.outcomes}
+    if {primary_id, risk_id}.issubset(existing_ids):
+        return current.model_dump(mode="json")
     observed_at = datetime.now(UTC).isoformat()
 
     def observation(

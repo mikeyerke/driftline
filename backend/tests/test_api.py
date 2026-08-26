@@ -37,6 +37,14 @@ def _pm_measurement_contract_payload() -> dict:
     }
 
 
+def _open_pm_measurement_window(case_id: str) -> None:
+    case = persistence.load_decision_case(case_id)
+    assert case is not None
+    assert case.experiment_plan is not None
+    case.experiment_plan.review_at = "2000-01-01T00:00:00+00:00"
+    persistence.persist_decision_case(case)
+
+
 def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
@@ -315,6 +323,29 @@ def test_pm_intake_accepts_real_two_metric_measurement_and_is_idempotent(
         "source_label": "Weekly product analytics",
     }
 
+    early = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json={**measurement, "measurement_id": "manual-early-1"},
+    )
+    assert early.status_code == 409
+    assert "Measurement window opens at" in early.json()["detail"]
+    unchanged = persistence.load_decision_case(case["case_id"])
+    assert unchanged is not None
+    assert unchanged.outcomes == []
+    assert unchanged.action_records[0].status == "active"
+
+    assert unchanged.experiment_plan is not None
+    unchanged.experiment_plan.review_at = "invalid-review-date"
+    persistence.persist_decision_case(unchanged)
+    invalid_window = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json={**measurement, "measurement_id": "manual-invalid-window-1"},
+    )
+    assert invalid_window.status_code == 409
+    assert "review date is invalid" in invalid_window.json()["detail"]
+
+    _open_pm_measurement_window(case["case_id"])
+
     unresolved = client.post(
         f"/api/decision-twin/{case['case_id']}/outcomes/measured",
         json={
@@ -381,6 +412,7 @@ def test_pm_risk_measurement_rolls_back_and_manual_measurement_rejects_demo(
             "expected_generation": 1,
         },
     )
+    _open_pm_measurement_window(case["case_id"])
     breached = client.post(
         f"/api/decision-twin/{case['case_id']}/outcomes/measured",
         json={

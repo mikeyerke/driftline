@@ -32,6 +32,8 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
     riskValue: "",
   });
   const measurementPending = !fixtureEligible && (active || inconclusive);
+  const reviewAt = plan ? Date.parse(plan.review_at) : Number.NaN;
+  const measurementWindowOpen = Number.isFinite(reviewAt) && Date.now() >= reviewAt;
   const actionTitle = latestAction?.status === "rolled_back"
     ? "Guardrail rolled the internal action back"
     : latestAction?.status === "completed"
@@ -71,7 +73,8 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
       {active && monitoring && <div className="autonomous-monitor-status" role="status" aria-live="polite"><Activity size={18} /><span><strong>Autonomous monitor active</strong><small>Cloud Tasks is checking the approved guardrail. No second PM action is required.</small></span></div>}
       {active && fixtureEligible && !monitoring && <button className="secondary decision-outcome-button" type="button" onClick={onOutcome} disabled={busy}><Activity size={17} />{busy ? "Evaluating outcome…" : "Run demo measurement fallback"}</button>}
       {active && fixtureEligible && <p className="fixture-disclosure">The public judge lane automatically processes a pinned aggregate measurement fixture; it is not presented as customer validation.</p>}
-      {measurementPending && <form className="measured-outcome-form" onSubmit={(event) => {
+      {measurementPending && !measurementWindowOpen && <div className="measurement-window-locked" role="status"><History size={18} /><span><strong>Measurement opens {Number.isFinite(reviewAt) ? new Date(reviewAt).toLocaleString() : "after a valid review date is restored"}</strong><small>Return with this decision link after the review window. The internal action remains active; Driftline will reject early measurements at the API boundary.</small></span></div>}
+      {measurementPending && measurementWindowOpen && <form className="measured-outcome-form" onSubmit={(event) => {
         event.preventDefault();
         onMeasuredOutcome({
           ...measurement,

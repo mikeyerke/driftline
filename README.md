@@ -51,12 +51,16 @@ against the precommitted thresholds, produces a learning receipt, and can
 reopen the same decision as the next generation while preserving its lineage.
 PMs can also choose **Use my decision** and submit a bounded, non-confidential
 decision question, current commitment, urgency, strongest upside signal, and
-strongest risk signal. `POST /api/decision-twin/intake` labels every resulting
+strongest risk signal before a second, progressive step binds the affected
+segment, owner, primary metric, risk metric, thresholds, and review window.
+`POST /api/decision-twin/intake` labels every resulting
 node `PM-provided context · unverified`, rejects extra or oversized fields, and
 never upgrades those notes to connected evidence. The same human gate produces
 a reversible measurement contract, while **Copy decision brief** exports the
 question, recommendation, decisive conflict, evidence labels, guardrail, and
-rollback path for an alignment doc or roadmap review.
+rollback path for an alignment doc or roadmap review. The manual-measurement API
+fails closed before the committed review timestamp; the UI exposes the exact
+opening time rather than accepting a premature result.
 The public fixture is deterministic and explicitly labeled; live council mode
 uses Gemini 3.5 Flash through Google ADK, and the optional BigQuery adapter reads
 only allowlisted aggregate metrics through parameterized, dry-run-checked,
