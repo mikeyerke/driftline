@@ -58,6 +58,8 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         if (cancelled) return;
         if (latest.status !== "experiment_active") {
           setDecisionCase(latest);
+          setSelectedId(latest.council.recommendation);
+          setApproverName("");
           setMonitoring(false);
           return;
         }

@@ -158,6 +158,7 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Run the decision workflow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'One approval starts the autonomous monitor · no second PM prompt' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Human approver' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'setSelectedId(latest.council.recommendation)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'PM-provided decisions never receive synthetic outcomes.' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Use my decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Build my decision brief' frontend/src/components/DecisionRoom.jsx \
