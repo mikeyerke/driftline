@@ -1,25 +1,24 @@
 # Driftline judge scorecard
 
-Fresh official-source audit: August 24, 2026. The Devpost website and official
+Fresh official-source audit: August 25, 2026. The Devpost website and official
 rules prevail over this working scorecard.
 
-## Verified baseline live release
+## Verified final live release
 
-- Git SHA: `1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`
-- Cloud Run revision: `driftline-00291-v89`, 100% traffic
-- Cloud Build: `154547e7-36ae-4eb2-a79a-35064e293191`
+- Public `main` Git SHA: `03ec8f12fc23d265c89b462a345a5b599a6411e8`
+- Cloud Run revision: `driftline-00305-xln`, 100% traffic
+- Cloud Build: `c01bec2e-a950-407c-873b-b1d4fdc6bae6`
 - Image digest:
-  `sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`
+  `sha256:fca505ce56c6bd933f9cde8d55ff1e4ea7f9cad099d6fe39e8bb8321c96ea6d3`
 - Public URL: https://driftline-ops.web.app/
-- PR #16: open and unmerged
-- GitHub Actions `32757068133`: backend, frontend, standalone image, and
+- PR #16: merged into public `main`
+- GitHub Actions `32923233214`: backend, frontend, standalone image, and
   repository hygiene passed
 - Local: full backend suite, Ruff, frontend build/contract, dependency audit,
   shell/diff hygiene, and 14/14 trace evaluation passed
 
-Final submission metadata must use `/health` and
-`./scripts/verify_production.sh` to capture the exact final candidate identity;
-the values above are the last historical baseline, not a floating claim.
+`/health`, Cloud Run, Artifact Registry, GitHub `main`, and the production
+verifier all resolved to the identity above on August 25.
 
 ## 40% — Innovation and operational utility
 
@@ -37,7 +36,7 @@ evidence violates the plan, while preserving why the earlier decision was made.
 
 ### Live proof
 
-Case `decision-onboarding-ca91c815d6629f4d5ff5acbd` proved:
+Case `decision-onboarding-75c4ca50b1faaab179a02b29` proved:
 
 - a provenance-preserving evidence graph with a live
   `bigquery-aggregate-attached` event and minimum cohort 84;
@@ -96,12 +95,9 @@ errors.
 
 - `verify_decision_twin.sh`: PASS — real `google_adk`, live BigQuery, human
   approval, outcome, complete lineage, generation 2.
-- `verify_live_agent.sh`: PASS — job `job-e253f458c786`, workflow
-  `6a507a68-0a14-498e-a368-332ff5aef4ff`, two allowlisted tools, four
-  artifacts, passing eval `eval-b00a339dfd10`.
-- `verify_public_approval_undo.sh`: PASS — job `job-0f7c269392a3`, workflow
-  `ef53b1b0-8483-4114-acde-4424bf2c1ce7`, owner action completed then
-  reversed, no external system changed.
+- `verify_live_agent.sh`: PASS — job `job-7afefad5be8f`, workflow
+  `39c1d422-70e2-4682-bce9-f7ba25d098e6`, two allowlisted tools, four
+  artifacts, passing eval `eval-1c74b1b36cb8`.
 - `verify_production.sh`: PASS — exact release identity, 100% traffic,
   max-one instance, zero recent errors.
 - `verify_trace_eval.sh`: PASS — 14/14, safety/usefulness/overall all 1.0.
@@ -115,8 +111,10 @@ and using jump cuts; the judging criterion asks for a live, unedited proof of
 action. Safest execution: edit intros/waits, but keep one continuous visible
 council → approval → outcome → reopen sequence tied to the same case.
 
-The final video, screenshots, and rendered Devpost form are not complete and
-must not be claimed as complete.
+Exact-release desktop/mobile screenshots, the Decision Twin architecture, and
+a three-minute 1080p captioned local review cut are complete. A continuous
+native browser take remains preferable, and no video is complete for submission
+until it has a public YouTube or Vimeo URL.
 
 ## Requirement checklist
 
@@ -130,7 +128,7 @@ must not be claimed as complete.
 | Hosted URL | Public Firebase facade to Cloud Run | Proven live |
 | Repository and spin-up instructions | Public repo and README | Proven |
 | Architecture diagram | Submission PNG/SVG assets | Prepared; final upload QA open |
-| Public demo under four minutes | Script/runbook/captions | Unproven until recorded and uploaded |
+| Public demo under four minutes | 3:00 1080p review cut, script, captions, and native-take runbook | Prepared locally; unproven until publicly uploaded |
 | SDK and start date answers | Google ADK; implementation repo began August 18 | Prepared; entrant must enter |
 | Originality/third-party disclosure | Earlier ideation/source package and dependencies disclosed | Prepared; entrant must confirm |
 | PM validation | Study kit and fail-closed summarizer | Unproven; no sessions |
@@ -138,15 +136,17 @@ must not be claimed as complete.
 
 ## Brutal win assessment
 
-- Innovation/utility today: 34/40. The loop is memorable and technically real;
+- Innovation/utility today: 36/40. The loop is memorable and technically real;
   missing independent PM evidence caps the value claim.
 - Architecture today: 29/30. This is the strongest lane: bounded authority,
   cost/privacy controls, crash recovery, exact release provenance, and real
   Google services.
-- Demo/readiness today: 23/30 before the final video and screenshots; 28–30 is
-  attainable with a fast, legible, truthful recording.
-- Overall current evidence: roughly 86/100. With a strong final video and honest
-  PM validation, 93–97 is defensible. Winning remains uncertain because judge
+- Demo/readiness today: 26/30 after exact-SHA desktop/mobile browser proof but
+  before the final public video; 29/30 is attainable with a fast, legible,
+  truthful recording.
+- Overall current evidence: roughly 91/100. With a strong final video, 94/100 is
+  defensible. Independent PM evidence is the remaining route toward 96–97.
+  Winning remains uncertain because judge
   preference and competing entries are unknowable.
 
 ## Ranked remaining work
@@ -155,7 +155,7 @@ must not be claimed as complete.
    pre-registered human-control and data-quality gates.
 2. Record the under-four-minute public demo from this verified release. Show the
    working product in the first 10–15 seconds and keep the core proof continuous.
-3. Capture final screenshots and confirm architecture/text remain legible.
+3. Approve the captured desktop/mobile screenshots and architecture asset.
 4. Fill the Devpost form with category, Google SDK, August 18 start date,
    disclosure, repo, hosted URL, architecture, and video.
 5. Read and explicitly accept the official rules, register, then separately

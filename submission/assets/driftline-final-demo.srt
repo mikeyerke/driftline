@@ -1,0 +1,44 @@
+1
+00:00:00,000 --> 00:00:15,000
+LIVE: https://driftline-ops.web.app/
+Contradictory evidence becomes a measurable decision loop.
+
+2
+00:00:15,000 --> 00:00:33,000
+Generation 1: five cited signals, five independent agents,
+and a BigQuery-vector precedent recommend a segmented rollout.
+
+3
+00:00:33,000 --> 00:00:55,000
+Google ADK specialists preserve customer, usage, strategy,
+feasibility, and challenger dissent—with source provenance.
+
+4
+00:00:55,000 --> 00:01:17,000
+Ship, rollback, segment, or defer: every response carries
+success criteria, a stop condition, and a rollback path.
+
+5
+00:01:17,000 --> 00:01:35,000
+Gemini recommends; a named human authorizes.
+The approval is bound to the exact evidence and synthesis hashes.
+
+6
+00:01:35,000 --> 00:02:00,000
+One approval starts Cloud Tasks—no second PM prompt.
+The measured enterprise guardrail invalidates the experiment.
+
+7
+00:02:00,000 --> 00:02:20,000
+Generation 2 reopens automatically with rollback recommended
+and selected; a fresh human approval is required.
+
+8
+00:02:20,000 --> 00:02:40,000
+The learning receipt preserves the original approval and outcome,
+plus 7/7 policy checks and complete decision lineage.
+
+9
+00:02:40,000 --> 00:03:00,000
+Vertex AI + Google ADK · Cloud Run + Firestore · BigQuery vector memory
+Cloud Tasks + Scheduler · exact public main 03ec8f12fc23

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8fbff"/><stop offset="1" stop-color="#eef4ff"/></linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b66e4"/><stop offset="1" stop-color="#173f9f"/></linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#17834f"/><stop offset="1" stop-color="#0e633b"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#17335c" flood-opacity=".11"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#3975c6"/></marker>
+    <style>
+      .title,.sub,.lane,.h,.b,.tiny,.coreh,.coreb,.pillt,.proof,.proof2{font-family:Helvetica,Arial,sans-serif}
+      .title{font-size:42px;font-weight:700;fill:#10213d}.sub{font-size:20px;font-weight:400;fill:#55657d}.lane{font-size:14px;font-weight:700;letter-spacing:1.6px;fill:#496483}
+      .h{font-size:20px;font-weight:700;fill:#122442}.b{font-size:15px;font-weight:400;fill:#53647b}.tiny{font-size:13px;font-weight:600;fill:#65758a}
+      .box{fill:#fff;stroke:#cfdbec;stroke-width:2;filter:url(#shadow)}.core{fill:url(#blue);stroke:#0b55c4;stroke-width:2;filter:url(#shadow)}
+      .outcome{fill:url(#green);stroke:#0d6840;stroke-width:2;filter:url(#shadow)}.coreh{font-size:20px;font-weight:700;fill:#fff}.coreb{font-size:15px;font-weight:400;fill:#e4efff}
+      .line{stroke:#3975c6;stroke-width:4;fill:none;marker-end:url(#arrow)}.loop{stroke:#17834f;stroke-width:4;fill:none;marker-end:url(#arrow)}
+      .pill{fill:#eef5ff;stroke:#bdd0ed}.pillt{font-size:13px;font-weight:700;fill:#244d88}.proof{font-size:15px;font-weight:700;fill:#dceaff}.proof2{font-size:14px;font-weight:400;fill:#bcd0ee}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <text x="70" y="72" class="title">Driftline Decision Twin · autonomous learning loop</text>
+  <text x="70" y="108" class="sub">Contradictory evidence becomes a reversible human experiment; the measured outcome can reopen the same decision.</text>
+  <text x="70" y="166" class="lane">1 · EVIDENCE</text><text x="375" y="166" class="lane">2 · INDEPENDENT COUNCIL</text><text x="710" y="166" class="lane">3 · HUMAN AUTHORITY</text><text x="1020" y="166" class="lane">4 · AUTONOMOUS MONITOR</text><text x="1320" y="166" class="lane">5 · LEARN</text>
+  <rect x="55" y="195" width="255" height="196" rx="18" class="box"/>
+  <text x="82" y="238" class="h">Bounded evidence</text><text x="82" y="274" class="b">BigQuery aggregate</text><text x="82" y="302" class="b">Privacy floor ≥ 25</text><text x="82" y="330" class="b">Redacted support + calls</text><text x="82" y="358" class="b">Source provenance</text>
+  <rect x="360" y="195" width="295" height="196" rx="18" class="core"/>
+  <text x="389" y="238" class="coreh">Google ADK council</text><text x="389" y="274" class="coreb">Gemini 3.5 Flash</text><text x="389" y="302" class="coreb">5 independent specialists</text><text x="389" y="330" class="coreb">Cited positions + dissent</text><text x="389" y="358" class="coreb">No mutation tools</text>
+  <rect x="705" y="195" width="265" height="196" rx="18" class="box"/>
+  <text x="733" y="238" class="h">Decision contract</text><text x="733" y="274" class="b">4 counterfactuals</text><text x="733" y="302" class="b">Success + stop conditions</text><text x="733" y="330" class="b">Evidence/synthesis hashes</text><text x="733" y="358" class="b">Named human approval</text>
+  <rect x="1015" y="195" width="265" height="196" rx="18" class="outcome"/>
+  <text x="1043" y="238" class="coreh">Cloud Tasks monitor</text><text x="1043" y="274" class="coreb">One approval starts it</text><text x="1043" y="302" class="coreb">No second PM prompt</text><text x="1043" y="330" class="coreb">Exact threshold evaluation</text><text x="1043" y="358" class="coreb">Idempotent outcome</text>
+  <rect x="1325" y="195" width="220" height="196" rx="18" class="box"/>
+  <text x="1353" y="238" class="h">Decision memory</text><text x="1353" y="274" class="b">Learning receipt</text><text x="1353" y="302" class="b">Generation 1 preserved</text><text x="1353" y="330" class="b">Generation 2 reopened</text><text x="1353" y="358" class="b">Fresh human gate</text>
+  <path d="M310 293 H350" class="line"/><path d="M655 293 H695" class="line"/><path d="M970 293 H1005" class="line"/><path d="M1280 293 H1315" class="loop"/>
+  <rect x="230" y="450" width="1140" height="116" rx="20" fill="#ffffff" stroke="#cbd9ed" stroke-width="2" filter="url(#shadow)"/>
+  <text x="270" y="490" class="h">Visible judge outcome</text>
+  <rect x="270" y="514" width="205" height="30" rx="15" class="pill"/><text x="291" y="534" class="pillt">Generation 1 · segment</text><path d="M490 529 H570" class="loop"/>
+  <rect x="585" y="514" width="220" height="30" rx="15" class="pill"/><text x="607" y="534" class="pillt">Guardrail · invalidated</text><path d="M820 529 H900" class="loop"/>
+  <rect x="915" y="514" width="230" height="30" rx="15" class="pill"/><text x="937" y="534" class="pillt">Generation 2 · rollback</text><text x="1168" y="534" class="tiny">7/7 policy checks</text>
+  <rect x="55" y="625" width="1490" height="182" rx="22" fill="#10213d"/>
+  <text x="90" y="672" class="coreh">Google Cloud production proof</text>
+  <text x="90" y="708" class="proof">Vertex AI + Google ADK</text><text x="90" y="735" class="proof2">Gemini council and bounded inspect tools</text>
+  <text x="410" y="708" class="proof">Cloud Run + Firestore</text><text x="410" y="735" class="proof2">API, cases, lineage, hashes, audit</text>
+  <text x="730" y="708" class="proof">BigQuery + vector memory</text><text x="730" y="735" class="proof2">Aggregate evidence and precedent retrieval</text>
+  <text x="1080" y="708" class="proof">Tasks + Scheduler</text><text x="1080" y="735" class="proof2">Durable outcomes, retries, cadence</text>
+  <text x="90" y="779" class="proof2">Cloud Build + Artifact Registry · revision driftline-00305-xln · public main 03ec8f12fc23 · 100% traffic · 0 recent errors</text>
+  <text x="70" y="855" class="tiny">Authority boundary: Gemini recommends from bounded evidence. Deterministic policy and a named human authorize action.</text>
+  <text x="1260" y="855" class="tiny">Taskmaster · All Things Agentic</text>
+</svg>
