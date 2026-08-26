@@ -5,8 +5,8 @@ but the commitment does not.
 
 2
 00:00:11,000 --> 00:00:27,000
-Five cited signals preserve source and segment,
-including a privacy-thresholded BigQuery aggregate.
+A continuous PM loop chains evidence, alignment, execution,
+outcome monitoring, and reusable memory.
 
 3
 00:00:27,000 --> 00:00:42,000
@@ -55,8 +55,8 @@ Google ADK + Gemini · BigQuery · Cloud Tasks
 
 12
 00:02:23,000 --> 00:02:36,000
-Seven deterministic checks cover provenance, independence,
-citations, falsifiability, human authority, and reopening.
+Ten deterministic checks cover provenance, independence,
+human authority, the operating loop, and calibrated memory.
 
 13
 00:02:36,000 --> 00:02:43,000
