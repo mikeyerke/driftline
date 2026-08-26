@@ -175,6 +175,7 @@ if ! node --check scripts/verify_custom_decision_browser.mjs >/dev/null \
   || ! check_frontend_literal 'CUSTOM_BROWSER_ALLOW_REMOTE' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'earlyMeasurementBlocked' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'conciseDistinctTitle' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'clearApprovalLabel' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'freshContextRestored' scripts/verify_custom_decision_browser.mjs; then
   printf 'Custom-decision browser gate lost its loopback, review-window, or fresh-context contract.\n' >&2
   exit 1

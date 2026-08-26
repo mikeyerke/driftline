@@ -76,7 +76,7 @@ try {
     await page.getByRole("button", { name: "Copy decision brief" }).click();
     await page.getByRole("button", { name: "Copied" }).waitFor();
     await page.getByLabel("Human approver").fill("Independent PM");
-    const approve = page.getByRole("button", { name: /^Approve / });
+    const approve = page.getByRole("button", { name: /^Approve:/ });
     const approvalLabel = await approve.innerText();
     await approve.click();
     await page.getByText(/Attach the real measurement when the review window closes/).waitFor();
@@ -113,6 +113,7 @@ try {
 
     results[name] = {
       approvalLabel,
+      clearApprovalLabel: approvalLabel === "Approve: Run a bounded test",
       conciseDistinctTitle: decisionTitle === "Mid-market admins decision review" && decisionTitle !== decisionQuestion.replace(/[ ?.]+$/, ""),
       opaqueCase: Boolean(caseId && /^[a-z0-9][a-z0-9_-]{2,100}$/.test(caseId)),
       pmProvidedVisible: body.includes("PM-provided context · unverified"),

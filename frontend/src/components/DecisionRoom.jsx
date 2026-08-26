@@ -430,7 +430,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const selectedOption = decisionCase.council.options.find((option) => option.option_id === selectedId);
   const recommendedOption = decisionCase.council.options.find((option) => option.option_id === decisionCase.council.recommendation);
   const councilVotes = new Set(decisionCase.council.positions.map((position) => position.recommendation)).size;
-  const approvalLabel = selectedId === "segment" && !isProvidedIntake ? "Approve segmented experiment" : `Approve ${optionTitle(decisionCase.council.options, selectedId).toLowerCase()}`;
+  const approvalLabel = selectedId === "segment" && !isProvidedIntake ? "Approve segmented experiment" : `Approve: ${optionTitle(decisionCase.council.options, selectedId)}`;
   return (
     <section className="decision-room" aria-labelledby="decision-room-title">
       <header className="decision-room-header">
