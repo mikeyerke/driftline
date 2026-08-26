@@ -58,6 +58,34 @@ continuity evidence than the static fallback, but it remains silent and
 unreleased. It is a repeatable candidate QA insert, not the final narrated
 public demo and not production proof.
 
+## Exact-current narrated rehearsal
+
+An additional local-only rehearsal was rebuilt from candidate commit
+`89d9ed62c6191f1d55ba54e690b93019cb57fd5c`. It does not replace the required
+post-release live take and has not been uploaded or published.
+
+- Presentation capture SHA-256:
+  `6cd9bdbbd9af71d46aca2226f481c766a6e32f7ff211f53b938bc63eab95d130`.
+- Narrated rehearsal SHA-256:
+  `8d69f24a62b29a17dcec0fbd9c5d8b3e75b949949cdf67fc4abc3436c4955705`.
+- Capture assertions: 500 state-change frames, seven visible pointer clicks,
+  generation 2 reopened, rollback selected, approver cleared, bounded action
+  rolled back, and external writes remained none.
+- Media checks: 178 seconds; H.264, 1920 × 1080, 30 fps, YUV420p; AAC,
+  48 kHz stereo; embedded English captions; 15,252,510 bytes.
+- Audio checks: -16.10 LUFS integrated loudness, -4.16 dBTP true peak, and
+  2.00 LU loudness range.
+- Black intervals detected: none.
+- Manual frame review at 68, 75, 90, and 135 seconds confirmed the named
+  approver state, generation-two rollback, bounded internal allocation,
+  **External writes: none**, and the permanent unreleased-candidate warning.
+
+This is the strongest current presentation rehearsal because it combines the
+continuous working flow, narration, captions, and the exact current candidate.
+It remains synthetic local evidence: it proves repeatability and presentation
+readiness, not production release, independent PM validation, or customer
+outcome.
+
 ## Release-gated replacement
 
 After the local candidate is explicitly authorized for release and exact-SHA
