@@ -229,6 +229,38 @@ until the exact candidate is released and the native browser journey is rerun.
   Winning remains uncertain because judge
   preference and competing entries are unknowable.
 
+## External winner-pattern benchmark
+
+The August 26 benchmark against the prior Google Cloud ADK winners did not
+identify another responsible feature to add. The grand-prize SalesShortcut
+entry paired a firsthand business problem with an unmistakable end-to-end
+action, explicit multi-agent patterns, a live system, human oversight, and
+public build-story bonuses. The North America winner Energy Agent AI paired
+deep domain credibility with a live, end-to-end path from evidence to business
+action. The EMEA winner Nexora made one technical breakthrough immediately
+legible and backed it with visible specialist roles, validation, security, and
+a live experience.
+
+Driftline now has the same judge-readable spine: a concrete PM problem, a
+visible evidence-to-action-to-outcome loop, specialist disagreement that a
+single chat response would hide, deterministic human authority, a public live
+experience, and exact-release proof. Its strongest differentiation is not the
+number of agents; it is the preserved dissent, falsifiable commitment, bounded
+action, measured receipt, and automatic generation-2 reopen.
+
+The benchmark therefore reinforces the existing priority order. A real PM
+using a current decision and a fast, continuous final demo add more credibility
+than another specialist, connector, dashboard, or speculative workflow. Until
+those exist, winner parity on implementation does not equal winner parity on
+independent usefulness proof.
+
+Reference projects:
+
+- https://devpost.com/software/salesshortcut
+- https://devpost.com/software/energy-agent-ai
+- https://devpost.com/software/teachai-upzofa
+- https://googlecloudmultiagents.devpost.com/updates/35783-and-the-winners-are
+
 ## Ranked remaining work
 
 1. Release and exact-SHA re-prove the bounded internal-action candidate, but
