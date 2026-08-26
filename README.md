@@ -601,7 +601,9 @@ cd frontend && npm run build
 cd ../backend && uv run --extra dev pytest
 ~~~
 
-The verified local suite also runs Ruff lint and format checks. For dependency
+The verified local suite also runs Ruff lint checks. Formatting is not a CI
+gate; do not describe `ruff format --check` as passing unless the current
+toolchain has been run explicitly. For dependency
 security, run `./scripts/verify_dependencies.sh` with `uv` and `pip-audit`
 installed; it exports the frozen backend lockfile and audits the complete
 transitive resolution without changing application dependencies. The current

@@ -12,6 +12,16 @@ frames. It is nevertheless built mostly from long static browser frames. That
 weakens the official proof-of-action story and cannot substitute for the
 continuous in-product approval → outcome → reopen take below.
 
+The repository includes `scripts/capture_decision_twin_candidate.mjs` as a
+local-only continuity rehearsal. With the local API on port 8080 and the Vite
+frontend on port 5173, it drives a fresh headless Chrome session through the
+actual generation-1 council, response comparison, named approval, measured
+outcome, internal-action rollback, and generation-2 reopen. The script fails
+unless generation 2 is present, rollback is selected, the approver is cleared,
+external writes remain none, and the action is visibly rolled back. It emits a
+silent 1280 × 720 H.264 proof clip; that clip is candidate QA and must not be
+described as deployed or used as the entrant's final narrated take.
+
 ## Capture setup
 
 - 1920×1080, 30 fps, browser zoom 100%, notifications off.
@@ -23,6 +33,10 @@ continuous in-product approval → outcome → reopen take below.
 - Do not record the candidate-only action narration until the serving release
   visibly contains the bounded allocation card and passes fresh release proof.
 - Rehearse the no-sign-in **Decision Twin** path twice without recording.
+- Optionally run the deterministic local continuity check twice before the
+  native take:
+  `node scripts/capture_decision_twin_candidate.mjs /tmp/driftline-proof.mp4`.
+  Inspect the result at 1×; passing state assertions do not prove legibility.
 - For a local-only rehearsal, set
   `DECISION_TWIN_AUTONOMOUS_MONITOR=true` while leaving Cloud Tasks disabled so
   the bounded background fallback exercises the same no-second-click timing.
