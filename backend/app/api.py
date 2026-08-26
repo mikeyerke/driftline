@@ -88,6 +88,7 @@ from .materiality import build_change_card, normalize_internal_context
 from .memory import build_memory_summary
 from .models import ActionItemStatus, JobState, WorkflowState, WorkflowStatus, utc_now
 from .multimodal import (
+    PUBLIC_ASSET_FAILURE_BACKOFF_SECONDS,
     MultimodalUnavailable,
     analyze_visual_evidence,
     get_visual_evidence,
@@ -6008,7 +6009,23 @@ def get_multimodal_asset(
     try:
         asset = visual_asset_bytes(asset_id, side, mode)
     except MultimodalUnavailable as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        detail = str(exc)
+        if detail in {
+            "visual_asset_fetch_failed",
+            "visual_asset_fetch_backoff",
+            "visual_asset_out_of_bounds",
+        }:
+            headers = (
+                {"Retry-After": str(PUBLIC_ASSET_FAILURE_BACKOFF_SECONDS)}
+                if detail == "visual_asset_fetch_backoff"
+                else None
+            )
+            raise HTTPException(
+                status_code=503,
+                detail=detail,
+                headers=headers,
+            ) from exc
+        raise HTTPException(status_code=404, detail=detail) from exc
     return Response(content=asset.body, media_type=asset.mime_type)
 
 
