@@ -16,6 +16,13 @@ higher score while preserving the prior debt cycle. This was real-click verified
 on desktop and at 390 × 844, but it is not present in the 2:58 rehearsal and must
 be captured in the exact-release final take before judges can score it.
 
+The later evidence-pack candidate adds a real-PM path for up to four additional
+redacted, direction-labelled sources and shows the resulting source breadth in
+the continuous loop. It was real-click verified through decision brief,
+full-evidence review, named approval, and scheduled measurement at desktop and
+390 px with no horizontal overflow. It is not present in the rehearsal and is
+not production proof.
+
 ## First-pass timeline
 
 | Time | Visible proof | Judge question answered |

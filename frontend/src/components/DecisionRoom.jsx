@@ -1,4 +1,4 @@
-import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Radar, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Plus, Radar, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, startDecisionTwin, startDecisionTwinIntake } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
@@ -67,6 +67,7 @@ const emptyIntake = {
   urgency: "",
   positive_signal: "",
   risk_signal: "",
+  evidence_inputs: [],
   affected_segment: "",
   primary_metric: "",
   risk_metric: "",
@@ -199,6 +200,37 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     }
   };
 
+  const addEvidenceInput = () => {
+    if (intake.evidence_inputs.length >= 4) return;
+    setIntake({
+      ...intake,
+      evidence_inputs: [...intake.evidence_inputs, {
+        source_type: "customer",
+        source_label: "",
+        title: "",
+        observation: "",
+        observed_on: "",
+        stance: "supports",
+      }],
+    });
+  };
+
+  const updateEvidenceInput = (index, field, value) => {
+    setIntake({
+      ...intake,
+      evidence_inputs: intake.evidence_inputs.map((item, itemIndex) => (
+        itemIndex === index ? { ...item, [field]: value } : item
+      )),
+    });
+  };
+
+  const removeEvidenceInput = (index) => {
+    setIntake({
+      ...intake,
+      evidence_inputs: intake.evidence_inputs.filter((_, itemIndex) => itemIndex !== index),
+    });
+  };
+
   const submitIntake = async (event) => {
     event.preventDefault();
     if (intakeStep === 1) {
@@ -230,6 +262,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         urgency: intake.urgency,
         positive_signal: intake.positive_signal,
         risk_signal: intake.risk_signal,
+        evidence_inputs: intake.evidence_inputs,
         affected_segment: intake.affected_segment,
         measurement_contract: {
           primary_metric: intake.primary_metric,
@@ -427,6 +460,24 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <label><span>Why now</span><textarea required minLength="12" maxLength="320" rows="3" value={intake.urgency} onChange={(event) => setIntake({ ...intake, urgency: event.target.value })} placeholder="Sales has committed the date and the allocation decision is due Friday." /></label>
           <label><span>Strongest signal in favor</span><textarea required minLength="12" maxLength="500" rows="3" value={intake.positive_signal} onChange={(event) => setIntake({ ...intake, positive_signal: event.target.value })} placeholder="Beta users complete the core workflow faster and renewal intent improved." /></label>
           <label><span>Strongest risk signal</span><textarea required minLength="12" maxLength="500" rows="3" value={intake.risk_signal} onChange={(event) => setIntake({ ...intake, risk_signal: event.target.value })} placeholder="Admins report permission confusion and support volume is rising." /></label>
+          <fieldset className="decision-evidence-pack">
+            <legend>Corroborating evidence pack <small>Optional · up to four redacted observations</small></legend>
+            <div className="decision-evidence-pack-intro">
+              <p>Add signals from research, support, analytics, or the product surface. Driftline preserves each source and its direction instead of flattening them into one note.</p>
+              <button className="secondary" type="button" onClick={addEvidenceInput} disabled={intake.evidence_inputs.length >= 4}><Plus size={15} />Add source</button>
+            </div>
+            {intake.evidence_inputs.length === 0 && <div className="decision-evidence-pack-empty"><Database size={18} /><span>The two strongest signals above are enough to continue. Add sources when you want a decision packet that can be independently challenged.</span></div>}
+            {intake.evidence_inputs.map((evidence, index) => <article className="decision-evidence-input" key={`evidence-${index}`}>
+              <header><strong>Source {index + 1}</strong><button type="button" className="icon-button" aria-label={`Remove source ${index + 1}`} onClick={() => removeEvidenceInput(index)}><Trash2 size={15} /></button></header>
+              <label><span>Source type</span><select value={evidence.source_type} onChange={(event) => updateEvidenceInput(index, "source_type", event.target.value)}><option value="customer">Customer research</option><option value="support">Support signal</option><option value="metric">Product analytics</option><option value="image">Product surface</option></select></label>
+              <label><span>Direction</span><select value={evidence.stance} onChange={(event) => updateEvidenceInput(index, "stance", event.target.value)}><option value="supports">Supports the commitment</option><option value="contradicts">Contradicts the commitment</option></select></label>
+              <label><span>Source label</span><input required minLength="2" maxLength="100" value={evidence.source_label} onChange={(event) => updateEvidenceInput(index, "source_label", event.target.value)} placeholder="Q3 onboarding interviews" /></label>
+              <label><span>Observed on</span><input required type="date" value={evidence.observed_on} onChange={(event) => updateEvidenceInput(index, "observed_on", event.target.value)} /></label>
+              <label><span>Observation title</span><input required minLength="2" maxLength="120" value={evidence.title} onChange={(event) => updateEvidenceInput(index, "title", event.target.value)} placeholder="Admins hesitate at role setup" /></label>
+              <label className="decision-intake-wide"><span>Redacted observation</span><textarea required minLength="12" maxLength="600" rows="2" value={evidence.observation} onChange={(event) => updateEvidenceInput(index, "observation", event.target.value)} placeholder="Three of five interviewed admins could not predict which permissions a new role would inherit." /></label>
+            </article>)}
+            <small className="decision-evidence-pack-disclosure"><ShieldCheck size={13} />Do not paste names, transcripts, credentials, account IDs, or raw customer records. Every added source remains PM-provided and unverified.</small>
+          </fieldset>
           <div className="decision-intake-submit"><div><ShieldCheck size={15} /><span>Use non-confidential context. Every note remains PM-provided and unverified.</span></div><button className="primary" type="submit"><ArrowRight size={17} />Continue to operating contract</button></div>
         </> : <>
           <fieldset className="decision-intake-contract">

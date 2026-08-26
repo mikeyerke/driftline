@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from app.decision_twin import (
+    PMEvidenceInput,
     PMMeasurementContract,
     approve_decision_case,
     attach_aggregate_metrics,
@@ -168,3 +169,49 @@ def test_connected_aggregate_is_distinguished_from_replayable_evidence() -> None
     assert analytics.mode == "connected_observed"
     assert analytics.status == "changed"
     assert analytics.confidence > 0.9
+
+
+def test_pm_evidence_pack_preserves_sources_stance_and_unverified_custody() -> None:
+    case = build_intake_decision_case(
+        case_id="decision-intake-evidence-pack",
+        question="Should we expand the beta to all enterprise workspaces?",
+        current_commitment="Expand the beta to all enterprise workspaces next Friday.",
+        urgency="The launch review is in seven days.",
+        positive_signal="Two beta customers completed setup faster.",
+        risk_signal="One admin reported a role-permission regression.",
+        affected_segment="Enterprise administrators",
+        measurement_contract=_measurement_contract(),
+        evidence_inputs=[
+            PMEvidenceInput(
+                source_type="metric",
+                source_label="BigQuery activation dashboard",
+                title="Enterprise completion declined",
+                observation="Enterprise workspace completion declined after the beta exposure.",
+                observed_on="2026-08-24",
+                stance="contradicts",
+            ),
+            PMEvidenceInput(
+                source_type="customer",
+                source_label="Redacted onboarding interviews",
+                title="Small teams finished sooner",
+                observation="Four redacted small-team interviews reported faster initial setup.",
+                observed_on="2026-08-23",
+                stance="supports",
+            ),
+        ],
+    )
+
+    validate_ids = {node.node_id for node in case.evidence_nodes}
+    assert len(case.evidence_nodes) == 5
+    assert {edge.source_id for edge in case.evidence_edges} <= validate_ids
+    assert any(
+        edge.source_id == "corroborating-source-1"
+        and edge.relation == "contradicts"
+        for edge in case.evidence_edges
+    )
+    sources = case.operating_loop.evidence_harvest.sources
+    assert all(source.mode == "pm_provided_unverified" for source in sources)
+    assert any(source.channel == "product_analytics" for source in sources)
+    assert "product_analytics" not in case.operating_loop.evidence_harvest.missing_channels
+    assert "corroborating-source-2" in case.council.positions[0].supporting_node_ids
+    assert "corroborating-source-1" in case.council.positions[0].contradicting_node_ids

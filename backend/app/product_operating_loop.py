@@ -177,12 +177,12 @@ _ROLE_LABELS = {
 
 def _source_mode(label: str) -> SourceMode:
     normalized = label.casefold()
+    if "pm-provided" in normalized:
+        return "pm_provided_unverified"
     if "fixture" in normalized or "demo" in normalized:
         return "pinned_demo_evidence"
     if "bigquery" in normalized or "observed snapshot" in normalized:
         return "connected_observed"
-    if "pm-provided" in normalized:
-        return "pm_provided_unverified"
     if "precedent" in normalized:
         return "bounded_precedent"
     return "pinned_demo_evidence"
