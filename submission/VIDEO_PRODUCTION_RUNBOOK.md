@@ -143,7 +143,9 @@ see that the result came from the visible action in the same workflow.
   `scripts/render_final_demo_review_sheet.sh VIDEO.mp4 MANIFEST.json REVIEW.png`.
   Inspect the 1920×1080 sheet at original resolution. Its fixed order is named
   approval, action receipt, generation-2 reopen, and visible Google Cloud
-  proof. Reject the take if any panel fails its label.
+  proof. The renderer rejects zeroed, out-of-order, late, or out-of-bounds
+  manifest timestamps and burns each proof label into the image. Reject the
+  take if any panel fails its label.
 
 ## Take log
 

@@ -46,6 +46,7 @@ for file in \
   submission/assets/driftline-final-rehearsal.srt \
   submission/assets/driftline-final-take.srt \
   submission/assets/driftline-final-rehearsal-watermark.svg \
+  submission/assets/final-demo-review-sheet-labels.svg \
   submission/assets/driftline-final-rehearsal-caption-overlays.svg \
   submission/assets/ASSET_REVIEW.md \
   submission/assets/driftline-decision-twin-final.srt \
@@ -77,6 +78,13 @@ require_text scripts/render_final_demo_review_sheet.sh 'NAMED HUMAN APPROVAL'
 require_text scripts/render_final_demo_review_sheet.sh 'BOUNDED ACTION RECEIPT'
 require_text scripts/render_final_demo_review_sheet.sh 'GENERATION 2 REOPEN'
 require_text scripts/render_final_demo_review_sheet.sh 'VISIBLE GOOGLE CLOUD PROOF'
+require_text scripts/capture_decision_twin_candidate.mjs 'Could not show the generation-2 learning receipt in the capture'
+require_text scripts/render_final_demo_review_sheet.sh 'approval must be between 60 and 100 seconds'
+require_text scripts/render_final_demo_review_sheet.sh 'generation 2 must follow receipt by 140 seconds'
+require_text submission/assets/final-demo-review-sheet-labels.svg 'NAMED HUMAN APPROVAL'
+require_text submission/assets/final-demo-review-sheet-labels.svg 'BOUNDED ACTION RECEIPT'
+require_text submission/assets/final-demo-review-sheet-labels.svg 'GENERATION 2 REOPEN'
+require_text submission/assets/final-demo-review-sheet-labels.svg 'VISIBLE GOOGLE CLOUD PROOF'
 require_text scripts/verify_final_demo_package.sh 'External writes: none'
 require_text scripts/verify_final_demo_package.sh 'google_cloud_proof_type'
 require_text scripts/verify_final_demo_package.sh 'Google Cloud proof must begin at least ten seconds before the video ends'

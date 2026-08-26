@@ -434,7 +434,7 @@ try {
   );
   await clickAt(approverCenter);
   await client.send("Input.insertText", { text: "Mike E." });
-  await hold(900, 8_000);
+  await hold(900, 11_000);
   await waitFor(
     `[...document.querySelectorAll('button')].some(
       (node) => node.textContent.includes('Approve segmented experiment') &&
@@ -462,6 +462,17 @@ try {
     "generation 2 reopen",
     8_000,
   );
+
+  const receiptVisible = await evaluate(`(() => {
+    const target = document.querySelector('.learning-receipt');
+    if (!target) return false;
+    target.scrollIntoView({ behavior: 'instant', block: 'start' });
+    scrollBy({ top: -160, behavior: 'instant' });
+    return true;
+  })()`);
+  if (!receiptVisible) {
+    throw new Error("Could not show the generation-2 learning receipt in the capture");
+  }
   await hold(1_600, 15_000);
 
   await evaluate(`(() => {
