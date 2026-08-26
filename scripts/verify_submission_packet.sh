@@ -25,6 +25,7 @@ for file in \
   scripts/build_candidate_rehearsal.sh \
   scripts/summarize_real_pm_pilot.py \
   scripts/verify_release_candidate_local.sh \
+  docs/REAL_PM_CUSTOMER_SPRINT.md \
   docs/validation/real-pm-pilot-template.json \
   submission/assets/driftline-candidate-rehearsal-narration.txt \
   submission/assets/driftline-candidate-rehearsal-overlays.svg \
@@ -47,6 +48,8 @@ require_text scripts/verify_release_candidate_local.sh 'refs/heads/$release_ref'
 require_text scripts/summarize_real_pm_pilot.py 'unexpected fields are forbidden to reduce identity/raw-data risk'
 require_text scripts/summarize_real_pm_pilot.py 'not a customer'
 require_text scripts/summarize_real_pm_pilot.py 'No public pilot statement is authorized.'
+require_text docs/REAL_PM_CUSTOMER_SPRINT.md 'A paid'
+require_text docs/REAL_PM_CUSTOMER_SPRINT.md 'It should never send a message'
 require_text README.md 'exactly equals the'
 require_text docs/STATUS.md '## Unreleased candidate custody'
 require_text submission/REMOTE_CHECKLIST.md 'Nothing here authorizes a push, merge, Cloud'

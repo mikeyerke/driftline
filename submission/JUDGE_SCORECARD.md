@@ -226,9 +226,10 @@ until the exact candidate is released and the native browser journey is rerun.
 
 1. Release and exact-SHA re-prove the bounded internal-action candidate, but
    only after explicit publication authorization.
-2. Run at least three genuine PM sessions; six to eight is stronger. Publish
-   only anonymized aggregates that pass the pre-registered human-control and
-   data-quality gates.
+2. Run the [real-PM customer sprint](../docs/REAL_PM_CUSTOMER_SPRINT.md). One
+   qualified session can support a bounded independent-PM statement; three
+   genuine sessions are materially stronger. Publish only anonymized aggregates
+   that pass the pre-registered human-control and data-quality gates.
 3. Record the under-four-minute public demo from the verified release. Show the
    working product in the first 10–15 seconds and keep the core proof continuous.
 4. Approve the captured desktop/mobile screenshots and architecture asset.
