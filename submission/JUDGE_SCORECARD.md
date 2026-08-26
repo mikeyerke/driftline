@@ -205,7 +205,7 @@ until the exact candidate is released and the native browser journey is rerun.
 | Hosted URL | Public Firebase facade to Cloud Run | Proven live |
 | Repository and spin-up instructions | Public repo and README | Proven |
 | Architecture diagram | 1600×900 PNG/SVG plus checksum-bound full-resolution review | Prepared; local asset QA complete, entrant upload open |
-| Public demo under four minutes | 3:00 1080p review cut, 31.17s continuous visible-click candidate proof, script, captions, and native-take runbook | Prepared locally; unproven until publicly uploaded |
+| Public demo under four minutes | 3:00 review cut, 31.17s continuity proof, and a 2:58 1080p real-click long-form candidate rehearsal with burned and embedded captions | Prepared locally; exact-release final take and public upload remain unproven |
 | SDK and start date answers | Google ADK; implementation repo began August 18 | Prepared; entrant must enter |
 | Originality/third-party disclosure | Earlier ideation/source package and dependencies disclosed | Prepared; entrant must confirm |
 | PM validation | Study kit and fail-closed summarizer | Unproven; no sessions |

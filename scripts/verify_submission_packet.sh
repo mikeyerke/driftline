@@ -23,6 +23,7 @@ for file in \
   submission/JUDGE_SCORECARD.md \
   submission/final-demo-manifest.template.json \
   docs/JUDGE_SCORECARD.md \
+  scripts/build_final_demo_rehearsal.sh \
   scripts/build_candidate_rehearsal.sh \
   scripts/verify_final_demo_package.sh \
   scripts/summarize_real_pm_pilot.py \
@@ -31,6 +32,10 @@ for file in \
   docs/validation/real-pm-pilot-template.json \
   submission/assets/driftline-candidate-rehearsal-narration.txt \
   submission/assets/driftline-candidate-rehearsal-overlays.svg \
+  submission/assets/driftline-final-rehearsal-narration.txt \
+  submission/assets/driftline-final-rehearsal.srt \
+  submission/assets/driftline-final-rehearsal-watermark.svg \
+  submission/assets/driftline-final-rehearsal-caption-overlays.svg \
   submission/assets/ASSET_REVIEW.md \
   submission/assets/driftline-decision-twin-final.srt \
   submission/assets/driftline-decision-twin-candidate-architecture.svg \
@@ -58,7 +63,10 @@ require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_EXPECT_ACTION'
 require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_FINAL_SCREENSHOT'
 require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_EXPECT_RELEASE_SHA'
 require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_EXPECT_BUILD_ID'
+require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_PRESENTATION_MODE'
 require_text scripts/capture_decision_twin_candidate.mjs 'current-release decision-loop proof'
+require_text scripts/build_final_demo_rehearsal.sh 'continuous browser proof'
+require_text submission/assets/driftline-final-rehearsal-watermark.svg 'UNRELEASED LOCAL CANDIDATE'
 require_text scripts/summarize_real_pm_pilot.py 'unexpected fields are forbidden to reduce identity/raw-data risk'
 require_text scripts/summarize_real_pm_pilot.py 'not a customer'
 require_text scripts/summarize_real_pm_pilot.py 'No public pilot statement is authorized.'
@@ -90,6 +98,8 @@ require_text submission/assets/driftline-decision-twin-architecture.svg 'Firebas
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'Firebase → Cloud Run + Firestore'
 require_text submission/assets/driftline-candidate-rehearsal-overlays.svg 'UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION'
 require_text submission/assets/driftline-candidate-rehearsal-narration.txt 'not production proof'
+require_text submission/assets/driftline-final-rehearsal-narration.txt 'not production proof'
+require_text submission/assets/driftline-final-rehearsal-caption-overlays.svg 'External writes: none'
 
 if rg -Fq -- 'submission/assets/driftline-architecture.png' devpost-submission.md; then
   fail "form packet still points at the historical architecture diagram"

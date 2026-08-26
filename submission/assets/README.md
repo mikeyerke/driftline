@@ -53,6 +53,16 @@ written for a caption-led demo so no likeness is synthesized.
   `scripts/build_candidate_rehearsal.sh`. The result is permanently watermarked
   **UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION** and must not be submitted as
   live proof.
+- `driftline-final-rehearsal-narration.txt`,
+  `driftline-final-rehearsal.srt`,
+  `driftline-final-rehearsal-watermark.svg`, and
+  `driftline-final-rehearsal-caption-overlays.svg`: the exact 2:58 long-form
+  rehearsal package. `CAPTURE_PRESENTATION_MODE=true` produces a judge-paced,
+  real-click browser source; `scripts/build_final_demo_rehearsal.sh` upscales
+  it to 1080p, adds reference narration, burns the critical captions into the
+  picture, embeds the English caption track, and permanently marks it as an
+  unreleased local candidate. The generated presentation source and final MP4
+  are ignored and must never be submitted as production proof.
 - `driftline-final-demo-candidate.mp4`: 3:40 local fallback that mixes candidate
   screens with pre-candidate release narration. Do not submit it; its custody
   language is intentionally superseded by the watermarked rehearsal above.

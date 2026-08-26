@@ -20,6 +20,7 @@ const captureWidth = Number(process.env.CAPTURE_WIDTH || "1280");
 const captureHeight = Number(process.env.CAPTURE_HEIGHT || "720");
 const captureWaitMs = Number(process.env.CAPTURE_WAIT_MS || "12000");
 const captureExpectAction = process.env.CAPTURE_EXPECT_ACTION !== "false";
+const presentationMode = process.env.CAPTURE_PRESENTATION_MODE === "true";
 const expectedReleaseSha = process.env.CAPTURE_EXPECT_RELEASE_SHA || null;
 const expectedBuildId = process.env.CAPTURE_EXPECT_BUILD_ID || null;
 if (
@@ -42,6 +43,8 @@ await mkdir(framesDir, { recursive: true });
 
 const sleep = (milliseconds) =>
   new Promise((resolveSleep) => setTimeout(resolveSleep, milliseconds));
+const hold = (standardMilliseconds, presentationMilliseconds) =>
+  sleep(presentationMode ? presentationMilliseconds : standardMilliseconds);
 
 let releaseIdentity = null;
 if (expectedReleaseSha || expectedBuildId) {
@@ -407,23 +410,23 @@ try {
     everyNthFrame: 1,
   });
 
-  await sleep(1_000);
+  await hold(1_000, 4_000);
   await clickButton("Run the decision workflow");
   await waitFor(
     `document.body.innerText.toLowerCase().includes('council recommendation')`,
     "generation 1 council",
   );
-  await sleep(1_200);
+  await hold(1_200, 12_000);
 
   await clickSummary("Open full evidence");
-  await sleep(1_400);
+  await hold(1_400, 12_000);
 
   await clickRadio("Ship to every workspace");
-  await sleep(850);
+  await hold(850, 6_000);
   await clickRadio("Roll back globally");
-  await sleep(850);
+  await hold(850, 6_000);
   await clickRadio("Segment the rollout");
-  await sleep(1_000);
+  await hold(1_000, 7_000);
 
   const approverCenter = await targetCenter(
     `document.querySelector('input[placeholder="Your name"]')`,
@@ -431,7 +434,7 @@ try {
   );
   await clickAt(approverCenter);
   await client.send("Input.insertText", { text: "Mike E." });
-  await sleep(900);
+  await hold(900, 8_000);
   await waitFor(
     `[...document.querySelectorAll('button')].some(
       (node) => node.textContent.includes('Approve segmented experiment') &&
@@ -459,7 +462,7 @@ try {
     "generation 2 reopen",
     8_000,
   );
-  await sleep(1_600);
+  await hold(1_600, 15_000);
 
   await evaluate(`(() => {
     const target = [...document.querySelectorAll('[role="radio"]')].find(
@@ -467,7 +470,7 @@ try {
     );
     target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   })()`);
-  await sleep(1_300);
+  await hold(1_300, 8_000);
 
   const finalState = await evaluate(`(() => {
     const rollback = [...document.querySelectorAll('[role="radio"]')].find(
@@ -534,7 +537,7 @@ try {
   }
 
   await evaluate(`scrollTo({ top: 0, behavior: 'smooth' })`);
-  await sleep(1_200);
+  await hold(1_200, 5_000);
   await client.send("Page.stopScreencast");
   await writeChain;
 
@@ -547,7 +550,13 @@ try {
     const frame = frames[index];
     const nextFrame = frames[index + 1];
     const duration = nextFrame
-      ? Math.max(0.033, Math.min(2, nextFrame.timestamp - frame.timestamp))
+      ? Math.max(
+          0.033,
+          Math.min(
+            presentationMode ? 20 : 2,
+            nextFrame.timestamp - frame.timestamp,
+          ),
+        )
       : 1.2;
     concatLines.push(`file '${quotedConcatPath(frame.path)}'`);
     concatLines.push(`duration ${duration.toFixed(4)}`);
@@ -603,6 +612,7 @@ try {
         finalState,
         finalScreenshot: finalScreenshotPath,
         viewport: `${captureWidth}x${captureHeight}`,
+        presentationMode,
         releaseIdentity,
         label: captureExpectAction
           ? "local unreleased candidate proof"
