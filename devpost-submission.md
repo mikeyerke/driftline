@@ -1,8 +1,9 @@
 # Driftline — Devpost submission packet
 
-Status: form-ready except for the entrant-owned public video/social URLs and
-registration answers called out below. Do not submit until the entrant reviews
-the rendered Devpost project and explicitly confirms the final action.
+Status: draft-ready, not release-ready or form-ready. The local candidate must
+be released and reverified before its behavior can be presented as live; the
+entrant-owned public video and registration answers also remain open. Do not
+publish or submit without explicit entrant approval.
 
 ## Core fields
 
@@ -22,7 +23,7 @@ the rendered Devpost project and explicitly confirms the final action.
 | Google Cloud services | Cloud Run; Firestore; BigQuery |
 | Additional Google Cloud services described in entry | Vertex AI; Cloud Tasks; Cloud Scheduler; Cloud Storage; Secret Manager; Cloud Build; Artifact Registry |
 | Model | Gemini 3.5 Flash via Vertex AI |
-| Architecture upload | `submission/assets/driftline-architecture.png` |
+| Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |
 | Demo video | **ENTRANT TODO:** public YouTube or Vimeo URL, 4:00 maximum |
 | Bonus build content | https://github.com/mikeyerke/driftline/blob/main/submission/BUILD_STORY.md |
 | Social post | **ENTRANT TODO:** publish an approved draft from `submission/SOCIAL_POST_DRAFTS.md` and paste the public URL |
@@ -59,118 +60,20 @@ story fields. It contains the inspiration, product behavior, Google technology,
 architecture and safety boundaries, challenges, accomplishments, data-source
 disclosure, learnings, testing instructions, and next steps.
 
-## Problem, solution, and why it matters
+## Custody and verification
 
-**Problem:** A pricing or positioning change can make comparison pages,
-battlecards, deal-desk rules, and executive briefs stale at once. Alerts expose
-the change but leave the consequential coordination and accountability to
-people.
+The authoritative narrative, current production identity, testing path, Google
+Cloud architecture, safety boundaries, and disclosure live in
+[`submission/DEVPOST.md`](submission/DEVPOST.md). Do not duplicate those fields
+from older drafts. At this checkpoint, production is the release identified in
+that file; the internal-allocation card and authored custom measurement
+contract remain an unreleased local candidate.
 
-**Solution:** Driftline creates immutable evidence, uses Gemini through ADK to
-map affected work and draft bounded options, enforces deterministic approval,
-then creates evidence-linked owner action with durable audit and rollback.
-
-**Why it matters:** The valuable unit is not another notification or answer. It
-is a safe, accountable transition from observed change to completed work.
-
-## AI use
-
-Gemini 3.5 Flash on Vertex AI performs structured evidence interpretation,
-impact analysis, and Decision Copilot drafting. Google ADK coordinates two
-allowlisted read/inspect tools. The model has no approval tool and cannot widen
-source, tenant, connector, or action scope. Pydantic schemas, evidence-hash
-checks, materiality rules, allowlists, approval policy, idempotency, tenant
-membership, and rollback semantics remain deterministic code.
-
-## Key features
-
-- Bounded source registry with cadence and freshness health
-- Immutable before/after evidence and full SHA-256 provenance
-- Durable Cloud Tasks jobs and Firestore workflow recovery
-- Crash-safe operation claims and explicit same-ID reconciliation
-- Gemini impact mapping across four named owner surfaces
-- Evidence-cited decision options with tradeoffs and rollback
-- Deterministic human approval outside model authority
-- Public packet-safe evaluation without credentials
-- Signed, tenant-scoped Jira create/reactivate/reverse proof
-- Idempotent action reuse and append-only reversal history
-- Fourteen-case trace evaluation for safety and usefulness
-
-## Architecture
-
-The browser and API run on Cloud Run. Cloud Tasks dispatches asynchronous ADK
-work. Gemini 3.5 Flash on Vertex AI interprets allowlisted evidence through two
-read-only tools. Deterministic policy validates identity, evidence, scope, and
-approval before either the credential-free packet lane or the authenticated
-Jira lane can act. Firestore persists jobs, workflows, traces, action state, and
-audit history; Secret Manager holds tenant-scoped connector credentials. The
-upload-ready diagram is
-[`submission/assets/driftline-architecture.png`](submission/assets/driftline-architecture.png).
-
-## Reproducible testing instructions
-
-1. Open https://driftline-ops.web.app/ while logged out.
-2. Leave **Competitor pricing snapshot** selected and click **Run live agent**.
-3. Wait for **Human approval required**.
-4. Inspect **Evidence diff**, **Open evidence**, **Agent trace**, the impact map,
-   and an artifact detail row.
-5. Select an option and click **Approve action plan**.
-6. Open the packet and activity history. Confirm the public lane states
-   `External systems changed: No`.
-7. Click **Reopen decision** and confirm reversed owner-action history and a
-   return to the approval gate.
-8. Open `/health` and `/api/ops/summary` to verify the serving SHA, build,
-   model, persistence, async jobs, policy, and source-health posture.
-
-Repository verification:
-
-```bash
-cd backend
-uv sync --locked --extra dev
-uv run ruff check .
-uv run pytest -q
-cd ..
-./scripts/verify_trace_eval.sh
-cd frontend
-npm ci
-npm run build
-cd ..
-./scripts/verify_frontend_contract.sh
-./scripts/verify_live_agent.sh
-./scripts/verify_public_approval_undo.sh
-```
-
-## Demo and screenshot plan
-
-Use [`submission/DEMO_SCRIPT.md`](submission/DEMO_SCRIPT.md) as the 3:45
-recording script. Required sequence: live hook, scan, evidence/hash, impact map,
-deterministic gate, signed Jira action and reversal, visible Cloud proof,
-architecture close. Suggested stills are documented in
-[`submission/assets/README.md`](submission/assets/README.md).
-
-## Truthful proof and disclosure
-
-The August 24 verified baseline release served Git SHA
-`1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6` on Cloud Run revision
-`driftline-00291-v89` from Cloud Build
-`154547e7-36ae-4eb2-a79a-35064e293191`, with the same SHA exposed through
-`/health` and immutable image digest
-`sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`
-(verified August 24, 2026). Final submission metadata must use the identity
-returned by `/health` and `./scripts/verify_production.sh` for the final
-candidate. The live Decision Twin proof preserved five cited
-ADK roles and `ship`/`segment`/`defer` disagreement, attached real BigQuery
-aggregate evidence, required named-human approval, evaluated an outcome, and
-reopened generation 2 with prior approval/experiment lineage intact. In the
-signed operator lane, a hosted
-Gemini/ADK workflow reached approval, reactivated Jira marker `KAN-19`, and then
-reversed only Driftline-owned state; both operations returned HTTP 200. This is
-engineering proof from an isolated project, not customer outcome or ROI proof.
-
-Implementation began August 18, 2026 during the contest period. Earlier product
-ideation and a source package are disclosed and are not presented as
-contest-period implementation. The project uses the open-source dependencies
-identified in its lockfiles and repository notices.
+Use [`submission/DEMO_SCRIPT.md`](submission/DEMO_SCRIPT.md) for the final
+continuous recording and [`submission/assets/README.md`](submission/assets/README.md)
+for approved media custody. The final take is invalid unless public `main`,
+`/health`, Cloud Run, Cloud Build, the image digest, live trace, and browser
+proof all resolve to the same released candidate.
 
 ## Entrant-owned finalization
 

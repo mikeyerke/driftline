@@ -99,6 +99,7 @@ jobs:
           for script in scripts/*.sh; do
             bash -n "$script"
           done
+          ./scripts/verify_submission_packet.sh
           git diff --check
           if git ls-files | grep -E '(^|/)\.env(\.|$)' | grep -vE '(^|/)\.env\.example$'; then
             echo 'Tracked environment files other than .env.example are forbidden.' >&2

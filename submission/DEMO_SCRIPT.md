@@ -97,10 +97,15 @@ measurable, auditable learning loop: evidence, dissent, decision, outcome.”
 ## Recording gates
 
 - Serving `/health` SHA equals the release commit.
-- Final candidate identity is public `main`
+- Current verified release identity is public `main`
   `03ec8f12fc23d265c89b462a345a5b599a6411e8`, Cloud Run
   `driftline-00305-xln`, and Cloud Build
-  `c01bec2e-a950-407c-873b-b1d4fdc6bae6`.
+  `c01bec2e-a950-407c-873b-b1d4fdc6bae6`. This is the pre-candidate release,
+  not the identity to show in the final candidate recording.
+- Before the final recording, replace those three values with the released
+  candidate commit, revision, and build. Reject the take unless public `main`,
+  `/health`, Cloud Run, Cloud Build, and the image digest all resolve to that
+  same exact candidate.
 - `./scripts/release_and_verify.sh` passes against the public URL. This refreshes
   the release-bound live trace before checking the Decision Twin and production
   proof surfaces, so the architecture disclosure must show a verified gate.
