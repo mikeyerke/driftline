@@ -83,24 +83,25 @@ The following are deliberately not claimed:
 - a public visitor writing to Jira or any other external system;
 - a completed customer pilot.
 
-## Unreleased candidate custody
+## Unreleased public-main candidate custody
 
-The current isolated worktree on
-`codex/driftline-submission-custody-20260825` is ahead of the public repository
-and is not deployed. It adds the PM-authored two-metric operating contract,
+Public `main` now contains the PM-authored two-metric operating contract,
 bounded internal allocation, real-measurement follow-up, opaque return link,
 review-window lock, progressive custom-decision intake, clean-checkout API
 routing, explicit retry recovery, tenant-bound agent tools, read-only shared
-links, fair anonymous mutation quotas, and bounded visual-asset fetches described
-in the judge scorecard.
+links, fair anonymous mutation quotas, bounded visual-asset fetches, the
+continuous PM operating loop, and the redacted multi-source evidence pack
+described in the judge scorecard. These merged runtime changes are not deployed.
 
-The local candidate passed 481 backend tests, Ruff, the 14/14 trace evaluation,
+The public-main candidate passed 487 backend tests, Ruff, the 14/14 trace evaluation,
 the locked frontend build, dependency audit, frontend and submission contracts,
-and shell/diff hygiene on August 26. That is local candidate evidence only.
+and shell/diff hygiene on August 26. PRs #23, #24, and #25 passed all four hosted
+jobs, and the exact public-main release preflight passed from a clean checkout.
+That is repository and local candidate evidence only.
 `scripts/verify_release_candidate_local.sh --release-candidate` now fails before
 any Cloud mutation unless the tree is clean and its exact `HEAD` equals the
-public `origin/main` tip. At this checkpoint it correctly rejects the candidate
-because publication has not been authorized.
+public `origin/main` tip. The gate passes; Cloud release remains intentionally
+withheld because publication has not been authorized.
 
 ## Definition of done for the remaining work
 
@@ -110,8 +111,8 @@ because publication has not been authorized.
 2. One small, real operator pilot with aggregate before/after measurements.
 3. Immutable Decision Twin baseline deployment, BigQuery provisioning, CI, and
    production verification scripts — **complete** at the serving release above.
-4. The current local candidate has complete local automated proof. Its public
-   `main` merge, immutable Cloud release, live API/browser proof, and final
-   entrant-owned video remain **open** pending explicit publication approval.
+4. The public-main candidate has complete local and hosted automated proof. Its
+   immutable Cloud release, live API/browser proof, and final entrant-owned
+   video remain **open** pending explicit publication approval.
 5. Freeze scope, run real PM validation, record the demo, and submit. No additional connector or UI
    feature work after these gates unless a gate fails.

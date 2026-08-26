@@ -55,8 +55,8 @@ Google ADK + Gemini · BigQuery · Cloud Tasks
 
 12
 00:02:23,000 --> 00:02:36,000
-Seven deterministic checks cover provenance, independence,
-citations, falsifiability, human authority, and reopening.
+Ten deterministic checks cover provenance, independence,
+human authority, the operating loop, and calibrated memory.
 
 13
 00:02:36,000 --> 00:02:43,000

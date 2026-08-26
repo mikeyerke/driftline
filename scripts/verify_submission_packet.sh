@@ -103,6 +103,11 @@ require_text submission/JUDGE_EVIDENCE_INDEX.md 'the first visible agent action 
 require_text submission/JUDGE_SCORECARD.md 'require a timestamped first'
 require_text submission/JUDGE_SCORECARD.md 'agent action by 0:15'
 require_text submission/JUDGE_SCORECARD.md '`scripts/verify_clean_checkout.sh` separately exports only committed `HEAD`'
+require_text submission/JUDGE_SCORECARD.md 'redacted multi-source evidence pack via PR #24'
+require_text submission/JUDGE_SCORECARD.md "PR #25's candidate tree"
+require_text submission/JUDGE_SCORECARD.md 'captured 573'
+require_text submission/JUDGE_SCORECARD.md 'exactly 178.000'
+require_text submission/JUDGE_SCORECARD.md 'roughly 93/100 readiness'
 require_text submission/assets/README.md 'detects a 4.53-second narration silence'
 require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'verify_final_demo_package.sh'
 require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'it is not a substitute for visible deployment proof'
@@ -131,7 +136,7 @@ require_text submission/PILOT_PROSPECT_PIPELINE.md 'driftline-pm-prospect-watch'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'Compensation is for the participant'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'not revenue'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'Do not create an account'
-require_text submission/DEVPOST.md '481 backend tests'
+require_text submission/DEVPOST.md '487 backend tests'
 require_text scripts/verify_custom_decision_browser.mjs 'Custom-decision browser verification is loopback-only'
 require_text scripts/verify_custom_decision_browser.mjs 'freshContextRestored'
 require_text scripts/verify_custom_decision_browser.mjs 'namedApproverVisible'
@@ -140,7 +145,7 @@ require_text scripts/verify_custom_decision_browser.mjs 'minimumControlTargets'
 require_text scripts/verify_custom_decision_browser.mjs 'validAriaReferences'
 require_text submission/PILOT_PROSPECT_PIPELINE.md 'The watch is a discovery aid, not a sales agent.'
 require_text README.md 'exactly equals the'
-require_text docs/STATUS.md '## Unreleased candidate custody'
+require_text docs/STATUS.md '## Unreleased public-main candidate custody'
 require_text submission/REMOTE_CHECKLIST.md 'Nothing here authorizes a push, merge, Cloud'
 require_text submission/GITHUB_REPOSITORY_METADATA.md 'requires explicit publication authorization'
 require_text submission/GITHUB_REPOSITORY_METADATA.md 'google-adk'
@@ -185,6 +190,7 @@ require_text submission/DEMO_SCRIPT.md 'one continuous native screen capture'
 require_text submission/DEMO_SCRIPT.md 'driftline-xvxczqg62a-uc.a.run.app/health'
 require_text submission/assets/driftline-final-take.srt 'External writes: none'
 require_text submission/assets/driftline-final-take.srt 'LIVE GOOGLE CLOUD PROOF'
+require_text submission/assets/driftline-final-take.srt 'Ten deterministic checks'
 require_text submission/BUILD_STORY.md 'for the purpose of entering the Google All Things'
 require_text submission/BUILD_STORY.md 'evidence → dissent → counterfactuals → human experiment → outcome → reopen'
 require_text submission/BUILD_STORY.md 'It does not yet prove independent PM adoption'
@@ -205,6 +211,16 @@ require_text submission/assets/driftline-candidate-rehearsal-overlays.svg 'UNREL
 require_text submission/assets/driftline-candidate-rehearsal-narration.txt 'not production proof'
 require_text submission/assets/driftline-final-rehearsal-narration.txt 'not production proof'
 require_text submission/assets/driftline-final-rehearsal-caption-overlays.svg 'External writes: none'
+
+for stale_claim in \
+  'remains a separate PR candidate' \
+  'current-HEAD local autonomous presentation run at `a0b52f8`' \
+  'captured 536 state-change frames' \
+  'reruns all 481 backend tests'; do
+  if grep -Fq -- "$stale_claim" submission/JUDGE_SCORECARD.md; then
+    fail "judge scorecard contains stale candidate evidence: $stale_claim"
+  fi
+done
 
 if grep -Fq -- 'submission/assets/driftline-architecture.png' devpost-submission.md; then
   fail "form packet still points at the historical architecture diagram"

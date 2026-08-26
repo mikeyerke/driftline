@@ -19,18 +19,21 @@ rules prevail over this working scorecard.
 
 `/health`, Cloud Run, Artifact Registry, the application commit preserved in
 GitHub `main` history, and the production verifier all resolved to the identity
-above on August 25. Later `main` commits update submission media only.
+above on August 25. Later `main` commits contain unreleased runtime and
+submission improvements; they are not production until exact-SHA release proof
+passes again.
 
-## Merged baseline plus production-unreleased candidates
+## Public-main release candidate, not production
 
-Public `main` contains the prior candidate plus the continuous operating loop at
-`264fdbbbc0413dfddb2537a1d93270c8f51b9787` via PR #23. Hosted GitHub Actions
-run `32973556617` passed all four jobs, and the exact PR tree passed the complete
-clean-checkout gate. The redacted multi-source evidence-pack work described in
-this branch remains a separate PR candidate. Neither public `main` nor this
-candidate is part of the live score above until Cloud Run serves its exact SHA.
+Public `main` now contains the continuous PM operating loop via PR #23, the
+redacted multi-source evidence pack via PR #24, and the strengthened final-demo
+proof pipeline via PR #25. Hosted GitHub Actions passed all four jobs for every
+PR, and PR #25's candidate tree was identical to its squash-merged `main` tree.
+The exact public-main release preflight then passed from a clean checkout. None
+of these merged changes is part of the live score above until Cloud Run serves
+the same public-main commit and the full production journey is reverified.
 
-Together, the merged baseline and this operating-loop candidate add these
+Together, these public-main changes add these
 judge-facing improvements:
 
 - an autonomous Decision Debt Radar turns contradictory signals into a cited
@@ -69,7 +72,7 @@ judge-facing improvements:
 - the public judge lane now identifies itself as an intentional no-sign-in demo
   instead of presenting disabled operator authentication as a product failure.
 
-The candidate now projects all seven PM operating capabilities through one
+The public-main candidate now projects all seven PM operating capabilities through one
 validated interface: autonomous inbox, evidence harvest, decision-debt radar,
 stakeholder alignment, commitment/execution, outcome autopilot, and compounding
 memory. A visible ten-step rail advances only when the corresponding durable
@@ -247,7 +250,7 @@ ownership attestation.
 
 `scripts/verify_clean_checkout.sh` separately exports only committed `HEAD`
 into a new temporary directory, creates a fresh backend environment, installs
-the locked frontend tree, and reruns all 481 backend tests, the 14-case agent
+the locked frontend tree, and reruns all 487 backend tests, the 14-case agent
 evaluation, frontend production build, frontend contract, submission packet,
 and shell syntax checks. This closes the gap between “works in the development
 worktree” and the reproducibility claim a judge receives from the repository.
@@ -324,16 +327,18 @@ in `submission/JUDGE_EVIDENCE_INDEX.md`. It remains ineligible as live proof
 until the exact candidate is released and the native browser journey is rerun.
 The capture now centers the complete generation-1 action and learning receipt
 inside the recorded browser sequence rather than merely asserting it in the
-DOM. The August 26 current-HEAD local autonomous presentation run at `a0b52f8`
-captured 536 state-change frames and seven real mouse-input clicks, with generation 2,
-rollback selected, the approver cleared, external writes still none, and the
-action visibly rolled back without a second PM action. Its fresh local 2:58 rebuild passed a labeled
-full-resolution audit at 1:08 for the named human, 1:15 for the bounded and
-rolled-back receipt, 1:30 for generation 2, and 2:15 for the
-architecture/Cloud-proof section. A separate current-HEAD fallback run passed
-with 612 frames and eight clicks, including the explicitly labelled fallback
-action. These are local rehearsal QA facts, not production proof or timestamps
-to copy into the final release manifest.
+DOM. The August 26 PR #25 candidate-tree presentation run captured 573
+state-change frames and seven real mouse-input clicks over 105.867 seconds, with
+generation 2, rollback selected, the approver cleared, external writes still
+none, and the action visibly rolled back without a second PM action. Its fresh
+local 2:58 rebuild additionally frames the ten-stage operating loop and the work
+completed before human approval. The rendered package is exactly 178.000
+seconds at 1080p/30fps, measures -16.1 LUFS with -4.2 dB true peak, has burned
+and embedded English captions, and contains no detected black interval or
+four-second silence. Full-resolution review shows named approval at 1:15, the
+bounded rolled-back receipt by 1:22, generation 2 by 1:40, and the architecture/
+release gate beginning at 2:16. These are local rehearsal QA facts, not
+production proof or timestamps to copy into the final release manifest.
 
 ## Requirement checklist
 
@@ -365,11 +370,11 @@ to copy into the final release manifest.
 - Demo/readiness today: 26/30 after exact-SHA desktop/mobile browser proof but
   before the final public video; 29/30 is attainable with a fast, legible,
   truthful recording.
-- Overall current evidence: roughly 91/100. With a strong final video, 94/100 is
-  defensible. If the local action candidate is released and re-proven, roughly
-  95/100 is defensible because Taskmaster action becomes explicit without a
-  false external-write claim. Independent PM evidence is the remaining route
-  toward 96–97.
+- Overall live evidence: roughly 91/100 because production still serves the
+  pre-candidate release. The merged and fully checked public-main candidate plus
+  the stronger local final-take blueprint support roughly 93/100 readiness, but
+  they are not live proof. A strong exact-release final video makes 95/100
+  defensible. Independent PM evidence is the remaining route toward 96–97.
   Winning remains uncertain because judge
   preference and competing entries are unknowable.
 
