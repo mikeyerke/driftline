@@ -181,6 +181,8 @@ for field_id in \
   require_text submission/DEVPOST_FORM_AUDIT.md "| $field_id |"
 done
 require_text README.md '## Judge it in 60 seconds'
+require_text README.md '**Taskmaster proof:** before the named approval'
+require_text README.md 'without a prompt loop or human'
 require_text README.md './scripts/verify_clean_checkout.sh'
 require_text scripts/verify_clean_checkout.sh 'git archive --format=tar "$candidate_sha"'
 require_text scripts/verify_clean_checkout.sh 'Clean-checkout verification: PASS'
