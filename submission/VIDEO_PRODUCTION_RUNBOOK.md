@@ -19,8 +19,9 @@ It is a rehearsal template, not the final upload.
 
 `CAPTURE_PRESENTATION_MODE=true` plus
 `scripts/build_final_demo_rehearsal.sh` now produces a 2:58 long-form local
-rehearsal from the real browser state machine. It preserves all eight visible
-clicks, including deliberate focus of the named-approver field, keeps the
+rehearsal from the real browser state machine. In autonomous-monitor mode it
+preserves all seven visible clicks, including deliberate focus of the
+named-approver field, keeps the
 approval-to-reopen path continuous, uses the candidate
 architecture only after the browser proof, burns judge-critical captions into
 the picture, embeds the matching English caption track, and holds -16 LUFS
@@ -28,6 +29,11 @@ reference narration with no detected four-second silence or black interval.
 It is permanently watermarked **UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION**.
 This is the edit blueprint to reproduce against the released exact SHA, not an
 uploadable proof artifact.
+
+The fallback-mode capture has eight visible clicks because it additionally
+activates **Run demo measurement fallback**. Keep the two click counts tied to
+their modes; do not describe the seven-click autonomous presentation as an
+eight-click run.
 
 The repository includes `scripts/capture_decision_twin_candidate.mjs` as a
 local-only continuity rehearsal. With the local API on port 8080 and the Vite

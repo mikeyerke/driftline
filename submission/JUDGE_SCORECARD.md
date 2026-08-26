@@ -225,13 +225,13 @@ cuts or splices.
 Exact-release desktop/mobile screenshots, the Decision Twin architecture, and
 a three-minute 1080p captioned local review cut are complete. A continuous
 local candidate proof now also runs the actual browser state machine and asserts
-the generation-2 rollback outcome. Fresh post-fix desktop and 390-pixel runs
-passed with 514 and 563 frames and eight visible Chrome mouse-input clicks
-apiece, including deliberate focus of the named-approver field; neither
-required a duplicate outcome click. The retained 31.17-second
-clip is silent and unreleased; a narrated native browser take remains
-preferable, and no video is complete for submission until it has a public
-YouTube or Vimeo URL.
+the generation-2 rollback outcome. Fresh post-fix desktop and 390-pixel
+fallback-mode runs passed with 514 and 563 frames and eight visible Chrome
+mouse-input clicks apiece, including deliberate focus of the named-approver
+field and the explicit measurement-fallback action; neither required a
+duplicate outcome click. The retained 31.17-second clip is silent and
+unreleased; a narrated native browser take remains preferable, and no video is
+complete for submission until it has a public YouTube or Vimeo URL.
 
 The 3:40 candidate MP4 passed format, loudness, and black-frame checks, but it
 uses long static browser holds and combines candidate screens with
@@ -239,7 +239,8 @@ pre-candidate release narration. Do not submit it.
 
 A 52-second local continuity rehearsal first proved the visible-click state
 machine and custody boundary. The stronger 2:58 long-form rehearsal now keeps
-the actual browser workflow first, preserves all eight clicks and the
+the actual browser workflow first, preserves all seven autonomous-monitor
+clicks and the
 approval-to-reopen continuity, then closes on the candidate architecture and
 release-proof gate. It is watermarked throughout as **UNRELEASED LOCAL
 CANDIDATE · NOT PRODUCTION**, has burned and embedded English captions, and
@@ -249,10 +250,15 @@ in `submission/JUDGE_EVIDENCE_INDEX.md`. It remains ineligible as live proof
 until the exact candidate is released and the native browser journey is rerun.
 The capture now centers the complete generation-1 action and learning receipt
 inside the recorded browser sequence rather than merely asserting it in the
-DOM. A fresh local 2:58 rebuild passed a labeled full-resolution audit at 1:08
-for the named human, 1:15 for the bounded receipt, 1:30 for generation 2, and
-2:15 for the architecture/Cloud-proof section. Those are rehearsal QA points,
-not timestamps to copy into the final release manifest.
+DOM. An August 26 exact-app-candidate presentation run captured 525
+state-change frames and seven real mouse-input clicks, with generation 2,
+rollback selected, the approver cleared, external writes still none, and the
+action visibly rolled back. Its fresh local 2:58 rebuild passed a labeled
+full-resolution audit at 1:08 for the named human, 1:15 for the bounded and
+rolled-back receipt, 1:30 for generation 2, and 2:15 for the
+architecture/Cloud-proof section. The fallback variant has an eighth click for
+the explicit measurement-fallback action. These are local rehearsal QA facts,
+not production proof or timestamps to copy into the final release manifest.
 
 ## Requirement checklist
 

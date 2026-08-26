@@ -64,10 +64,20 @@ safe direct Cloud Run proof tab; it does not pre-prove the unreleased candidate.
 
 ### Demo and production readiness — 30%
 
-The core approval-to-reopen path remains continuous, all eight interactions are
-real browser mouse inputs, the approver clears on generation 2, and the closing
-verification frame gives the judge a route to reproduce the result. Strongest
-window: **0:00–2:58**.
+The core approval-to-reopen path remains continuous, all seven interactions in
+the autonomous-monitor presentation are real browser mouse inputs, the
+approver clears on generation 2, and the closing verification frame gives the
+judge a route to reproduce the result. The local fallback variant adds an
+eighth browser click for **Run demo measurement fallback**; that extra click is
+not part of the autonomous-monitor presentation. Strongest window:
+**0:00–2:58**.
+
+The August 26 exact-app-candidate rehearsal captured 525 state-change frames
+and seven real mouse-input clicks. Its labeled full-resolution audit shows the
+named human at 1:08, the bounded and rolled-back action receipt at 1:15,
+generation 2 with rollback selected at 1:30, and the candidate
+architecture/Cloud-proof section at 2:15. This is local rehearsal evidence,
+not production or upload proof.
 
 The final package is unproven until it is captured against the exact serving
 release, passes `scripts/verify_final_demo_package.sh`, receives entrant review,
