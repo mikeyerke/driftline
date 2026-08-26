@@ -1,4 +1,5 @@
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock3, ShieldCheck, UsersRound } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, ChevronDown, ChevronUp, Clock3, ShieldCheck, UsersRound } from "lucide-react";
 
 const label = (value) => (value || "pending").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const contextMetric = (name, payload) => {
@@ -12,6 +13,7 @@ const contextMetric = (name, payload) => {
 };
 
 export default function ChangeCardPanel({ card }) {
+  const [expanded, setExpanded] = useState(false);
   if (!card) return null;
   const materiality = card.materiality || {};
   const exposure = card.exposure || {};
@@ -41,8 +43,17 @@ export default function ChangeCardPanel({ card }) {
           <span className="live-label public"><ShieldCheck size={12} />Evidence-bound decision</span>
           {card.change_card_id && <code className="change-card-id" title="Stable identity for this source snapshot">{card.change_card_id}</code>}
         </div>
-        <span className={`materiality-pill ${materiality.severity || "medium"}`}><AlertTriangle size={13} />{label(materiality.severity)} materiality · {materiality.score || "—"}/100</span>
+        <div className="change-card-header-actions">
+          <span className={`materiality-pill ${materiality.severity || "medium"}`}><AlertTriangle size={13} />{label(materiality.severity)} materiality · {materiality.score || "—"}/100</span>
+          <button className="text-button change-card-toggle" type="button" aria-expanded={expanded} aria-controls="change-card-details" onClick={() => setExpanded((current) => !current)}>{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}{expanded ? "Hide proof details" : "Show proof details"}</button>
+        </div>
       </header>
+      {!expanded && <div className="change-card-summary" aria-label="Change-to-work summary">
+        <div><span>Why now</span><strong>{materiality.reason || "Owner review required"}</strong></div>
+        <div><span>Evidence</span><strong>{Math.round((sourceQuality.confidence || 0) * 100)}% confidence</strong></div>
+        <div><span>Next gate</span><strong>{approvalPending ? "Human approval" : label(closure.state)}</strong></div>
+      </div>}
+      {expanded && <div id="change-card-details">
       <div className="change-card-grid">
         <div className="change-card-block materiality-block">
           <span className="change-card-kicker">Why now</span>
@@ -95,6 +106,7 @@ export default function ChangeCardPanel({ card }) {
         <div className="role-packets">{(card.role_packets || []).map((packet) => <div className="role-packet" key={`${packet.role}-${packet.artifact}`}><strong>{packet.role}</strong><span>{packet.artifact}</span><small>{packet.next_action}</small><ArrowUpRight size={13} /></div>)}</div>
       </div>
       <footer className="change-card-disclosure">{(card.disclosures || []).map((note) => <span key={note}>{note}</span>)}{sourceQuality.disclosure && <span>{sourceQuality.disclosure}</span>}</footer>
+      </div>}
     </section>
   );
 }

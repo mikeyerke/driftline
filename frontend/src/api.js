@@ -40,6 +40,7 @@ function signedContext() {
 const RETRYABLE_READ_STATUSES = new Set([502, 503, 504]);
 const RETRYABLE_READ_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = 30000;
+const COUNCIL_TIMEOUT_MS = 180000;
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -64,7 +65,11 @@ function waitForRetry(attempt) {
 }
 
 async function request(path, options = {}) {
-  const { authenticated = false, ...fetchOptions } = options;
+  const {
+    authenticated = false,
+    timeoutMs = REQUEST_TIMEOUT_MS,
+    ...fetchOptions
+  } = options;
   const headers = new Headers({ "Content-Type": "application/json", ...(fetchOptions.headers || {}) });
   if (authenticated && operatorSession.identityToken) {
     headers.set("Authorization", `Bearer ${operatorSession.identityToken}`);
@@ -75,7 +80,11 @@ async function request(path, options = {}) {
   let lastError;
   for (let attempt = 0; attempt < (canRetry ? RETRYABLE_READ_ATTEMPTS : 1); attempt += 1) {
     try {
-      response = await fetchWithTimeout(`${API_BASE}${path}`, { ...fetchOptions, headers });
+      response = await fetchWithTimeout(
+        `${API_BASE}${path}`,
+        { ...fetchOptions, headers },
+        timeoutMs,
+      );
     } catch (error) {
       lastError = error;
       if (!canRetry || attempt === RETRYABLE_READ_ATTEMPTS - 1) throw error;
@@ -177,6 +186,48 @@ export function getAuthConfig() {
 
 export function getHealth() {
   return request("/health");
+}
+
+export function startDecisionTwin() {
+  return request("/api/decision-twin/demo", {
+    method: "POST",
+    timeoutMs: COUNCIL_TIMEOUT_MS,
+  });
+}
+
+export function startDecisionTwinIntake(payload) {
+  return request("/api/decision-twin/intake", {
+    method: "POST",
+    timeoutMs: COUNCIL_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getDecisionTwin(caseId) {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}`);
+}
+
+export function getDecisionTwinEvaluation(caseId) {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}/evaluation`);
+}
+
+export function approveDecisionTwin(caseId, optionId, synthesisHash, generation, approver) {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}/approve`, {
+    method: "POST",
+    body: JSON.stringify({
+      approver,
+      option_id: optionId,
+      expected_synthesis_hash: synthesisHash,
+      expected_generation: generation,
+    }),
+  });
+}
+
+export function recordDecisionTwinOutcome(caseId, generation, scenario = "guardrail_breach") {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}/outcomes/demo`, {
+    method: "POST",
+    body: JSON.stringify({ expected_generation: generation, scenario }),
+  });
 }
 
 export function getAvailableTenants(identityToken) {
@@ -446,6 +497,14 @@ export function approveWorkflow(workflowId, artifactDecisions, decision = "grand
 
 export function undoWorkflow(workflowId) {
   return request(`/api/workflows/${workflowId}/undo`, {
+    method: "POST",
+    authenticated: Boolean(operatorSession.identityToken),
+    body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),
+  });
+}
+
+export function reconcileWorkflow(workflowId) {
+  return request(`/api/workflows/${workflowId}/reconcile`, {
     method: "POST",
     authenticated: Boolean(operatorSession.identityToken),
     body: JSON.stringify({ actor: operatorSession.email || "Demo operator", ...signedContext() }),

@@ -17,7 +17,7 @@
    current-spend thresholds in docs/RESOURCE_INVENTORY.md.
 7. Record the final Cloud Build ID, image digest, and serving Cloud Run
    revision in docs/RESOURCE_INVENTORY.md.
-8. Open https://driftline-xvxczqg62a-uc.a.run.app/ in a logged-out browser and
+8. Open https://driftline-ops.web.app/ in a logged-out browser and
    exercise the asynchronous scan, evidence, packet, reopening, and live ADK
    trace. Record the job ID and matching Firestore documents.
 9. From the repository root, run `./scripts/verify_public_approval_undo.sh`.
@@ -36,10 +36,11 @@
 
 ## Demo and submission
 
-1. Capture the four-minute flow in DEMO_SCRIPT.md at 1080p.
+1. Capture the 3:45 target flow in DEMO_SCRIPT.md at 1080p.
 2. Add captions and upload a publicly visible video using the entrant's
    account; unlisted YouTube videos do not satisfy the official rules.
-3. Replace every pending link in DEVPOST.md with a verified public URL.
+3. Replace the entrant-owned video/social placeholders in
+   `devpost-submission.md` with verified public URLs.
 4. Select only Taskmaster and disclose the earlier concept/source package as
    required by the new-project rule.
 5. Verify entrant identity, eligibility, category selection, and required

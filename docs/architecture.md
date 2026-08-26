@@ -6,8 +6,25 @@ Hosting. Hosting applies a same-origin `**` rewrite to the isolated Cloud Run
 second backend, data store, identity boundary, or connector credential path.
 The generated Cloud Run URL remains an operational health/fallback origin.
 
+Verified baseline production identity (August 24, 2026): Git SHA
+`1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`, Cloud Run revision
+`driftline-00291-v89`, Cloud Build
+`154547e7-36ae-4eb2-a79a-35064e293191`, and immutable image digest
+`sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`.
+The service sends 100% of traffic to that revision with min scale zero and max
+For later releases, `/health` plus `./scripts/verify_production.sh` is the
+authoritative identity check; this snapshot remains historical evidence.
+
 ```mermaid
 flowchart TD
+    BQ[(BigQuery aggregate product metrics)] --> EG[Provenance-preserving evidence graph]
+    CE[Bounded customer, strategy, and delivery evidence] --> EG
+    EG --> PC[Google ADK Product Council: 5 independent roles]
+    PC --> CF[Ship / rollback / segment / defer counterfactuals]
+    CF --> HA{Named human experiment approval}
+    HA --> LR[Measured learning receipt]
+    LR -->|threshold missed or guardrail breached| EG
+    LR -->|validated| DH[(Decision history)]
     S[Allowlisted public snapshot or synthetic replay] --> A[Google ADK coordinator]
     A --> M[ADK structured impact analyst]
     Q[/api/jobs/demo] --> TQ[Cloud Tasks queue]
@@ -30,7 +47,25 @@ flowchart TD
     X --> SL[Slack notification]
     X --> GH[GitHub draft PR]
     F --> U[React operations console]
+    EG --> U
 ```
+
+Decision Twin is a bounded learning loop, not an autonomous roadmap manager.
+Its live council gives five ADK agents independent evidence projections and no
+approval or connector-write tool. A single synthesis turn must preserve dissent
+and citations. BigQuery is an optional aggregate-evidence seam: metric and
+segment names are server allowlisted, date and segment values are parameterized,
+every query is dry-run checked, billed bytes are capped, and cohorts below the
+privacy floor are rejected. Firestore stores the case, approval, outcome, and
+generation lineage with compare-and-set transitions. The deterministic
+evaluator checks provenance, role coverage, disagreement, citations,
+falsifiability, human authority, and outcome-driven reopening.
+Each role also has an explicit, validated decision mandate: strategy must make
+the evidence-grounded ship case, challenger the defer case, and the remaining
+roles the bounded segment case for this pinned scenario. Gemini still produces
+each thesis, citations, risks, and falsifier; a role that ignores its mandate
+fails the live council instead of allowing accidental consensus to masquerade
+as independent deliberation.
 
 Gemini 3.5 Flash supplies the live ADK turns through Vertex AI. Google ADK owns
 the coordinator and its two allowlisted inspect/state tools, then runs a

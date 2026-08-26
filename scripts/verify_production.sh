@@ -13,6 +13,8 @@ readonly task_queue="driftline-jobs"
 readonly uptime_id="driftline-health-Hmxqs16MUkY"
 readonly dashboard_id="9f00a615-b74c-4567-aae9-211cd66e97fc"
 readonly runtime_service_account="driftline-runtime@driftline-hackathon-2026.iam.gserviceaccount.com"
+readonly operator_signin_origin="https://driftline-xvxczqg62a-uc.a.run.app"
+readonly expected_release_sha="${DRIFTLINE_EXPECTED_SHA:-$(git rev-parse HEAD)}"
 
 actual_project="$(gcloud config get-value project 2>/dev/null)"
 if [[ "${actual_project}" != "${expected_project}" ]]; then
@@ -30,6 +32,13 @@ read -r revision traffic < <(
 )
 [[ -n "${revision}" && "${traffic}" == "100" ]]
 printf 'Cloud Run: %s (%s%% traffic)\n' "${revision}" "${traffic}"
+
+revision_image="$(
+  gcloud run revisions describe "${revision}" \
+    --project="${expected_project}" --region="${region}" \
+    --format='value(spec.containers[0].image)'
+)"
+[[ "${revision_image}" =~ @sha256:[0-9a-f]{64}$ ]]
 
 artifact_cleanup_dry_run="$(
   gcloud artifacts repositories describe driftline \
@@ -50,6 +59,17 @@ printf 'Health: %s\n' "${health}"
 trace_eval="$(curl --fail --silent --show-error --max-time 20 \
   "${public_url}/api/evals/latest")"
 serving_release_sha="$(printf '%s' "${health}" | jq -er '.release_sha')"
+serving_build_id="$(printf '%s' "${health}" | jq -er '.build_id')"
+[[ "${serving_release_sha}" == "${expected_release_sha}" ]]
+artifact_image="$(
+  gcloud artifacts docker images describe \
+    "${region}-docker.pkg.dev/${expected_project}/driftline/driftline:${serving_build_id}" \
+    --project="${expected_project}" \
+    --format='value(image_summary.fully_qualified_digest)'
+)"
+[[ "${artifact_image}" == "${revision_image}" ]]
+printf 'Release identity: SHA %s, image %s\n' \
+  "${serving_release_sha}" "${revision_image##*@}"
 trace_release_sha="$(printf '%s' "${trace_eval}" | jq -er '.evaluation.release_sha // empty')"
 if [[ -z "${trace_release_sha}" || "${trace_release_sha}" != "${serving_release_sha}" ]]; then
   printf 'Trace-to-eval gate: FAIL (latest evaluation is not bound to serving SHA; run ./scripts/verify_live_agent.sh first)\n' >&2
@@ -74,9 +94,15 @@ grep -Fqi 'permissions-policy: camera=(), microphone=(), geolocation=(), payment
 printf 'Security headers: health no-store + capability deny-list\n'
 
 auth_config="$(curl --fail --silent --show-error --max-time 20 "${public_url}/api/auth/config")"
-printf '%s\n' "${auth_config}" | jq -e --arg prefix "${expected_project_number}-" \
-  '.enabled == true and .mode == "google_oidc" and (.client_id | startswith($prefix)) and .credential_values_exposed == false' >/dev/null
-printf 'Google operator auth: isolated project client, credential values not exposed\n'
+printf '%s\n' "${auth_config}" | jq -e \
+  --arg prefix "${expected_project_number}-" \
+  --arg signin_origin "${operator_signin_origin}" \
+  '.enabled == true and
+   .mode == "google_oidc" and
+   (.client_id | startswith($prefix)) and
+   .sign_in_origin == $signin_origin and
+   .credential_values_exposed == false' >/dev/null
+printf 'Google operator auth: isolated client + authorized sign-in origin, credential values not exposed\n'
 
 api_headers="$(curl --fail --silent --show-error --max-time 20 --dump-header - --output /dev/null "${public_url}/api/auth/config")"
 grep -Fqi 'cache-control: no-store' <<<"${api_headers}"

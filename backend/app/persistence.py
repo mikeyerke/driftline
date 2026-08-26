@@ -12,6 +12,7 @@ from uuid import uuid4
 from google.api_core.exceptions import AlreadyExists, InvalidArgument
 from google.cloud import firestore
 
+from .decision_twin import DecisionCase
 from .models import (
     ArtifactImpact,
     JobState,
@@ -38,6 +39,7 @@ TENANT_USAGE_COLLECTION = "driftline_tenant_usage"
 TENANT_RATE_LIMITS_COLLECTION = "driftline_tenant_rate_limits"
 TENANT_CONNECTOR_PROFILES_COLLECTION = "driftline_tenant_connector_profiles"
 CREDENTIAL_ACCESS_COLLECTION = "driftline_credential_access_events"
+DECISION_CASES_COLLECTION = "driftline_decision_cases"
 TENANT_CREDENTIALS_SUBCOLLECTION = "credentials"
 TENANT_CREDENTIAL_ENROLLMENTS_SUBCOLLECTION = "credential_enrollments"
 TENANT_POLICY_DEFAULTS: dict[str, int] = {
@@ -57,7 +59,9 @@ _job_failures_memory: dict[str, dict[str, Any]] = {}
 _evaluations_memory: dict[str, dict[str, Any]] = {}
 _credential_access_memory: list[dict[str, Any]] = []
 _credential_enrollments_memory: dict[tuple[str, str, str], dict[str, Any]] = {}
+_decision_cases_memory: dict[str, dict[str, Any]] = {}
 _tenant_provision_lock = Lock()
+_decision_cases_lock = Lock()
 
 
 def _enabled() -> bool:
@@ -122,6 +126,7 @@ def _state_from_dict(payload: dict[str, Any]) -> WorkflowState:
         data_mode=payload.get("data_mode", "synthetic_demo"),
         artifact_packets=[dict(item) for item in payload.get("artifact_packets", [])],
         action_record=payload.get("action_record"),
+        operation=dict(payload.get("operation") or {}),
         action_items=[dict(item) for item in payload.get("action_items", [])],
         impact_graph=dict(payload.get("impact_graph") or {}),
         change_card=dict(payload.get("change_card") or {}),
@@ -170,6 +175,29 @@ def _create_audit_events(
                 raise RuntimeError(
                     f"Audit event {event_id} already exists with different content"
                 )
+
+
+def _stage_audit_events(
+    transaction: Any,
+    audit_collection: Any,
+    events: Iterable[dict[str, Any]],
+) -> None:
+    """Validate and stage append-only audit creates in one transaction."""
+    pending: list[tuple[Any, dict[str, Any]]] = []
+    for index, event in enumerate(events):
+        event_id = event.get("event_id") or f"event-{index:04d}"
+        payload = dict(event)
+        reference = audit_collection.document(event_id)
+        snapshot = reference.get(transaction=transaction)
+        if snapshot.exists:
+            if (snapshot.to_dict() or {}) != payload:
+                raise RuntimeError(
+                    f"Audit event {event_id} already exists with different content"
+                )
+            continue
+        pending.append((reference, payload))
+    for reference, payload in pending:
+        transaction.create(reference, payload)
 
 
 def compare_and_set_workflow(state: WorkflowState, expected_status: str) -> bool:
@@ -225,6 +253,82 @@ def load_workflow(workflow_id: str) -> WorkflowState | None:
     if not snapshot.exists:
         return None
     return _state_from_dict(snapshot.to_dict() or {})
+
+
+def persist_decision_case(case: DecisionCase) -> None:
+    """Persist a complete Decision Twin generation without raw credentials."""
+    payload = case.model_dump(mode="json")
+    if not _enabled():
+        with _decision_cases_lock:
+            _decision_cases_memory[case.case_id] = payload
+        return
+    payload["expires_at"] = _retention_expiry(case.tenant_id)
+    client = _client()
+    document = client.collection(DECISION_CASES_COLLECTION).document(case.case_id)
+
+    @firestore.transactional
+    def persist(transaction: Any) -> None:
+        _stage_audit_events(
+            transaction, document.collection("audit_events"), case.events
+        )
+        transaction.set(document, payload)
+
+    persist(client.transaction())
+
+
+def load_decision_case(case_id: str) -> DecisionCase | None:
+    if not _enabled():
+        with _decision_cases_lock:
+            payload = _decision_cases_memory.get(case_id)
+            return DecisionCase.model_validate(payload) if payload else None
+    snapshot = _client().collection(DECISION_CASES_COLLECTION).document(case_id).get()
+    if not snapshot.exists:
+        return None
+    payload = snapshot.to_dict() or {}
+    payload.pop("expires_at", None)
+    return DecisionCase.model_validate(payload)
+
+
+def compare_and_set_decision_case(
+    case: DecisionCase,
+    *,
+    expected_generation: int,
+    expected_statuses: set[str],
+) -> bool:
+    """Commit one decision transition only from the reviewed generation/state."""
+    payload = case.model_dump(mode="json")
+    if not _enabled():
+        with _decision_cases_lock:
+            current = _decision_cases_memory.get(case.case_id)
+            if current is None:
+                return False
+            if int(current.get("generation", 0)) != expected_generation:
+                return False
+            if str(current.get("status")) not in expected_statuses:
+                return False
+            _decision_cases_memory[case.case_id] = payload
+            return True
+
+    client = _client()
+    document = client.collection(DECISION_CASES_COLLECTION).document(case.case_id)
+    payload["expires_at"] = _retention_expiry(case.tenant_id)
+
+    @firestore.transactional
+    def transition(tx: Any) -> bool:
+        snapshot = document.get(transaction=tx)
+        if not snapshot.exists:
+            return False
+        current = snapshot.to_dict() or {}
+        if int(current.get("generation", 0)) != expected_generation:
+            return False
+        if str(current.get("status")) not in expected_statuses:
+            return False
+        _stage_audit_events(tx, document.collection("audit_events"), case.events)
+        tx.set(document, payload)
+        return True
+
+    committed = transition(client.transaction())
+    return committed
 
 
 def list_workflows(limit: int = 50) -> list[WorkflowState]:
@@ -1016,23 +1120,29 @@ def reserve_tenant_rate_limit(
     window_seconds: int,
     *,
     now: float | None = None,
+    amount: int = 1,
 ) -> bool:
-    """Atomically reserve one tenant quota slot for a fixed time window.
+    """Atomically reserve one or more tenant quota slots for a fixed window.
 
     Firestore deployments use a transaction so multiple Cloud Run instances
     cannot race past the same tenant limit. Local runs retain a deterministic
     in-memory fallback for tests and development.
     """
-    if metric not in _USAGE_METRICS or limit <= 0 or window_seconds <= 0:
+    if (
+        metric not in _USAGE_METRICS
+        or limit <= 0
+        or window_seconds <= 0
+        or amount <= 0
+    ):
         raise ValueError("rate_limit_arguments_invalid")
     timestamp = float(now if now is not None else time.time())
     window_start = int(timestamp // window_seconds) * window_seconds
     memory_key = (tenant_id, metric, window_start)
     if not _enabled():
         current = _tenant_rate_limit_memory.get(memory_key, 0)
-        if current >= limit:
+        if current + amount > limit:
             return False
-        _tenant_rate_limit_memory[memory_key] = current + 1
+        _tenant_rate_limit_memory[memory_key] = current + amount
         return True
 
     document = _client().collection(TENANT_RATE_LIMITS_COLLECTION).document(
@@ -1044,7 +1154,7 @@ def reserve_tenant_rate_limit(
     def reserve(transaction: firestore.Transaction) -> bool:
         snapshot = next(iter(transaction.get(document)))
         current = int((snapshot.to_dict() or {}).get("count", 0)) if snapshot.exists else 0
-        if current >= limit:
+        if current + amount > limit:
             return False
         expires_at = datetime.fromtimestamp(
             window_start + window_seconds, UTC
@@ -1055,7 +1165,7 @@ def reserve_tenant_rate_limit(
                 "tenant_id": tenant_id,
                 "metric": metric,
                 "window_start": window_start,
-                "count": current + 1,
+                "count": current + amount,
                 "limit": limit,
                 "expires_at": expires_at,
                 "updated_at": utc_now(),

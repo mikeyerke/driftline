@@ -13,7 +13,7 @@ import secrets
 from collections import deque
 from collections.abc import Callable
 from contextvars import ContextVar
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from statistics import median
 from threading import Lock
@@ -26,7 +26,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 try:  # Cloud Tasks is optional for local synthetic development.
     from google.api_core.exceptions import AlreadyExists as TaskAlreadyExists
@@ -74,9 +74,18 @@ from .credential_broker import (
     resolve_tenant_credential,
 )
 from .decision_copilot import validate_approval_choice
+from .decision_twin import (
+    DecisionTwinPolicyError,
+    approve_decision_case,
+    attach_aggregate_metrics,
+    attach_decision_precedents,
+    build_demo_decision_case,
+    build_intake_decision_case,
+    record_outcome,
+)
 from .materiality import build_change_card, normalize_internal_context
 from .memory import build_memory_summary
-from .models import ActionItemStatus, JobState, WorkflowState, utc_now
+from .models import ActionItemStatus, JobState, WorkflowState, WorkflowStatus, utc_now
 from .multimodal import (
     MultimodalUnavailable,
     analyze_visual_evidence,
@@ -85,6 +94,7 @@ from .multimodal import (
 )
 from .persistence import (
     claim_job,
+    compare_and_set_decision_case,
     compare_and_set_workflow,
     consume_salesforce_oauth_state,
     delete_salesforce_connection,
@@ -102,6 +112,7 @@ from .persistence import (
     load_connector_binding,
     load_connector_profile,
     load_credential_enrollment,
+    load_decision_case,
     load_job,
     load_latest_evaluation,
     load_salesforce_connection,
@@ -112,6 +123,7 @@ from .persistence import (
     persist_connector_binding,
     persist_connector_profile,
     persist_credential_enrollment,
+    persist_decision_case,
     persist_evaluation,
     persist_job,
     persist_job_failure,
@@ -128,8 +140,15 @@ from .persistence import (
     reserve_tenant_rate_limit,
     update_jobs_for_workflow,
 )
+from .product_analytics import (
+    AnalyticsPolicyError,
+    query_aggregate_metric,
+    query_decision_precedents,
+)
+from .product_council import ProductCouncilUnavailable, run_live_product_council
 from .trace_eval import (
     build_quality_fixture,
+    evaluate_decision_twin_case,
     run_quality_gate,
 )
 
@@ -324,6 +343,37 @@ class UndoRequest(BaseModel):
     approval_mode: Literal["demo", "signed"] = "demo"
     approval_token: str | None = Field(default=None, max_length=256)
     identity_token: str | None = Field(default=None, max_length=4096)
+
+
+class ReconcileRequest(UndoRequest):
+    """Named-human recovery request for a durably interrupted operation."""
+
+
+class DecisionTwinApprovalRequest(BaseModel):
+    approver: str = Field(min_length=2, max_length=120)
+    option_id: Literal["ship", "rollback", "segment", "defer"]
+    expected_synthesis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_generation: int = Field(ge=1, le=20)
+
+
+class DecisionTwinIntakeRequest(BaseModel):
+    """Non-confidential PM context for one bounded public decision packet."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    question: str = Field(min_length=12, max_length=280)
+    current_commitment: str = Field(min_length=12, max_length=320)
+    urgency: str = Field(min_length=12, max_length=320)
+    positive_signal: str = Field(min_length=12, max_length=500)
+    risk_signal: str = Field(min_length=12, max_length=500)
+    affected_segment: str | None = Field(default=None, min_length=2, max_length=80)
+
+
+class DecisionTwinOutcomeRequest(BaseModel):
+    expected_generation: int = Field(ge=1, le=20)
+    scenario: Literal["guardrail_breach", "successful_recovery"] = (
+        "guardrail_breach"
+    )
 
 
 class DismissRequest(BaseModel):
@@ -806,6 +856,21 @@ def _reserve_agent_call(tenant_id: str | None = None) -> bool:
         return True
 
 
+def _reserve_product_council_calls() -> bool:
+    """Reserve the exact five specialist turns and one synthesis turn."""
+    required = 6
+    limit = _tenant_quota_limit(None, "agent_calls", PUBLIC_AGENT_MAX_CALLS)
+    now = monotonic()
+    cutoff = now - AGENT_WINDOW_SECONDS
+    with _agent_call_lock:
+        while _agent_call_times and _agent_call_times[0] <= cutoff:
+            _agent_call_times.popleft()
+        if len(_agent_call_times) + required > limit:
+            return False
+        _agent_call_times.extend([now] * required)
+        return True
+
+
 def _quota_rate_limit_error(detail: str, window_seconds: int) -> HTTPException:
     """Return a bounded, machine-readable recovery signal for quota work."""
     return HTTPException(
@@ -1110,6 +1175,54 @@ def _enqueue_cloud_task(job: JobState) -> None:
         )
 
 
+def _enqueue_decision_twin_monitor(case_id: str, generation: int) -> None:
+    """Queue one idempotent post-approval Decision Twin measurement."""
+    if tasks_v2 is None:
+        raise RuntimeError("Cloud Tasks dependency is unavailable")
+    project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    location = os.getenv("DRIFTLINE_TASK_LOCATION", "us-central1")
+    queue = os.getenv("DRIFTLINE_TASK_QUEUE", "driftline-jobs")
+    target_url = os.getenv("DRIFTLINE_TASK_TARGET_URL")
+    service_account = os.getenv("DRIFTLINE_TASK_SERVICE_ACCOUNT")
+    if not project or not target_url or not service_account:
+        raise RuntimeError("Cloud Tasks configuration is incomplete")
+
+    client = tasks_v2.CloudTasksClient()
+    parent = client.queue_path(project, location, queue)
+    task_key = hashlib.sha256(f"{case_id}:{generation}".encode()).hexdigest()[:24]
+    task = tasks_v2.Task(
+        name=client.task_path(
+            project, location, queue, f"decision-monitor-{task_key}"
+        ),
+        http_request=tasks_v2.HttpRequest(
+            http_method=tasks_v2.HttpMethod.POST,
+            url=(
+                f"{target_url.rstrip('/')}/api/decision-twin/"
+                f"{case_id}/monitor/run"
+            ),
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(
+                {
+                    "expected_generation": generation,
+                    "scenario": "guardrail_breach",
+                }
+            ).encode("utf-8"),
+            oidc_token=tasks_v2.OidcToken(
+                service_account_email=service_account,
+                audience=target_url.rstrip("/"),
+            ),
+        ),
+    )
+    try:
+        client.create_task(parent=parent, task=task)
+    except TaskAlreadyExists:
+        logger.info(
+            "Decision monitor for %s generation %s already exists",
+            case_id,
+            generation,
+        )
+
+
 def _verify_task_request(request: Request) -> None:
     if not _tasks_enabled():
         return
@@ -1307,6 +1420,18 @@ def _verify_approval_mode(
     }
 
 
+def _audit_actor(actor: str, approval_identity: dict[str, str]) -> str:
+    """Bind OIDC audit attribution to the identity that signed the request."""
+    if approval_identity.get("identity") == "google_oidc_operator":
+        email = approval_identity.get("email", "").strip()
+        if not email:
+            raise HTTPException(
+                status_code=401, detail="Google operator identity is incomplete"
+            )
+        return email
+    return actor.strip()
+
+
 def _verify_platform_operator(identity_token: str | None) -> dict[str, str]:
     """Verify the separate platform-admin OIDC boundary for tenant bootstrap."""
     audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
@@ -1419,8 +1544,22 @@ def _connector_handoff_info(
     for name, execute, undo in _CONNECTOR_HANDOFFS:
         status_key = f"{name}_status"
         external_key = f"{name}_external_write"
+        prior_status = str(action.get(status_key, "")).casefold()
+        completed_statuses = (
+            {"reversed"} if reverse else {"created", "reused", "reactivated"}
+        )
+        if prior_status in completed_statuses:
+            result.update(
+                {
+                    key: value
+                    for key, value in action.items()
+                    if key.startswith(f"{name}_")
+                }
+            )
+            result[external_key] = bool(action.get(external_key, True))
+            result["external_write"] = True
+            continue
         if reverse:
-            prior_status = str(action.get(status_key, "")).casefold()
             should_run = bool(action.get(external_key)) or prior_status in {
                 "created",
                 "reused",
@@ -1446,6 +1585,202 @@ def _connector_handoff_info(
         result[external_key] = connector_external_write
         result["external_write"] = bool(result.get("external_write", False)) or connector_external_write
     return result
+
+
+def _claim_side_effect_operation(
+    state: WorkflowState,
+    *,
+    kind: Literal["approval", "reversal"],
+    actor: str,
+    approval_identity: dict[str, str],
+) -> None:
+    """Attach a credential-free durable claim before any side effect begins."""
+    now_value = datetime.now(UTC)
+    now = now_value.isoformat()
+    state.operation = {
+        "operation_id": f"op-{uuid4().hex}",
+        "kind": kind,
+        "status": "executing",
+        "generation": 1,
+        "attempts": 1,
+        "actor": actor,
+        "scope": approval_identity.get("scope", "public_demo"),
+        "tenant_id": approval_identity.get("tenant_id"),
+        "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
+        "started_at": now,
+        "last_attempt_at": now,
+        "lease_expires_at": (
+            now_value + timedelta(seconds=_operation_lease_seconds())
+        ).isoformat(),
+    }
+
+
+def _operation_lease_seconds() -> int:
+    """Keep the claim exclusive beyond the Cloud Run request timeout."""
+    try:
+        configured = int(os.getenv("DRIFTLINE_OPERATION_LEASE_SECONDS", "360"))
+    except ValueError:
+        configured = 360
+    return max(330, min(configured, 900))
+
+
+def _operation_lease_expired(
+    operation: dict[str, object], *, now: datetime | None = None
+) -> bool:
+    """Fail closed unless a durable claim carries a valid, elapsed lease."""
+    raw_expiry = operation.get("lease_expires_at")
+    if not raw_expiry:
+        return False
+    try:
+        expiry = datetime.fromisoformat(str(raw_expiry))
+    except ValueError:
+        return False
+    if expiry.tzinfo is None:
+        return False
+    return expiry <= (now or datetime.now(UTC))
+
+
+def _expire_stale_operation_claim(state: WorkflowState) -> WorkflowState:
+    """Turn a hard-crash orphan into the ordinary exclusive recovery lane."""
+    if state.status not in {
+        WorkflowStatus.APPROVAL_EXECUTING,
+        WorkflowStatus.REVERSAL_EXECUTING,
+    }:
+        raise PolicyViolation("Workflow operation is not awaiting lease recovery")
+    if not _operation_lease_expired(state.operation or {}):
+        raise PolicyViolation("Workflow operation is still active; retry after its lease")
+    state.operation = {
+        **state.operation,
+        "status": "reconciliation_required",
+        "last_error_code": "operation_lease_expired",
+        "last_failed_at": utc_now(),
+    }
+    state.action_record = {
+        **(state.action_record or {}),
+        "reconciliation_required": True,
+        "operation_id": state.operation.get("operation_id"),
+    }
+    state.status = WorkflowStatus.RECONCILIATION_REQUIRED
+    state.events.append(
+        {
+            "event_id": f"evt-{uuid4().hex[:12]}",
+            "timestamp": utc_now(),
+            "action": "operation_reconciler",
+            "outcome": "expired_claim_recovered",
+            "stage": state.stage.value,
+            "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
+            "operation_id": state.operation.get("operation_id"),
+        }
+    )
+    return state
+
+
+def _execute_claimed_side_effects(
+    state: WorkflowState,
+    approval_identity: dict[str, str],
+    *,
+    reverse: bool,
+) -> WorkflowState:
+    """Run the idempotent connector + artifact bundle for a claimed operation."""
+    if state.action_record is not None and not reverse:
+        state.action_record["tenant_id"] = approval_identity["tenant_id"]
+    connector_info = _connector_handoff_info(
+        state,
+        approval_identity,
+        reverse=reverse,
+    )
+    external_systems_changed = any(
+        connector_info.get(f"{name}_external_write", False)
+        or connector_info.get("external_write", False)
+        for name, _, _ in _CONNECTOR_HANDOFFS
+    )
+    # Persist confirmed per-connector outcomes on the claimed state before a
+    # later connector failure enters reconciliation. The exception handler
+    # commits this mutated snapshot, so a retry can reuse completed writes
+    # instead of repeating them.
+    state.action_record = {
+        **(state.action_record or {}),
+        **connector_info,
+        "external_write_authorized": approval_identity.get("scope") == "configured",
+        "external_write": external_systems_changed,
+        "external_systems_changed": external_systems_changed,
+    }
+    if any(
+        key.endswith("_status") and value == "failed"
+        for key, value in connector_info.items()
+    ):
+        raise ConnectorError("A selected connector remains unavailable")
+    artifact_kind = "rollback" if reverse else "active"
+    storage_info = persist_action_artifact(state, kind=artifact_kind)
+    operational_info = persist_operational_output(state, kind=artifact_kind)
+    state.action_record = {
+        **(state.action_record or {}),
+        **storage_info,
+        **operational_info,
+        "operational_side_effect": operational_info.get(
+            "operational_status", "not_configured"
+        ),
+    }
+    state.operation = {
+        **state.operation,
+        "status": "completed",
+        "completed_at": utc_now(),
+        "last_error_code": None,
+    }
+    state.events.append(
+        {
+            "event_id": f"evt-{uuid4().hex[:12]}",
+            "timestamp": utc_now(),
+            "action": "operation_executor",
+            "outcome": "operation_completed",
+            "stage": state.stage.value,
+            "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
+            "operation_id": state.operation.get("operation_id"),
+            "attempts": state.operation.get("attempts", 1),
+        }
+    )
+    state.status = (
+        WorkflowStatus.NEEDS_APPROVAL if reverse else WorkflowStatus.COMPLETE
+    )
+    return state
+
+
+def _mark_reconciliation_required(
+    state: WorkflowState,
+    *,
+    expected_status: WorkflowStatus,
+    fallback: WorkflowState,
+    error: Exception,
+) -> WorkflowState:
+    """Persist an ambiguous/interrupted outcome without leaking error details."""
+    state.operation = {
+        **state.operation,
+        "status": "reconciliation_required",
+        "last_error_code": type(error).__name__,
+        "last_failed_at": utc_now(),
+    }
+    state.action_record = {
+        **(state.action_record or {}),
+        "reconciliation_required": True,
+        "operation_id": state.operation.get("operation_id"),
+    }
+    state.status = WorkflowStatus.RECONCILIATION_REQUIRED
+    state.events.append(
+        {
+            "event_id": f"evt-{uuid4().hex[:12]}",
+            "timestamp": utc_now(),
+            "action": "operation_reconciler",
+            "outcome": "reconciliation_required",
+            "stage": state.stage.value,
+            "evidence_hash": state.evidence.evidence_hash if state.evidence else None,
+            "operation_id": state.operation.get("operation_id"),
+        }
+    )
+    return _commit_workflow_transition(
+        state,
+        expected_status.value,
+        fallback,
+    )
 
 
 def _connector_context_info(tenant_id: str) -> dict[str, object]:
@@ -1542,6 +1877,22 @@ def _transition_workflow(
                 workflow_store.restore(previous)
             raise PolicyViolation("Workflow changed concurrently; retry the decision")
         return result
+
+
+def _commit_workflow_transition(
+    state: WorkflowState,
+    expected_status: str,
+    fallback: WorkflowState,
+) -> WorkflowState:
+    """Finish a durable operation without ever publishing stale local truth."""
+    if compare_and_set_workflow(state, expected_status):
+        workflow_store.restore(state)
+        return state
+    durable = load_workflow(state.workflow_id)
+    workflow_store.restore(durable if durable is not None else fallback)
+    raise PolicyViolation(
+        "Workflow operation changed concurrently; durable state was reloaded"
+    )
 
 
 def _recover_orphaned_workflow(job: JobState) -> WorkflowState | None:
@@ -2211,11 +2562,23 @@ def get_auth_config() -> dict[str, object]:
     every signed request.
     """
     audience = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_AUDIENCE", "").strip()
+    sign_in_origin = os.getenv("DRIFTLINE_GOOGLE_OPERATOR_SIGNIN_ORIGIN", "").strip().rstrip("/")
+    parsed_origin = urlparse(sign_in_origin) if sign_in_origin else None
+    if parsed_origin and (
+        parsed_origin.scheme != "https"
+        or not parsed_origin.netloc
+        or parsed_origin.path not in {"", "/"}
+        or parsed_origin.params
+        or parsed_origin.query
+        or parsed_origin.fragment
+    ):
+        sign_in_origin = ""
     return {
         "enabled": bool(audience),
         "client_id": audience or None,
         "mode": "google_oidc" if audience else "unavailable",
         "anonymous_lane": "packet_only",
+        "sign_in_origin": sign_in_origin or None,
         "credential_values_exposed": False,
     }
 
@@ -5662,6 +6025,343 @@ def get_workflow_scenarios(
     )
 
 
+@app.post("/api/decision-twin/intake")
+async def start_decision_twin_intake(request: DecisionTwinIntakeRequest) -> dict:
+    """Create a Decision Twin from bounded, explicitly unverified PM context."""
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin intake rate limit reached; retry later."
+        )
+    case = build_intake_decision_case(
+        case_id=f"decision-intake-{secrets.token_hex(12)}",
+        question=request.question,
+        current_commitment=request.current_commitment,
+        urgency=request.urgency,
+        positive_signal=request.positive_signal,
+        risk_signal=request.risk_signal,
+        affected_segment=request.affected_segment,
+    )
+    if os.getenv("DECISION_TWIN_LIVE_COUNCIL", "false").casefold() == "true":
+        if not _reserve_product_council_calls():
+            case.events.append(
+                {
+                    "event_id": "product-council-quota-bounded",
+                    "action": "google_adk_product_council",
+                    "outcome": "deterministic_demo_fallback",
+                    "generation": case.generation,
+                    "reason": "public_model_call_quota",
+                }
+            )
+        else:
+            try:
+                case.council = await run_live_product_council(case)
+                council_event = next(
+                    event
+                    for event in case.events
+                    if event.get("event_id") == "product-council-complete"
+                )
+                council_event["action"] = "google_adk_product_council"
+                council_event["outcome"] = "disagreement_preserved"
+                council_event["execution_mode"] = "google_adk"
+                council_event["model"] = os.getenv(
+                    "MODEL_NAME", "gemini-3.5-flash"
+                )
+            except ProductCouncilUnavailable as exc:
+                case.events.append(
+                    {
+                        "event_id": "product-council-live-unavailable",
+                        "action": "google_adk_product_council",
+                        "outcome": "deterministic_demo_fallback",
+                        "generation": case.generation,
+                        "reason": str(exc)[:240],
+                    }
+                )
+    persist_decision_case(case)
+    return case.model_dump(mode="json")
+
+
+@app.post("/api/decision-twin/demo")
+async def start_decision_twin_demo() -> dict:
+    """Create the pinned PM decision case and optionally run the live ADK council."""
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin demo rate limit reached; retry later."
+        )
+    # Each anonymous run receives an opaque id. A shared deterministic id would
+    # let one judge session reset or mutate another session's approval.
+    case = build_demo_decision_case(
+        case_id=f"decision-onboarding-{secrets.token_hex(12)}"
+    )
+    if os.getenv("DECISION_TWIN_BIGQUERY_ENABLED", "false").casefold() == "true":
+        try:
+            small_metric, enterprise_metric = await asyncio.gather(
+                asyncio.to_thread(
+                    query_aggregate_metric, "activation_rate", "small_workspaces"
+                ),
+                asyncio.to_thread(
+                    query_aggregate_metric,
+                    "activation_rate",
+                    "enterprise_workspaces",
+                ),
+            )
+            case = attach_aggregate_metrics(
+                case,
+                [small_metric, enterprise_metric],
+            )
+        except Exception as exc:  # noqa: BLE001 - public demo retains a labelled fixture.
+            case.events.append(
+                {
+                    "event_id": "bigquery-aggregate-unavailable",
+                    "action": "bigquery_aggregate_reader",
+                    "outcome": "pinned_aggregate_fixture_retained",
+                    "generation": case.generation,
+                    "reason": (
+                        "analytics_policy_rejected"
+                        if isinstance(exc, AnalyticsPolicyError)
+                        else "bigquery_runtime_unavailable"
+                    ),
+                }
+            )
+    if os.getenv("DECISION_TWIN_DECISION_MEMORY_ENABLED", "false").casefold() == "true":
+        try:
+            precedents = await asyncio.to_thread(
+                query_decision_precedents,
+                [0.09, 0.11, 1.0, 1.0],
+            )
+            case = attach_decision_precedents(case, precedents)
+        except Exception as exc:  # noqa: BLE001 - retain the labelled fixture.
+            case.events.append(
+                {
+                    "event_id": "decision-memory-unavailable",
+                    "action": "bigquery_vector_precedent_reader",
+                    "outcome": "synthetic_precedent_fixture_retained",
+                    "generation": case.generation,
+                    "reason": (
+                        "analytics_policy_rejected"
+                        if isinstance(exc, AnalyticsPolicyError)
+                        else "bigquery_runtime_unavailable"
+                    ),
+                }
+            )
+    if os.getenv("DECISION_TWIN_LIVE_COUNCIL", "false").casefold() == "true":
+        if not _reserve_product_council_calls():
+            case.events.append(
+                {
+                    "event_id": "product-council-quota-bounded",
+                    "action": "google_adk_product_council",
+                    "outcome": "deterministic_demo_fallback",
+                    "generation": case.generation,
+                    "reason": "public_model_call_quota",
+                }
+            )
+        else:
+            try:
+                case.council = await run_live_product_council(case)
+                council_event = next(
+                    event
+                    for event in case.events
+                    if event.get("event_id") == "product-council-complete"
+                )
+                council_event["action"] = "google_adk_product_council"
+                council_event["outcome"] = "disagreement_preserved"
+                council_event["execution_mode"] = "google_adk"
+                council_event["model"] = os.getenv(
+                    "MODEL_NAME", "gemini-3.5-flash"
+                )
+            except ProductCouncilUnavailable as exc:
+                # The public judge flow remains reproducible, but the response
+                # and event never mislabel a fallback as a live model run.
+                case.events.append(
+                    {
+                        "event_id": "product-council-live-unavailable",
+                        "action": "google_adk_product_council",
+                        "outcome": "deterministic_demo_fallback",
+                        "generation": case.generation,
+                        "reason": str(exc)[:240],
+                    }
+                )
+    persist_decision_case(case)
+    return case.model_dump(mode="json")
+
+
+@app.get("/api/decision-twin/{case_id}")
+def get_decision_twin(case_id: str) -> dict:
+    case = load_decision_case(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    if case.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    return case.model_dump(mode="json")
+
+
+@app.get("/api/decision-twin/{case_id}/evaluation")
+def get_decision_twin_evaluation(case_id: str) -> dict:
+    case = load_decision_case(case_id)
+    if case is None or case.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    return evaluate_decision_twin_case(case)
+
+
+@app.post("/api/decision-twin/{case_id}/approve")
+def approve_decision_twin(
+    case_id: str,
+    request: DecisionTwinApprovalRequest,
+    background_tasks: BackgroundTasks,
+) -> dict:
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin approval rate limit reached; retry later."
+        )
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    previous_status = current.status
+    previous_generation = current.generation
+    try:
+        approved = approve_decision_case(
+            current,
+            option_id=request.option_id,
+            approver=request.approver,
+            expected_synthesis_hash=request.expected_synthesis_hash,
+            expected_generation=request.expected_generation,
+        )
+    except DecisionTwinPolicyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    committed = compare_and_set_decision_case(
+        approved,
+        expected_generation=previous_generation,
+        expected_statuses={previous_status},
+    )
+    if not committed:
+        raise HTTPException(
+            status_code=409,
+            detail="Decision changed before approval; reload the current generation.",
+        )
+    is_pinned_demo = not any(
+        event.get("source_mode") == "pm_provided_unverified"
+        for event in approved.events
+    )
+    autonomous_monitor = os.getenv("DECISION_TWIN_AUTONOMOUS_MONITOR")
+    monitor_enabled = (
+        autonomous_monitor.casefold() == "true"
+        if autonomous_monitor is not None
+        else _tasks_enabled()
+    )
+    if is_pinned_demo and monitor_enabled:
+        try:
+            if _tasks_enabled():
+                _enqueue_decision_twin_monitor(approved.case_id, approved.generation)
+            else:
+                background_tasks.add_task(
+                    _record_decision_twin_demo_outcome,
+                    approved.case_id,
+                    DecisionTwinOutcomeRequest(
+                        expected_generation=approved.generation,
+                        scenario="guardrail_breach",
+                    ),
+                )
+        except Exception:
+            # Approval remains valid even if the monitor queue is temporarily
+            # unavailable. The UI keeps the explicit demo measurement fallback.
+            logger.exception(
+                "Unable to enqueue Decision Twin monitor for %s", approved.case_id
+            )
+    return approved.model_dump(mode="json")
+
+
+def _record_decision_twin_demo_outcome(
+    case_id: str, request: DecisionTwinOutcomeRequest
+) -> dict:
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    if any(
+        event.get("source_mode") == "pm_provided_unverified"
+        for event in current.events
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Synthetic outcomes are unavailable for PM-provided decisions.",
+        )
+    observation_id = f"outcome-g{current.generation}-{request.scenario}"
+    if any(item.observation_id == observation_id for item in current.outcomes):
+        return current.model_dump(mode="json")
+    plan = current.experiment_plan
+    if plan is None:
+        raise HTTPException(status_code=409, detail="Outcome requires an active experiment")
+    if request.scenario == "guardrail_breach":
+        value = plan.stop_threshold
+    else:
+        value = plan.success_threshold
+    observation = {
+        "observation_id": observation_id,
+        "metric_id": plan.primary_metric,
+        "segment": plan.target_segment,
+        "value": value,
+        "baseline": 0.0,
+        "unit": (
+            "count"
+            if plan.primary_metric == "qualified_enterprise_evidence_count"
+            else "relative_change"
+        ),
+        "observed_at": "2026-08-30T18:00:00+00:00",
+        "source_label": "BigQuery aggregate outcome fixture",
+        "content_hash": hashlib.sha256(
+            f"{observation_id}:{plan.primary_metric}:{plan.target_segment}:{value}".encode()
+        ).hexdigest(),
+    }
+    try:
+        updated = record_outcome(
+            current,
+            observation,
+            expected_generation=request.expected_generation,
+        )
+    except DecisionTwinPolicyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    updated.events.append(
+        {
+            "event_id": f"decision-monitor-observed-g{current.generation}",
+            "action": "autonomous_experiment_monitor",
+            "outcome": updated.outcomes[-1].evaluation.verdict,
+            "generation": current.generation,
+            "source": "bigquery_aggregate_fixture",
+        }
+    )
+    committed = compare_and_set_decision_case(
+        updated,
+        expected_generation=current.generation,
+        expected_statuses={current.status},
+    )
+    if not committed:
+        raise HTTPException(
+            status_code=409,
+            detail="Decision changed before the outcome was recorded; reload it.",
+        )
+    return updated.model_dump(mode="json")
+
+
+@app.post("/api/decision-twin/{case_id}/outcomes/demo")
+def record_decision_twin_demo_outcome(
+    case_id: str, request: DecisionTwinOutcomeRequest
+) -> dict:
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin outcome rate limit reached; retry later."
+        )
+    return _record_decision_twin_demo_outcome(case_id, request)
+
+
+@app.post("/api/decision-twin/{case_id}/monitor/run")
+def run_decision_twin_monitor(
+    case_id: str,
+    monitor_request: DecisionTwinOutcomeRequest,
+    request: Request,
+) -> dict:
+    """Process a bounded measurement from an authenticated Cloud Task."""
+    _verify_task_request(request)
+    return _record_decision_twin_demo_outcome(case_id, monitor_request)
+
+
 @app.post("/api/workflows/demo")
 def start_demo(source_id: str = "public/pricing") -> dict:
     """Legacy deterministic fixture endpoint retained for reproducible tests."""
@@ -6554,6 +7254,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
         request.identity_token,
         request.tenant_id,
     )
+    audit_actor = _audit_actor(request.approver, approval_identity)
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
         raise _demo_mutation_rate_limit_error(
@@ -6575,7 +7276,7 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
                 raise PolicyViolation(str(exc)) from exc
             state = workflow_store.approve(
                 current.workflow_id,
-                request.approver,
+                audit_actor,
                 request.decision,
                 request.artifact_decisions,
                 approval_metadata={
@@ -6591,6 +7292,16 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             )
             if state.approval is not None:
                 state.approval["approval_identity"] = approval_identity
+            # Claim the whole side-effect operation durably before any
+            # connector or artifact write. Undo and reapproval reject this
+            # intermediate state across Cloud Run instances.
+            state.status = WorkflowStatus.APPROVAL_EXECUTING
+            _claim_side_effect_operation(
+                state,
+                kind="approval",
+                actor=audit_actor,
+                approval_identity=approval_identity,
+            )
             return state
 
         state = _transition_workflow(
@@ -6598,49 +7309,28 @@ def approve(workflow_id: str, request: ApprovalRequest) -> dict:
             "needs_approval",
             apply,
         )
-        if state.action_record is not None:
-            # Connector credentials are selected from the approved tenant, not
-            # from deployment-wide environment variables. Keeping this opaque
-            # tenant id on the action also lets a later signed undo resolve the
-            # same binding after the approval object is cleared.
-            state.action_record["tenant_id"] = approval_identity["tenant_id"]
-        connector_info = _connector_handoff_info(state, approval_identity)
-        state.action_record = {
-            **(state.action_record or {}),
-            **connector_info,
-            "external_write_authorized": approval_identity.get("scope") == "configured",
-            "external_write": any(
-                connector_info.get(f"{name}_external_write", False)
-                or connector_info.get("external_write", False)
-                for name, _, _ in _CONNECTOR_HANDOFFS
-            ),
-            "external_systems_changed": any(
-                connector_info.get(f"{name}_external_write", False)
-                or connector_info.get("external_write", False)
-                for name, _, _ in _CONNECTOR_HANDOFFS
-            ),
-        }
-        # Persist artifacts after connector execution so signed packets and
-        # immutable operational outputs report the same external-write truth
-        # as the durable action record. Public packet-only approvals still
-        # render the explicit no-write state.
-        storage_info = persist_action_artifact(state, kind="active")
-        operational_info = persist_operational_output(state, kind="active")
-        state.action_record = {
-            **(state.action_record or {}),
-            **storage_info,
-            **operational_info,
-            "operational_side_effect": operational_info.get(
-                "operational_status", "not_configured"
-            ),
-        }
-        # The connector outcome is durable state even when the optional
-        # Cloud Storage evidence bucket is not configured or is temporarily
-        # unavailable. Always commit the post-handoff action record; otherwise
-        # a signed external write could be real while Firestore still shows the
-        # pre-connector packet-only state.
-        compare_and_set_workflow(state, "complete")
-        workflow_store.restore(state)
+        executing_state = copy.deepcopy(state)
+        try:
+            state = _execute_claimed_side_effects(
+                state,
+                approval_identity,
+                reverse=False,
+            )
+        except Exception as exc:
+            logger.exception("Approval operation requires reconciliation")
+            state = _mark_reconciliation_required(
+                state,
+                expected_status=WorkflowStatus.APPROVAL_EXECUTING,
+                fallback=executing_state,
+                error=exc,
+            )
+            _sync_jobs_for_workflow(workflow_id, state.status.value)
+            return state.to_dict()
+        state = _commit_workflow_transition(
+            state,
+            WorkflowStatus.APPROVAL_EXECUTING.value,
+            executing_state,
+        )
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:
@@ -6659,6 +7349,7 @@ def dismiss(workflow_id: str, request: DismissRequest) -> dict:
         request.identity_token,
         request.tenant_id,
     )
+    audit_actor = _audit_actor(request.actor, approval_identity)
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
         raise _demo_mutation_rate_limit_error(
@@ -6669,7 +7360,7 @@ def dismiss(workflow_id: str, request: DismissRequest) -> dict:
         def apply(current: WorkflowState) -> WorkflowState:
             state = workflow_store.dismiss(
                 current.workflow_id,
-                request.actor,
+                audit_actor,
                 request.reason,
             )
             if state.approval is not None:
@@ -6695,6 +7386,7 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
         request.identity_token,
         request.tenant_id,
     )
+    audit_actor = _audit_actor(request.actor, approval_identity)
     _authorize_workflow_tenant(workflow_id, approval_identity)
     if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
         raise _demo_mutation_rate_limit_error(
@@ -6711,8 +7403,17 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
                 raise PolicyViolation(
                     "Signed approval is required to reverse configured connector writes"
                 )
-            state = workflow_store.undo(current.workflow_id, request.actor)
+            state = workflow_store.undo(current.workflow_id, audit_actor)
             state.events[-1]["approval_identity"] = approval_identity
+            # Claim reversal before touching any external system. A concurrent
+            # approval sees this durable state and fails closed.
+            state.status = WorkflowStatus.REVERSAL_EXECUTING
+            _claim_side_effect_operation(
+                state,
+                kind="reversal",
+                actor=audit_actor,
+                approval_identity=approval_identity,
+            )
             return state
 
         state = _transition_workflow(
@@ -6720,36 +7421,150 @@ def undo(workflow_id: str, request: UndoRequest) -> dict:
             "complete",
             apply,
         )
-        connector_info = _connector_handoff_info(state, approval_identity, reverse=True)
+        executing_state = copy.deepcopy(state)
+        try:
+            state = _execute_claimed_side_effects(
+                state,
+                approval_identity,
+                reverse=True,
+            )
+        except Exception as exc:
+            logger.exception("Reversal operation requires reconciliation")
+            state = _mark_reconciliation_required(
+                state,
+                expected_status=WorkflowStatus.REVERSAL_EXECUTING,
+                fallback=executing_state,
+                error=exc,
+            )
+            _sync_jobs_for_workflow(workflow_id, state.status.value)
+            return state.to_dict()
+        state = _commit_workflow_transition(
+            state,
+            WorkflowStatus.REVERSAL_EXECUTING.value,
+            executing_state,
+        )
+        _sync_jobs_for_workflow(workflow_id, state.status.value)
+        return state.to_dict()
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PolicyViolation as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/workflows/{workflow_id}/reconcile")
+def reconcile(workflow_id: str, request: ReconcileRequest) -> dict:
+    """Retry the same durable operation after an interrupted/ambiguous attempt."""
+    actor = _require_action_actor(request.actor)
+    approval_identity = _verify_approval_mode(
+        workflow_id,
+        actor,
+        request.approval_mode,
+        request.approval_token,
+        request.identity_token,
+        request.tenant_id,
+    )
+    audit_actor = _audit_actor(actor, approval_identity)
+    _authorize_workflow_tenant(workflow_id, approval_identity)
+    if not _reserve_demo_mutation(approval_identity.get("tenant_id")):
+        raise _demo_mutation_rate_limit_error(
+            "Workflow mutation rate limit reached for this tenant; retry later."
+        )
+    try:
+        current = _resolve_workflow(workflow_id)
+        if current.status in {
+            WorkflowStatus.APPROVAL_EXECUTING,
+            WorkflowStatus.REVERSAL_EXECUTING,
+        }:
+            # A process may terminate after the durable claim but before the
+            # exception handler can mark reconciliation_required. First move
+            # only an expired claim into that exclusive state; a second CAS
+            # below then ensures exactly one recovery attempt can execute.
+            _transition_workflow(
+                workflow_id,
+                current.status.value,
+                _expire_stale_operation_claim,
+            )
+        elif current.status != WorkflowStatus.RECONCILIATION_REQUIRED:
+            raise PolicyViolation("Workflow has no recoverable operation")
+
+        def claim(current: WorkflowState) -> WorkflowState:
+            operation = current.operation or {}
+            kind = operation.get("kind")
+            if kind not in {"approval", "reversal"}:
+                raise PolicyViolation("Workflow has no recoverable operation")
+            requires_signed = bool(
+                operation.get("scope") == "configured"
+                or (current.action_record or {}).get("external_write")
+            )
+            if requires_signed and approval_identity.get("scope") != "configured":
+                raise PolicyViolation(
+                    "Signed approval is required to reconcile configured connector writes"
+                )
+            current.operation = {
+                **operation,
+                "status": "executing",
+                "attempts": int(operation.get("attempts", 1)) + 1,
+                "last_attempt_at": utc_now(),
+                "lease_expires_at": (
+                    datetime.now(UTC)
+                    + timedelta(seconds=_operation_lease_seconds())
+                ).isoformat(),
+                "reconciled_by": audit_actor,
+            }
+            current.status = (
+                WorkflowStatus.APPROVAL_EXECUTING
+                if kind == "approval"
+                else WorkflowStatus.REVERSAL_EXECUTING
+            )
+            current.events.append(
+                {
+                    "event_id": f"evt-{uuid4().hex[:12]}",
+                    "timestamp": utc_now(),
+                    "action": "operation_reconciler",
+                    "outcome": "retry_claimed",
+                    "stage": current.stage.value,
+                    "evidence_hash": current.evidence.evidence_hash
+                    if current.evidence
+                    else None,
+                    "operation_id": operation.get("operation_id"),
+                }
+            )
+            return current
+
+        state = _transition_workflow(
+            workflow_id,
+            WorkflowStatus.RECONCILIATION_REQUIRED.value,
+            claim,
+        )
+        executing_status = state.status
+        executing_state = copy.deepcopy(state)
+        reverse = state.operation.get("kind") == "reversal"
+        try:
+            state = _execute_claimed_side_effects(
+                state,
+                approval_identity,
+                reverse=reverse,
+            )
+        except Exception as exc:
+            logger.exception("Reconciled operation remains incomplete")
+            state = _mark_reconciliation_required(
+                state,
+                expected_status=executing_status,
+                fallback=executing_state,
+                error=exc,
+            )
+            _sync_jobs_for_workflow(workflow_id, state.status.value)
+            return state.to_dict()
         state.action_record = {
             **(state.action_record or {}),
-            **connector_info,
-            "external_write_authorized": approval_identity.get("scope") == "configured",
-            "external_write": any(
-                connector_info.get(f"{name}_external_write", False)
-                or connector_info.get("external_write", False)
-                for name, _, _ in _CONNECTOR_HANDOFFS
-            ),
-            "external_systems_changed": any(
-                connector_info.get(f"{name}_external_write", False)
-                or connector_info.get("external_write", False)
-                for name, _, _ in _CONNECTOR_HANDOFFS
-            ),
+            "reconciliation_required": False,
+            "operation_id": state.operation.get("operation_id"),
         }
-        storage_info = persist_action_artifact(state, kind="rollback")
-        operational_info = persist_operational_output(state, kind="rollback")
-        state.action_record = {
-            **(state.action_record or {}),
-            **storage_info,
-            **operational_info,
-            "operational_side_effect": operational_info.get(
-                "operational_status", "not_configured"
-            ),
-        }
-        # Persist the connector reversal and its truthful external-write flags
-        # even when optional artifact storage is disabled or unavailable.
-        compare_and_set_workflow(state, "needs_approval")
-        workflow_store.restore(state)
+        state = _commit_workflow_transition(
+            state,
+            executing_status.value,
+            executing_state,
+        )
         _sync_jobs_for_workflow(workflow_id, state.status.value)
         return state.to_dict()
     except KeyError as exc:

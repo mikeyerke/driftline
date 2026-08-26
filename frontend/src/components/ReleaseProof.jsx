@@ -6,7 +6,7 @@ const percent = (value) => value === null || value === undefined ? "—" : `${Ma
 const releasePart = (value, length) => typeof value === "string" && value && value !== "unknown" ? value.slice(0, length) : null;
 const isReleaseSha = (value) => typeof value === "string" && /^[0-9a-f]{40}$/.test(value);
 
-export default function ReleaseProof() {
+export default function ReleaseProof({ compact = false }) {
   const [evaluation, setEvaluation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [monitor, setMonitor] = useState(null);
@@ -55,22 +55,39 @@ export default function ReleaseProof() {
     evaluation.gate_status === "pass",
   );
   const blocked = Boolean(!gateChecking && evaluation && !passed);
-  const label = gateChecking
-    ? "Checking"
-    : health?.status !== "ok"
-      ? "Unavailable"
-      : !evaluation
+  const label = compact
+    ? gateChecking
+      ? "Checking"
+      : health?.status !== "ok"
         ? "Unavailable"
-        : !releaseVersioned
-          ? "Unversioned"
-          : evaluationNotBound
-            ? "Stale · rerun"
-            : passed
-              ? `Pass · ${percent(evaluation.overall_score)}`
-              : "Blocked";
-  const GateIcon = passed ? CheckCircle2 : blocked ? XCircle : ShieldCheck;
+        : !evaluation
+          ? "Unavailable"
+          : !releaseVersioned
+            ? "Unversioned"
+            : evaluationNotBound
+              ? "Trace refresh needed"
+              : passed
+                ? `Verified · ${percent(evaluation.overall_score)}`
+                : "Review required"
+    : gateChecking
+      ? "Checking"
+      : health?.status !== "ok"
+        ? "Unavailable"
+        : !evaluation
+          ? "Unavailable"
+          : !releaseVersioned
+            ? "Unversioned"
+            : evaluationNotBound
+              ? "Trace refresh needed"
+              : passed
+                ? `Pass · ${percent(evaluation.overall_score)}`
+                : "Blocked";
+  // A release-bound trace mismatch is actionable but not a production outage.
+  // Keep it visually distinct from a failed gate so the public judge lane does
+  // not look broken while still telling an operator to refresh the trace.
+  const GateIcon = passed ? CheckCircle2 : evaluationNotBound ? ShieldCheck : blocked ? XCircle : ShieldCheck;
   const monitorLabel = monitor
-    ? `${monitor.healthy || 0}/${monitor.total || 0} healthy${monitor.due ? ` · ${monitor.due} due` : ""}`
+    ? `${monitor.healthy || 0}/${monitor.total || 0} healthy${compact ? "" : monitor.due ? ` · ${monitor.due} due` : ""}`
     : monitorLoading
       ? "Checking"
       : "Unavailable";
@@ -99,8 +116,8 @@ export default function ReleaseProof() {
     : undefined;
 
   return (
-    <div className="release-proof" aria-label="Latest deployment proof">
-      <div className={`release-proof-item ${passed ? "pass" : blocked ? "blocked" : ""}`} title={gateTitle} aria-label={gateTitle || "Latest trace gate status"}>
+    <div className={`release-proof${compact ? " compact" : ""}`} aria-label="Latest deployment proof">
+      <div className={`release-proof-item ${passed ? "pass" : evaluationNotBound ? "attention" : blocked ? "blocked" : ""}`} title={gateTitle} aria-label={gateTitle || "Latest trace gate status"}>
         <GateIcon size={14} aria-hidden="true" />
         <span><small>Latest trace gate</small><strong>{label}</strong></span>
       </div>
@@ -118,7 +135,7 @@ export default function ReleaseProof() {
       <div className={`release-proof-item ${releaseVersioned ? "pass" : health && health.status !== "ok" ? "blocked" : ""}`} title={releaseTitle} aria-label={releaseTitle || "Serving release status"}>
         <span><small>Serving release</small><strong>{releaseLabel}</strong></span>
       </div>
-      <span className="release-proof-note">Evaluation telemetry · not customer ROI</span>
+      <span className="release-proof-note">{compact ? "Judge telemetry · not customer ROI" : "Evaluation telemetry · not customer ROI"}</span>
     </div>
   );
 }

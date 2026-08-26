@@ -1,5 +1,8 @@
 # Driftline submission assets
 
+- `driftline-architecture.png`: 1600×900 Devpost architecture upload.
+- `driftline-architecture.svg`: editable source for the architecture upload.
+
 The PNGs in this folder are submission-frame references captured from the
 public Cloud Run application at 1440×810. Replace them after each release
 capture; the synthetic/public-source badge is part of the product UI. The
@@ -16,3 +19,7 @@ synthesized.
   card.
 - `driftline-demo-captions.srt`: matching caption track for the four-minute
   silent demo render.
+- `driftline-live-demo.mp4`: 43-second proof clip, not the final Devpost video.
+
+The final entry needs a new public YouTube or Vimeo recording that follows
+`submission/DEMO_SCRIPT.md` and is no longer than four minutes.

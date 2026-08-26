@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, Play, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ShieldCheck, X } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import EvidenceDiff from "./components/EvidenceDiff";
 import ImpactMap from "./components/ImpactMap";
@@ -12,7 +12,7 @@ import AgentTrace from "./components/AgentTrace";
 import SourcePanel from "./components/SourcePanel";
 import TrustPanel from "./components/TrustPanel";
 import { artifacts, demoEvidence, demoEvidenceBySource } from "./data";
-import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, retryJob, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
+import { apiEnabled, approveWorkflow, dismissWorkflow, downloadPacket, getJob, getMonitorRegistry, getOperatorSession, getSources, listJobs, packetUrl, reconcileWorkflow, retryJob, startDemoJob, subscribeOperatorSession, undoWorkflow } from "./api";
 import ActionItems from "./components/ActionItems";
 import RunHistory from "./components/RunHistory";
 import IntegrationPanel from "./components/IntegrationPanel";
@@ -27,6 +27,8 @@ import SalesforceConnectorPanel from "./components/SalesforceConnectorPanel";
 import TraceEvalPanel from "./components/TraceEvalPanel";
 import ReleaseProof from "./components/ReleaseProof";
 import UtilityNextStep from "./components/UtilityNextStep";
+import JudgeJourney from "./components/JudgeJourney";
+import DecisionRoom from "./components/DecisionRoom";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -74,6 +76,8 @@ export default function App() {
   const [sourceHistoryRefreshKey, setSourceHistoryRefreshKey] = useState(0);
   const [selectedSource, setSelectedSource] = useState("competitor/pricing");
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
+  const [controlPlaneOpen, setControlPlaneOpen] = useState(() => Boolean(getOperatorSession().identityToken));
+  const [judgeMode, setJudgeMode] = useState(true);
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
   const navScrollTimersRef = useRef([]);
@@ -82,6 +86,7 @@ export default function App() {
   const sessionEpochRef = useRef(0);
   const historyRequestRef = useRef(0);
   const sourceHealthRequestRef = useRef(0);
+  const lastGuidedStatusRef = useRef(null);
 
   const approved = workflowState?.status === "complete";
   const dismissed = workflowState?.status === "dismissed";
@@ -112,27 +117,20 @@ export default function App() {
       }
     : null;
   const events = workflowState?.events || [];
-  const scanFailed = scanMessage.startsWith("Unable");
+  const scanFailed = /unable|unavailable|failed|paused/i.test(scanMessage);
   const packetHref = workflowId ? packetUrl(workflowId) : null;
   const structuredAnalysis = job?.workflow?.agent_trace?.structured_analysis;
   const actionRecord = workflowState?.action_record;
   const jiraWriteOccurred = ["created", "reused", "reactivated", "reversed"].includes(actionRecord?.jira_status);
   const selectedSourceDefinition = sources.find((source) => source.source_id === selectedSource);
   const selectedSourcePaused = selectedSourceDefinition?.enabled === false;
-  const runHint = actionRecord?.jira_status === "reversed"
-    ? "Jira handoff reversed · other destinations remain prepared-only"
-    : actionRecord?.jira_status === "reactivated"
-      ? "Jira handoff reactivated · external state remains reversible"
-      : jiraWriteOccurred
-      ? "Jira handoff recorded · other destinations remain prepared-only"
-    : selectedSourcePaused
-      ? "Monitoring paused · resume this source before scanning"
-    : operatorSession.identityToken && selectedSourceDefinition?.mode === "public_only"
-      ? "Authenticated source monitor · approval-gated analysis"
-      : operatorSession.identityToken
-      ? "Authenticated tenant run · approval-gated connector actions"
-      : "Public allowlisted monitor · live packet-safe access · no external writes";
-
+  const decisionScenario = selectedSource === "competitor/offerings"
+    ? { title: "A competitor changed its offering.", label: "competitor offering" }
+    : selectedSource === "competitor/blog"
+      ? { title: "A competitor changed its product story.", label: "competitor narrative" }
+      : selectedSource === "own/pricing"
+        ? { title: "Your pricing promise changed.", label: "your pricing" }
+        : { title: "A competitor changed its pricing.", label: "competitor pricing" };
   const refreshHistory = async (expectedEpoch = sessionEpochRef.current) => {
     const requestId = historyRequestRef.current + 1;
     historyRequestRef.current = requestId;
@@ -214,6 +212,7 @@ export default function App() {
 
   const selectNav = (label) => {
     setSelectedNav(label);
+    setControlPlaneOpen(true);
     const targetId = `${label.toLowerCase()}-section`;
     navScrollTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     navScrollTimersRef.current = [];
@@ -302,6 +301,11 @@ export default function App() {
 
   const runScan = async (sourceId = selectedSource, requestedRunMode = null) => {
     const scanEpoch = sessionEpochRef.current;
+    const selectedDefinition = sources.find((source) => source.source_id === sourceId);
+    const runMode = requestedRunMode
+      || (operatorSession.identityToken && selectedDefinition?.mode === "public_only"
+        ? "monitor"
+        : null);
     setScanMessage("");
     setScanning(true);
     setWorkflowState(null);
@@ -309,14 +313,9 @@ export default function App() {
     setJob(null);
     try {
       if (!apiEnabled) throw new Error("API disabled");
-      const selectedDefinition = sources.find((source) => source.source_id === sourceId);
       if (selectedDefinition?.enabled === false) {
         throw new Error("This source is paused; resume monitoring before scanning.");
       }
-      const runMode = requestedRunMode
-        || (operatorSession.identityToken && selectedDefinition?.mode === "public_only"
-          ? "monitor"
-          : null);
       const queued = await startDemoJob(sourceId, runMode);
       if (sessionEpochRef.current !== scanEpoch) return;
       setJob(queued);
@@ -437,9 +436,13 @@ export default function App() {
         ...current,
         status: state.status,
         workflow: state,
-        public_summary: "Action plan recorded · reversible packet created",
+        public_summary: state.status === "reconciliation_required"
+          ? "Action safely paused · same-operation recovery required"
+          : "Action plan recorded · reversible packet created",
       } : current);
-      setScanMessage("Action plan recorded · reversible packet created");
+      setScanMessage(state.status === "reconciliation_required"
+        ? "Action safely paused · reconcile the claimed operation"
+        : "Action plan recorded · reversible packet created");
       refreshHistory();
     } catch (error) {
       if (sessionEpochRef.current !== decisionEpoch) return;
@@ -456,18 +459,53 @@ export default function App() {
     try {
       const state = await undoWorkflow(workflowId);
       if (sessionEpochRef.current !== decisionEpoch) return;
+      const reversalChangedExternal = Boolean(
+        state.action_record?.external_systems_changed
+        || state.action_record?.external_write,
+      );
+      const reopenedMessage = reversalChangedExternal
+        ? "Decision reopened · scoped connector reversal recorded"
+        : "Decision reopened · no external systems were changed";
       setWorkflowState(state);
       setJob((current) => current ? {
         ...current,
         status: state.status,
         workflow: state,
-        public_summary: "Decision reopened · no external systems were changed",
+        public_summary: state.status === "reconciliation_required"
+          ? "Reversal safely paused · same-operation recovery required"
+          : reopenedMessage,
       } : current);
-      setScanMessage("Decision reopened · no external systems were changed");
+      setScanMessage(state.status === "reconciliation_required"
+        ? "Reversal safely paused · reconcile the claimed operation"
+        : reopenedMessage);
       refreshHistory();
     } catch (error) {
       if (sessionEpochRef.current !== decisionEpoch) return;
       setScanMessage(`Unable to reopen the decision · ${error.message || "retry the request"}`);
+    } finally {
+      setDecisionBusy(false);
+    }
+  };
+
+  const reconcile = async () => {
+    if (!workflowId || !liveWorkflow || decisionBusy) return;
+    const decisionEpoch = sessionEpochRef.current;
+    setDecisionBusy(true);
+    try {
+      const state = await reconcileWorkflow(workflowId);
+      if (sessionEpochRef.current !== decisionEpoch) return;
+      setWorkflowState(state);
+      setJob((current) => current ? {
+        ...current,
+        status: state.status,
+        workflow: state,
+        public_summary: state.status === "complete" ? "Operation reconciled · durable receipt confirmed" : "Operation recovery remains safely queued",
+      } : current);
+      setScanMessage(state.status === "reconciliation_required" ? "Recovery still required · no conflicting action allowed" : "Operation reconciled · durable outcome confirmed");
+      refreshHistory();
+    } catch (error) {
+      if (sessionEpochRef.current !== decisionEpoch) return;
+      setScanMessage(`Unable to reconcile the operation · ${error.message || "retry the request"}`);
     } finally {
       setDecisionBusy(false);
     }
@@ -545,33 +583,52 @@ export default function App() {
   };
 
   const focusSection = (sectionId) => {
+    setControlPlaneOpen(true);
     window.requestAnimationFrame(() => {
       document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
 
+  useEffect(() => {
+    const status = workflowState?.status || (scanning ? "scanning" : "idle");
+    if (!judgeMode || lastGuidedStatusRef.current === status) return;
+    lastGuidedStatusRef.current = status;
+    const target = status === "needs_approval"
+      ? "approvals-section"
+      : status === "complete"
+        ? "proof-section"
+        : ["approval_executing", "reversal_executing", "reconciliation_required"].includes(status)
+          ? "approvals-section"
+          : null;
+    if (target) {
+      const timer = window.setTimeout(() => focusSection(target), 150);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [judgeMode, scanning, workflowState?.status]);
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Skip to main content</a>
-      <Sidebar selected={selectedNav} onSelect={selectNav} />
+      <Sidebar selected={selectedNav} onSelect={selectNav} operatorSession={operatorSession} />
       <main id="main-content">
         <header className="topbar">
-          <h1>Driftline promise drift operations</h1>
+          <h1>Product decisions, with evidence</h1>
           <div className="topbar-actions">
             <OperatorAccess />
-            {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite">{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanMessage}</span>}
-            <span className="workspace-button">Production control plane<ChevronDown size={15} /></span>
-            <span className="run-hint">{runHint}</span>
-            <button className="primary" onClick={() => runScan()} disabled={scanning || selectedSourcePaused} type="button" title={selectedSourcePaused ? "Resume this paused source before scanning" : undefined}>
-              <Play size={17} />{scanning ? "Running…" : selectedSourcePaused ? "Source paused" : "Run scan"}
-            </button>
+            {scanMessage && <span className={`scan-message${scanFailed ? " error" : ""}`} role="status" aria-live="polite" title={scanMessage}>{scanFailed ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}{scanning ? "Agent running" : scanFailed ? "Scan needs attention" : scanMessage}</span>}
+            {["complete", "dismissed"].includes(workflowState?.status) && <button className="secondary compact" type="button" onClick={() => runScan()} disabled={scanning || selectedSourcePaused}>Run again</button>}
+            <span className="lane-indicator"><ShieldCheck size={15} />{operatorSession.identityToken ? "Signed operator lane" : "Public judge lane"}</span>
           </div>
         </header>
 
         <div className="content">
-        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>Production control plane</strong><span>{operatorSession.identityToken ? `Authenticated tenant lane · ${operatorSession.tenantId} · deterministic human gate` : "Public evaluation lane · pinned synthetic scenarios · deterministic human gate"}</span></div><span className="banner-status">{liveWorkflow ? (operatorSession.identityToken ? "Tenant workflow" : "Live workflow") : (operatorSession.identityToken ? "Ready to monitor" : "Packet-safe evaluation")}</span><ReleaseProof /></div>
+        <div className="workspace-banner"><div className="workspace-banner-copy"><strong>{operatorSession.identityToken ? "Signed PM workspace" : "Interactive product-decision example"}</strong><span>{operatorSession.identityToken ? `${operatorSession.tenantId} · source-connected evidence · approval-gated owner handoffs` : "See how a PM resolves conflicting signals without handing authority to AI"}</span></div><span className="banner-status">{operatorSession.identityToken ? (liveWorkflow ? "Signed workflow" : "Signed lane") : "No sign-in needed"}</span><details className="technical-proof-details"><summary>For judges: architecture &amp; safety</summary><ReleaseProof compact /></details></div>
+          <DecisionRoom workflowState={workflowState} job={job} scanning={scanning} scanMessage={scanMessage} scanFailed={scanFailed} scenarioTitle={decisionScenario.title} scenarioLabel={decisionScenario.label} onRunReview={() => runScan()} onOpenWorkflow={() => focusSection("overview-section")} />
+          <details className="legacy-workflow-details" open={controlPlaneOpen} onToggle={(event) => setControlPlaneOpen(event.currentTarget.open)}>
+            <summary className="legacy-workflow-summary"><span>Secondary control plane</span><strong>Owner work and evidence trace</strong><p>Optional technical walkthrough for source snapshots, handoffs, and deployment proof.</p><b>{controlPlaneOpen ? "Hide" : "Open"}</b></summary>
           <section id="overview-section" className="overview-section">
-            <p className="product-orientation">{approved ? "Driftline verified the change, recorded the approved operating plan, and is tracking owner closure." : "Driftline monitors public promises, maps downstream work, and prepares evidence-bound packets for human approval."}</p>
+            <p className="product-orientation">{approved ? "The source change is verified, the human decision is recorded, and every owner action remains traceable and reversible." : "A public promise changed. Driftline verifies the evidence, maps every affected owner, and stops at a human decision."}</p>
             <UtilityNextStep workflow={workflowState} job={job} scanning={scanning} sourcePaused={selectedSourcePaused} onRunScan={() => runScan()} onNavigate={focusSection} />
             <section className="incident-header">
               <span className="incident-icon"><AlertTriangle size={30} /></span>
@@ -585,11 +642,7 @@ export default function App() {
               <button className="secondary incident-details" onClick={() => setShowEvidence(true)} type="button">View source evidence<ChevronDown size={16} /></button>
             </section>
 
-            <section className="change-brief" aria-label="Change decision brief">
-              <div><span>Why this matters</span><strong>One source change can create conflicting promises across the business.</strong><p>Driftline turns the verified sentence-level change into owner-ready work, with evidence attached before anything can be approved.</p></div>
-              <div><span>Decision scope</span><strong>{workflowState?.impact_graph?.summary?.artifact_count || 4} downstream surfaces</strong><p>Review each mapped owner surface before approving the bounded outputs.</p></div>
-              <div><span>Guardrail</span><strong>Human approval required</strong><p>High-risk changes stop here. The agent cannot approve its own action.</p></div>
-            </section>
+            <JudgeJourney workflow={workflowState} scanning={scanning} judgeMode={judgeMode} onToggleJudgeMode={() => setJudgeMode((current) => !current)} onNavigate={focusSection} />
 
             <ChangeCardPanel card={workflowState?.change_card} />
 
@@ -603,7 +656,7 @@ export default function App() {
 
             <div className="dashboard-grid">
               <div className="main-column">
-                <div className="upper-grid">
+                <div id="evidence-section" className="upper-grid">
                   <EvidenceDiff collapsed={evidenceCollapsed} onToggle={() => setEvidenceCollapsed((current) => !current)} evidence={evidence} />
                   <ImpactMap items={impacts} graph={workflowState?.impact_graph} approved={approved} sourceName={evidence.source_name} sourceCategory={selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} onSelectArtifact={focusArtifactWorklist} />
                 </div>
@@ -611,7 +664,7 @@ export default function App() {
                 <ArtifactDetail item={selectedItem} live={liveWorkflow && !approved} decision={artifactDecisions[selectedItem?.name]} onDecisionChange={updateArtifactDecision} packetUrl={approved ? packetHref : null} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} />
               </div>
               <aside id="approvals-section">
-              <DecisionPanel approved={approved} dismissed={dismissed} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} evidence={evidence} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onDismiss={dismissSignal} onEvidence={() => setShowEvidence(true)} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category || selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} requiresDecisionCopilot={Boolean(operatorSession.identityToken)} />
+              <DecisionPanel status={workflowState?.status} operation={workflowState?.operation} approved={approved} dismissed={dismissed} approval={approval} artifactDecisions={artifactDecisions} copilot={job?.workflow?.agent_trace?.decision_copilot} evidence={evidence} actionRecord={workflowState?.action_record} onApprove={approve} onOptionSelect={(option) => setArtifactDecisions(option.artifact_decisions)} onUndo={reopen} onReconcile={reconcile} onDismiss={dismissSignal} onEvidence={() => setShowEvidence(true)} onPacket={operatorSession.identityToken && workflowId ? () => downloadPacket(workflowId).catch((error) => setScanMessage(`Unable to download packet · ${error.message}`)) : null} isLive={liveWorkflow && workflowState?.status === "needs_approval"} busy={decisionBusy} packetHref={packetHref} sourceCategory={workflowState?.impact_graph?.summary?.category || selectedSourceDefinition?.category || (selectedSource.startsWith("competitor/") ? "Competitor pricing" : "Own pricing")} requiresDecisionCopilot={Boolean(operatorSession.identityToken)} />
               </aside>
             </div>
             {workflowState?.action_items?.length > 0 && <ActionItems workflowId={workflowId} items={workflowState.action_items} workflowStatus={workflowState.status} onChange={(state) => { setWorkflowState(state); setJob((current) => current ? { ...current, status: state.status, workflow: state } : current); refreshHistory(); }} />}
@@ -620,7 +673,6 @@ export default function App() {
             <ChangeTimeline state={workflowState} />
             <WorkflowTimeline state={workflowState} />
           </section>
-
           <SourcePanel historyRefreshKey={sourceHistoryRefreshKey} monitorOutcome={job?.run_mode === "monitor" && job?.source_id === selectedSource ? job?.source_status : null} evidence={evidence} dataMode={workflowState?.data_mode || evidence.data_mode || demoEvidence.data_mode} hasLiveWorkflow={Boolean(workflowState)} sources={sources} sourceHealth={sourceHealth} sourceHealthState={sourceHealthState} selectedSource={selectedSource} onSourceChange={handleSourceChange} operatorSession={operatorSession} onRunSource={runSourceNow} onVisible={() => refreshSourceHealth()} onRegistered={(payload) => { if (payload?.source?.source_id) handleSourceChange(payload.source.source_id); setSourceHistoryRefreshKey((value) => value + 1); getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} onLifecycleChanged={() => { getSources().then((next) => setSources(next.sources || [])).catch(() => {}); refreshSourceHealth(); }} />
           <ChangeGenomePanel operatorSession={operatorSession} />
           <TraceEvalPanel workflowId={workflowId} />
@@ -631,6 +683,7 @@ export default function App() {
           <AgentTrace job={job} />
           <section id="activity-section"><ActivityLog events={events} /></section>
           <TrustPanel actionRecord={actionRecord} />
+          </details>
           <footer className="demo-footer"><span>ⓘ Synthetic replay remains available when the public source cannot be fetched.</span><span>Approval gating is deterministic; the public evaluation lane is packet-safe and configured writes require signed operator approval.</span><span className="legal-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></span></footer>
         </div>
       </main>

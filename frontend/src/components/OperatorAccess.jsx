@@ -1,4 +1,4 @@
-import { LogOut, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, LogOut, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   clearOperatorSession,
@@ -129,6 +129,12 @@ export default function OperatorAccess() {
 
   const startSignIn = async () => {
     setError("");
+    const secureOrigin = config?.sign_in_origin;
+    if (secureOrigin && window.location.origin !== secureOrigin) {
+      const destination = `${secureOrigin}${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.location.assign(destination);
+      return;
+    }
     setAuthLoading(true);
     setStatus("Loading Google sign-in…");
     try {
@@ -173,7 +179,7 @@ export default function OperatorAccess() {
         <span className="operator-access-label"><ShieldCheck size={14} />Operator lane</span>
         {authStarted
           ? <div ref={buttonRef} aria-label="Sign in with Google for the Driftline operator lane" />
-          : <button className="operator-google-trigger" type="button" onClick={startSignIn} disabled={authLoading}><ShieldCheck size={14} />{authLoading ? "Loading…" : "Sign in with Google"}</button>}
+          : <button className="operator-google-trigger" type="button" onClick={startSignIn} disabled={authLoading}><ShieldCheck size={14} />{authLoading ? "Loading…" : "Sign in with Google"}{config?.sign_in_origin && window.location.origin !== config.sign_in_origin ? <ArrowUpRight size={13} /> : null}</button>}
         {status && <small className="operator-access-status">{status}</small>}
         {error && <small className="operator-access-error" role="alert">{error}</small>}
       </div>

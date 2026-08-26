@@ -20,6 +20,18 @@ export default function UtilityNextStep({ workflow, job, scanning, sourcePaused,
   const monitorNoOp = !workflow && job?.status === "complete" && job?.source_status === "unchanged";
   const monitorBaseline = !workflow && job?.status === "complete" && job?.source_status === "baseline_established";
   const monitorFailed = !workflow && job?.status === "complete" && job?.source_status === "source_fetch_failed";
+  const reconciliationRequired = workflow?.status === "reconciliation_required";
+  const operationExecuting = ["approval_executing", "reversal_executing"].includes(workflow?.status);
+
+  if (reconciliationRequired || operationExecuting) {
+    return (
+      <section className={`utility-next-step ${reconciliationRequired ? "failed" : "execute"}`} aria-label="Next best action">
+        <span className="utility-next-step-icon">{reconciliationRequired ? <AlertTriangle size={16} /> : <Clock3 size={16} />}</span>
+        <div><strong>{reconciliationRequired ? "Confirm the claimed operation" : "A durable operation is in progress"}</strong><p>{reconciliationRequired ? "Driftline blocked conflicting decisions and preserved the operation ID for an idempotent retry." : "The action was claimed before side effects began; wait for the durable receipt."}</p></div>
+        <button className="primary compact" type="button" onClick={() => onNavigate?.("approvals-section")}>{reconciliationRequired ? "Open recovery" : "View operation"}<ArrowRight size={14} /></button>
+      </section>
+    );
+  }
 
   if (monitorFailed) {
     return (
@@ -46,10 +58,10 @@ export default function UtilityNextStep({ workflow, job, scanning, sourcePaused,
 
   if (!workflow) {
     return (
-      <section className="utility-next-step ready" aria-label="Next best action">
+      <section className={`utility-next-step ready${scanning ? " scanning" : ""}`} aria-label="Next best action">
         <span className="utility-next-step-icon"><Play size={16} /></span>
-        <div><strong>Start with one approved change surface</strong><p>Run a bounded scan to turn the selected source into an evidence-linked decision packet.</p></div>
-        <button className="secondary compact" type="button" onClick={onRunScan} disabled={scanning || sourcePaused} title={sourcePaused ? "Resume this source before scanning" : undefined}>{scanning ? "Running…" : sourcePaused ? "Source paused" : "Run scan"}<ArrowRight size={14} /></button>
+        <div><strong>{scanning ? "Checking the change" : "Prepare owner-ready work"}</strong><p>{scanning ? "Verifying the evidence and mapping every affected surface. Nothing changes without your approval." : "Verify the source, map downstream work, and stop at a human decision."}</p></div>
+        <button className="primary compact" type="button" onClick={onRunScan} disabled={scanning || sourcePaused} title={sourcePaused ? "Resume this source before scanning" : undefined}>{scanning ? "Reviewing…" : sourcePaused ? "Source paused" : "Review this change"}<ArrowRight size={14} /></button>
       </section>
     );
   }
@@ -59,7 +71,7 @@ export default function UtilityNextStep({ workflow, job, scanning, sourcePaused,
     return (
       <section className="utility-next-step review" aria-label="Next best action">
         <span className="utility-next-step-icon"><ShieldCheck size={16} /></span>
-        <div><strong>Next move: review the bounded response</strong><p>Gemini mapped {count} downstream surface{count === 1 ? "" : "s"}; confirm the owners and approve the narrowest plan that fits the evidence.</p></div>
+        <div><strong>Compare the evidence-cited response plans</strong><p>Driftline mapped {count} downstream surface{count === 1 ? "" : "s"}. The analysis card and trace identify whether this run used Gemini or the deterministic demo fallback.</p></div>
         <button className="primary compact" type="button" onClick={() => onNavigate?.("approvals-section")}>Review decision<ArrowRight size={14} /></button>
       </section>
     );

@@ -115,6 +115,7 @@ VISUAL_DEFINITIONS: dict[str, VisualDefinition] = {
         after_path="docs/concepts/change-operations-approved.jpg",
     ),
 }
+_DEMO_EVIDENCE_CACHE: dict[tuple[str, str], VisualEvidence] = {}
 
 
 def _visual_url(path: str) -> str:
@@ -210,6 +211,9 @@ def _fetch_asset(definition: VisualDefinition, side: str) -> VisualAsset:
 
 def get_visual_evidence(asset_id: str, mode: str = "live") -> VisualEvidence:
     """Fetch both sides and hash them together; synthetic fallback is demo-only."""
+    cache_key = (asset_id, os.getenv("DRIFTLINE_VISUAL_ASSET_REF", "main"))
+    if mode == "demo" and cache_key in _DEMO_EVIDENCE_CACHE:
+        return _DEMO_EVIDENCE_CACHE[cache_key]
     definition = VISUAL_DEFINITIONS.get(asset_id)
     if definition is None:
         raise MultimodalUnavailable("visual_asset_not_allowlisted")
@@ -224,7 +228,7 @@ def get_visual_evidence(asset_id: str, mode: str = "live") -> VisualEvidence:
     evidence_hash = hashlib.sha256(
         f"{before.snapshot_hash}\n{after.snapshot_hash}".encode("ascii")
     ).hexdigest()
-    return VisualEvidence(
+    evidence = VisualEvidence(
         asset_id=asset_id,
         name=definition.name,
         before=before,
@@ -232,15 +236,32 @@ def get_visual_evidence(asset_id: str, mode: str = "live") -> VisualEvidence:
         evidence_hash=evidence_hash,
         data_mode=before.data_mode,
     )
+    if mode == "demo":
+        _DEMO_EVIDENCE_CACHE[cache_key] = evidence
+    return evidence
 
 
 def visual_asset_bytes(asset_id: str, side: str, mode: str = "live") -> VisualAsset:
-    evidence = get_visual_evidence(asset_id, mode)
-    if side == "before":
-        return evidence.before
-    if side == "after":
-        return evidence.after
-    raise MultimodalUnavailable("visual_side_not_allowlisted")
+    """Fetch only the requested allowlisted side.
+
+    The metadata route deliberately fetches both sides to bind their combined
+    evidence hash. The byte route must not repeat that work when the browser
+    requests one image, which bounds anonymous outbound bandwidth per call.
+    """
+    if side not in {"before", "after"}:
+        raise MultimodalUnavailable("visual_side_not_allowlisted")
+    if mode == "demo":
+        evidence = get_visual_evidence(asset_id, mode="demo")
+        return evidence.before if side == "before" else evidence.after
+    definition = VISUAL_DEFINITIONS.get(asset_id)
+    if definition is None:
+        raise MultimodalUnavailable("visual_asset_not_allowlisted")
+    try:
+        return _fetch_asset(definition, side)
+    except MultimodalUnavailable:
+        if mode != "demo":
+            raise
+        return _synthetic_asset(asset_id, side)
 
 
 def _parse_model_json(raw: str) -> dict[str, Any]:

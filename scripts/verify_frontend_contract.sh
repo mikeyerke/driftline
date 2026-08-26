@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! grep -Fq 'Evidence readiness: 0 of 3 checks corroborated' frontend/src/components/EvidenceCouncil.jsx \
+  || ! grep -Fq 'Next validation: quantify the segment split' frontend/src/components/DecisionRoom.jsx; then
+  printf 'PM intake corroboration contract is missing from the decision brief.\n' >&2
+  exit 1
+fi
+
 # Literal IDs in the React source become document anchors. Duplicate anchors
 # make the sidebar navigation and assistive-technology landmarks ambiguous.
 if command -v rg >/dev/null 2>&1; then
@@ -95,6 +101,88 @@ if { command -v rg >/dev/null 2>&1 \
       && { ! grep -Eq 'sourceHealthRequestRef' frontend/src/App.jsx \
         || ! grep -Eq 'sourceHealthRequestRef\.current !== requestId' frontend/src/App.jsx; }; }; then
   printf 'Source-health freshness guard is missing: an older overlapping read could overwrite newer state.\n' >&2
+  exit 1
+fi
+
+# Decision Twin retains prior outcomes as history after reopening. The learning
+# receipt must select only an observation whose generation-bound ID matches the
+# current case generation, or a generation-1 result can look current after a
+# generation-2 approval.
+if { command -v rg >/dev/null 2>&1 \
+      && { ! rg -q 'outcome-g\$\{decisionCase\.generation\}-' frontend/src/components/LearningReceipt.jsx \
+        || ! rg -q 'observation_id\.startsWith\(currentGenerationPrefix\)' frontend/src/components/LearningReceipt.jsx \
+        || rg -q 'decisionCase\.outcomes\.at\(-1\)' frontend/src/components/LearningReceipt.jsx; }; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && { ! grep -Fq 'outcome-g${decisionCase.generation}-' frontend/src/components/LearningReceipt.jsx \
+        || ! grep -Eq 'observation_id\.startsWith\(currentGenerationPrefix\)' frontend/src/components/LearningReceipt.jsx \
+        || grep -Eq 'decisionCase\.outcomes\.at\(-1\)' frontend/src/components/LearningReceipt.jsx; }; }; then
+  printf 'Decision Twin receipt is not generation-scoped: a prior outcome could appear current.\n' >&2
+  exit 1
+fi
+
+if ! grep -Fq 'trigger_observation' frontend/src/components/LearningReceipt.jsx; then
+  printf 'Decision Twin receipt omits the prior-generation outcome that triggered reopening.\n' >&2
+  exit 1
+fi
+
+# Approval is a compare-and-set transition. The public Decision Twin must send
+# the generation displayed in the room, or the API correctly rejects the
+# action as an incomplete/stale approval instead of recording the decision.
+if { command -v rg >/dev/null 2>&1 \
+      && ! rg -q 'decisionCase\.council\.synthesis_hash,\s*decisionCase\.generation' frontend/src/components/DecisionRoom.jsx; } \
+  || { ! command -v rg >/dev/null 2>&1 \
+      && ! grep -Eq 'decisionCase\.council\.synthesis_hash,[[:space:]]*decisionCase\.generation' frontend/src/components/DecisionRoom.jsx; }; then
+  printf 'Decision Twin approval contract is incomplete: current generation is not sent with the synthesis hash.\n' >&2
+  exit 1
+fi
+
+# The public judge lane is a PM decision review, not a generic operations
+# dashboard. Keep the first viewport anchored to the real decision and make
+# the technical proof an intentional secondary disclosure.
+check_frontend_literal() {
+  local literal="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -Fq -- "$literal" "$file"
+  else
+    grep -Fq -- "$literal" "$file"
+  fi
+}
+
+if ! check_frontend_literal 'Turn conflicting evidence into a decision your team can defend.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'The alignment meeting, evidence hunt, and post-launch guesswork.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'What the PM leaves with' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Guardrail + rollback' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Open source-connected workspace flow' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Run the decision workflow' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'One approval starts the autonomous monitor · no second PM prompt' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Human approver' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'setSelectedId(latest.council.recommendation)' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'PM-provided decisions never receive synthetic outcomes.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Use my decision' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Build my decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'PM-provided · unverified' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Copy decision brief' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal '/api/decision-twin/intake' frontend/src/api.js \
+  || ! check_frontend_literal 'This decision has a precedent.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'window.location.assign(destination)' frontend/src/components/OperatorAccess.jsx \
+  || ! check_frontend_literal 'decision-recommendation-strip' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'What Driftline completed autonomously' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Completed before human approval' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'independent agents' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Autonomous monitor active' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'No second PM action is required.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'getDecisionTwin(decisionCase.case_id)' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'ReleaseProof compact' frontend/src/App.jsx \
+  || ! check_frontend_literal 'Trace refresh needed' frontend/src/components/ReleaseProof.jsx; then
+  printf 'Decision Twin judge-surface contract is incomplete: the PM-first decision or honest proof disclosure is missing.\n' >&2
+  exit 1
+fi
+
+if { command -v rg >/dev/null 2>&1 && rg -Fq -- 'Stale · rerun' frontend/src/components/ReleaseProof.jsx; } \
+  || { ! command -v rg >/dev/null 2>&1 && grep -Fq -- 'Stale · rerun' frontend/src/components/ReleaseProof.jsx; }; then
+  printf 'Release proof still exposes the stale operator label in the public lane.\n' >&2
   exit 1
 fi
 

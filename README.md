@@ -1,15 +1,21 @@
 # Driftline
 
-Driftline is a change-to-action agent for Product Marketing and adjacent
-operators. It monitors explicitly allowlisted public signals — own pricing and
-terms plus competitor pricing, offerings, and product narratives — verifies a
-material change, maps the affected offering and downstream work surfaces, and
-pauses when a consequential human decision is required. The hosted service has
-two explicit lanes: the anonymous judge console is packet-safe, while the
-Google-OIDC tenant operator lane uses the same durable Firestore workflow to
-execute least-privilege, idempotent, reversible connector actions. This is a
-real deployed control plane with a deliberately safe public surface, not a
-claim that an unauthenticated visitor can mutate a customer's systems.
+Driftline is a Product Decision Control Plane for PMs. It detects when new
+customer, usage, support, interface, or market evidence invalidates a roadmap
+commitment; compares the smallest safe responses; records a named human
+decision; and reopens the same decision when a measured guardrail breaks. The
+public judge journey is a complete evidence-to-outcome loop, not a chat answer:
+the agent turns ambiguity into a reversible experiment and a durable learning
+receipt. The existing Promise Drift workflow remains as the adjacent
+Taskmaster proof for turning an external change into owner-ready downstream
+work.
+
+The hosted service has two explicit lanes: the anonymous judge console is
+packet-safe, while the Google-OIDC tenant operator lane uses the same durable
+Firestore workflow to execute least-privilege, idempotent, reversible connector
+actions. This is a real deployed control plane with a deliberately safe public
+surface, not a claim that an unauthenticated visitor can mutate a customer's
+systems.
 
 For the current truth about what is deployed, externally verified, and still
 unmeasured, start with [`docs/STATUS.md`](docs/STATUS.md). The concise release
@@ -29,12 +35,52 @@ reports. The console shows the latest score, one-step regression delta, and a
 bounded oldest-to-newest trajectory from `GET /api/evals/history`; these are
 evaluation metrics, not customer ROI or willingness-to-pay claims.
 
-The default demonstration models a competitor price change from $49 to $59 per
-seat per month, then traces the impact into a comparison map, pricing
-battlecard, deal-desk guidance, and executive brief. The console can also run
-bounded scenarios for own pricing and terms, competitor capabilities, and
-competitor product blogs. Each scenario shows an offering impact graph, business
-domains, owners, work surfaces, and prepared handoffs. The deployed
+## Decision Twin: evidence to outcome
+
+The production release adds a focused product-management decision loop above the
+existing change-to-action workflow. A pinned onboarding case combines bounded
+product analytics, customer evidence, strategy constraints, and delivery risk
+into a provenance-preserving evidence graph. Five independent Google ADK
+specialists take customer, usage, strategy, feasibility, and challenger
+positions before one bounded synthesis compares four counterfactuals: ship,
+rollback, segment, or defer. The model recommends; a named human alone approves
+a falsifiable experiment with success, guardrail, and stop conditions.
+
+The loop does not end at approval. A measured aggregate outcome is evaluated
+against the precommitted thresholds, produces a learning receipt, and can
+reopen the same decision as the next generation while preserving its lineage.
+PMs can also choose **Use my decision** and submit a bounded, non-confidential
+decision question, current commitment, urgency, strongest upside signal, and
+strongest risk signal. `POST /api/decision-twin/intake` labels every resulting
+node `PM-provided context · unverified`, rejects extra or oversized fields, and
+never upgrades those notes to connected evidence. The same human gate produces
+a reversible measurement contract, while **Copy decision brief** exports the
+question, recommendation, decisive conflict, evidence labels, guardrail, and
+rollback path for an alignment doc or roadmap review.
+The public fixture is deterministic and explicitly labeled; live council mode
+uses Gemini 3.5 Flash through Google ADK, and the optional BigQuery adapter reads
+only allowlisted aggregate metrics through parameterized, dry-run-checked,
+bytes-capped queries. See the [judge scorecard](submission/JUDGE_SCORECARD.md)
+and [Decision Twin implementation plan](docs/superpowers/plans/2026-08-23-decision-twin-implementation.md).
+
+The August 24 verified baseline production proof is release
+`1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6`, Cloud Run revision
+`driftline-00291-v89`, and Cloud Build
+`154547e7-36ae-4eb2-a79a-35064e293191`. The live Decision Twin verifier proved
+five evidence-grounded ADK roles with preserved `ship`/`segment`/`defer`
+disagreement, a privacy-thresholded BigQuery attachment, named-human approval,
+measured outcome, and generation-2 reopening with prior approval and experiment
+lineage intact.
+The authoritative identity for any later release is read from `/health` and
+cross-checked against Cloud Run, Cloud Build, and Artifact Registry by
+`./scripts/verify_production.sh` rather than copied forward in prose.
+
+The adjacent Promise Drift demonstration models a competitor price change from
+$49 to $59 per seat per month, then traces the impact into a comparison map,
+pricing battlecard, deal-desk guidance, and executive brief. The console can
+also run bounded scenarios for own pricing and terms, competitor capabilities,
+and competitor product blogs. Each scenario shows an offering impact graph,
+business domains, owners, work surfaces, and prepared handoffs. The deployed
 source adapter fetches explicitly registered public snapshots. Judge fixtures
 remain pinned and deterministic; a signed operator can onboard additional
 exact HTTPS HTML/text/RSS URLs through `/api/operator/sources`, with redirects,
@@ -582,6 +628,16 @@ gcloud config set project driftline-hackathon-2026
 ./scripts/deploy.sh
 ~~~
 
+For the final candidate, use the release wrapper instead of stopping after the
+build. It deploys one clean commit, refreshes the live ADK trace evaluation for
+that exact SHA, verifies the Decision Twin approval/outcome/reopen loop, and
+runs the production proof gate in the required order:
+
+~~~bash
+DRIFTLINE_BASE_URL=https://driftline-ops.web.app \
+  ./scripts/release_and_verify.sh
+~~~
+
 The root Dockerfile builds the React console and serves it from FastAPI. Cloud
 Run uses the dedicated runtime service account for Vertex AI and Firestore; no
 API key is embedded in the client. The production image installs the frozen
@@ -742,6 +798,7 @@ their cadence deadlines.
 ~~~bash
 BASE=https://driftline-ops.web.app
 curl -fsS "$BASE/health"
+DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_decision_twin.sh
 DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_live_agent.sh
 DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_public_approval_undo.sh
 DRIFTLINE_BASE_URL="$BASE" ./scripts/verify_production.sh

@@ -81,6 +81,15 @@ Fresh live proof on this exact revision (rerun 2026-08-23):
   errors or desktop horizontal overflow. The signed pilot measurement path is
   locally covered and exposes aggregate owner-ready, closure, and reversal
   deltas without changing the public lane.
+- During final submission packaging, another bounded production run passed with
+  job `job-aac8734762a9`, workflow
+  `19794095-577e-4286-a868-cfbbd694f597`, and trace evaluation
+  `eval-d8b89b654b3a` at 100%. A separate public approval/owner-closure/undo
+  run passed with job `job-25ee7d98747b`, workflow
+  `b3d280e4-1f0e-47c5-9418-38ee30bf6c29`, and action
+  `item-230c92b6846b` completed then reversed; both external-write flags stayed
+  false. The locked dependency resolution passed `pip-audit` with no known
+  vulnerabilities.
 
 This release adds evidence-safe pilot utility: minutes are explicit totals and
 per-change deltas, zero baselines are rejected, operational measures require
@@ -428,7 +437,7 @@ followed by an explicit resume.
   unaudited transition.
 - Paused sources remain visible to signed operators with their history and
   reason, but the scheduler excludes them, the monitor registry reports
-  `status=paused`, and the browser disables **Run scan**. Built-in public
+  `status=paused`, and the browser disables **Run live agent**. Built-in public
   fixtures cannot be paused. Anonymous requests still see exactly five active
   fixtures.
 - Local proof: 282 backend tests, Ruff, frontend production build, frontend
@@ -1770,7 +1779,7 @@ followed by an explicit resume.
   presents a recovery card with a reload action and does not erase persisted
   workflow state or transmit exception details to a third party.
 - Post-deploy probes returned `/health` HTTP 200, Firestore persistence,
-  `gemini-3.5-flash` ADK execution through the public Run scan, deterministic
+  `gemini-3.5-flash` ADK execution through the public Run live agent action, deterministic
   `needs_approval`, zero browser warning/error logs, and zero severity `ERROR`
   Cloud Logging entries for the active revision.
 
@@ -1788,7 +1797,7 @@ followed by an explicit resume.
 - The deployed auth client is still pending replacement with a new OAuth client
   created inside this isolated project; the current `32555940559...` value is
   retained only until that action is completed and live sign-in is reverified.
-- A fresh logged-out browser journey on this revision completed **Run scan**;
+- A fresh logged-out browser journey on this revision completed **Run live agent**;
   the durable job reached `needs_approval`, the UI rendered the live
   `gemini-3.5-flash` ADK trace with `inspect_source_change` and
   `get_workflow_state`, and the browser captured no warning or error logs.
@@ -1900,7 +1909,7 @@ followed by an explicit resume.
   Build `c1a93c09-1bc0-43d5-bcc7-d18870318d6b` completed `SUCCESS`; Cloud Run
   revision `driftline-00072-lg8` serves 100% of traffic.
 - The authenticated console now detects a tenant's operator-registered
-  `public_only` source and queues `run_mode=monitor` when **Run scan** is
+  `public_only` source and queues `run_mode=monitor` when **Run live agent** is
   pressed. Pinned fixtures continue to use the bounded `tenant_demo` lane.
   This closes the product loop from source onboarding to a real public fetch,
   append-only baseline/history, ADK analysis, and deterministic approval; it

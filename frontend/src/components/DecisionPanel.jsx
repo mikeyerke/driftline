@@ -1,16 +1,28 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Ban, Check, Download, FileText, RotateCcw } from "lucide-react";
+import { AlertTriangle, Ban, Check, Download, FileText, LoaderCircle, RefreshCw, RotateCcw } from "lucide-react";
 import DecisionCopilot from "./DecisionCopilot";
 
-export default function DecisionPanel({ approved, dismissed, approval, artifactDecisions, actionRecord, copilot, evidence, onApprove, onOptionSelect, onUndo, onDismiss, onEvidence, onPacket, isLive, busy, packetHref, sourceCategory, requiresDecisionCopilot = false }) {
+export default function DecisionPanel({ status, operation, approved, dismissed, approval, artifactDecisions, actionRecord, copilot, evidence, onApprove, onOptionSelect, onUndo, onReconcile, onDismiss, onEvidence, onPacket, isLive, busy, packetHref, sourceCategory, requiresDecisionCopilot = false }) {
   const decisions = approval?.artifact_decisions || artifactDecisions || { "Pricing battlecard": "packet", "Renewal playbook": "packet", "Enterprise FAQ": "owner_review", "CRM guidance": "queued" };
   const counts = Object.values(decisions).reduce((result, value) => ({ ...result, [value]: (result[value] || 0) + 1 }), {});
   const outcomeSummary = `${counts.packet || 0} packet${counts.packet === 1 ? "" : "s"} · ${counts.owner_review || 0} owner review${counts.owner_review === 1 ? "" : "s"} · ${counts.queued || 0} queued follow-up${counts.queued === 1 ? "" : "s"}`;
   const [selectedOptionId, setSelectedOptionId] = useState(copilot?.recommendation_id || "");
   const [overrideReason, setOverrideReason] = useState("Operator reviewed the evidence and chose a narrower artifact route.");
+  const [leaseExpired, setLeaseExpired] = useState(false);
   useEffect(() => {
     setSelectedOptionId(copilot?.recommendation_id || "");
   }, [copilot?.recommendation_id]);
+  useEffect(() => {
+    const expiry = Date.parse(operation?.lease_expires_at || "");
+    if (!Number.isFinite(expiry)) {
+      setLeaseExpired(false);
+      return undefined;
+    }
+    const update = () => setLeaseExpired(Date.now() >= expiry);
+    update();
+    const timer = globalThis.setInterval(update, 1000);
+    return () => globalThis.clearInterval(timer);
+  }, [operation?.lease_expires_at]);
   const selectedOption = copilot?.options?.find((option) => option.option_id === selectedOptionId);
   // A human can intentionally override one or more artifact routes after
   // selecting a copilot option. Keep the reviewed option id and mark the
@@ -48,7 +60,7 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
             ? `One approved operational output is versioned inside the isolated Driftline project${["created", "reused", "reactivated"].includes(actionRecord?.jira_status) ? "; one bounded Jira issue was recorded" : ""}; no customer-facing system was changed.`
             : "No server decision was recorded."}
         </p>
-        {actionRecord && <section className="action-receipt" aria-label="Proof of action">
+        {actionRecord && <section id="proof-section" className="action-receipt" aria-label="Proof of action">
           <header className="action-receipt-header">
             <div><strong>Proof of action</strong><small>Durable output · reversible lifecycle</small></div>
             <span className={`action-receipt-state ${actionStatus}`}>{actionStatus.replaceAll("_", " ")}</span>
@@ -57,6 +69,7 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
             <div><strong>1</strong><span>Firestore action</span><code>{actionRecord.action_id}</code></div>
             <div><strong>2</strong><span>Cloud Storage</span><code>{actionRecord.storage_status || "not configured"}</code></div>
             <div><strong>3</strong><span>Rollback path</span><code>{actionRecord.reversible ? "available" : "not available"}</code></div>
+            <div><strong>4</strong><span>Operation</span><code>{operation?.operation_id || "legacy record"}</code></div>
           </div>
           <p className="action-receipt-footer"><span>External systems changed</span><b className={externalSystemsChanged ? "changed" : "unchanged"}>{externalSystemsChanged ? "Yes · scoped connector" : "No · packet-safe lane"}</b></p>
         </section>}
@@ -69,6 +82,33 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
           ? <button className="secondary full packet-link" type="button" onClick={onPacket} disabled={busy}><Download size={17} />Download change packet</button>
           : <a className="secondary full packet-link" href={packetHref} target="_blank" rel="noreferrer"><Download size={17} />Download change packet</a>)}
         <button className="secondary full evidence-button" onClick={onEvidence}><FileText size={17} />Open evidence</button>
+      </aside>
+    );
+  }
+
+  if (["approval_executing", "reversal_executing"].includes(status)) {
+    return (
+      <aside className="decision-panel operating" aria-live="polite">
+        <LoaderCircle className="spin" size={27} />
+        <h2>{status === "reversal_executing" ? "Reopening safely" : "Recording the action"}</h2>
+        <p className="decision-question">Driftline claimed one durable operation before touching any connector or artifact.</p>
+        <div className="audit-id"><strong>Operation</strong><span>{operation?.operation_id || "Claiming…"}</span></div>
+        {leaseExpired && <button className="primary full" type="button" onClick={onReconcile} disabled={busy}><RefreshCw size={17} />{busy ? "Reconciling…" : "Recover expired operation"}</button>}
+        <p className="decision-note">Conflicting decisions are blocked until this idempotent operation reaches a durable outcome.</p>
+      </aside>
+    );
+  }
+
+  if (status === "reconciliation_required") {
+    return (
+      <aside className="decision-panel recovery" aria-live="assertive">
+        <AlertTriangle className="warning-icon" size={27} />
+        <h2>Safe recovery required</h2>
+        <p className="decision-question">The operation was durably claimed, but its final outcome could not be confirmed.</p>
+        <div className="audit-id"><strong>Operation</strong><span>{operation?.operation_id}</span></div>
+        <div className="audit-id"><strong>Attempts</strong><span>{operation?.attempts || 1} · generation {operation?.generation || 1}</span></div>
+        <button className="primary full" type="button" onClick={onReconcile} disabled={busy}><RefreshCw size={17} />{busy ? "Reconciling…" : "Reconcile same operation"}</button>
+        <p className="decision-note">This retries the same idempotent operation. Configured connector recovery still requires signed operator authority.</p>
       </aside>
     );
   }
@@ -97,16 +137,20 @@ export default function DecisionPanel({ approved, dismissed, approval, artifactD
       <div className="decision-rationale"><strong>Why this needs a decision</strong><p>{sourceCategory?.startsWith("Competitor") ? "This signal can change comparison claims and deal guidance; Driftline keeps the observed source attached before anyone acts." : "This change affects contractual expectations and may require an exception path for existing customers."}</p></div>
       <DecisionCopilot copilot={copilot} evidence={evidence} selectedId={selectedOptionId} onSelect={(option) => { setSelectedOptionId(option.option_id); onOptionSelect?.(option); }} />
       {customRouting && <label className="override-reason"><span>Why change the recommended artifact routing?</span><textarea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} maxLength={240} rows={2} /></label>}
-      <div className="approval-scope"><strong>Approval scope</strong><span>{outcomeSummary}</span><small>{customRouting ? "Custom artifact routing selected · the reviewed workflow decision remains bounded by policy." : "High-risk artifacts remain behind this deterministic human gate."}</small></div>
-      <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || copilotUnavailable || (copilot && !selectedOption) || (customRouting && overrideReason.trim().length < 3)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : copilotUnavailable ? "Rerun scan for Gemini review" : "Approve action plan"}</button>
-      <button className="secondary full" onClick={() => {
-        const reason = window.prompt("Why is this signal not material right now?", "Reviewed as non-material for the current segment");
-        if (reason?.trim()) onDismiss?.(reason.trim());
-      }} disabled={!isLive || busy}><Ban size={17} />Dismiss as non-material</button>
-      <button className="secondary full" onClick={onEvidence}><FileText size={17} />Open evidence</button>
-      <p className="decision-note">Approval creates a reversible, evidence-linked packet and one isolated Google Cloud operational output. The agent cannot approve itself.</p>
+      <div className="decision-action-dock">
+        <div className="approval-scope"><strong>Human decision · reversible</strong><span>{outcomeSummary}</span><small>{customRouting ? "Custom routing selected · policy boundaries still apply." : "Creates owner-ready work only after your approval."}</small></div>
+        <button className="primary full" onClick={() => onApprove(approvalOption)} disabled={!isLive || busy || policyBlocked || copilotUnavailable || (copilot && !selectedOption) || (customRouting && overrideReason.trim().length < 3)}><Check size={18} />{busy ? "Recording decision…" : policyBlocked ? "Resolve policy findings" : copilotUnavailable ? "Rerun scan for Gemini review" : "Approve owner plan"}</button>
+        <div className="decision-secondary-actions">
+          <button className="secondary" onClick={onEvidence}><FileText size={17} />Open evidence</button>
+          <button className="text-button" onClick={() => {
+            const reason = window.prompt("Why is this signal not material right now?", "Reviewed as non-material for the current segment");
+            if (reason?.trim()) onDismiss?.(reason.trim());
+          }} disabled={!isLive || busy}><Ban size={17} />Dismiss signal</button>
+        </div>
+        <p className="decision-note">The AI can recommend, but you approve before anything is created. Every output stays evidence-linked and reversible.</p>
+      </div>
       {copilotUnavailable && <p className="decision-note decision-warning">Gemini decision analysis was unavailable for this tenant run. Approval is disabled until a new scan produces a reviewed option.</p>}
-      {!isLive && <p className="decision-note decision-warning">Run the scan to create a live Firestore workflow before deciding.</p>}
+      {!isLive && <p className="decision-note decision-warning">Run the live agent to create a Firestore workflow before deciding.</p>}
     </aside>
   );
 }
