@@ -28,6 +28,8 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [intake, setIntake] = useState(emptyIntake);
   const [copyStatus, setCopyStatus] = useState("");
+  const [approverName, setApproverName] = useState("");
+  const isProvidedIntake = Boolean(decisionCase?.events?.some((event) => event.source_mode === "pm_provided_unverified"));
 
   const applyDecisionCase = (next) => {
     setDecisionCase(next);
@@ -41,7 +43,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   }, [decisionCase]);
 
   useEffect(() => {
-    if (decisionCase?.status !== "experiment_active") {
+    if (decisionCase?.status !== "experiment_active" || isProvidedIntake) {
       setMonitoring(false);
       return undefined;
     }
@@ -70,7 +72,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [decisionCase?.case_id, decisionCase?.generation, decisionCase?.status]);
+  }, [decisionCase?.case_id, decisionCase?.generation, decisionCase?.status, isProvidedIntake]);
 
   const runCouncil = async () => {
     setBusy("council"); setError("");
@@ -93,7 +95,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const approve = async () => {
     setBusy("approval"); setError("");
     try {
-      setDecisionCase(await approveDecisionTwin(decisionCase.case_id, selectedId, decisionCase.council.synthesis_hash, decisionCase.generation));
+      setDecisionCase(await approveDecisionTwin(decisionCase.case_id, selectedId, decisionCase.council.synthesis_hash, decisionCase.generation, approverName.trim()));
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
   };
 
@@ -112,6 +114,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     setBusy("");
     setError("");
     setCopyStatus("");
+    setApproverName("");
   };
 
   const copyDecisionBrief = async () => {
@@ -257,7 +260,6 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const selectedOption = decisionCase.council.options.find((option) => option.option_id === selectedId);
   const recommendedOption = decisionCase.council.options.find((option) => option.option_id === decisionCase.council.recommendation);
   const councilVotes = new Set(decisionCase.council.positions.map((position) => position.recommendation)).size;
-  const isProvidedIntake = decisionCase.events.some((event) => event.source_mode === "pm_provided_unverified");
   const approvalLabel = selectedId === "segment" && !isProvidedIntake ? "Approve segmented experiment" : `Approve ${optionTitle(decisionCase.council.options, selectedId).toLowerCase()}`;
   return (
     <section className="decision-room" aria-labelledby="decision-room-title">
@@ -318,12 +320,15 @@ export default function DecisionRoom({ onOpenWorkflow }) {
             <li><ArrowRight size={14} />A reversible experiment handoff</li>
           </ul>
         </div>
-        <button className="primary" type="button" onClick={approve} disabled={Boolean(busy)}>
-          {busy === "approval" ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />}
-          {busy === "approval" ? "Recording decision…" : approvalLabel}
-        </button>
+        <div className="decision-approver-control">
+          <label htmlFor="decision-approver-name"><span>Human approver</span><input id="decision-approver-name" type="text" minLength="2" maxLength="120" autoComplete="name" value={approverName} onChange={(event) => setApproverName(event.target.value)} placeholder="Your name" /></label>
+          <button className="primary" type="button" onClick={approve} disabled={Boolean(busy) || approverName.trim().length < 2}>
+            {busy === "approval" ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />}
+            {busy === "approval" ? "Recording decision…" : approvalLabel}
+          </button>
+        </div>
       </section>}
-      {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} monitoring={monitoring} onOutcome={observeOutcome} />}
+      {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} monitoring={monitoring} fixtureEligible={!isProvidedIntake} onOutcome={observeOutcome} />}
       {busy === "outcome" && <p className="decision-room-status decision-room-status-bottom" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Evaluating the guardrail and preserving the next generation.</p>}
       {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
       {selectedOption && waitingForDecision && <p className="decision-selection-note"><CheckCircle2 size={14} />Selected response: <strong>{selectedOption.title}</strong></p>}

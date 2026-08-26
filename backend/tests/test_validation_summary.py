@@ -44,6 +44,34 @@ def test_validation_summary_calculates_preregistered_thresholds() -> None:
     assert "+2.0 / 5" in report
 
 
+def test_validation_summary_uses_paired_time_improvement() -> None:
+    baseline = [10, 10, 10, 100, 100, 100]
+    driftline = [20, 20, 20, 20, 1000, 1000]
+    rows = [
+        {
+            "participant_id": f"P{index:02d}",
+            "baseline_seconds": str(baseline[index - 1]),
+            "driftline_seconds": str(driftline[index - 1]),
+            "baseline_coverage_0_5": "3",
+            "driftline_coverage_0_5": "5",
+            "baseline_confidence_1_5": "3",
+            "driftline_confidence_1_5": "4",
+            "would_use_weekly": "yes",
+            "recovery_understood": "yes",
+            "human_control_understood": "yes",
+            "moderator_hints": "0",
+            "condition_order": _condition_order(index),
+            "protocol_deviation": "false",
+        }
+        for index in range(1, 7)
+    ]
+
+    report = summarize(rows)
+
+    assert "thresholds not yet met" in report
+    assert "-100.0%" in report
+
+
 def test_validation_summary_treats_partial_rows_as_incomplete() -> None:
     rows = [{"participant_id": f"P{index:02d}"} for index in range(1, 7)]
     assert "incomplete" in summarize(rows)

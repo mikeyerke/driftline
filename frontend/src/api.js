@@ -211,7 +211,7 @@ export function getDecisionTwinEvaluation(caseId) {
   return request(`/api/decision-twin/${encodeURIComponent(caseId)}/evaluation`);
 }
 
-export function approveDecisionTwin(caseId, optionId, synthesisHash, generation, approver = "Demo Product Manager") {
+export function approveDecisionTwin(caseId, optionId, synthesisHash, generation, approver) {
   return request(`/api/decision-twin/${encodeURIComponent(caseId)}/approve`, {
     method: "POST",
     body: JSON.stringify({

@@ -130,11 +130,11 @@ def summarize(rows: list[dict[str, str]]) -> str:
         return f"# Driftline validation summary\n\nStatus: **invalid** ({exc}).\n\nNo win claim should be published.\n"
     baseline_median = statistics.median(baseline_time)
     driftline_median = statistics.median(driftline_time)
-    time_improvement = (
-        ((baseline_median - driftline_median) / baseline_median) * 100
-        if baseline_median
-        else 0
-    )
+    paired_time_improvements = [
+        ((baseline - driftline) / baseline) * 100 if baseline else 0
+        for baseline, driftline in zip(baseline_time, driftline_time, strict=True)
+    ]
+    time_improvement = statistics.median(paired_time_improvements)
     coverage_delta = statistics.median(driftline_coverage) - statistics.median(
         baseline_coverage
     )

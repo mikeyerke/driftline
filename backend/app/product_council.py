@@ -96,6 +96,7 @@ class CouncilDraft(BaseModel):
     recommendation: Literal["ship", "rollback", "segment", "defer"]
     executive_summary: str = Field(min_length=1, max_length=500)
     decisive_conflict: str = Field(min_length=1, max_length=360)
+    evidence_node_ids: list[str] = Field(min_length=1, max_length=8)
 
 
 def _agent(role: CouncilRole) -> Agent:
@@ -252,6 +253,7 @@ def _synthesis_agent() -> Agent:
         instruction=(
             "Return only the requested JSON. Choose one bounded recommendation, "
             "summarize the strongest evidence, and name the decisive disagreement. "
+            "Cite the supplied evidence node IDs that support the synthesis. "
             "Do not erase minority positions, approve work, or invent evidence."
         ),
     )
@@ -260,6 +262,24 @@ def _synthesis_agent() -> Agent:
 def _hash(payload: object) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _synthesis_payload(
+    case: DecisionCase,
+    positions: list[CouncilPosition],
+    draft: CouncilDraft,
+) -> dict[str, object]:
+    """Return every user-reviewed synthesis field bound by an approval hash."""
+    return {
+        "question": case.question,
+        "recommendation": draft.recommendation,
+        "executive_summary": draft.executive_summary,
+        "decisive_conflict": draft.decisive_conflict,
+        "evidence_node_ids": draft.evidence_node_ids,
+        "positions": [position.model_dump(mode="json") for position in positions],
+        "options": [option.model_dump(mode="json") for option in case.council.options],
+        "evidence_manifest_hash": case.council.evidence_manifest_hash,
+    }
 
 
 async def _run_live_product_council(case: DecisionCase) -> CouncilSynthesis:
@@ -287,18 +307,22 @@ async def _run_live_product_council(case: DecisionCase) -> CouncilSynthesis:
         raise ProductCouncilUnavailable(
             "Council synthesis failed schema validation"
         ) from exc
-    payload = {
-        "question": case.question,
-        "recommendation": draft.recommendation,
-        "positions": [position.model_dump(mode="json") for position in positions],
-        "options": [option.model_dump(mode="json") for option in case.council.options],
-        "evidence_manifest_hash": case.council.evidence_manifest_hash,
-    }
+    known_node_ids = {node.node_id for node in case.evidence_nodes}
+    if any(node_id not in known_node_ids for node_id in draft.evidence_node_ids):
+        raise ProductCouncilUnavailable("Council synthesis cited unknown evidence")
+    if draft.recommendation not in {
+        position.recommendation for position in positions
+    }:
+        raise ProductCouncilUnavailable(
+            "Council synthesis selected an unendorsed recommendation"
+        )
+    payload = _synthesis_payload(case, list(positions), draft)
     council = CouncilSynthesis(
         question=case.question,
         recommendation=draft.recommendation,
         executive_summary=draft.executive_summary,
         decisive_conflict=draft.decisive_conflict,
+        evidence_node_ids=draft.evidence_node_ids,
         positions=list(positions),
         options=case.council.options,
         evidence_manifest_hash=case.council.evidence_manifest_hash,

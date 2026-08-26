@@ -63,6 +63,11 @@ def test_evidence_graph_rejects_missing_provenance_and_unknown_edges() -> None:
     with pytest.raises(DecisionTwinPolicyError, match="unknown evidence node"):
         validate_evidence_graph(broken)
 
+    broken = deepcopy(case)
+    broken.evidence_nodes[0].title = "A materially different displayed claim"
+    with pytest.raises(DecisionTwinPolicyError, match="current evidence manifest"):
+        validate_evidence_graph(broken)
+
 
 def test_council_rejects_missing_challenger_and_unsupported_citations() -> None:
     case = build_demo_decision_case()
@@ -151,6 +156,7 @@ def test_each_approval_option_builds_its_own_experiment_contract() -> None:
     assert len({tuple(plan.owner_actions) for plan in plans.values()}) == 4
     assert plans["segment"].target_segment == "enterprise_workspaces"
     assert plans["defer"].primary_metric == "qualified_enterprise_evidence_count"
+    assert all(len(plan.stop_conditions) == 1 for plan in plans.values())
 
 
 def test_approval_rejects_stale_generation_even_when_synthesis_matches() -> None:
@@ -209,6 +215,15 @@ def test_invalidated_outcome_reopens_same_case_with_preserved_lineage() -> None:
         observation["observation_id"]
     )
     assert reopened.outcomes[-1].evaluation.verdict == "invalidated"
+    assert reopened.council.synthesis_hash != approved.council.synthesis_hash
+    assert reopened.council.recommendation == "rollback"
+    assert reopened.council.evidence_node_ids == [
+        "outcome-g1-enterprise-activation-rate"
+    ]
+    assert any(
+        node.node_id == "outcome-g1-enterprise-activation-rate"
+        for node in reopened.evidence_nodes
+    )
 
     with pytest.raises(DecisionTwinPolicyError, match="stale decision generation"):
         record_outcome(reopened, observation, expected_generation=1)
@@ -351,7 +366,7 @@ def test_validated_generation_rejects_a_distinct_later_outcome() -> None:
         )
 
 
-def test_generation_cap_prevents_history_overflow() -> None:
+def test_generation_cap_preserves_breach_and_stops_automatic_reopening() -> None:
     case = build_demo_decision_case()
     case.generation = 20
     approved = approve_decision_case(
@@ -361,11 +376,45 @@ def test_generation_cap_prevents_history_overflow() -> None:
         expected_synthesis_hash=case.council.synthesis_hash,
         expected_generation=20,
     )
-    with pytest.raises(DecisionTwinPolicyError, match="maximum generation"):
-        record_outcome(
+    terminal = record_outcome(
+        approved,
+        {
+            "observation_id": "generation-cap-breach",
+            "metric_id": "enterprise_activation_rate",
+            "segment": "enterprise_workspaces",
+            "value": -0.14,
+            "baseline": 0.0,
+            "unit": "relative_change",
+            "observed_at": "2026-08-30T18:00:00+00:00",
+            "source_label": "Bounded outcome fixture",
+            "content_hash": "2" * 64,
+        },
+        expected_generation=20,
+    )
+
+    assert terminal.status == "review_required"
+    assert terminal.generation == 20
+    assert terminal.outcomes[-1].evaluation.verdict == "invalidated"
+    assert terminal.decision_history[-1].trigger_observation.observation_id == (
+        "generation-cap-breach"
+    )
+    assert terminal.events[-1]["outcome"] == "terminal_human_review_required"
+
+
+def test_all_supported_generations_remain_round_trip_readable() -> None:
+    current = build_demo_decision_case()
+    for generation in range(1, 21):
+        approved = approve_decision_case(
+            current,
+            option_id="segment",
+            approver="Mike Yerke",
+            expected_synthesis_hash=current.council.synthesis_hash,
+            expected_generation=generation,
+        )
+        current = record_outcome(
             approved,
             {
-                "observation_id": "generation-cap-breach",
+                "observation_id": f"generation-{generation}-breach",
                 "metric_id": "enterprise_activation_rate",
                 "segment": "enterprise_workspaces",
                 "value": -0.14,
@@ -373,10 +422,44 @@ def test_generation_cap_prevents_history_overflow() -> None:
                 "unit": "relative_change",
                 "observed_at": "2026-08-30T18:00:00+00:00",
                 "source_label": "Bounded outcome fixture",
-                "content_hash": "2" * 64,
+                "content_hash": f"{generation:064x}",
             },
-            expected_generation=20,
+            expected_generation=generation,
         )
+        current = type(current).model_validate(current.model_dump(mode="json"))
+
+    assert current.status == "review_required"
+    assert len(current.decision_history) == 20
+    assert len(current.evidence_nodes) == 25
+    assert len(current.events) <= 128
+
+
+def test_outcome_thresholds_compare_normalized_absolute_values() -> None:
+    case = build_demo_decision_case()
+    approved = approve_decision_case(
+        case,
+        option_id="segment",
+        approver="Mike Yerke",
+        expected_synthesis_hash=case.council.synthesis_hash,
+        expected_generation=1,
+    )
+
+    result = evaluate_outcome(
+        approved,
+        {
+            "observation_id": "absolute-threshold-breach",
+            "metric_id": "enterprise_activation_rate",
+            "segment": "enterprise_workspaces",
+            "value": -0.13,
+            "baseline": -0.11,
+            "unit": "relative_change",
+            "observed_at": "2026-08-30T18:00:00+00:00",
+            "source_label": "Bounded outcome fixture",
+            "content_hash": "3" * 64,
+        },
+    )
+
+    assert result.verdict == "invalidated"
 
 
 def test_combined_metric_hash_and_freshness_bind_both_segment_timestamps() -> None:
@@ -476,6 +559,26 @@ def test_product_council_agents_have_only_adk_task_completion_tool() -> None:
     assert all(agent.model == "gemini-3.5-flash" for agent in agents.values())
 
 
+def test_live_synthesis_hash_binds_reviewed_narrative() -> None:
+    case = build_demo_decision_case()
+    positions = case.council.positions
+    first = product_council.CouncilDraft(
+        recommendation="segment",
+        executive_summary="Segment while protecting the measured enterprise guardrail.",
+        decisive_conflict="Small-team gains conflict with enterprise activation.",
+        evidence_node_ids=["metric-activation-split"],
+    )
+    second = first.model_copy(
+        update={"executive_summary": "Ship broadly despite the enterprise guardrail."}
+    )
+
+    assert product_council._hash(
+        product_council._synthesis_payload(case, positions, first)
+    ) != product_council._hash(
+        product_council._synthesis_payload(case, positions, second)
+    )
+
+
 @pytest.mark.asyncio
 async def test_run_json_reads_structured_task_output_from_terminal_event(
     monkeypatch: pytest.MonkeyPatch,
@@ -525,6 +628,42 @@ async def test_live_council_translates_provider_failures_to_bounded_reason(
     ) as captured:
         await product_council.run_live_product_council(build_demo_decision_case())
     assert "provider detail" not in str(captured.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("recommendation", "evidence_node_ids", "message"),
+    [
+        ("rollback", ["metric-activation-split"], "unendorsed recommendation"),
+        ("segment", ["invented-evidence"], "unknown evidence"),
+    ],
+)
+async def test_live_synthesis_rejects_unendorsed_or_uncited_results(
+    monkeypatch: pytest.MonkeyPatch,
+    recommendation: str,
+    evidence_node_ids: list[str],
+    message: str,
+) -> None:
+    case = build_demo_decision_case()
+
+    async def position_for_role(_case, role, _agent):
+        return next(item for item in case.council.positions if item.role == role)
+
+    async def synthesis_json(_agent, _prompt):
+        return json.dumps(
+            {
+                "recommendation": recommendation,
+                "executive_summary": "A bounded evidence-based synthesis.",
+                "decisive_conflict": "The cited positions preserve a real conflict.",
+                "evidence_node_ids": evidence_node_ids,
+            }
+        )
+
+    monkeypatch.setattr(product_council, "_run_position", position_for_role)
+    monkeypatch.setattr(product_council, "_run_json", synthesis_json)
+
+    with pytest.raises(product_council.ProductCouncilUnavailable, match=message):
+        await product_council._run_live_product_council(case)
 
 
 def test_product_council_prompt_contains_bounded_projections_not_secrets() -> None:

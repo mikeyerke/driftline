@@ -6237,12 +6237,17 @@ def approve_decision_twin(
             status_code=409,
             detail="Decision changed before approval; reload the current generation.",
         )
+    is_pinned_demo = not any(
+        event.get("source_mode") == "pm_provided_unverified"
+        for event in approved.events
+    )
     autonomous_monitor = os.getenv("DECISION_TWIN_AUTONOMOUS_MONITOR")
-    if (
+    monitor_enabled = (
         autonomous_monitor.casefold() == "true"
         if autonomous_monitor is not None
         else _tasks_enabled()
-    ):
+    )
+    if is_pinned_demo and monitor_enabled:
         try:
             if _tasks_enabled():
                 _enqueue_decision_twin_monitor(approved.case_id, approved.generation)
@@ -6270,6 +6275,14 @@ def _record_decision_twin_demo_outcome(
     current = load_decision_case(case_id)
     if current is None or current.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
+    if any(
+        event.get("source_mode") == "pm_provided_unverified"
+        for event in current.events
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Synthetic outcomes are unavailable for PM-provided decisions.",
+        )
     observation_id = f"outcome-g{current.generation}-{request.scenario}"
     if any(item.observation_id == observation_id for item in current.outcomes):
         return current.model_dump(mode="json")

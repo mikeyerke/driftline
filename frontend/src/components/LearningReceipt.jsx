@@ -4,18 +4,21 @@ function shortHash(value) {
   return value ? `${value.slice(0, 12)}…` : "pending";
 }
 
-export default function LearningReceipt({ decisionCase, evaluation, busy, monitoring, onOutcome }) {
+export default function LearningReceipt({ decisionCase, evaluation, busy, monitoring, fixtureEligible, onOutcome }) {
   const active = decisionCase.status === "experiment_active";
   const reopened = decisionCase.status === "reopened";
+  const terminalReview = decisionCase.status === "review_required";
   const plan = decisionCase.experiment_plan;
   const currentGenerationPrefix = `outcome-g${decisionCase.generation}-`;
-  const latestOutcome = [...decisionCase.outcomes].reverse().find((outcome) => (
+  const currentOutcome = [...decisionCase.outcomes].reverse().find((outcome) => (
     outcome.observation_id && outcome.observation_id.startsWith(currentGenerationPrefix)
   ));
+  const triggerOutcome = (reopened || terminalReview) ? decisionCase.decision_history?.[decisionCase.decision_history.length - 1]?.trigger_observation : null;
+  const latestOutcome = triggerOutcome || currentOutcome;
   return (
     <section className={`decision-room-section learning-receipt${reopened ? " reopened" : ""}`} aria-labelledby="learning-receipt-title" aria-live="polite">
       <header className="decision-room-section-header">
-        <div><span className="decision-room-kicker">Action + learning</span><h3 id="learning-receipt-title">{reopened ? "The outcome changed the decision" : active ? "The approved action is now measurable" : "Decision memory is ready"}</h3><p className="section-dek">Driftline keeps the owner handoff, guardrail, and outcome attached to the same decision.</p></div>
+        <div><span className="decision-room-kicker">Action + learning</span><h3 id="learning-receipt-title">{terminalReview ? "Generation limit reached—human review required" : reopened ? "The outcome changed the decision" : active ? "The approved action is now measurable" : "Decision memory is ready"}</h3><p className="section-dek">Driftline keeps the owner handoff, guardrail, and outcome attached to the same decision.</p></div>
         {evaluation && <span className={`evaluation-gate ${evaluation.gate_status}`}>{evaluation.passed_case_count}/{evaluation.case_count} policy checks</span>}
       </header>
       {plan && <div className="experiment-contract">
@@ -27,6 +30,7 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
         <ul>{plan.owner_actions.map((action) => <li key={action}><CheckCircle2 size={14} />{action}</li>)}</ul>
       </section>}
       {reopened && <div className="reopen-alert"><AlertTriangle size={22} /><div><strong>Generation {decisionCase.generation} reopened for human review</strong><p>{decisionCase.reopen_reason}</p><small>The original approval and outcome remain preserved in decision memory.</small></div></div>}
+      {terminalReview && <div className="reopen-alert"><AlertTriangle size={22} /><div><strong>Automation stopped at generation {decisionCase.generation}</strong><p>{decisionCase.reopen_reason}</p><small>The breached outcome is durable; a human must resolve or archive this decision outside the automatic generation loop.</small></div></div>}
       <div className="learning-proof-grid" aria-label="Four-part decision proof">
         <div><Database size={17} /><span><strong>Decision state</strong><small>Firestore-ready generation {decisionCase.generation}</small></span></div>
         <div><Activity size={17} /><span><strong>Evidence manifest</strong><small>{shortHash(decisionCase.council.evidence_manifest_hash)}</small></span></div>
@@ -35,8 +39,9 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
       </div>
       <details className="decision-proof-details"><summary>Inspect IDs and policy lineage</summary><dl><div><dt>Case</dt><dd>{decisionCase.case_id}</dd></div><div><dt>Evidence</dt><dd>{decisionCase.council.evidence_manifest_hash}</dd></div><div><dt>Synthesis</dt><dd>{decisionCase.council.synthesis_hash}</dd></div>{latestOutcome && <div><dt>Outcome</dt><dd>{latestOutcome.observation_id} · {latestOutcome.content_hash}</dd></div>}</dl></details>
       {active && monitoring && <div className="autonomous-monitor-status" role="status" aria-live="polite"><Activity size={18} /><span><strong>Autonomous monitor active</strong><small>Cloud Tasks is checking the approved guardrail. No second PM action is required.</small></span></div>}
-      {active && !monitoring && <button className="secondary decision-outcome-button" type="button" onClick={onOutcome} disabled={busy}><Activity size={17} />{busy ? "Evaluating outcome…" : "Run demo measurement fallback"}</button>}
-      {active && <p className="fixture-disclosure">The public judge lane automatically processes a pinned aggregate measurement fixture; it is not presented as customer validation.</p>}
+      {active && fixtureEligible && !monitoring && <button className="secondary decision-outcome-button" type="button" onClick={onOutcome} disabled={busy}><Activity size={17} />{busy ? "Evaluating outcome…" : "Run demo measurement fallback"}</button>}
+      {active && fixtureEligible && <p className="fixture-disclosure">The public judge lane automatically processes a pinned aggregate measurement fixture; it is not presented as customer validation.</p>}
+      {active && !fixtureEligible && <p className="fixture-disclosure">PM-provided decisions never receive synthetic outcomes. Attach a real, bounded measurement in a signed workspace to evaluate this experiment.</p>}
     </section>
   );
 }

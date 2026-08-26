@@ -88,6 +88,7 @@ class CouncilSynthesis(BaseModel):
     recommendation: DecisionOptionId
     executive_summary: str = Field(min_length=1, max_length=500)
     decisive_conflict: str = Field(min_length=1, max_length=360)
+    evidence_node_ids: list[str] = Field(default_factory=list, max_length=8)
     positions: list[CouncilPosition] = Field(min_length=5, max_length=5)
     options: list[CounterfactualOption] = Field(min_length=4, max_length=4)
     evidence_manifest_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -190,11 +191,12 @@ class DecisionCase(BaseModel):
         "validated",
         "reopened",
         "inconclusive",
+        "review_required",
     ] = "needs_approval"
     current_commitment: str
     urgency: str
     precedents: list[DecisionPrecedent] = Field(default_factory=list, max_length=3)
-    evidence_nodes: list[EvidenceNode] = Field(min_length=1, max_length=24)
+    evidence_nodes: list[EvidenceNode] = Field(min_length=1, max_length=32)
     evidence_edges: list[EvidenceEdge] = Field(default_factory=list, max_length=64)
     council: CouncilSynthesis
     approval: ApprovalRecord | None = None
@@ -204,7 +206,7 @@ class DecisionCase(BaseModel):
         default_factory=list, max_length=MAX_DECISION_GENERATION
     )
     reopen_reason: str | None = None
-    events: list[dict[str, Any]] = Field(default_factory=list, max_length=64)
+    events: list[dict[str, Any]] = Field(default_factory=list, max_length=128)
 
 
 def _digest(value: Any) -> str:
@@ -403,7 +405,7 @@ def _positions() -> list[CouncilPosition]:
 def _manifest_hash(nodes: list[EvidenceNode]) -> str:
     return _digest(
         [
-            {"node_id": node.node_id, "content_hash": node.content_hash}
+            node.model_dump(mode="json")
             for node in sorted(nodes, key=lambda item: item.node_id)
         ]
     )
@@ -413,9 +415,14 @@ def _build_synthesis(nodes: list[EvidenceNode]) -> CouncilSynthesis:
     positions = _positions()
     options = _options()
     manifest_hash = _manifest_hash(nodes)
+    executive_summary = "Segment the rollout: retain the measured small-team gain, hold enterprise workspaces on the prior path, and test a permission preview against an explicit stop guardrail."
+    decisive_conflict = "Strategy favors honoring the announced rollout; usage and customer evidence show the result is not safe to generalize across segments."
     raw = {
         "question": "Should the onboarding redesign ship to every workspace next week?",
         "recommendation": "segment",
+        "executive_summary": executive_summary,
+        "decisive_conflict": decisive_conflict,
+        "evidence_node_ids": [node.node_id for node in nodes],
         "positions": [position.model_dump(mode="json") for position in positions],
         "options": [option.model_dump(mode="json") for option in options],
         "evidence_manifest_hash": manifest_hash,
@@ -423,8 +430,9 @@ def _build_synthesis(nodes: list[EvidenceNode]) -> CouncilSynthesis:
     return CouncilSynthesis(
         question=raw["question"],
         recommendation="segment",
-        executive_summary="Segment the rollout: retain the measured small-team gain, hold enterprise workspaces on the prior path, and test a permission preview against an explicit stop guardrail.",
-        decisive_conflict="Strategy favors honoring the announced rollout; usage and customer evidence show the result is not safe to generalize across segments.",
+        executive_summary=executive_summary,
+        decisive_conflict=decisive_conflict,
+        evidence_node_ids=[node.node_id for node in nodes],
         positions=positions,
         options=options,
         evidence_manifest_hash=manifest_hash,
@@ -639,9 +647,14 @@ def build_intake_decision_case(
         ),
     ]
     manifest_hash = _manifest_hash(nodes)
+    executive_summary = "Run a bounded test: preserve the upside signal, limit exposure to the stated risk, and require a measurable stop condition before expansion."
+    decisive_conflict = "The current commitment and positive signal support action, while the risk signal is unresolved and all context is PM-provided rather than independently verified."
     raw = {
         "question": question,
         "recommendation": "segment",
+        "executive_summary": executive_summary,
+        "decisive_conflict": decisive_conflict,
+        "evidence_node_ids": [node.node_id for node in nodes],
         "positions": [position.model_dump(mode="json") for position in positions],
         "options": [option.model_dump(mode="json") for option in options],
         "evidence_manifest_hash": manifest_hash,
@@ -649,8 +662,9 @@ def build_intake_decision_case(
     council = CouncilSynthesis(
         question=question,
         recommendation="segment",
-        executive_summary="Run a bounded test: preserve the upside signal, limit exposure to the stated risk, and require a measurable stop condition before expansion.",
-        decisive_conflict="The current commitment and positive signal support action, while the risk signal is unresolved and all context is PM-provided rather than independently verified.",
+        executive_summary=executive_summary,
+        decisive_conflict=decisive_conflict,
+        evidence_node_ids=[node.node_id for node in nodes],
         positions=positions,
         options=options,
         evidence_manifest_hash=manifest_hash,
@@ -811,6 +825,18 @@ def validate_council(case: DecisionCase) -> None:
         )
     if len({position.recommendation for position in case.council.positions}) < 2:
         raise DecisionTwinPolicyError("Product council must preserve material disagreement")
+    if not case.council.evidence_node_ids or any(
+        node_id not in node_ids for node_id in case.council.evidence_node_ids
+    ):
+        raise DecisionTwinPolicyError(
+            "Council synthesis must cite current evidence nodes"
+        )
+    if case.council.recommendation not in {
+        position.recommendation for position in case.council.positions
+    }:
+        raise DecisionTwinPolicyError(
+            "Council synthesis must select an endorsed recommendation"
+        )
     for position in case.council.positions:
         citations = position.supporting_node_ids + position.contradicting_node_ids
         if any(node_id not in node_ids for node_id in citations):
@@ -872,10 +898,7 @@ def _experiment_plan(
             success_operator="gte",
             success_threshold=0.05,
             guardrails=option.guardrails,
-            stop_conditions=[
-                "Stop if the PM-defined risk measure worsens from baseline.",
-                "Stop if the action can no longer be reversed safely.",
-            ],
+            stop_conditions=["Stop if the PM-defined risk measure worsens from baseline."],
             stop_operator="lte",
             stop_threshold=-0.01,
             review_at=(approved_at + timedelta(days=7)).isoformat(),
@@ -898,10 +921,7 @@ def _experiment_plan(
             "target": "enterprise_workspaces",
             "metric": "enterprise_activation_rate",
             "success": "Enterprise activation does not deepen beyond the attached pre-rollout aggregate.",
-            "stops": [
-                "Stop if enterprise activation declines another 3% relative to the observed baseline.",
-                "Stop if support volume for permissions increases during rollout.",
-            ],
+            "stops": ["Stop if enterprise activation declines another 3% relative to the observed baseline."],
             "actions": [
                 "Create the all-workspace rollout allocation.",
                 "Instrument activation and permission-support volume by segment.",
@@ -918,10 +938,7 @@ def _experiment_plan(
             "target": "small_workspaces",
             "metric": "small_workspace_activation_rate",
             "success": "Small-workspace activation remains at or above its prior baseline during rollback.",
-            "stops": [
-                "Stop if small-workspace activation falls below its prior baseline.",
-                "Stop if the prior flow cannot be restored consistently across segments.",
-            ],
+            "stops": ["Stop if small-workspace activation falls below its prior baseline."],
             "actions": [
                 "Restore the prior onboarding flow for all workspaces.",
                 "Preserve the redesigned flow behind the existing segment gate.",
@@ -938,10 +955,7 @@ def _experiment_plan(
             "target": "enterprise_workspaces",
             "metric": "enterprise_activation_rate",
             "success": "Recover at least half of the observed enterprise activation regression within the review window.",
-            "stops": [
-                "Stop if enterprise activation declines another 1% beyond the attached aggregate.",
-                "Stop if setup completion declines in either allocated segment.",
-            ],
+            "stops": ["Stop if enterprise activation declines another 1% beyond the attached aggregate."],
             "actions": [
                 "Create the enterprise-only experiment allocation.",
                 "Add permission-policy preview copy before role selection.",
@@ -958,10 +972,7 @@ def _experiment_plan(
             "target": "enterprise_workspaces",
             "metric": "qualified_enterprise_evidence_count",
             "success": "Two additional independent enterprise sources support or reject the permission-step hypothesis within seven days.",
-            "stops": [
-                "Stop the deferral after seven days and return to the human decision gate.",
-                "Stop if enterprise activation deteriorates while evidence collection is pending.",
-            ],
+            "stops": ["Stop if no qualifying evidence is recorded by the seven-day review deadline."],
             "actions": [
                 "Schedule two additional enterprise evidence sessions.",
                 "Collect one fresh segmented activation observation.",
@@ -1064,12 +1075,16 @@ def evaluate_outcome(
             reason="Observation does not cover the approved target segment.",
             reopen_required=False,
         )
-    measured_change = outcome.value - outcome.baseline
+    # Every Decision Twin metric is normalized as an absolute relative-change
+    # value (or count) before it reaches this boundary. Plan thresholds are
+    # generated in the same coordinate system, so subtracting the observation's
+    # informational baseline would compare unlike units and can invert results.
+    measured_value = outcome.value
     plan = case.experiment_plan
     stop_crossed = (
-        measured_change <= plan.stop_threshold
+        measured_value <= plan.stop_threshold
         if plan.stop_operator == "lte"
-        else measured_change >= plan.stop_threshold
+        else measured_value >= plan.stop_threshold
     )
     if stop_crossed:
         return OutcomeEvaluation(
@@ -1078,9 +1093,9 @@ def evaluate_outcome(
             reopen_required=True,
         )
     success_reached = (
-        measured_change >= plan.success_threshold
+        measured_value >= plan.success_threshold
         if plan.success_operator == "gte"
-        else measured_change <= plan.success_threshold
+        else measured_value <= plan.success_threshold
     )
     if success_reached:
         return OutcomeEvaluation(
@@ -1093,6 +1108,95 @@ def evaluate_outcome(
         reason="The outcome is inside the measurement window but does not resolve the hypothesis.",
         reopen_required=False,
     )
+
+
+def _rebuild_council_after_outcome(
+    case: DecisionCase, outcome: OutcomeObservation
+) -> None:
+    """Bind an invalidating observation into the next reviewable generation."""
+    node_id = f"outcome-g{case.generation}-{outcome.metric_id}".replace("_", "-")
+    outcome_node = EvidenceNode(
+        node_id=node_id,
+        kind="metric",
+        title="Measured guardrail outcome",
+        excerpt=(
+            f"{outcome.metric_id.replace('_', ' ')} observed {outcome.value:g} "
+            f"for {outcome.segment.replace('_', ' ')} and invalidated the approved plan."
+        ),
+        source_label=outcome.source_label,
+        observed_at=outcome.observed_at,
+        content_hash=outcome.content_hash,
+        confidence=0.98,
+        segment=outcome.segment,
+        value=outcome.value,
+        unit=outcome.unit,
+    )
+    case.evidence_nodes.append(outcome_node)
+    prior_metric = next(
+        (
+            node.node_id
+            for node in case.evidence_nodes
+            if node.node_id != node_id and node.kind == "metric"
+        ),
+        None,
+    )
+    if prior_metric:
+        case.evidence_edges.append(
+            EvidenceEdge(
+                source_id=node_id,
+                target_id=prior_metric,
+                relation="contradicts",
+            )
+        )
+    positions = [position.model_copy(deep=True) for position in case.council.positions]
+    for position in positions:
+        position.supporting_node_ids = [
+            item for item in position.supporting_node_ids if not item.startswith("outcome-g")
+        ]
+        if position.role in {"usage", "feasibility"}:
+            position.recommendation = "rollback"
+            position.supporting_node_ids.append(node_id)
+            position.thesis = (
+                "The measured guardrail breach invalidates the approved experiment; "
+                "restore the prior bounded state before another allocation."
+            )
+    options = [option.model_copy(deep=True) for option in case.council.options]
+    for option in options:
+        option.evidence_node_ids = [
+            item for item in option.evidence_node_ids if not item.startswith("outcome-g")
+        ] + [node_id]
+    executive_summary = (
+        "The approved experiment crossed its measured stop threshold. Roll back the "
+        "bounded allocation and require a new human decision against the updated evidence."
+    )
+    decisive_conflict = (
+        "The prior plan preserved upside, but its measured guardrail breach now outweighs "
+        "the original rollout commitment."
+    )
+    manifest_hash = _manifest_hash(case.evidence_nodes)
+    raw = {
+        "question": case.question,
+        "recommendation": "rollback",
+        "executive_summary": executive_summary,
+        "decisive_conflict": decisive_conflict,
+        "evidence_node_ids": [node_id],
+        "positions": [position.model_dump(mode="json") for position in positions],
+        "options": [option.model_dump(mode="json") for option in options],
+        "evidence_manifest_hash": manifest_hash,
+    }
+    case.council = CouncilSynthesis(
+        question=case.question,
+        recommendation="rollback",
+        executive_summary=executive_summary,
+        decisive_conflict=decisive_conflict,
+        evidence_node_ids=[node_id],
+        positions=positions,
+        options=options,
+        evidence_manifest_hash=manifest_hash,
+        synthesis_hash=_digest(raw),
+        mode="deterministic_demo_fallback",
+    )
+    validate_council(case)
 
 
 def record_outcome(
@@ -1130,10 +1234,6 @@ def record_outcome(
         }
     )
     if evaluation.reopen_required:
-        if recorded.generation >= MAX_DECISION_GENERATION:
-            raise DecisionTwinPolicyError(
-                "Decision case reached the maximum generation"
-            )
         if recorded.approval is None:
             raise DecisionTwinPolicyError("Reopening requires a prior human decision")
         recorded.decision_history.append(
@@ -1149,16 +1249,29 @@ def record_outcome(
                 reopen_reason=evaluation.reason,
             )
         )
-        recorded.generation += 1
-        recorded.status = "reopened"
+        _rebuild_council_after_outcome(recorded, outcome)
+        if recorded.generation >= MAX_DECISION_GENERATION:
+            recorded.status = "review_required"
+        else:
+            recorded.generation += 1
+            recorded.status = "reopened"
         recorded.reopen_reason = evaluation.reason
-        recorded.approval = None
-        recorded.experiment_plan = None
+        if recorded.status == "reopened":
+            recorded.approval = None
+            recorded.experiment_plan = None
         recorded.events.append(
             {
-                "event_id": f"decision-reopened-g{recorded.generation}",
+                "event_id": (
+                    f"decision-reopened-g{recorded.generation}"
+                    if recorded.status == "reopened"
+                    else f"decision-terminal-review-g{recorded.generation}"
+                ),
                 "action": "decision_debt_detector",
-                "outcome": "human_review_reopened",
+                "outcome": (
+                    "human_review_reopened"
+                    if recorded.status == "reopened"
+                    else "terminal_human_review_required"
+                ),
                 "generation": recorded.generation,
                 "trigger_observation_id": outcome.observation_id,
             }

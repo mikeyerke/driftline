@@ -120,6 +120,11 @@ if { command -v rg >/dev/null 2>&1 \
   exit 1
 fi
 
+if ! grep -Fq 'trigger_observation' frontend/src/components/LearningReceipt.jsx; then
+  printf 'Decision Twin receipt omits the prior-generation outcome that triggered reopening.\n' >&2
+  exit 1
+fi
+
 # Approval is a compare-and-set transition. The public Decision Twin must send
 # the generation displayed in the room, or the API correctly rejects the
 # action as an incomplete/stale approval instead of recording the decision.
@@ -152,6 +157,8 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Open source-connected workspace flow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Run the decision workflow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'One approval starts the autonomous monitor · no second PM prompt' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Human approver' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'PM-provided decisions never receive synthetic outcomes.' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Use my decision' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Build my decision brief' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'PM-provided · unverified' frontend/src/components/DecisionRoom.jsx \
