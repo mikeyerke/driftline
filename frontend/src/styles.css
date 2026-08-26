@@ -421,7 +421,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .demo-footer { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; margin-top: 12px; }.legal-links { display: inline-flex; gap: 10px; white-space: nowrap; }.legal-links a { display: inline-flex; align-items: center; min-height: 24px; color: var(--blue); }
 
 .modal-backdrop { position: fixed; z-index: 20; inset: 0; background: rgba(7, 17, 40, .36); display: grid; place-items: center; padding: 20px; }
-.modal { width: min(720px, 100%); background: #fff; border-radius: 6px; box-shadow: 0 22px 65px rgba(5, 18, 48, .24); overflow: hidden; }
+.modal { width: min(720px, 100%); max-height: calc(100dvh - 40px); background: #fff; border-radius: 6px; box-shadow: 0 22px 65px rgba(5, 18, 48, .24); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 .modal > header { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 20px; border-bottom: 1px solid var(--line); }.modal h2 { margin: 0; font-size: 20px; }.modal header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 .modal-source, .hash { margin: 16px 20px; padding: 13px; background: var(--surface); display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }.modal-source span { color: var(--muted); }
 .modal .evidence-panel { margin: 0 20px; }.hash code { color: var(--blue); word-break: break-all; }.modal > footer { padding: 15px 20px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
@@ -511,6 +511,11 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .metadata span { min-width: 0; flex-wrap: wrap; }
   .metadata strong { margin-right: 0; }
   .incident-title { min-width: 0; }
+  .modal-backdrop { padding: 8px; }
+  .modal { max-height: calc(100dvh - 16px); }
+  .modal > header, .modal > footer { padding-inline: 14px; }
+  .modal-source, .hash { margin-inline: 14px; }
+  .modal .evidence-panel { margin-inline: 14px; }
   .dashboard-grid { gap: 12px; }.evidence-body { grid-template-columns: 1fr; }.evidence-body > div:nth-child(2), .diff-arrow { display: none; }.snapshot { grid-column: 1; }.impact-map-title-group { width: 100%; justify-content: space-between; }.impact-map-header-tools .muted { display: none; }.impact-map-summary { grid-template-columns: 1fr; }.impact-map-path button { max-width: 150px; }.impact-row { grid-template-columns: 30px 35px minmax(0, 1fr); }.impact-row .tag { grid-column: 3; justify-self: start; }.impact-copy small { white-space: normal; overflow-wrap: anywhere; }.workflow-timeline { grid-template-columns: repeat(2, 1fr); }.workflow-step:nth-child(3), .workflow-step:nth-child(5) { }.workflow-step:nth-child(odd) .step-line { display: none; }.modal-source, .hash { flex-direction: column; }
 }
  #overview-section, #approvals-section, #activity-section { scroll-margin-top: 84px; }

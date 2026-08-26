@@ -205,14 +205,18 @@ evaluation, frontend production build, frontend contract, submission packet,
 and shell syntax checks. This closes the gap between “works in the development
 worktree” and the reproducibility claim a judge receives from the repository.
 
-The real-decision browser gate now completes named approval by keyboard and
-checks both desktop and 390-pixel views for radiogroup arrow-key behavior,
-visible skip navigation, accessible names, minimum standalone target size,
-landmarks, unique IDs, valid ARIA references, and the absence of positive tab
-indexes or focusable hidden content. The CSS contract separately preserves a
-system-color focus outline in forced-colors mode. The post-fix browser run
-reported no findings in the inspected desktop/mobile surfaces; a named target
-screen-reader session remains outside this automated proof.
+The real-decision browser gate now completes named approval by keyboard at
+desktop, 390-pixel mobile, and 320-pixel reflow widths. It checks radiogroup
+arrow-key behavior, visible skip navigation, accessible names, minimum
+standalone target size, landmarks, unique IDs, valid ARIA references, and the
+absence of positive tab indexes or focusable hidden content. It also inspects
+the browser accessibility tree, proves the evidence dialog makes the
+background inert, traps and restores focus, fits each viewport, and verifies
+that the journey requests no smooth scrolling under reduced motion. The CSS
+contract separately preserves a system-color focus outline in forced-colors
+mode. The post-fix browser run reported no findings in these inspected
+surfaces; a named VoiceOver or NVDA session remains outside this automated
+proof.
 
 ## 30% — Demo and production readiness
 

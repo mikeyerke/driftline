@@ -40,6 +40,10 @@ function artifactRowId(name) {
   return `artifact-row-${String(name || "artifact").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
 }
 
+function preferredScrollBehavior() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
 function defaultDecisionsFor(state) {
   return (state?.impacts || []).reduce((result, item) => {
     result[item.name] = item.name === "CRM guidance"
@@ -219,7 +223,7 @@ export default function App() {
     window.requestAnimationFrame(() => {
       const target = document.getElementById(targetId);
       if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.scrollIntoView({ behavior: preferredScrollBehavior(), block: "start" });
 
       // Below-the-fold panels use near-viewport loading. They can mount while
       // this scroll is moving, shifting a deep target after the browser has
@@ -260,10 +264,16 @@ export default function App() {
   useEffect(() => {
     if (!showEvidence) return undefined;
     modalTriggerRef.current = document.activeElement;
-    window.requestAnimationFrame(() => modalRef.current?.focus());
+    const backgroundElements = [
+      document.querySelector(".skip-link"),
+      document.querySelector(".sidebar"),
+      document.getElementById("main-content"),
+    ].filter(Boolean);
+    backgroundElements.forEach((element) => { element.inert = true; });
     const getFocusable = () => [...(modalRef.current?.querySelectorAll(
       'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
     ) || [])].filter((element) => element.getClientRects().length > 0);
+    window.requestAnimationFrame(() => (getFocusable()[0] || modalRef.current)?.focus());
     const onKeyDown = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -289,7 +299,10 @@ export default function App() {
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      backgroundElements.forEach((element) => { element.inert = false; });
+    };
   }, [showEvidence]);
 
   useEffect(() => {
@@ -578,14 +591,14 @@ export default function App() {
   const focusArtifactWorklist = (name) => {
     setSelectedArtifact(name);
     window.requestAnimationFrame(() => {
-      document.getElementById(artifactRowId(name))?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById(artifactRowId(name))?.scrollIntoView({ behavior: preferredScrollBehavior(), block: "center" });
     });
   };
 
   const focusSection = (sectionId) => {
     setControlPlaneOpen(true);
     window.requestAnimationFrame(() => {
-      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: preferredScrollBehavior(), block: "start" });
     });
   };
 

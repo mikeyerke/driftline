@@ -95,21 +95,40 @@ try {
   for (const [name, width, height] of [
     ["desktop", 1453, 726],
     ["mobile", 390, 844],
+    ["reflow320", 320, 844],
   ]) {
     const context = await browser.newContext({
       viewport: { width, height },
       permissions: ["clipboard-read", "clipboard-write"],
+      reducedMotion: "reduce",
     });
     const page = await context.newPage();
     page.setDefaultTimeout(70_000);
+    await page.addInitScript(() => {
+      window.__driftlineScrollBehaviors = [];
+      const originalScrollIntoView = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = function scrollIntoView(options) {
+        window.__driftlineScrollBehaviors.push(
+          typeof options === "object" && options ? options.behavior || "auto" : "auto",
+        );
+        return originalScrollIntoView.call(this, options);
+      };
+    });
     const consoleErrors = [];
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
 
     await page.goto(baseUrl.href, { waitUntil: "networkidle" });
+    const mainAriaSnapshot = await page.getByRole("main").ariaSnapshot();
     const skipLink = page.getByRole("link", { name: "Skip to main content" });
     await skipLink.focus();
+    await page.waitForFunction(() => {
+      const element = document.activeElement;
+      if (!(element instanceof HTMLAnchorElement) || element.textContent?.trim() !== "Skip to main content") return false;
+      const rect = element.getBoundingClientRect();
+      return rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
+    });
     const skipLinkVisibleOnFocus = await skipLink.evaluate((element) => {
       const rect = element.getBoundingClientRect();
       return rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
@@ -131,7 +150,15 @@ try {
     await page.getByLabel("Success threshold", { exact: true }).fill("45");
     await page.getByLabel("Risk baseline").fill("3");
     await page.getByLabel("Stop threshold", { exact: true }).fill("8");
+    const intakeResponsePromise = page.waitForResponse((response) => (
+      response.request().method() === "POST"
+      && new URL(response.url()).pathname === "/api/decision-twin/intake"
+    ));
     await page.getByRole("button", { name: "Build my decision brief" }).click();
+    const intakeResponse = await intakeResponsePromise;
+    if (!intakeResponse.ok()) {
+      throw new Error(`Decision intake failed for ${name}: HTTP ${intakeResponse.status()} ${await intakeResponse.text()}`);
+    }
     await page.getByText(/PM-provided context · unverified/).first().waitFor();
 
     const selectedRadio = page.getByRole("radio", { checked: true });
@@ -163,6 +190,40 @@ try {
     await page.getByText(/Measurement opens/).waitFor();
     const body = await page.locator("body").innerText();
     const bodyLower = body.toLowerCase();
+
+    const controlPlane = page.locator("details.legacy-workflow-details");
+    if (!(await controlPlane.evaluate((element) => element.open))) {
+      await controlPlane.locator("summary").click();
+    }
+    const evidenceTrigger = page.getByRole("button", { name: "View source evidence" });
+    await evidenceTrigger.focus();
+    await page.keyboard.press("Enter");
+    const evidenceDialog = page.getByRole("dialog", { name: "Source evidence" });
+    await evidenceDialog.waitFor();
+    const dialogAriaSnapshot = await evidenceDialog.ariaSnapshot();
+    const modalInitialFocus = await evidenceDialog.evaluate((element) => (
+      element.contains(document.activeElement)
+      && document.activeElement?.getAttribute("aria-label") === "Close source evidence"
+    ));
+    const backgroundInert = await page.evaluate(() => [
+      document.querySelector(".skip-link"),
+      document.querySelector(".sidebar"),
+      document.getElementById("main-content"),
+    ].every((element) => element?.inert));
+    const dialogFitsViewport = await evidenceDialog.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.top >= 0 && rect.left >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
+    });
+    await page.keyboard.press("Shift+Tab");
+    const reverseTabTrapped = await evidenceDialog.evaluate((element) => element.contains(document.activeElement));
+    await page.keyboard.press("Escape");
+    await evidenceDialog.waitFor({ state: "detached" });
+    const modalFocusRestored = await evidenceTrigger.evaluate((element) => document.activeElement === element);
+    const backgroundRestored = await page.evaluate(() => [
+      document.querySelector(".skip-link"),
+      document.querySelector(".sidebar"),
+      document.getElementById("main-content"),
+    ].every((element) => element && !element.inert));
 
     await page.getByRole("button", { name: "Copy return link" }).click();
     await page.getByRole("button", { name: "Copied return link" }).waitFor();
@@ -209,6 +270,19 @@ try {
       skipLinkVisibleOnFocus,
       keyboardRadioRoving,
       keyboardApprovalCompleted: body.includes("Named human approval") && body.includes("Independent PM"),
+      modalInitialFocus,
+      modalBackgroundInert: backgroundInert,
+      modalReverseTabTrapped: reverseTabTrapped,
+      modalFocusRestored,
+      modalBackgroundRestored: backgroundRestored,
+      modalFitsViewport: dialogFitsViewport,
+      reducedMotionActive: await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches),
+      noSmoothScrollUnderReducedMotion: await page.evaluate(() => window.__driftlineScrollBehaviors.every((behavior) => behavior !== "smooth")),
+      mainAccessibilityTree: mainAriaSnapshot.includes('heading "Product decisions, with evidence" [level=1]')
+        && mainAriaSnapshot.includes('region "Turn conflicting evidence into a decision your team can defend."'),
+      dialogAccessibilityTree: dialogAriaSnapshot.includes('dialog "Source evidence"')
+        && dialogAriaSnapshot.includes('button "Close source evidence"')
+        && dialogAriaSnapshot.includes('button "Close evidence"'),
       semanticLandmarks: accessibility.semanticLandmarks,
       namedInteractiveControls: accessibility.namedInteractiveControls.length === 0,
       minimumControlTargets: accessibility.minimumControlTargets.length === 0,
