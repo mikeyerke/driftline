@@ -31,18 +31,21 @@ Fractional product leaders and early-stage B2B SaaS product leaders are the best
 
 ## Ranked recruiting routes
 
+The live, deadline-aware pipeline and current route classification are in
+`submission/PILOT_PROSPECT_PIPELINE.md`. Direct fractional leaders rank above
+post-deadline community events for immediate recruiting; expert critique must
+not be mislabeled as customer evidence.
+
 | Priority | Prospect or channel | Why it fits | Public contact path | Ask |
 |---|---|---|---|---|
 | 1 | ProductTank Austin — “Shipping on Someone Else's Roadmap” | 2,767-member PM community; the Aug 27 session is specifically about contested product decisions under platform, API, cloud, and AI-model constraints | https://www.meetup.com/producttank-austin/events/316217241/ | Ask hosts Edwin and Ian B. for one opt-in introduction; the 6:00–6:30 or 7:30–8:00 networking window is the highest-probability route, after Mike approves registration/attendance |
-| 2 | ProductCamp Austin | 5,000+ local members and participant-driven product sessions; strong access to practitioners and organizers | https://www.productcampaustin.org/ | Request one qualified design-partner introduction, not a blast to the list |
-| 3 | Women In Product, Austin | Named local chapter leads and an explicit community contact route | https://womenpm.org/join-our-community/austin/ | Ask a chapter lead for one opt-in PM facing a contested decision |
-| 4 | Kevin Smith, Just Add PRODUCT | Austin fractional product leader with 20+ years across B2B, enterprise, and startups | https://www.justaddprod.com/ | Offer a private decision test; ask for candid falsification, not endorsement |
-| 5 | Ashok, Clarity for Product | Austin fractional CPO whose public intake explicitly asks about the biggest current product challenge | https://clarityforproduct.com/contact/ | Ask to run that live challenge through the workflow and compare his own answer |
-| 6 | John Leonard, RoadMapVenture | Austin product advisor/fractional CPO focused on SaaS, analytics, AI, roadmaps, and innovation strategy | https://www.roadmapventure.com/ | Ask for one current client-safe decision or redacted historical decision with known outcome |
-| 7 | C2B / Fractional Product Experts | Austin product firm spanning conception, launch, product ownership, and fractional leadership | https://www.c2bsuite.com/ | Ask one senior operator to test a real decision and identify fatal adoption friction |
-| 8 | Jake Carlson | Austin fractional CPTO with B2B/B2C product, engineering, data, UX, and alignment experience | https://jakecarlson.com/ | Ask for a head-to-head assessment against his normal decision process |
-| 9 | Steyaert Consulting | Austin product/technology advisor working on AI, data products, and pragmatic human decision-making | https://steyaert.com/ | Ask for a trust and human-authority critique using a real product choice |
-| 10 | Capital Factory / STATION Austin | Large founder and mentor network with 30-minute office hours, but access may require membership | https://sites.google.com/capitalfactory.com/newmembersite/virtual-resources/union | Use only if Mike already has member access or a warm introduction |
+| 2 | Kevin Smith, Just Add PRODUCT | Austin fractional product leader with 20+ years across B2B, enterprise, and startups | https://www.justaddprod.com/ | Offer a private decision test; ask for candid falsification and one client-safe current decision |
+| 3 | Ashok Venkatraj, Clarity for Product | Current positioning names ad-hoc decisions, roadmap churn, AI paralysis, platform confusion, and misalignment | https://clarityforproduct.com/ | Compare one current decision with his normal operating process |
+| 4 | John Leonard, RoadMapVenture | Austin fractional CPO currently open to advisory work across SaaS, analytics, AI, and roadmaps | https://www.roadmapventure.com/ | Ask for one current client-safe decision and the first reason he would reject the result |
+| 5 | Steyaert Consulting | Austin product/technology advisor focused on agent workflows and AI that supports rather than replaces human decisions | https://steyaert.com/ | Ask for a trust, authority, and failure-mode test using a real product choice |
+| 6 | C2B / Fractional Product Experts | Austin firm spanning product ownership, launch, pricing, competitive intelligence, partner assessment, and HITL methodology | https://www.c2bsuite.com/ | Ask one senior operator to test a current internal or client-safe decision |
+| 7 | Women In Product, Austin | Current chapter page provides direct community routes and names two chapter leads | https://womenpm.org/join-our-community/austin/ | Ask one lead for one opt-in PM introduction; do not contact the list |
+| 8 | ProductCamp Austin | 5,000+ local members, but the next conference is September 19—after the hackathon deadline | https://www.productcampaustin.org/ | Use only for a private board introduction if the faster routes fail |
 
 ## Qualification message
 
