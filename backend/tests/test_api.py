@@ -259,6 +259,45 @@ def test_decision_twin_intake_rejects_extra_or_underspecified_context(monkeypatc
     assert response.status_code == 422
 
 
+def test_decision_twin_intake_accepts_four_redacted_sources_and_rejects_five(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    payload = {
+        "question": "Should we expand the beta to all mid-market accounts next month?",
+        "current_commitment": "Launch to every mid-market account on September 15.",
+        "urgency": "Sales committed the date and allocation is due this Friday.",
+        "positive_signal": "Beta users complete the core workflow faster than the control group.",
+        "risk_signal": "Admins report permission confusion and support volume is rising.",
+        "measurement_contract": _pm_measurement_contract_payload(),
+        "evidence_inputs": [
+            {
+                "source_type": "metric",
+                "source_label": f"Redacted source {index}",
+                "title": f"Observation {index}",
+                "observation": "A safely redacted observation with enough decision context.",
+                "observed_on": f"2026-08-{20 + index:02d}",
+                "stance": "supports" if index % 2 else "contradicts",
+            }
+            for index in range(1, 5)
+        ],
+    }
+
+    accepted = client.post("/api/decision-twin/intake", json=payload)
+    assert accepted.status_code == 200
+    assert len(accepted.json()["evidence_nodes"]) == 7
+    assert all(
+        source["mode"] == "pm_provided_unverified"
+        for source in accepted.json()["operating_loop"]["evidence_harvest"]["sources"]
+    )
+
+    payload["evidence_inputs"].append(payload["evidence_inputs"][0])
+    rejected = client.post("/api/decision-twin/intake", json=payload)
+    assert rejected.status_code == 422
+
+
 def test_decision_twin_intake_requires_an_operating_contract(monkeypatch) -> None:
     monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
     response = client.post(

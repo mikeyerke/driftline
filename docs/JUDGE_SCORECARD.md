@@ -23,12 +23,12 @@ above on August 25. Later `main` commits update submission media only.
 
 ## Merged baseline plus production-unreleased candidates
 
-Public `main` contains the prior candidate at
-`c877595179ca73fb01854e93f46aaf90184bdf48` via PR #22. Hosted GitHub Actions
-run `32969584064` passed all four jobs, and the exact public-main release
-preflight passed from a clean checkout. The operating-loop work described in
-this branch remains a separate PR candidate. Neither candidate is part of the
-live score above until Cloud Run serves its exact SHA.
+Public `main` contains the prior candidate plus the continuous operating loop at
+`264fdbbbc0413dfddb2537a1d93270c8f51b9787` via PR #23. Hosted GitHub Actions
+run `32973556617` passed all four jobs, and the exact PR tree passed the complete
+clean-checkout gate. The redacted multi-source evidence-pack work described in
+this branch remains a separate PR candidate. Neither public `main` nor this
+candidate is part of the live score above until Cloud Run serves its exact SHA.
 
 Together, the merged baseline and this operating-loop candidate add these
 judge-facing improvements:
@@ -54,6 +54,11 @@ judge-facing improvements:
   once, without weakening any required threshold. Opening the intake and moving
   between steps now bring the active form into view and focus its heading,
   including reduced-motion-safe behavior; and
+- the same intake can preserve up to four additional redacted research,
+  support, analytics, or product-surface observations as separate cited nodes,
+  including its observed date and whether each supports or contradicts the
+  commitment. User-entered source labels can never upgrade those observations
+  to connected evidence; and
 - PM measurements fail closed until the committed review timestamp. Before
   then, the UI shows the exact opening time and the API returns 409 without
   changing the active action, outcomes, or decision generation; and
@@ -73,7 +78,7 @@ different labels. Stakeholder positions are explicitly evidence-bound decision
 lenses rather than fabricated human quotes.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 485 backend tests, Ruff, the production frontend build,
+The candidate passed 487 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold

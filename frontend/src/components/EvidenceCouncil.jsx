@@ -9,6 +9,7 @@ const evidenceIcons = {
 };
 
 const titleCase = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const observedDate = (value) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
 
 function EvidenceCard({ node }) {
   const Icon = evidenceIcons[node.kind] || ShieldQuestion;
@@ -16,7 +17,7 @@ function EvidenceCard({ node }) {
     <article className="decision-evidence-item" key={node.node_id}>
       <span className={`decision-evidence-icon ${node.kind}`}><Icon size={17} /></span>
       <div>
-        <span className="decision-evidence-source">{titleCase(node.kind)} · {node.source_label}</span>
+        <span className="decision-evidence-source">{titleCase(node.kind)} · {node.source_label} · observed {observedDate(node.observed_at)}</span>
         <strong>{node.title}</strong>
         <p>{node.excerpt}</p>
       </div>
@@ -30,6 +31,9 @@ export default function EvidenceCouncil({ decisionCase }) {
   const priorityKinds = ["metric", "support", "customer"];
   const primaryNodes = priorityKinds.map((kind) => decisionCase.evidence_nodes.find((node) => node.kind === kind)).filter(Boolean);
   const supportingNodes = decisionCase.evidence_nodes.filter((node) => !primaryNodes.some((primary) => primary.node_id === node.node_id));
+  const harvest = decisionCase.operating_loop?.evidence_harvest;
+  const decisionChannels = (harvest?.covered_channels || []).filter((channel) => channel !== "roadmap");
+  const independentlyObserved = (harvest?.sources || []).filter((source) => source.mode === "connected_observed").length;
   return (
     <section className="decision-room-section evidence-council" aria-labelledby="evidence-council-title">
       <header className="decision-room-section-header">
@@ -40,6 +44,7 @@ export default function EvidenceCouncil({ decisionCase }) {
         {primaryNodes.map((node) => <EvidenceCard node={node} key={node.node_id} />)}
       </div>
       {isProvidedIntake && <section className="evidence-corroboration" aria-labelledby="evidence-corroboration-title">
+        <div className="evidence-pack-summary"><span><strong>{decisionCase.evidence_nodes.length - 1} separately cited signals</strong><small>{decisionChannels.length} evidence channels captured</small></span><b>{independentlyObserved} independently observed</b></div>
         <header>
           <div><SearchCheck size={19} /><span><strong id="evidence-corroboration-title">Evidence readiness: 0 of 3 checks corroborated</strong><small>Driftline can structure the call now. These checks turn it into a defensible operating decision.</small></span></div>
           <b>Next best evidence</b>

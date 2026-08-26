@@ -67,6 +67,12 @@ In 30 minutes, Driftline will organize the competing evidence, preserve the
 dissent, compare reversible options, and bind the selected path to a measurable
 review. No credentials or raw customer records are required.
 
+The intake now accepts the two decision-driving signals plus up to four
+additional redacted observations from research, support, analytics, or the
+product surface. Each stays separately cited, date-stamped, direction-labelled, and
+explicitly unverified; a participant should summarize the observation rather
+than paste a transcript, account identifier, or raw customer record.
+
 The first session can be a no-cost qualification pilot. Ask for a paid second
 decision only after the participant sees the first result. Do not use a token
 payment, refundable deposit, or friendly transfer merely to manufacture a

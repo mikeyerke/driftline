@@ -246,6 +246,12 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Action owner' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'measurement_contract' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'PM-provided · unverified' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Corroborating evidence pack' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'up to four redacted observations' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Observed on' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'evidence_inputs' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'separately cited signals' frontend/src/components/EvidenceCouncil.jsx \
+  || ! check_frontend_literal 'independently observed' frontend/src/components/EvidenceCouncil.jsx \
   || ! check_frontend_literal 'Copy decision brief' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Operating contract:' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Risk stop:' frontend/src/components/DecisionRoom.jsx \

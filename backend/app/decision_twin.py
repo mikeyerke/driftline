@@ -12,7 +12,7 @@ import hashlib
 import json
 import re
 from copy import deepcopy
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -168,6 +168,19 @@ class PMMeasurementContract(BaseModel):
         if not risk_worsens:
             raise ValueError("Stop threshold must worsen from the stated risk baseline")
         return self
+
+
+class PMEvidenceInput(BaseModel):
+    """One redacted, PM-provided source observation for a decision packet."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    source_type: Literal["customer", "support", "image", "metric"]
+    source_label: str = Field(min_length=2, max_length=100)
+    title: str = Field(min_length=2, max_length=120)
+    observation: str = Field(min_length=12, max_length=600)
+    observed_on: date
+    stance: Literal["supports", "contradicts"]
 
 
 class OutcomeEvaluation(BaseModel):
@@ -690,11 +703,16 @@ def build_intake_decision_case(
     risk_signal: str,
     measurement_contract: PMMeasurementContract,
     affected_segment: str | None = None,
+    evidence_inputs: list[PMEvidenceInput] | None = None,
 ) -> DecisionCase:
     """Build an honest evidence packet from PM-provided, unverified context."""
     now = datetime.now(UTC).isoformat()
     segment = affected_segment.strip() if affected_segment else "affected users"
     source_label = "PM-provided context · unverified"
+    if evidence_inputs is not None and len(evidence_inputs) > 4:
+        raise DecisionTwinPolicyError(
+            "A PM evidence pack can contain at most four corroborating sources"
+        )
     nodes = [
         _node(
             "commitment-provided",
@@ -727,7 +745,33 @@ def build_intake_decision_case(
             confidence=0.6,
         ),
     ]
+    evidence_inputs = evidence_inputs or []
+    for index, evidence in enumerate(evidence_inputs, start=1):
+        nodes.append(
+            _node(
+                f"corroborating-source-{index}",
+                evidence.source_type,
+                evidence.title,
+                evidence.observation,
+                f"PM-provided · {evidence.source_label} · unverified",
+                segment=segment,
+                observed_at=datetime.combine(
+                    evidence.observed_on, datetime.min.time(), tzinfo=UTC
+                ).isoformat(),
+                confidence=0.55,
+            )
+        )
     node_ids = [node.node_id for node in nodes]
+    supporting_ids = ["positive-signal-provided"] + [
+        f"corroborating-source-{index}"
+        for index, evidence in enumerate(evidence_inputs, start=1)
+        if evidence.stance == "supports"
+    ]
+    contradicting_ids = ["risk-signal-provided"] + [
+        f"corroborating-source-{index}"
+        for index, evidence in enumerate(evidence_inputs, start=1)
+        if evidence.stance == "contradicts"
+    ]
     options = [
         CounterfactualOption(
             option_id="ship",
@@ -783,8 +827,8 @@ def build_intake_decision_case(
             role="customer",
             recommendation="segment",
             thesis="Protect the affected users while testing whether the upside is real.",
-            supporting_node_ids=["positive-signal-provided"],
-            contradicting_node_ids=["risk-signal-provided"],
+            supporting_node_ids=supporting_ids[:5],
+            contradicting_node_ids=contradicting_ids[:5],
             risks=["The supplied signals may not represent all users"],
             would_change_mind_if="A representative user signal resolves the conflict.",
         ),
@@ -876,6 +920,14 @@ def build_intake_decision_case(
                 target_id="commitment-provided",
                 relation="contradicts",
             ),
+            *[
+                EvidenceEdge(
+                    source_id=f"corroborating-source-{index}",
+                    target_id="commitment-provided",
+                    relation=evidence.stance,
+                )
+                for index, evidence in enumerate(evidence_inputs, start=1)
+            ],
         ],
         council=council,
         events=[

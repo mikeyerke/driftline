@@ -76,6 +76,7 @@ from .credential_broker import (
 from .decision_copilot import validate_approval_choice
 from .decision_twin import (
     DecisionTwinPolicyError,
+    PMEvidenceInput,
     PMMeasurementContract,
     approve_decision_case,
     attach_aggregate_metrics,
@@ -468,6 +469,7 @@ class DecisionTwinIntakeRequest(BaseModel):
     urgency: str = Field(min_length=12, max_length=320)
     positive_signal: str = Field(min_length=12, max_length=500)
     risk_signal: str = Field(min_length=12, max_length=500)
+    evidence_inputs: list[PMEvidenceInput] = Field(default_factory=list, max_length=4)
     affected_segment: str | None = Field(default=None, min_length=2, max_length=80)
     measurement_contract: PMMeasurementContract
 
@@ -6209,6 +6211,7 @@ async def start_decision_twin_intake(
         urgency=request.urgency,
         positive_signal=request.positive_signal,
         risk_signal=request.risk_signal,
+        evidence_inputs=request.evidence_inputs,
         affected_segment=request.affected_segment,
         measurement_contract=request.measurement_contract,
     )

@@ -100,6 +100,12 @@ the same non-confidential case after the review window as a read-only view. A
 separate HttpOnly, case-specific capability in the originating browser is
 required for approval or measurement; the UI warns that shared links must never
 contain secret or customer-identifying data.
+
+For a real PM session, the intake also preserves up to four additional redacted
+research, support, analytics, or product-surface observations as separately
+cited evidence. The PM records when it was observed and whether it supports or
+contradicts the active commitment; Driftline never treats a user-entered source
+label as proof that the source was independently connected or observed.
 Expired cases fail closed at read and mutation boundaries rather than waiting
 for background TTL deletion.
 
