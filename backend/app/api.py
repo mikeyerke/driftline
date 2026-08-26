@@ -378,6 +378,18 @@ class DecisionTwinOutcomeRequest(BaseModel):
     )
 
 
+class DecisionTwinMeasuredOutcomeRequest(BaseModel):
+    """Two-metric, PM-reported measurement for a custom public decision."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    expected_generation: int = Field(ge=1, le=20)
+    measurement_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,63}$")
+    primary_value: float = Field(allow_inf_nan=False)
+    risk_value: float = Field(allow_inf_nan=False)
+    source_label: str = Field(min_length=3, max_length=120)
+
+
 class DismissRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=120)
     reason: str = Field(min_length=3, max_length=240)
@@ -6352,6 +6364,117 @@ def record_decision_twin_demo_outcome(
             "Decision Twin outcome rate limit reached; retry later."
         )
     return _record_decision_twin_demo_outcome(case_id, request)
+
+
+@app.post("/api/decision-twin/{case_id}/outcomes/measured")
+def record_decision_twin_measured_outcome(
+    case_id: str, request: DecisionTwinMeasuredOutcomeRequest
+) -> dict:
+    """Attach explicit, unverified PM measurements without fabricating an outcome."""
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin measurement rate limit reached; retry later."
+        )
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    is_pm_provided = any(
+        event.get("source_mode") == "pm_provided_unverified"
+        for event in current.events
+    )
+    if not is_pm_provided:
+        raise HTTPException(
+            status_code=409,
+            detail="Manual measurements are available only for PM-provided decisions.",
+        )
+    primary_id = (
+        f"outcome-g{request.expected_generation}-{request.measurement_id}-primary"
+    )
+    risk_id = f"outcome-g{request.expected_generation}-{request.measurement_id}-risk"
+    existing_ids = {item.observation_id for item in current.outcomes}
+    if {primary_id, risk_id}.issubset(existing_ids):
+        return current.model_dump(mode="json")
+    if current.generation != request.expected_generation:
+        raise HTTPException(
+            status_code=409,
+            detail="Measurement references a stale decision generation.",
+        )
+    plan = current.experiment_plan
+    if plan is None or plan.risk_metric is None or plan.metric_unit is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Measurement requires an active two-metric experiment contract.",
+        )
+    observed_at = datetime.now(UTC).isoformat()
+
+    def observation(
+        observation_id: str,
+        metric_id: str,
+        value: float,
+        baseline: float | None,
+    ) -> dict[str, object]:
+        canonical = {
+            "observation_id": observation_id,
+            "metric_id": metric_id,
+            "segment": plan.target_segment,
+            "value": value,
+            "baseline": baseline,
+            "unit": plan.metric_unit,
+            "observed_at": observed_at,
+            "source_label": f"{request.source_label} · PM-provided · unverified",
+        }
+        return {
+            **canonical,
+            "baseline": baseline if baseline is not None else 0.0,
+            "content_hash": hashlib.sha256(
+                json.dumps(canonical, sort_keys=True).encode()
+            ).hexdigest(),
+        }
+
+    try:
+        updated = record_outcome(
+            current,
+            observation(
+                primary_id,
+                plan.primary_metric,
+                request.primary_value,
+                plan.primary_baseline,
+            ),
+            expected_generation=request.expected_generation,
+        )
+        updated = record_outcome(
+            updated,
+            observation(
+                risk_id,
+                plan.risk_metric,
+                request.risk_value,
+                plan.risk_baseline,
+            ),
+            expected_generation=request.expected_generation,
+        )
+    except DecisionTwinPolicyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    updated.events.append(
+        {
+            "event_id": f"{request.measurement_id}-attached",
+            "action": "pm_measurement_intake",
+            "outcome": updated.outcomes[-1].evaluation.verdict,
+            "generation": request.expected_generation,
+            "source_mode": "pm_provided_unverified",
+            "observation_ids": [primary_id, risk_id],
+        }
+    )
+    committed = compare_and_set_decision_case(
+        updated,
+        expected_generation=current.generation,
+        expected_statuses={current.status},
+    )
+    if not committed:
+        raise HTTPException(
+            status_code=409,
+            detail="Decision changed before the measurement was recorded; reload it.",
+        )
+    return updated.model_dump(mode="json")
 
 
 @app.post("/api/decision-twin/{case_id}/monitor/run")

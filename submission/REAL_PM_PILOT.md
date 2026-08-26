@@ -99,7 +99,11 @@ Record these fields for each pilot:
 - Next costly commitment, if any
 - Exact consent scope for any public statement
 
-Use `submission/PILOT_SESSION_WORKSHEET.md` as the session record. The stricter operating-contract intake exists only in the local worktree until Mike separately authorizes a release.
+Use `submission/PILOT_SESSION_WORKSHEET.md` as the session record. The stricter
+operating-contract and real two-metric outcome intake exist only in the local
+worktree until Mike separately authorizes a release. The outcome path stores
+the PM's aggregate primary and risk values as unverified, never substitutes a
+fixture, and requires both success and safety before completing the action.
 
 ## Success bar
 

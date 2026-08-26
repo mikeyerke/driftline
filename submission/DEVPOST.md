@@ -57,7 +57,10 @@ internal allocation in Driftline's own decision state. The receipt exposes its
 generation, segment, and status, states **external writes: none**, and the
 guardrail automatically completes or rolls it back before any reopen. This is
 judge-visible action with an honest authority boundary, not a simulated customer
-system write.
+system write. A PM-provided decision never receives a synthetic outcome: after
+the review window, the PM attaches the actual primary and risk aggregates, both
+labeled unverified. Success resolves only when both metrics support it; a risk
+breach rolls the action back and reopens the case.
 
 The underlying operational foundation remains independently useful:
 

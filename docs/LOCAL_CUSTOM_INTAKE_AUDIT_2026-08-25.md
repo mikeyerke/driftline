@@ -31,7 +31,19 @@ The intake now requires the PM to define before generation:
 
 The approved experiment preserves those exact values and displays them in the
 learning receipt and owner follow-through. PM-provided decisions remain
-ineligible for synthetic outcomes.
+ineligible for synthetic outcomes. When the review window closes, the PM can
+instead attach the actual primary and risk values with a non-confidential source
+label. Both observations remain explicitly **PM-provided · unverified**.
+
+The two-metric evaluator is fail-closed:
+
+- a success value alone does not complete the action without a current safe
+  risk observation;
+- a safe risk value alone does not complete the action without a successful
+  primary outcome;
+- the two observations may arrive in either order;
+- a breached risk metric rolls the action back and reopens the decision; and
+- a mismatched segment, metric, or unit remains inconclusive.
 
 The local candidate also makes the Taskmaster action explicit without
 pretending to mutate a customer system. A named approval creates one bounded
@@ -51,8 +63,8 @@ reversible state transition, not a Jira or customer-system side-effect claim.
 
 ## Verification evidence
 
-- Targeted decision/API tests: 199 passed.
-- Complete backend suite: 425 passed, with two dependency deprecation warnings.
+- Targeted decision/API tests: 204 passed.
+- Complete backend suite: 430 passed, with two dependency deprecation warnings.
 - Frontend production build: passed.
 - Frontend literal contract: passed.
 - Python static checks on changed backend and tests: passed.
@@ -65,6 +77,10 @@ reversible state transition, not a Jira or customer-system side-effect claim.
   reopen it applies the returned case, clears the stale approver, and uses the
   generation-two selected option. This fixes a browser-found state mismatch in
   which generation one remained selected after a local fallback outcome.
+- Real-measurement browser journey: PM intake → approval → primary value 46% →
+  risk value 9% → automatic action rollback → generation-two reopen passed.
+- Phone-width result: the complete reopened journey rendered at 390 × 844 with
+  document and body scroll widths both exactly 390 pixels.
 - Browser diagnostics: no application-origin errors; visible errors were emitted only by the installed Grammarly extension.
 
 Synthetic browser inputs used for verification:
@@ -78,4 +94,6 @@ Synthetic browser inputs used for verification:
 
 ## Custody
 
-This change exists only in the isolated worktree. No commit, push, pull request, merge, deployment, event registration, external message, or submission was performed.
+This change exists only on the isolated local branch. Local commits were
+created for custody, but no push, pull request, merge, deployment, event
+registration, external message, or submission was performed.

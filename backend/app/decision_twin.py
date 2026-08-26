@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DecisionOptionId = Literal["ship", "rollback", "segment", "defer"]
 MAX_DECISION_GENERATION = 20
@@ -39,7 +40,7 @@ class EvidenceNode(BaseModel):
     content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     confidence: float = Field(ge=0.0, le=1.0)
     segment: str | None = Field(default=None, max_length=80)
-    value: float | None = None
+    value: float | None = Field(default=None, allow_inf_nan=False)
     unit: str | None = Field(default=None, max_length=40)
 
 
@@ -114,14 +115,17 @@ class ExperimentPlan(BaseModel):
     target_segment: str = Field(min_length=1, max_length=100)
     primary_metric: str = Field(min_length=1, max_length=100)
     risk_metric: str | None = Field(default=None, min_length=1, max_length=100)
+    metric_unit: str | None = Field(default=None, min_length=1, max_length=20)
+    primary_baseline: float | None = Field(default=None, allow_inf_nan=False)
+    risk_baseline: float | None = Field(default=None, allow_inf_nan=False)
     owner: str | None = Field(default=None, min_length=2, max_length=120)
     success_condition: str = Field(min_length=1, max_length=240)
     success_operator: Literal["gte", "lte"]
-    success_threshold: float
+    success_threshold: float = Field(allow_inf_nan=False)
     guardrails: list[str] = Field(min_length=1, max_length=4)
     stop_conditions: list[str] = Field(min_length=1, max_length=4)
     stop_operator: Literal["gte", "lte"]
-    stop_threshold: float
+    stop_threshold: float = Field(allow_inf_nan=False)
     review_at: str = Field(min_length=1, max_length=50)
     owner_actions: list[str] = Field(min_length=1, max_length=6)
     rollback: str = Field(min_length=1, max_length=240)
@@ -136,14 +140,32 @@ class PMMeasurementContract(BaseModel):
     primary_metric: str = Field(min_length=2, max_length=100)
     risk_metric: str = Field(min_length=2, max_length=100)
     metric_unit: str = Field(min_length=1, max_length=20)
-    baseline: float
+    baseline: float = Field(allow_inf_nan=False)
     success_operator: Literal["gte", "lte"]
-    success_threshold: float
-    risk_baseline: float
+    success_threshold: float = Field(allow_inf_nan=False)
+    risk_baseline: float = Field(allow_inf_nan=False)
     stop_operator: Literal["gte", "lte"]
-    stop_threshold: float
+    stop_threshold: float = Field(allow_inf_nan=False)
     review_days: int = Field(ge=1, le=90)
     action_owner: str = Field(min_length=2, max_length=120)
+
+    @model_validator(mode="after")
+    def validate_directional_thresholds(self) -> PMMeasurementContract:
+        success_moves = (
+            self.success_threshold > self.baseline
+            if self.success_operator == "gte"
+            else self.success_threshold < self.baseline
+        )
+        if not success_moves:
+            raise ValueError("Success threshold must improve on the stated baseline")
+        risk_worsens = (
+            self.stop_threshold > self.risk_baseline
+            if self.stop_operator == "gte"
+            else self.stop_threshold < self.risk_baseline
+        )
+        if not risk_worsens:
+            raise ValueError("Stop threshold must worsen from the stated risk baseline")
+        return self
 
 
 class OutcomeEvaluation(BaseModel):
@@ -160,8 +182,8 @@ class OutcomeObservation(BaseModel):
     observation_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,100}$")
     metric_id: str = Field(min_length=1, max_length=100)
     segment: str = Field(min_length=1, max_length=100)
-    value: float
-    baseline: float
+    value: float = Field(allow_inf_nan=False)
+    baseline: float = Field(allow_inf_nan=False)
     unit: str = Field(min_length=1, max_length=40)
     observed_at: str = Field(min_length=1, max_length=50)
     source_label: str = Field(min_length=1, max_length=160)
@@ -199,7 +221,7 @@ class BoundedActionRecord(BaseModel):
     created_at: str = Field(min_length=1, max_length=50)
     finished_at: str | None = Field(default=None, min_length=1, max_length=50)
     reason: str | None = Field(default=None, min_length=1, max_length=280)
-    external_write: bool = False
+    external_write: Literal[False] = False
 
 
 class DecisionHistoryRecord(BaseModel):
@@ -960,6 +982,9 @@ def _experiment_plan(
             target_segment=target,
             primary_metric=measurement_contract.primary_metric,
             risk_metric=measurement_contract.risk_metric,
+            metric_unit=measurement_contract.metric_unit,
+            primary_baseline=measurement_contract.baseline,
+            risk_baseline=measurement_contract.risk_baseline,
             owner=measurement_contract.action_owner,
             success_condition=success_condition,
             success_operator=measurement_contract.success_operator,
@@ -1153,16 +1178,122 @@ def evaluate_outcome(
     )
     if case.experiment_plan is None:
         raise DecisionTwinPolicyError("Outcome requires an approved experiment plan")
-    if outcome.metric_id != case.experiment_plan.primary_metric:
-        return OutcomeEvaluation(
-            verdict="inconclusive",
-            reason="Observation does not measure the approved primary metric.",
-            reopen_required=False,
-        )
-    if outcome.segment != case.experiment_plan.target_segment:
+    plan = case.experiment_plan
+    if outcome.segment != plan.target_segment:
         return OutcomeEvaluation(
             verdict="inconclusive",
             reason="Observation does not cover the approved target segment.",
+            reopen_required=False,
+        )
+    if plan.metric_unit is not None and outcome.unit != plan.metric_unit:
+        return OutcomeEvaluation(
+            verdict="inconclusive",
+            reason="Observation does not use the approved metric unit.",
+            reopen_required=False,
+        )
+
+    def threshold_reached(value: float, operator: Literal["gte", "lte"], threshold: float) -> bool:
+        return value >= threshold if operator == "gte" else value <= threshold
+
+    measurement_group = (
+        outcome.observation_id.rsplit("-", 1)[0]
+        if outcome.observation_id.endswith(("-primary", "-risk"))
+        else None
+    )
+
+    def latest_prior(metric_id: str) -> OutcomeObservation | None:
+        return next(
+            (
+                item
+                for item in reversed(case.outcomes)
+                if item.metric_id == metric_id
+                and item.segment == plan.target_segment
+                and (plan.metric_unit is None or item.unit == plan.metric_unit)
+                and (
+                    measurement_group is None
+                    or item.observation_id.rsplit("-", 1)[0] == measurement_group
+                )
+            ),
+            None,
+        )
+
+    if plan.risk_metric is not None:
+        if outcome.metric_id not in {plan.primary_metric, plan.risk_metric}:
+            return OutcomeEvaluation(
+                verdict="inconclusive",
+                reason="Observation does not measure an approved outcome or risk metric.",
+                reopen_required=False,
+            )
+        if outcome.metric_id == plan.risk_metric:
+            if threshold_reached(
+                outcome.value, plan.stop_operator, plan.stop_threshold
+            ):
+                return OutcomeEvaluation(
+                    verdict="invalidated",
+                    reason=f"{plan.risk_metric} crossed the approved stop guardrail.",
+                    reopen_required=True,
+                )
+            prior_primary = latest_prior(plan.primary_metric)
+            if prior_primary is not None and threshold_reached(
+                prior_primary.value, plan.success_operator, plan.success_threshold
+            ):
+                return OutcomeEvaluation(
+                    verdict="validated",
+                    reason=(
+                        f"{plan.primary_metric} met the approved success threshold "
+                        f"and {plan.risk_metric} remained within its guardrail."
+                    ),
+                    reopen_required=False,
+                )
+            return OutcomeEvaluation(
+                verdict="inconclusive",
+                reason=(
+                    "The risk guardrail remains within bounds, but the approved "
+                    "primary outcome has not resolved the hypothesis."
+                ),
+                reopen_required=False,
+            )
+
+        if not threshold_reached(
+            outcome.value, plan.success_operator, plan.success_threshold
+        ):
+            return OutcomeEvaluation(
+                verdict="inconclusive",
+                reason=(
+                    "The primary outcome has not reached its success threshold, "
+                    "and the risk guardrail has not invalidated the plan."
+                ),
+                reopen_required=False,
+            )
+        prior_risk = latest_prior(plan.risk_metric)
+        if prior_risk is None:
+            return OutcomeEvaluation(
+                verdict="inconclusive",
+                reason=(
+                    "The primary outcome met its success threshold, but a current "
+                    "risk guardrail observation is still required."
+                ),
+                reopen_required=False,
+            )
+        if threshold_reached(prior_risk.value, plan.stop_operator, plan.stop_threshold):
+            return OutcomeEvaluation(
+                verdict="invalidated",
+                reason=f"{plan.risk_metric} crossed the approved stop guardrail.",
+                reopen_required=True,
+            )
+        return OutcomeEvaluation(
+            verdict="validated",
+            reason=(
+                f"{plan.primary_metric} met the approved success threshold and "
+                f"{plan.risk_metric} remained within its guardrail."
+            ),
+            reopen_required=False,
+        )
+
+    if outcome.metric_id != plan.primary_metric:
+        return OutcomeEvaluation(
+            verdict="inconclusive",
+            reason="Observation does not measure the approved primary metric.",
             reopen_required=False,
         )
     # Every Decision Twin metric is normalized as an absolute relative-change
@@ -1170,11 +1301,8 @@ def evaluate_outcome(
     # generated in the same coordinate system, so subtracting the observation's
     # informational baseline would compare unlike units and can invert results.
     measured_value = outcome.value
-    plan = case.experiment_plan
-    stop_crossed = (
-        measured_value <= plan.stop_threshold
-        if plan.stop_operator == "lte"
-        else measured_value >= plan.stop_threshold
+    stop_crossed = threshold_reached(
+        measured_value, plan.stop_operator, plan.stop_threshold
     )
     if stop_crossed:
         return OutcomeEvaluation(
@@ -1182,10 +1310,8 @@ def evaluate_outcome(
             reason=f"{plan.primary_metric} crossed the approved stop guardrail.",
             reopen_required=True,
         )
-    success_reached = (
-        measured_value >= plan.success_threshold
-        if plan.success_operator == "gte"
-        else measured_value <= plan.success_threshold
+    success_reached = threshold_reached(
+        measured_value, plan.success_operator, plan.success_threshold
     )
     if success_reached:
         return OutcomeEvaluation(
@@ -1204,7 +1330,14 @@ def _rebuild_council_after_outcome(
     case: DecisionCase, outcome: OutcomeObservation
 ) -> None:
     """Bind an invalidating observation into the next reviewable generation."""
-    node_id = f"outcome-g{case.generation}-{outcome.metric_id}".replace("_", "-")
+    metric_slug = re.sub(
+        r"[^a-z0-9_-]+",
+        "-",
+        outcome.metric_id.casefold().replace("_", "-"),
+    ).strip("-")
+    node_id = f"outcome-g{case.generation}-{metric_slug or 'metric'}"
+    if len(node_id) > 80:
+        node_id = f"{node_id[:71].rstrip('-')}-{outcome.content_hash[:8]}"
     outcome_node = EvidenceNode(
         node_id=node_id,
         kind="metric",

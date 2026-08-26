@@ -1,6 +1,6 @@
 import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
-import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinOutcome, startDecisionTwin, startDecisionTwinIntake } from "../api";
+import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, startDecisionTwin, startDecisionTwinIntake } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
 import EvidenceCouncil from "./EvidenceCouncil";
 import LearningReceipt from "./LearningReceipt";
@@ -99,6 +99,22 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     event.preventDefault();
     setBusy("intake"); setError("");
     try {
+      const baseline = Number(intake.baseline);
+      const successThreshold = Number(intake.success_threshold);
+      const riskBaseline = Number(intake.risk_baseline);
+      const stopThreshold = Number(intake.stop_threshold);
+      const successMoves = intake.success_operator === "gte"
+        ? successThreshold > baseline
+        : successThreshold < baseline;
+      const riskWorsens = intake.stop_operator === "gte"
+        ? stopThreshold > riskBaseline
+        : stopThreshold < riskBaseline;
+      if (!successMoves) {
+        throw new Error("Success threshold must improve on the stated outcome baseline.");
+      }
+      if (!riskWorsens) {
+        throw new Error("Stop threshold must worsen from the stated risk baseline.");
+      }
       const payload = {
         question: intake.question,
         current_commitment: intake.current_commitment,
@@ -110,12 +126,12 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           primary_metric: intake.primary_metric,
           risk_metric: intake.risk_metric,
           metric_unit: intake.metric_unit,
-          baseline: Number(intake.baseline),
+          baseline,
           success_operator: intake.success_operator,
-          success_threshold: Number(intake.success_threshold),
-          risk_baseline: Number(intake.risk_baseline),
+          success_threshold: successThreshold,
+          risk_baseline: riskBaseline,
           stop_operator: intake.stop_operator,
-          stop_threshold: Number(intake.stop_threshold),
+          stop_threshold: stopThreshold,
           review_days: Number(intake.review_days),
           action_owner: intake.action_owner,
         },
@@ -136,6 +152,19 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     setBusy("outcome"); setError("");
     try {
       const next = await recordDecisionTwinOutcome(decisionCase.case_id, decisionCase.generation);
+      applyDecisionCase(next);
+      if (["reopened", "review_required"].includes(next.status)) setApproverName("");
+    } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
+  };
+
+  const attachMeasurement = async (measurement) => {
+    setBusy("measurement"); setError("");
+    try {
+      const next = await recordDecisionTwinMeasurement(
+        decisionCase.case_id,
+        decisionCase.generation,
+        measurement,
+      );
       applyDecisionCase(next);
       if (["reopened", "review_required"].includes(next.status)) setApproverName("");
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
@@ -376,7 +405,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           </button>
         </div>
       </section>}
-      {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} monitoring={monitoring} fixtureEligible={!isProvidedIntake} onOutcome={observeOutcome} />}
+      {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} monitoring={monitoring} fixtureEligible={!isProvidedIntake} onOutcome={observeOutcome} onMeasuredOutcome={attachMeasurement} />}
       {busy === "outcome" && <p className="decision-room-status decision-room-status-bottom" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Evaluating the guardrail and preserving the next generation.</p>}
       {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
       {selectedOption && waitingForDecision && <p className="decision-selection-note"><CheckCircle2 size={14} />Selected response: <strong>{selectedOption.title}</strong></p>}

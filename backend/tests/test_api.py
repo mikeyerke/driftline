@@ -249,6 +249,138 @@ def test_pm_intake_approval_never_enqueues_or_accepts_synthetic_outcome(
     assert "unavailable for PM-provided decisions" in synthetic.json()["detail"]
 
 
+def test_pm_intake_accepts_real_two_metric_measurement_and_is_idempotent(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    case = client.post(
+        "/api/decision-twin/intake",
+        json={
+            "question": "Should we expand the beta to all mid-market accounts next month?",
+            "current_commitment": "Launch to every mid-market account on September 15.",
+            "urgency": "Sales committed the date and allocation is due this Friday.",
+            "positive_signal": "Beta users complete the core workflow faster than the control group.",
+            "risk_signal": "Admins report permission confusion and support volume is rising.",
+            "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
+        },
+    ).json()
+    client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Taylor PM",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    measurement = {
+        "expected_generation": 1,
+        "measurement_id": "manual-safe-1",
+        "primary_value": 46,
+        "risk_value": 4,
+        "source_label": "Weekly product analytics",
+    }
+
+    unresolved = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json={
+            **measurement,
+            "measurement_id": "manual-unresolved-1",
+            "primary_value": 40,
+        },
+    )
+    measured = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json=measurement,
+    )
+    duplicate = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json=measurement,
+    )
+
+    assert unresolved.status_code == 200
+    assert unresolved.json()["status"] == "inconclusive"
+    assert unresolved.json()["action_records"][0]["status"] == "active"
+    assert measured.status_code == 200
+    payload = measured.json()
+    assert payload["status"] == "validated"
+    assert payload["action_records"][0]["status"] == "completed"
+    assert [item["evaluation"]["verdict"] for item in payload["outcomes"]] == [
+        "inconclusive",
+        "inconclusive",
+        "inconclusive",
+        "validated",
+    ]
+    assert all(
+        item["source_label"].endswith("PM-provided · unverified")
+        for item in payload["outcomes"]
+    )
+    assert duplicate.status_code == 200
+    assert duplicate.json() == payload
+
+
+def test_pm_risk_measurement_rolls_back_and_manual_measurement_rejects_demo(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    case = client.post(
+        "/api/decision-twin/intake",
+        json={
+            "question": "Should we expand the beta to all mid-market accounts next month?",
+            "current_commitment": "Launch to every mid-market account on September 15.",
+            "urgency": "Sales committed the date and allocation is due this Friday.",
+            "positive_signal": "Beta users complete the core workflow faster than the control group.",
+            "risk_signal": "Admins report permission confusion and support volume is rising.",
+            "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
+        },
+    ).json()
+    client.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Taylor PM",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    breached = client.post(
+        f"/api/decision-twin/{case['case_id']}/outcomes/measured",
+        json={
+            "expected_generation": 1,
+            "measurement_id": "manual-breach-1",
+            "primary_value": 46,
+            "risk_value": 9,
+            "source_label": "Weekly product analytics",
+        },
+    )
+
+    assert breached.status_code == 200
+    assert breached.json()["status"] == "reopened"
+    assert breached.json()["action_records"][0]["status"] == "rolled_back"
+
+    demo = client.post("/api/decision-twin/demo").json()
+    rejected = client.post(
+        f"/api/decision-twin/{demo['case_id']}/outcomes/measured",
+        json={
+            "expected_generation": 1,
+            "measurement_id": "manual-demo-1",
+            "primary_value": 1,
+            "risk_value": 1,
+            "source_label": "Not applicable",
+        },
+    )
+    assert rejected.status_code == 409
+    assert "only for PM-provided decisions" in rejected.json()["detail"]
+
+
 def test_decision_twin_monitor_records_autonomous_lineage(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")

@@ -80,6 +80,21 @@ For each input, record source, observed date, affected segment, and whether it i
 - Would this replace a meeting, document, or tool? Which one?
 - Largest adoption blocker:
 
+## Review-window follow-up
+
+Complete this only from observed, non-confidential aggregate values. Do not
+estimate or substitute a demo fixture.
+
+- Follow-up date:
+- Measurement source label:
+- Observed primary outcome and unit:
+- Observed risk guardrail and unit:
+- Driftline verdict: validated / invalidated / inconclusive
+- Internal action: completed / rolled back / still active
+- Decision generation after evaluation:
+- Did the participant agree the result matched the precommitted thresholds?
+- What did the team actually do next?
+
 ## Costly commitment
 
 Check only behavior that actually occurred:

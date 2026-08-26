@@ -230,6 +230,19 @@ export function recordDecisionTwinOutcome(caseId, generation, scenario = "guardr
   });
 }
 
+export function recordDecisionTwinMeasurement(caseId, generation, measurement) {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}/outcomes/measured`, {
+    method: "POST",
+    body: JSON.stringify({
+      expected_generation: generation,
+      measurement_id: measurement.measurementId,
+      primary_value: Number(measurement.primaryValue),
+      risk_value: Number(measurement.riskValue),
+      source_label: measurement.sourceLabel,
+    }),
+  });
+}
+
 export function getAvailableTenants(identityToken) {
   return request("/api/tenants/available", {
     authenticated: Boolean(identityToken),

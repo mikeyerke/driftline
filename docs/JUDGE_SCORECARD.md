@@ -29,10 +29,12 @@ judge-facing improvements:
 - custom decisions require a PM-authored measurement contract instead of
   placeholder success and stop language; and
 - named approval creates a bounded internal allocation record that is active,
-  completed, or automatically rolled back within the same decision lineage.
+  completed, or automatically rolled back within the same decision lineage; and
+- a real PM can attach the primary and risk aggregates after the review window,
+  with both retained as unverified and evaluated as a two-metric contract.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 425 backend tests, Ruff, the production frontend build,
+The candidate passed the complete backend suite, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. It cannot be scored as production proof until released
 and independently reverified against its serving SHA.

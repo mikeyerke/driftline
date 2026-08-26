@@ -159,7 +159,12 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'One approval starts the autonomous monitor · no second PM prompt' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Human approver' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'setSelectedId(latest.council.recommendation)' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'PM-provided decisions never receive synthetic outcomes.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'This never generates a synthetic result.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Attach the PM-observed outcome' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Evaluate real measurement' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'The action completed inside its guardrail' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Observed measurement' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal '/outcomes/measured' frontend/src/api.js \
   || ! check_frontend_literal 'Bounded internal action executed' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Guardrail rolled the internal action back' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'External writes' frontend/src/components/LearningReceipt.jsx \

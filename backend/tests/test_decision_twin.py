@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from app import product_council
 from app.decision_twin import (
@@ -43,6 +44,26 @@ def _pm_measurement_contract() -> PMMeasurementContract:
         stop_threshold=8,
         review_days=7,
         action_owner="Taylor PM",
+    )
+
+
+def _approved_pm_case():
+    case = build_intake_decision_case(
+        case_id="decision-intake-outcomes",
+        question="Should we expand the beta to all mid-market accounts next month?",
+        current_commitment="Launch to every mid-market account on September 15.",
+        urgency="Sales committed the date and allocation is due this Friday.",
+        positive_signal="Beta users complete the core workflow faster than the control group.",
+        risk_signal="Admins report permission confusion and support volume is rising.",
+        measurement_contract=_pm_measurement_contract(),
+        affected_segment="mid-market admins",
+    )
+    return approve_decision_case(
+        case,
+        option_id="segment",
+        approver="Taylor PM",
+        expected_synthesis_hash=case.council.synthesis_hash,
+        expected_generation=1,
     )
 
 
@@ -168,6 +189,10 @@ def test_approval_requires_current_synthesis_named_human_and_complete_plan() -> 
         - datetime.fromisoformat(approved.approval.approved_at)
         == timedelta(days=7)
     )
+    tampered = approved.model_dump(mode="json")
+    tampered["action_records"][0]["external_write"] = True
+    with pytest.raises(ValidationError):
+        type(approved).model_validate(tampered)
 
 
 def test_each_approval_option_builds_its_own_experiment_contract() -> None:
@@ -768,6 +793,9 @@ def test_pm_intake_approval_preserves_the_authored_measurement_contract() -> Non
     assert approved.experiment_plan is not None
     assert approved.experiment_plan.primary_metric == "workflow completion rate"
     assert approved.experiment_plan.risk_metric == "failed workflow rate"
+    assert approved.experiment_plan.metric_unit == "%"
+    assert approved.experiment_plan.primary_baseline == 38
+    assert approved.experiment_plan.risk_baseline == 3
     assert approved.experiment_plan.owner == "Taylor PM"
     assert approved.experiment_plan.success_threshold == 45
     assert approved.experiment_plan.stop_threshold == 8
@@ -775,6 +803,104 @@ def test_pm_intake_approval_preserves_the_authored_measurement_contract() -> Non
     assert "3 % baseline" in approved.experiment_plan.stop_conditions[0]
     assert approved.experiment_plan.target_segment == "mid-market admins"
     assert approved.experiment_plan.reversible is True
+
+
+def test_pm_contract_rejects_thresholds_that_do_not_move_from_baseline() -> None:
+    with pytest.raises(ValueError, match="Success threshold must improve"):
+        PMMeasurementContract.model_validate(
+            {
+                **_pm_measurement_contract().model_dump(),
+                "success_threshold": 38,
+            }
+        )
+
+    with pytest.raises(ValueError, match="Stop threshold must worsen"):
+        PMMeasurementContract.model_validate(
+            {
+                **_pm_measurement_contract().model_dump(),
+                "stop_threshold": 3,
+            }
+        )
+
+
+def test_pm_outcome_requires_success_and_safe_risk_in_either_order() -> None:
+    approved = _approved_pm_case()
+    primary = {
+        "observation_id": "pm-primary-success",
+        "metric_id": "workflow completion rate",
+        "segment": "mid-market admins",
+        "value": 46,
+        "baseline": 38,
+        "unit": "%",
+        "observed_at": "2026-08-30T18:00:00+00:00",
+        "source_label": "PM-provided measurement",
+        "content_hash": "7" * 64,
+    }
+    risk = {
+        "observation_id": "pm-risk-safe",
+        "metric_id": "failed workflow rate",
+        "segment": "mid-market admins",
+        "value": 4,
+        "baseline": 3,
+        "unit": "%",
+        "observed_at": "2026-08-30T18:01:00+00:00",
+        "source_label": "PM-provided measurement",
+        "content_hash": "8" * 64,
+    }
+
+    primary_first = record_outcome(approved, primary, expected_generation=1)
+    assert primary_first.status == "inconclusive"
+    assert primary_first.action_records[0].status == "active"
+    resolved = record_outcome(primary_first, risk, expected_generation=1)
+    assert resolved.status == "validated"
+    assert resolved.action_records[0].status == "completed"
+
+    risk_first = record_outcome(
+        _approved_pm_case(),
+        {**risk, "observation_id": "pm-risk-safe-first", "content_hash": "9" * 64},
+        expected_generation=1,
+    )
+    assert risk_first.status == "inconclusive"
+    resolved_reverse = record_outcome(
+        risk_first,
+        {
+            **primary,
+            "observation_id": "pm-primary-success-second",
+            "content_hash": "a" * 64,
+        },
+        expected_generation=1,
+    )
+    assert resolved_reverse.status == "validated"
+    assert resolved_reverse.action_records[0].status == "completed"
+
+
+def test_pm_risk_breach_rolls_back_and_reopens_with_safe_metric_id() -> None:
+    reopened = record_outcome(
+        _approved_pm_case(),
+        {
+            "observation_id": "pm-risk-breach",
+            "metric_id": "failed workflow rate",
+            "segment": "mid-market admins",
+            "value": 9,
+            "baseline": 3,
+            "unit": "%",
+            "observed_at": "2026-08-30T18:00:00+00:00",
+            "source_label": "PM-provided measurement",
+            "content_hash": "b" * 64,
+        },
+        expected_generation=1,
+    )
+
+    assert reopened.status == "reopened"
+    assert reopened.generation == 2
+    assert reopened.action_records[0].status == "rolled_back"
+    assert reopened.outcomes[-1].evaluation.reason == (
+        "failed workflow rate crossed the approved stop guardrail."
+    )
+    assert any(
+        node.node_id == "outcome-g1-failed-workflow-rate"
+        for node in reopened.evidence_nodes
+    )
 
 
 def test_product_council_prompts_encode_distinct_decision_mandates() -> None:

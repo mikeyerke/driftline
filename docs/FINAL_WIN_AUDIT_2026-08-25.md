@@ -49,7 +49,10 @@ forecast because judges award subjective 1–5 criterion scores.
   downstream product-system mutation. The unreleased candidate now executes a
   reversible internal allocation tied to the approval and automatically rolls
   it back on invalidation, while explicitly disclosing that it performs no
-  external write. This improves Taskmaster legibility but is not live proof yet.
+  external write. It also accepts a real PM's primary and risk aggregates after
+  the review window, retains them as unverified, and requires both success and
+  safety before completing the action. This improves Taskmaster legibility and
+  closes the custom-decision learning loop, but it is not live proof yet.
 - No genuine PM interviews, time saved, decision-quality comparison, adoption,
   or willingness-to-pay evidence exists. Never imply otherwise.
 - The full council recommendation is still model prose; the UI must foreground
@@ -178,7 +181,7 @@ After the candidate is frozen, capture the low-risk optional points:
 - Frontend production build: pass.
 - Frontend judge-surface contract: pass.
 - Backend Ruff gate: pass.
-- Backend tests: 425 passed, 2 dependency deprecation warnings.
+- Backend tests: 430 passed, 2 dependency deprecation warnings.
 - Trace evaluation: 14/14 checks, overall 1.0, safety 1.0, usefulness 1.0.
 - Frontend production dependency audit: 0 vulnerabilities reported offline.
 - Python dependency audit could not be rerun in the restricted audit sandbox;
