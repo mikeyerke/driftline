@@ -256,6 +256,34 @@ def test_output_must_stay_outside_repository(tmp_path: Path) -> None:
         MODULE._validate_output_target(ROOT / "rendered-release")
 
 
+def test_actual_final_media_bytes_must_match_manifest(tmp_path: Path) -> None:
+    video = tmp_path / "final.mp4"
+    captions = tmp_path / "final.srt"
+    video.write_bytes(b"final-video-bytes")
+    captions.write_text("1\n00:00:00,000 --> 00:00:01,000\nDriftline\n")
+    manifest = valid_manifest()
+    manifest["video_sha256"] = hashlib.sha256(video.read_bytes()).hexdigest()
+    manifest["captions_sha256"] = hashlib.sha256(captions.read_bytes()).hexdigest()
+    MODULE._validate_final_media_files(manifest, video, captions)
+
+
+@pytest.mark.parametrize("changed", ["video", "captions"])
+def test_changed_final_media_is_rejected(tmp_path: Path, changed: str) -> None:
+    video = tmp_path / "final.mp4"
+    captions = tmp_path / "final.srt"
+    video.write_bytes(b"final-video-bytes")
+    captions.write_text("1\n00:00:00,000 --> 00:00:01,000\nDriftline\n")
+    manifest = valid_manifest()
+    manifest["video_sha256"] = hashlib.sha256(video.read_bytes()).hexdigest()
+    manifest["captions_sha256"] = hashlib.sha256(captions.read_bytes()).hexdigest()
+    if changed == "video":
+        video.write_bytes(video.read_bytes() + b"changed")
+    else:
+        captions.write_text(captions.read_text() + "changed")
+    with pytest.raises(MODULE.ReleaseRenderError, match="hash does not match"):
+        MODULE._validate_final_media_files(manifest, video, captions)
+
+
 def test_story_and_form_render_exact_release_without_stale_markers(
     tmp_path: Path,
 ) -> None:

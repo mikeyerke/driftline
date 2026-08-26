@@ -203,8 +203,10 @@ see that the result came from the visible action in the same workflow.
 
 After the authorized release, final native take, public video upload, and fresh
 release screenshots all pass, run `scripts/render_release_submission.py` using
-the final manifest. Its output directory must be outside the repository and
-empty. The renderer copies the three gallery images, replaces the candidate
+the final MP4, SRT, and manifest. Its output directory must be outside the
+repository and empty. The renderer reruns the complete media/package gate,
+generates the timestamp-bound four-panel review sheet, copies the verified
+caption track and three gallery images, replaces the candidate
 architecture badge with **RELEASE VERIFIED**, binds all copy to the exact SHA,
 revision, build, image digest, video hash, and caption hash, and records hashes
 for every emitted visual. It also requires the one-session gallery manifest to

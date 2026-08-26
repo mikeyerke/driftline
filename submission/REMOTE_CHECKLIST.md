@@ -76,6 +76,8 @@ mutation, registration, upload, publication, or submission.
    ```sh
    python3 scripts/render_release_submission.py \
      --manifest /tmp/driftline-final-demo-manifest.json \
+     --video-file /tmp/driftline-final-demo.mp4 \
+     --captions-file /tmp/driftline-final-demo.srt \
      --video-url https://youtu.be/EXACT_PUBLIC_VIDEO_ID \
      --hero-image /tmp/driftline-release-hero.png \
      --generation-1-image /tmp/driftline-release-generation-1.png \
@@ -85,13 +87,16 @@ mutation, registration, upload, publication, or submission.
      --output-dir /tmp/driftline-release-submission
    ```
 
-   The renderer fails unless release, health, and public-main SHAs match; all
-   final visible-proof gates are affirmed; the video has a specific approved
+   The renderer first reruns the complete final-video package verifier against
+   the actual MP4, SRT, and manifest, then generates the timestamp review sheet.
+   It fails unless release, health, and public-main SHAs match; all final
+   visible-proof gates are affirmed; the video has a specific approved
    host URL; all three gallery images and a hash-bound complete-click proof video
    came from one health-identity-checked browser session; and stale candidate
-   language is absent. It atomically emits
-   the story, form packet, three copied gallery images, normalized capture
-   manifest, badge-free release architecture, and a hash-bound identity record.
+   language is absent. It atomically emits the story, form packet, verified
+   caption track, four-panel review sheet, three copied gallery images,
+   normalized capture manifest, badge-free release architecture, and a
+   hash-bound identity record.
    Keep this output outside Git so public `main` remains the deployed SHA.
 
 ## 5. Devpost — requires authorization
