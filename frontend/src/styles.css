@@ -1172,6 +1172,8 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-room-promise.decision-room-risk-card { padding: 24px 20px; }
   .decision-room-risk-heading { align-items: flex-start; flex-direction: column; }
   .decision-recommendation-strip { margin-left: 18px; margin-right: 18px; }
+  .decision-recommendation-heading { flex-wrap: wrap; white-space: normal; }
+  .decision-recommendation-heading strong { flex-basis: 100%; padding-left: 25px; }
   .decision-autonomy-proof { margin-left: 18px; margin-right: 18px; }
   .decision-autonomy-proof > div { grid-template-columns: 1fr; gap: 0; }
   .decision-autonomy-proof > div > span, .decision-autonomy-proof > div > span:nth-child(3) { padding: 9px 0; border-top: 1px solid #d9e5f3; border-left: 0; }
@@ -1195,6 +1197,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-room-hero h2 { font-size: 35px; }
   .decision-room-header { padding: 22px 18px 18px; }
   .decision-room-meta { flex-wrap: wrap; }
+  .decision-at-risk { grid-template-columns: minmax(0, 1fr); }
   .decision-at-risk div + div { padding: 13px 0 0; border-top: 1px solid #ecd6c9; border-left: 0; }
   .decision-evidence-grid.priority, .decision-evidence-grid.supporting { grid-template-columns: 1fr; }
   .council-reasoning > summary { align-items: flex-start; flex-direction: column; }
