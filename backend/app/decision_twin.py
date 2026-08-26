@@ -301,6 +301,7 @@ class DecisionCase(BaseModel):
         exclude=True,
     )
     tenant_id: str | None = None
+    intake_completed_at: str | None = Field(default=None, min_length=1, max_length=50)
     title: str
     question: str
     generation: int = Field(default=1, ge=1, le=MAX_DECISION_GENERATION)
@@ -393,13 +394,43 @@ def evidence_review_status(case: DecisionCase) -> dict[str, Any]:
         review.model_dump(mode="json")
         for review in sorted(current_reviews, key=lambda item: item.review_id)
     ]
+    all_citations_reviewed = bool(cited) and set(cited).issubset(reviewed_ids)
+    review_completed_at: str | None = None
+    minutes_to_reviewed_brief: float | None = None
+    if all_citations_reviewed and current_reviews and case.generation == 1:
+        try:
+            reviewed_at = [
+                datetime.fromisoformat(review.reviewed_at) for review in current_reviews
+            ]
+            intake_completed_at = datetime.fromisoformat(case.intake_completed_at or "")
+        except ValueError:
+            reviewed_at = []
+            intake_completed_at = None
+        if (
+            reviewed_at
+            and intake_completed_at is not None
+            and intake_completed_at.tzinfo is not None
+            and all(timestamp.tzinfo is not None for timestamp in reviewed_at)
+        ):
+            completed_at = max(reviewed_at)
+            elapsed_seconds = (completed_at - intake_completed_at).total_seconds()
+            if elapsed_seconds >= 0:
+                review_completed_at = completed_at.isoformat()
+                minutes_to_reviewed_brief = round(elapsed_seconds / 60, 3)
     return {
         "generation": case.generation,
         "cited_evidence_count": len(cited),
         "reviewed_evidence_count": len(reviewed_ids),
         "reviewed_evidence_node_ids": reviewed_ids,
-        "all_citations_reviewed": bool(cited) and set(cited).issubset(reviewed_ids),
+        "all_citations_reviewed": all_citations_reviewed,
         "review_receipt_hash": _digest(canonical),
+        "intake_completed_at": (
+            case.intake_completed_at
+            if minutes_to_reviewed_brief is not None
+            else None
+        ),
+        "review_completed_at": review_completed_at,
+        "minutes_to_reviewed_brief": minutes_to_reviewed_brief,
     }
 
 
@@ -1020,6 +1051,7 @@ def build_intake_decision_case(
     segment_title = f"{segment_title[:1].upper()}{segment_title[1:]} decision review"
     case = DecisionCase(
         case_id=case_id,
+        intake_completed_at=now,
         title=segment_title,
         question=question,
         current_commitment=current_commitment,

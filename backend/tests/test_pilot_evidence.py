@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -57,8 +57,11 @@ def test_starter_binds_product_evidence_without_raw_pm_context() -> None:
     assert starter["record"]["review_window_days"] == 7
     assert starter["record"]["participant_role"] is None
     assert starter["record"]["all_citations_reviewed"] is False
+    assert starter["record"]["minutes_to_brief"] is None
     assert starter["evidence_binding"]["release_sha"] == "a" * 40
     assert starter["evidence_binding"]["external_writes_none"] is True
+    assert starter["evidence_binding"]["intake_completed_at"] is None
+    assert starter["evidence_binding"]["review_completed_at"] is None
     serialized = json.dumps(starter)
     for private_value in (
         case.case_id,
@@ -72,16 +75,22 @@ def test_starter_binds_product_evidence_without_raw_pm_context() -> None:
 
 def test_review_receipts_bind_every_cited_source_without_copying_text() -> None:
     case = intake_case()
+    case.intake_completed_at = "2026-08-26T17:00:00+00:00"
     cited = decision_citation_node_ids(case)
-    for node_id in cited:
+    for index, node_id in enumerate(cited, start=1):
         case = review_decision_evidence(
             case,
             evidence_node_id=node_id,
             expected_generation=1,
         )
+        case.evidence_reviews[-1].reviewed_at = (
+            datetime(2026, 8, 26, 17, 0, tzinfo=UTC) + timedelta(minutes=index * 6)
+        ).isoformat()
     status = evidence_review_status(case)
     assert status["reviewed_evidence_count"] == len(cited)
     assert status["all_citations_reviewed"] is True
+    assert status["review_completed_at"] == "2026-08-26T17:18:00+00:00"
+    assert status["minutes_to_reviewed_brief"] == 18
 
     starter = build_pilot_evidence_starter(
         case,
@@ -89,9 +98,15 @@ def test_review_receipts_bind_every_cited_source_without_copying_text() -> None:
         verified_production=False,
     )
     assert starter["record"]["all_citations_reviewed"] is True
+    assert starter["record"]["minutes_to_brief"] == 18
+    assert "minutes_to_brief" in starter["automated_fields"]
     assert starter["evidence_binding"]["review_receipt_hash"] == status[
         "review_receipt_hash"
     ]
+    assert starter["evidence_binding"]["intake_completed_at"] == (
+        "2026-08-26T17:00:00+00:00"
+    )
+    assert starter["evidence_binding"]["minutes_to_reviewed_brief"] == 18
     serialized = json.dumps(starter)
     assert case.question not in serialized
     assert all(node.excerpt not in serialized for node in case.evidence_nodes)

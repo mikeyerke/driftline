@@ -61,6 +61,7 @@ def build_pilot_evidence_starter(
         "evidence_input_count",
         "review_window_days",
         "all_citations_reviewed",
+        "minutes_to_brief",
     ]
     record: dict[str, Any] = {
         "session_id": f"RP{session_number:04d}",
@@ -85,7 +86,7 @@ def build_pilot_evidence_starter(
         "evidence_input_count": source_count,
         "before_confidence_1_7": None,
         "after_confidence_1_7": None,
-        "minutes_to_brief": None,
+        "minutes_to_brief": review_status["minutes_to_reviewed_brief"],
         "decision_effect": None,
         "citation_error_count": None,
         "all_citations_reviewed": review_status["all_citations_reviewed"],
@@ -126,6 +127,11 @@ def build_pilot_evidence_starter(
             "reviewed_evidence_count": review_status["reviewed_evidence_count"],
             "all_citations_reviewed": review_status["all_citations_reviewed"],
             "review_receipt_hash": review_status["review_receipt_hash"],
+            "intake_completed_at": review_status["intake_completed_at"],
+            "review_completed_at": review_status["review_completed_at"],
+            "minutes_to_reviewed_brief": review_status[
+                "minutes_to_reviewed_brief"
+            ],
         },
         "record": record,
         "automated_fields": automated_fields,

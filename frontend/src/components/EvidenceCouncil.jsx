@@ -40,15 +40,26 @@ export default function EvidenceCouncil({ decisionCase, canEdit, reviewingEviden
     ...council.positions.flatMap((position) => [...position.supporting_node_ids, ...position.contradicting_node_ids]),
     ...council.options.flatMap((option) => option.evidence_node_ids),
   ]);
-  const reviewedNodeIds = new Set(
-    (decisionCase.evidence_reviews || [])
-      .filter((review) => review.generation === decisionCase.generation
-        && review.evidence_manifest_hash === council.evidence_manifest_hash
-        && review.synthesis_hash === council.synthesis_hash)
-      .map((review) => review.evidence_node_id),
-  );
+  const currentReviews = (decisionCase.evidence_reviews || [])
+    .filter((review) => review.generation === decisionCase.generation
+      && review.evidence_manifest_hash === council.evidence_manifest_hash
+      && review.synthesis_hash === council.synthesis_hash);
+  const reviewedNodeIds = new Set(currentReviews.map((review) => review.evidence_node_id));
   const citedCount = citedNodeIds.size;
   const reviewedCount = [...citedNodeIds].filter((nodeId) => reviewedNodeIds.has(nodeId)).length;
+  const reviewCompletedAt = decisionCase.generation === 1 && reviewedCount === citedCount && citedCount > 0
+    ? Math.max(
+      ...currentReviews
+        .filter((review) => reviewedNodeIds.has(review.evidence_node_id))
+        .map((review) => Date.parse(review.reviewed_at)),
+    )
+    : null;
+  const minutesToReviewedBrief = Number.isFinite(reviewCompletedAt) && decisionCase.intake_completed_at
+    ? Math.max(0, (reviewCompletedAt - Date.parse(decisionCase.intake_completed_at)) / 60000)
+    : null;
+  const timingLabel = Number.isFinite(minutesToReviewedBrief)
+    ? `${minutesToReviewedBrief < 1 ? "<1" : Math.round(minutesToReviewedBrief)} min from complete intake`
+    : null;
   const evidenceCard = (node) => <EvidenceCard node={node} key={node.node_id} canReview={isProvidedIntake && canEdit && citedNodeIds.has(node.node_id)} reviewed={reviewedNodeIds.has(node.node_id)} reviewing={reviewingEvidenceId === node.node_id} onReview={onReviewEvidence} />;
   return (
     <section className="decision-room-section evidence-council" aria-labelledby="evidence-council-title">
@@ -60,7 +71,7 @@ export default function EvidenceCouncil({ decisionCase, canEdit, reviewingEviden
         {primaryNodes.map(evidenceCard)}
       </div>
       {isProvidedIntake && <section className="evidence-corroboration" aria-labelledby="evidence-corroboration-title">
-        <div className="evidence-review-summary"><SearchCheck size={16} /><span><strong>Source review: {reviewedCount} of {citedCount}</strong><small>{reviewedCount === citedCount && citedCount > 0 ? "Every cited source has a capability-bound review receipt." : "Open each cited source and mark it reviewed before making a validation claim."}</small></span></div>
+        <div className="evidence-review-summary"><SearchCheck size={16} /><span><strong>Source review: {reviewedCount} of {citedCount}</strong><small>{reviewedCount === citedCount && citedCount > 0 ? `Every cited source has a capability-bound review receipt${timingLabel ? ` · ${timingLabel}` : ""}.` : "Open each cited source and mark it reviewed before making a validation claim."}</small></span></div>
         <div className="evidence-pack-summary"><span><strong>{decisionCase.evidence_nodes.length - 1} separately cited signals</strong><small>{decisionChannels.length} evidence channels captured</small></span><b>{independentlyObserved} independently observed</b></div>
         <header>
           <div><SearchCheck size={19} /><span><strong id="evidence-corroboration-title">Evidence readiness: 0 of 3 checks corroborated</strong><small>Driftline can structure the call now. These checks turn it into a defensible operating decision.</small></span></div>

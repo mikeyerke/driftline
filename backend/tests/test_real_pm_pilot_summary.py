@@ -62,6 +62,7 @@ def valid_starter(record: dict) -> dict:
         "evidence_input_count",
         "review_window_days",
         "all_citations_reviewed",
+        "minutes_to_brief",
     ]
     starter_record = {
         key: value if key in automated_fields else None for key, value in record.items()
@@ -72,8 +73,8 @@ def valid_starter(record: dict) -> dict:
         "evidence_binding": {
             "case_reference_hash": "b" * 64,
             "release_sha": record["app_release_sha"],
-            "generation": 2,
-            "case_status": "approved",
+            "generation": 1,
+            "case_status": "needs_approval",
             "evidence_manifest_hash": "c" * 64,
             "synthesis_hash": "d" * 64,
             "evidence_input_count": record["evidence_input_count"],
@@ -86,6 +87,9 @@ def valid_starter(record: dict) -> dict:
             "reviewed_evidence_count": record["evidence_input_count"],
             "all_citations_reviewed": True,
             "review_receipt_hash": "e" * 64,
+            "intake_completed_at": "2026-08-27T15:00:00+00:00",
+            "review_completed_at": "2026-08-27T15:18:00+00:00",
+            "minutes_to_reviewed_brief": 18,
         },
         "record": starter_record,
         "automated_fields": automated_fields,
@@ -117,6 +121,7 @@ def test_product_bound_starter_proves_machine_field_custody() -> None:
     assert f"Private case reference SHA-256: `{'b' * 64}`" in report
     assert f"Evidence manifest SHA-256: `{'c' * 64}`" in report
     assert "Product-observed external writes: **none**" in report
+    assert "Product-observed intake-to-reviewed-brief: **18.000 minutes**" in report
     assert "human approval present: **yes**" in report
 
 
@@ -125,6 +130,24 @@ def test_product_bound_starter_rejects_changed_automated_field() -> None:
     starter = valid_starter(record)
     record["evidence_input_count"] = 5
     with pytest.raises(MODULE.PilotValidationError, match="changed after export"):
+        MODULE.summarize(record, starter)
+
+
+def test_product_bound_starter_rejects_inconsistent_observed_timing() -> None:
+    record = valid_record()
+    starter = valid_starter(record)
+    starter["evidence_binding"]["review_completed_at"] = (
+        "2026-08-27T15:19:00+00:00"
+    )
+    with pytest.raises(MODULE.PilotValidationError, match="timing is inconsistent"):
+        MODULE.summarize(record, starter)
+
+
+def test_product_bound_starter_rejects_timezone_free_observed_timing() -> None:
+    record = valid_record()
+    starter = valid_starter(record)
+    starter["evidence_binding"]["intake_completed_at"] = "2026-08-27T15:00:00"
+    with pytest.raises(MODULE.PilotValidationError, match="must include a timezone"):
         MODULE.summarize(record, starter)
 
 

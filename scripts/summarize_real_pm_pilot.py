@@ -172,6 +172,7 @@ AUTOMATED_FIELDS = {
     "evidence_input_count",
     "review_window_days",
     "all_citations_reviewed",
+    "minutes_to_brief",
 }
 BINDING_FIELDS = {
     "case_reference_hash",
@@ -190,6 +191,9 @@ BINDING_FIELDS = {
     "reviewed_evidence_count",
     "all_citations_reviewed",
     "review_receipt_hash",
+    "intake_completed_at",
+    "review_completed_at",
+    "minutes_to_reviewed_brief",
 }
 HASH_RE = re.compile(r"[0-9a-f]{64}")
 
@@ -206,6 +210,18 @@ def _bool(record: dict[str, Any], key: str) -> bool:
     if not isinstance(value, bool):
         raise PilotValidationError(f"invalid {key}")
     return value
+
+
+def _aware_datetime(value: Any, key: str) -> dt.datetime:
+    if not isinstance(value, str):
+        raise PilotValidationError(f"invalid starter {key}")
+    try:
+        timestamp = dt.datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise PilotValidationError(f"invalid starter {key}") from exc
+    if timestamp.tzinfo is None:
+        raise PilotValidationError(f"starter {key} must include a timezone")
+    return timestamp
 
 
 def _number(
@@ -421,6 +437,35 @@ def validate_starter(starter: dict[str, Any], record: dict[str, Any]) -> dict[st
         or binding["all_citations_reviewed"] is not record["all_citations_reviewed"]
     ):
         raise PilotValidationError("starter citation review binding is inconsistent")
+    timing_fields = (
+        binding["intake_completed_at"],
+        binding["review_completed_at"],
+        binding["minutes_to_reviewed_brief"],
+    )
+    if binding["all_citations_reviewed"]:
+        intake_completed_at = _aware_datetime(timing_fields[0], "intake_completed_at")
+        review_completed_at = _aware_datetime(timing_fields[1], "review_completed_at")
+        measured_minutes = timing_fields[2]
+        if (
+            isinstance(measured_minutes, bool)
+            or not isinstance(measured_minutes, (int, float))
+            or not math.isfinite(float(measured_minutes))
+            or not 0 <= float(measured_minutes) <= 120
+        ):
+            raise PilotValidationError("invalid starter minutes_to_reviewed_brief")
+        expected_minutes = (review_completed_at - intake_completed_at).total_seconds() / 60
+        if expected_minutes < 0 or not math.isclose(
+            float(measured_minutes), round(expected_minutes, 3), abs_tol=0.0005
+        ):
+            raise PilotValidationError("starter observed brief timing is inconsistent")
+        if not math.isclose(
+            float(record["minutes_to_brief"]),
+            float(measured_minutes),
+            abs_tol=0.0005,
+        ):
+            raise PilotValidationError("starter brief timing does not match record")
+    elif any(value is not None for value in timing_fields):
+        raise PilotValidationError("starter cannot time an incomplete citation review")
     if binding["external_writes_none"] is not True:
         raise PilotValidationError(
             "starter does not prove the external-writes-none boundary"
@@ -514,6 +559,7 @@ def summarize(record: dict[str, Any], starter: dict[str, Any] | None = None) -> 
 - Exported case state: generation {binding["generation"]}; status `{binding["case_status"]}`; human approval present: **{"yes" if binding["human_approval_present"] else "no"}**; recorded outcomes: {binding["outcome_count"]}
 - Product-observed external writes: **none**"""
         custody += f"\n- Product-observed citation review: **{binding['reviewed_evidence_count']} of {binding['cited_evidence_count']}** cited sources; receipt `{binding['review_receipt_hash']}`"
+        custody += f"\n- Product-observed intake-to-reviewed-brief: **{binding['minutes_to_reviewed_brief']:.3f} minutes**"
     else:
         custody = "- Evidence custody: **manual record only; not product-bound**"
 

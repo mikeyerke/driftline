@@ -301,10 +301,15 @@ def test_private_pilot_starter_is_product_bound_and_owner_only(monkeypatch) -> N
     assert starter["record"]["app_state"] == "verified_production"
     assert starter["record"]["participant_role"] is None
     assert starter["record"]["all_citations_reviewed"] is True
+    assert isinstance(starter["record"]["minutes_to_brief"], (int, float))
+    assert starter["record"]["minutes_to_brief"] >= 0
     assert starter["evidence_binding"]["reviewed_evidence_count"] == len(
         cited_node_ids
     )
     assert starter["evidence_binding"]["all_citations_reviewed"] is True
+    assert starter["evidence_binding"]["minutes_to_reviewed_brief"] == starter[
+        "record"
+    ]["minutes_to_brief"]
     assert starter["evidence_binding"]["evidence_manifest_hash"] == created["council"][
         "evidence_manifest_hash"
     ]

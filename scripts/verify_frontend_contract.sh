@@ -247,6 +247,7 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal '/review' frontend/src/api.js \
   || ! check_frontend_literal 'Mark source reviewed' frontend/src/components/EvidenceCouncil.jsx \
   || ! check_frontend_literal 'capability-bound review receipt' frontend/src/components/EvidenceCouncil.jsx \
+  || ! check_frontend_literal 'min from complete intake' frontend/src/components/EvidenceCouncil.jsx \
   || ! check_frontend_literal 'Decision intake progress' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'error && !intakeOpen' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Define the operating contract before approval' frontend/src/components/DecisionRoom.jsx \

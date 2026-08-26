@@ -118,7 +118,7 @@ not be mislabeled as customer evidence.
 
 ### 20–27 minutes: compare
 
-- Record recommended option, whether it changed or sharpened the participant's view, new confidence from 1–7, and minutes to reach a defensible brief.
+- Record recommended option, whether it changed or sharpened the participant's view, and new confidence from 1–7. Driftline measures elapsed time from complete intake to the participant's final cited-source review; do not transcribe or replace that value.
 - Ask: “What would stop you from using this on your next real decision?”
 - Ask: “What existing tool or meeting would this replace?”
 
@@ -151,12 +151,14 @@ worktree until Mike separately authorizes a release. The outcome path stores
 the PM's aggregate primary and risk values as unverified, never substitutes a
 fixture, and requires both success and safety before completing the action.
 
-From the originating browser, first confirm **Source review: N of N**, then use
+From the originating browser, first confirm **Source review: N of N** and the
+displayed elapsed time, then use
 **Download private pilot starter** before the
 session ends. The owner-only export contains the exact release SHA, hashed case
 reference, evidence-manifest and synthesis hashes, and bounded product-observed
 counts and a source-review receipt hash. The product—not the worksheet—fills
-`all_citations_reviewed`. It contains no decision text, participant identity, consent, validation,
+`all_citations_reviewed` and `minutes_to_brief`, and binds the intake and final-review
+timestamps to the same receipt. It contains no decision text, participant identity, consent, validation,
 or customer claim. Keep it private.
 
 Complete the starter's `record` manual fields from the observed session and save
@@ -178,6 +180,9 @@ unbound paid claims, and outcome claims before follow-up. A
 private session remains blocked from publication without explicit anonymized-
 result consent. One valid record is labeled directional `n=1` evidence, never
 causal or statistically representative validation.
+
+The elapsed value measures this Driftline session only. It is not baseline time,
+time saved, ROI, or causal productivity evidence.
 
 ## Success bar
 
