@@ -30,7 +30,13 @@ One pilot counts only if all of these are true:
 
 ## Best-fit first segment
 
-Fractional product leaders and early-stage B2B SaaS product leaders are the best first target. They repeatedly face roadmap, rollout, pricing, packaging, and GTM tradeoffs across small teams; can usually authorize their own participation; and can expose a real decision without enterprise procurement. Avoid large-company PMs for the first proof unless there is a warm introduction—their data, security, and communications approvals are unlikely to fit the deadline.
+Founder-led venture studios, fractional product leaders, and early-stage B2B
+SaaS product leaders are the best first targets. Studios repeatedly allocate
+attention and resources across validation, rollout, platform, monetization, and
+growth decisions; fractional leaders see the same tradeoffs across clients; and
+both can often authorize participation without enterprise procurement. Avoid
+large-company PMs for the first proof unless there is a warm introduction—their
+data, security, and communications approvals are unlikely to fit the deadline.
 
 ## Ranked recruiting routes
 
@@ -42,13 +48,16 @@ not be mislabeled as customer evidence.
 | Priority | Prospect or channel | Why it fits | Public contact path | Ask |
 |---|---|---|---|---|
 | 1 | ProductTank Austin — “Shipping on Someone Else's Roadmap” | 2,767-member PM community; the Aug 27 session is specifically about contested product decisions under platform, API, cloud, and AI-model constraints | https://www.meetup.com/producttank-austin/events/316217241/ | Ask hosts Edwin and Ian B. for one opt-in introduction; the 6:00–6:30 or 7:30–8:00 networking window is the highest-probability route, after Mike approves registration/attendance |
-| 2 | Kevin Smith, Just Add PRODUCT | Austin fractional product leader with 20+ years across B2B, enterprise, and startups | https://www.justaddprod.com/ | Offer a private decision test; ask for candid falsification and one client-safe current decision |
-| 3 | Ashok Venkatraj, Clarity for Product | Current positioning names ad-hoc decisions, roadmap churn, AI paralysis, platform confusion, and misalignment | https://clarityforproduct.com/ | Compare one current decision with his normal operating process |
-| 4 | John Leonard, RoadMapVenture | Austin fractional CPO currently open to advisory work across SaaS, analytics, AI, and roadmaps | https://www.roadmapventure.com/ | Ask for one current client-safe decision and the first reason he would reject the result |
-| 5 | Steyaert Consulting | Austin product/technology advisor focused on agent workflows and AI that supports rather than replaces human decisions | https://steyaert.com/ | Ask for a trust, authority, and failure-mode test using a real product choice |
-| 6 | C2B / Fractional Product Experts | Austin firm spanning product ownership, launch, pricing, competitive intelligence, partner assessment, and HITL methodology | https://www.c2bsuite.com/ | Ask one senior operator to test a current internal or client-safe decision |
-| 7 | Women In Product, Austin | Current chapter page provides direct community routes and names two chapter leads | https://womenpm.org/join-our-community/austin/ | Ask one lead for one opt-in PM introduction; do not contact the list |
-| 8 | ProductCamp Austin | 5,000+ local members, but the next conference is September 19—after the hackathon deadline | https://www.productcampaustin.org/ | Use only for a private board introduction if the faster routes fail |
+| 2 | Hatch Labs | Austin founder-led studio with 10+ apps in development and repeated validation, platform, retention, monetization, and scaling decisions | https://hatchlabs.com/ | Ask Amanda Bradford to test one current portfolio allocation or rollout decision |
+| 3 | VentureKind | Austin venture studio reporting five portfolio companies, 20+ products, and explicit validate/build/launch/scale gates | https://venturekind.com/ | Ask one studio operator to test an active resource or experiment commitment |
+| 4 | Path | Small Austin founding team building AI business software around simplicity, innovation, and quality | https://path.dev/about | Ask Billy Kraft to test one live platform-scope, launch, or segment decision |
+| 5 | Kevin Smith, Just Add PRODUCT | Austin fractional product leader with 20+ years across B2B, enterprise, and startups | https://www.justaddprod.com/ | Offer a private decision test; ask for candid falsification and one client-safe current decision |
+| 6 | Ashok Venkatraj, Clarity for Product | Current positioning names ad-hoc decisions, roadmap churn, AI paralysis, platform confusion, and misalignment | https://clarityforproduct.com/ | Compare one current decision with his normal operating process |
+| 7 | John Leonard, RoadMapVenture | Austin fractional CPO currently open to advisory work across SaaS, analytics, AI, and roadmaps | https://www.roadmapventure.com/ | Ask for one current client-safe decision and the first reason he would reject the result |
+| 8 | Steyaert Consulting | Austin product/technology advisor focused on agent workflows and AI that supports rather than replaces human decisions | https://steyaert.com/ | Ask for a trust, authority, and failure-mode test using a real product choice |
+| 9 | C2B / Fractional Product Experts | Austin firm spanning product ownership, launch, pricing, competitive intelligence, partner assessment, and HITL methodology | https://www.c2bsuite.com/ | Ask one senior operator to test a current internal or client-safe decision |
+| 10 | Women In Product, Austin | Current chapter page provides direct community routes and names two chapter leads | https://womenpm.org/join-our-community/austin/ | Ask one lead for one opt-in PM introduction; do not contact the list |
+| 11 | ProductCamp Austin | 5,000+ local members, but the next conference is September 19—after the hackathon deadline | https://www.productcampaustin.org/ | Use only for a private board introduction if the faster routes fail |
 
 ## Qualification message
 

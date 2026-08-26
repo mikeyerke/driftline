@@ -7,9 +7,12 @@ Status: local draft only. Do not send, post, register, or publish without Mike a
 Use a small, high-fit first wave rather than bulk outreach:
 
 1. ProductTank Austin hosts Edwin and Ian B. through the Meetup organizer-message route.
-2. Kevin Smith through the Just Add PRODUCT contact form or published business email.
-3. Ashok through the Clarity for Product contact form or published business email.
-4. John Leonard through the RoadMapVenture LinkedIn route only if the first wave does not produce a session.
+2. Hatch Labs through its official collaborator contact route.
+3. VentureKind through its official **Start a Conversation** route.
+4. Path through its official **Talk to our team** route.
+5. Kevin Smith through the Just Add PRODUCT contact form or published business email.
+6. Ashok through the Clarity for Product contact form or published business email.
+7. John Leonard through the RoadMapVenture LinkedIn route only if the first wave does not produce a session.
 
 The objective is one qualified real decision, not response volume. Stop recruiting once a participant is scheduled and qualified; complete the session before widening the list.
 
@@ -26,6 +29,54 @@ Subject: One private real-decision test for a ProductTank attendee
 > If this sounds appropriate for the community, would you be willing to introduce me to one attendee who has that decision right now? A candid failure is as useful to me as a positive result.
 
 Why this is personalized: the event specifically covers roadmap decisions shaped by platforms, APIs, integrations, cloud services, and AI models.
+
+## Amanda Bradford — Hatch Labs
+
+Channel: official Hatch Labs collaborator contact route.
+
+Subject: One portfolio decision, tested before the next build commitment
+
+> Hi Amanda — Hatch Labs' identify, validate, build, and scale model creates a recurring decision problem: promising signals compete for product, platform, analytics, and growth resources across multiple apps.
+>
+> I built Driftline for one narrow version of that problem. It takes a current, safely redacted product commitment, preserves conflicting evidence, compares the smallest reversible responses, and binds the human-approved choice to a primary metric, risk guardrail, stop threshold, and review window.
+>
+> I am looking for one founder-operator to test it on a real decision due within 30 days—not review a generic demo. In 30 private minutes, we would compare Driftline with your current judgment and identify the first place it fails. Nothing is published or attributed without separate permission.
+>
+> Would you test one current portfolio allocation, rollout, or validation decision?
+
+Why this is personalized: Hatch Labs publicly reports 10+ apps in development,
+portfolio-wide analytics and infrastructure, and a founder-led product process.
+
+## VentureKind
+
+Channel: official **Start a Conversation** route.
+
+Subject: Pressure-test one live portfolio commitment
+
+> Hi VentureKind team — your studio works across ideation, validation, launch, and scale for five portfolio companies and more than 20 products. I am testing a decision workflow for the moment when those stages produce conflicting evidence but a founder still has to commit resources.
+>
+> Driftline compares competing responses, keeps the evidence and dissent inspectable, and requires a named human to define the metric, guardrail, stop threshold, rollback, and review window. It does not make the decision or write to customer systems.
+>
+> Would one founder or studio operator be willing to run a current, safely redacted portfolio decision through it in a private 30-minute session? A negative result is useful, and nothing is quoted or posted without separate permission.
+
+Why this is personalized: VentureKind publicly describes five portfolio
+companies, 20+ products, and explicit validate, build, launch, and scale gates.
+
+## Billy Kraft — Path
+
+Channel: official **Talk to our team** route.
+
+Subject: One AI-platform tradeoff, tested against your current judgment
+
+> Hi Billy — Path is making a difficult product promise: powerful AI-generated business software with no learning curve or bloat. That usually creates real tradeoffs among platform scope, simplicity, launch timing, and quality.
+>
+> I built Driftline to structure one such contested decision without handing authority to AI. It preserves conflicting evidence, compares reversible responses, and binds the human choice to a primary metric, risk guardrail, stop threshold, rollback, and review date.
+>
+> Would you be open to testing one current, safely redacted platform, launch, or segment decision in a private 30-minute session? I am looking for the first reason the workflow would fail a real founder decision, not an endorsement. Nothing is published or attributed without separate permission.
+
+Why this is personalized: Path's official site names a small Austin founding
+team and an explicit product tension among simplicity, AI innovation, and
+quality.
 
 ## Kevin Smith — Just Add PRODUCT
 
