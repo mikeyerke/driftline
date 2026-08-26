@@ -93,12 +93,16 @@ links, fair anonymous mutation quotas, bounded visual-asset fetches, the
 continuous PM operating loop, and the redacted multi-source evidence pack
 described in the judge scorecard. These merged runtime changes are not deployed.
 
-The public-main candidate passed 521 backend tests, Ruff, the 14/14 trace
+The public-main candidate passed 524 backend tests, Ruff, the 14/14 trace
 evaluation, the locked frontend build, dependency audit, frontend and
 submission contracts, and shell/diff hygiene on August 26. PRs #23-#29 passed
 all four hosted jobs. For PRs #26-#29, each tested tree was identical to its
 squash-merged `main` tree, and the exact public-main release preflight passed
 from a clean checkout at `08e7be09551aa833efd5ed93018cb6c32a8b3886`.
+PR #32 then combined a manual exact-SHA verification trigger with the
+research-backed real-PM market-fit record. Its exact head passed all four hosted
+jobs, its squash-merged tree was identical, and the fresh exact public-main
+preflight passed at `e4a2f474002c151ab29b08528915292543afd7f2` with 524 tests.
 
 PRs #27-#29 also add a fail-closed external release renderer. It requires exact
 repository/deployment/health identity, verifies the actual final MP4 and SRT,

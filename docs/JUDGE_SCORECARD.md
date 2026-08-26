@@ -30,8 +30,10 @@ redacted multi-source evidence pack via PR #24, the strengthened final-demo
 proof pipeline via PR #25, truthful judge-evidence custody via PR #26, and the
 fail-closed release-packet chain via PRs #27-#29. Hosted GitHub Actions passed
 all four jobs for every PR. Each PR #26-#29 tested tree was identical to its
-squash-merged `main` tree, and a fresh exact public-main release preflight then
-passed from a clean checkout at `08e7be09551aa833efd5ed93018cb6c32a8b3886`.
+squash-merged `main` tree. PR #32 then added research-backed real-PM market-fit
+evidence and the manual exact-SHA CI recovery path; its combined exact tree
+passed all four hosted jobs, equaled its squash-merged `main` tree, and passed a
+fresh clean release preflight at `e4a2f474002c151ab29b08528915292543afd7f2`.
 None of these merged changes is part of the live score above until Cloud Run
 serves the same public-main commit and the full production journey is
 reverified.
@@ -86,6 +88,13 @@ judge-facing improvements:
 - the public judge lane now identifies itself as an intentional no-sign-in demo
   instead of presenting disabled operator authentication as a product failure.
 
+The real-PM pilot now also records the participant's primary decision pain,
+incumbent workflow, largest adoption blocker, and stated willingness to reuse.
+Those bounded fields are analyzed separately from observed costly commitments;
+a favorable self-report can never create a customer claim, and unregistered
+free text is rejected to prevent identity or raw-data leakage. This improves the
+quality of a future independent session but is not itself PM validation.
+
 The public-main candidate now projects all seven PM operating capabilities through one
 validated interface: autonomous inbox, evidence harvest, decision-debt radar,
 stakeholder alignment, commitment/execution, outcome autopilot, and compounding
@@ -95,7 +104,7 @@ different labels. Stakeholder positions are explicitly evidence-bound decision
 lenses rather than fabricated human quotes.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 521 backend tests, Ruff, the production frontend build,
+The candidate passed 524 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold
@@ -264,7 +273,7 @@ ownership attestation.
 
 `scripts/verify_clean_checkout.sh` separately exports only committed `HEAD`
 into a new temporary directory, creates a fresh backend environment, installs
-the locked frontend tree, and reruns all 521 backend tests, the 14-case agent
+the locked frontend tree, and reruns all 524 backend tests, the 14-case agent
 evaluation, frontend production build, frontend contract, submission packet,
 and shell syntax checks. This closes the gap between “works in the development
 worktree” and the reproducibility claim a judge receives from the repository.
