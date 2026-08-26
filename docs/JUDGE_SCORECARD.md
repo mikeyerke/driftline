@@ -46,7 +46,7 @@ judge-facing improvements:
   exposing raw browser or HTTP errors.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 450 backend tests, Ruff, the production frontend build,
+The candidate passed 462 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold
@@ -120,10 +120,14 @@ decision-contract wedge. It does not show that a PM adopted Driftline or would
 pay for it.
 
 A separate single-real-PM evidence gate is ready for the deadline-constrained
-`n=1` case: it rejects identity/raw-data fields, weak qualification, premature
-outcome claims, publication without consent or authority comprehension, and a
-customer label without payment or a signed paid commitment. Seventeen focused
-tests pass. This improves evidence custody; it does not manufacture a participant.
+`n=1` case: it rejects identity/raw-data fields, weak qualification, placeholder
+release identity, fractional count fields, premature outcome claims,
+and a customer label without payment or a signed paid commitment. It blocks
+publication without consent, confirmed participant independence, complete
+citation review, and authority comprehension. Paid-panel incentives are
+disclosed as evaluation
+spend rather than customer revenue. Twenty-nine focused tests pass. This
+improves evidence custody; it does not manufacture a participant.
 
 ## 30% — Architectural discipline and tech stack
 
