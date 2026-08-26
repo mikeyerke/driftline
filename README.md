@@ -29,6 +29,14 @@ result back into the same durable decision lineage.
 5. Open [`/health`](https://driftline-ops.web.app/health) and compare its release
    SHA and Cloud Build ID with the immutable proof below.
 
+**Taskmaster proof:** before the named approval, Driftline completes a full
+background decision-preparation task without a prompt loop or human
+orchestration: it intercepts commitment drift, harvests cited evidence,
+convenes five bounded Google ADK specialists, preserves dissent, and prepares
+reversible options. The approval is a deliberate authority boundary. After
+that one authorization, the monitor evaluates the committed guardrail, writes
+the learning receipt, and reopens generation 2 without a second PM action.
+
 ![Driftline Decision Twin architecture](submission/assets/driftline-decision-twin-architecture.png)
 
 ### Release truth
