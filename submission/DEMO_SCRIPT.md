@@ -132,6 +132,9 @@ loop: evidence, dissent, decision, outcome.”
   internal decision-state allocation.
 - The take is one continuous recording. No cut occurs anywhere, especially from
   approval through outcome and reopen.
+- The first visible agent action occurs within 15 seconds, and the final
+  manifest records its timestamp plus affirmative continuous-take and
+  setup/loading-omitted gates.
 - The final manifest records `google_cloud_proof_type=cloud_run_url` and the
   exact timestamp at which the `*.run.app` backend becomes visible.
 - The public YouTube/Vimeo result is under four minutes, English or English-

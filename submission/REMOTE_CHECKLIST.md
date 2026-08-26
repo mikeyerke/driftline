@@ -60,10 +60,12 @@ mutation, registration, upload, publication, or submission.
    customer identifiers, custody labels, final URL, repository, category, and
    Google technology. Show either the Cloud Run console or the live `*.run.app`
    backend in-frame; an architecture diagram or caption alone is insufficient.
-6. Scrub the manifest timestamps for named-human approval, the bounded action
-   receipt, and generation-2 reopen. Require those three states to be visibly
-   distinct, with the approver cleared and generation-1 lineage preserved after
-   reopening; narration alone does not prove the state changes.
+6. Scrub the manifest timestamp for the first visible agent action and require
+   it by 0:15. Then scrub named-human approval, the bounded action receipt, and
+   generation-2 reopen. Require those states to be visibly distinct, with the
+   approver cleared and generation-1 lineage preserved after reopening;
+   narration alone does not prove the state changes. Affirm the entire take is
+   continuous and that sign-up, setup, loading, and title-card waits are absent.
 7. Upload publicly to YouTube or Vimeo only after entrant approval. The working
    rules snapshot says an unlisted video is insufficient; verify visibility in
    a fresh logged-out browser.

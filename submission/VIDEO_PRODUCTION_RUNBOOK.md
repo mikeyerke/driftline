@@ -131,8 +131,10 @@ see that the result came from the visible action in the same workflow.
 - Normalize speech, remove long silences, and confirm no music masks narration.
 - Watch once at 1× without pausing, once muted for caption comprehension, and
   once at 720p for small-text legibility.
-- Confirm the first 30 seconds shows the live URL and the last frame contains
-  project name, URL, repository, category, and Google technology.
+- Confirm the live URL is visible immediately and the first real agent action
+  occurs within 15 seconds; show no sign-up, setup, loading, or title-card wait.
+  The last frame must contain project name, URL, repository, category, and
+  Google technology.
 - Record the exact timestamp where the Cloud Run console or live `*.run.app`
   backend first becomes visible. The final manifest must name which proof type
   was used and bind it to the same release identity.
@@ -142,12 +144,17 @@ see that the result came from the visible action in the same workflow.
   and successful authorization; the receipt must visibly follow it; and
   generation 2 must show the cleared approver plus preserved generation-1
   lineage. Narration or captions are not substitutes for visible state.
+- Record the first real agent-action timestamp and affirm that the entire take
+  is one continuous native recording with setup and loading omitted. The final
+  package gate rejects an action later than 15 seconds or a manifest that does
+  not affirm those visible conditions.
 - Copy `submission/final-demo-manifest.template.json`, replace every placeholder
   from the exact released take, hash the final MP4 and SRT, and run:
   `scripts/verify_final_demo_package.sh VIDEO.mp4 CAPTIONS.srt MANIFEST.json`.
   Reject the package unless release, `/health`, and public-main SHAs match; the
-  approval-to-reopen core is continuous; the external-write boundary and Cloud
-  proof are visible; captions cover every judge-critical claim; and media,
+  first action occurs within 15 seconds; the full take and approval-to-reopen
+  core are continuous; the external-write boundary and Cloud proof are visible;
+  captions cover every judge-critical claim; and media,
   loudness, silence, black-frame, duration, and checksum gates pass.
 - Generate the timestamp-bound visual audit with
   `scripts/render_final_demo_review_sheet.sh VIDEO.mp4 MANIFEST.json REVIEW.png`.

@@ -90,6 +90,10 @@ silence and its static sequence is weaker than the real-click blueprint.
 
 Reject the take if any of these is true:
 
+- the first visible agent action occurs after 0:15, or setup/loading/title-card
+  waiting consumes the opening;
+- the complete native take is not continuous, even if the approval-to-reopen
+  subsection happens to be continuous;
 - the browser sequence is not from the release identified by `/health`;
 - public `main`, `/health`, and the manifest release SHA differ;
 - the approval-to-reopen core is spliced or requires a hidden second action;

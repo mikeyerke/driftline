@@ -229,6 +229,12 @@ continuous native recording at 1×, including browser action, tab switches,
 direct Cloud Run `/health`, and the release-bound architecture; it permits no
 cuts or splices.
 
+The August 24 organizer checklist additionally says to show the project working
+within the first 10–15 seconds and omit sign-up, setup, loading, and title-card
+waits. The final manifest and package verifier now require a timestamped first
+agent action by 0:15 plus affirmative full-take continuity and setup/loading
+omission—not merely continuity inside the approval-to-reopen subsection.
+
 Exact-release desktop/mobile screenshots, the Decision Twin architecture, and
 a three-minute 1080p captioned local review cut are complete. A continuous
 local candidate proof now also runs the actual browser state machine and asserts

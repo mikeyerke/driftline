@@ -230,6 +230,10 @@ required_fields = {
     "video_sha256",
     "captions_sha256",
     "duration_seconds",
+    "first_agent_action_timestamp_seconds",
+    "first_agent_action_visible",
+    "continuous_native_take",
+    "setup_and_loading_omitted",
     "human_approval_timestamp_seconds",
     "named_human_approval_visible",
     "bounded_action_receipt_timestamp_seconds",
@@ -285,6 +289,9 @@ if abs(float(manifest["duration_seconds"]) - duration) > 0.1:
     fail("manifest duration does not match the media")
 
 for key in (
+    "first_agent_action_visible",
+    "continuous_native_take",
+    "setup_and_loading_omitted",
     "named_human_approval_visible",
     "bounded_action_receipt_visible",
     "generation_2_reopen_visible",
@@ -301,11 +308,16 @@ for key in (
         fail(f"manifest gate is not affirmed: {key}")
 
 try:
+    first_action_timestamp = float(manifest["first_agent_action_timestamp_seconds"])
     approval_timestamp = float(manifest["human_approval_timestamp_seconds"])
     receipt_timestamp = float(manifest["bounded_action_receipt_timestamp_seconds"])
     generation_2_timestamp = float(manifest["generation_2_timestamp_seconds"])
 except (TypeError, ValueError):
-    fail("approval, receipt, and generation-2 timestamps must be numeric")
+    fail("first-action, approval, receipt, and generation-2 timestamps must be numeric")
+if not 0 <= first_action_timestamp <= 15:
+    fail("the first visible agent action must occur within the first 15 seconds")
+if first_action_timestamp >= approval_timestamp:
+    fail("the first visible agent action must precede named-human approval")
 if not 60 <= approval_timestamp <= 100:
     fail("named-human approval must be visibly timestamped between 60 and 100 seconds")
 if not approval_timestamp <= receipt_timestamp <= approval_timestamp + 20:
