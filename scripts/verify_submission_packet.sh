@@ -95,6 +95,7 @@ require_text scripts/verify_final_demo_package.sh 'persistent red top-band custo
 require_text scripts/verify_final_demo_package.sh 'video content matches a quarantined rehearsal or historical proof asset'
 require_text submission/JUDGE_EVIDENCE_INDEX.md '0:00–0:11'
 require_text submission/JUDGE_EVIDENCE_INDEX.md 'Not demonstrated by the video'
+require_text submission/JUDGE_SCORECARD.md '`scripts/verify_clean_checkout.sh` separately exports only committed `HEAD`'
 require_text submission/assets/README.md 'detects a 4.53-second narration silence'
 require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'verify_final_demo_package.sh'
 require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'it is not a substitute for visible deployment proof'

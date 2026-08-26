@@ -198,6 +198,13 @@ copyleft/source-available license families. The current locked inventory passed;
 this is engineering evidence, not a substitute for the entrant's source-package
 ownership attestation.
 
+`scripts/verify_clean_checkout.sh` separately exports only committed `HEAD`
+into a new temporary directory, creates a fresh backend environment, installs
+the locked frontend tree, and reruns all 462 backend tests, the 14-case agent
+evaluation, frontend production build, frontend contract, submission packet,
+and shell syntax checks. This closes the gap between “works in the development
+worktree” and the reproducibility claim a judge receives from the repository.
+
 ## 30% — Demo and production readiness
 
 ### Production gates
@@ -270,7 +277,7 @@ not production proof or timestamps to copy into the final release manifest.
 | Google Cloud infrastructure | Cloud Run, Firestore, BigQuery, Tasks, Scheduler, Build, Artifact Registry, Storage, Secret Manager | Proven live |
 | One category | Taskmaster | Prepared; entrant must select |
 | Hosted URL | Public Firebase facade to Cloud Run | Proven live |
-| Repository and spin-up instructions | Public repo and README | Proven |
+| Repository and spin-up instructions | Public repo, README, and committed-only clean-checkout verification | Proven locally for candidate; repeat on public release SHA |
 | Architecture diagram | 1600×900 PNG/SVG plus checksum-bound full-resolution review | Prepared; local asset QA complete, entrant upload open |
 | Public demo under four minutes | 3:00 review cut, 31.17s continuity proof, and a 2:58 1080p real-click long-form candidate rehearsal with burned and embedded captions | Prepared locally; exact-release final take and public upload remain unproven |
 | SDK and start date answers | Google ADK; implementation repo began August 18 | Prepared; entrant must enter |
