@@ -365,6 +365,13 @@ def test_pm_risk_measurement_rolls_back_and_manual_measurement_rejects_demo(
     assert breached.status_code == 200
     assert breached.json()["status"] == "reopened"
     assert breached.json()["action_records"][0]["status"] == "rolled_back"
+    measured_node = next(
+        node
+        for node in breached.json()["evidence_nodes"]
+        if node["title"] == "Measured guardrail outcome"
+    )
+    assert measured_node["confidence"] == 0.6
+    assert measured_node["source_label"].endswith("PM-provided · unverified")
 
     demo = client.post("/api/decision-twin/demo").json()
     rejected = client.post(

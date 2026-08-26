@@ -901,6 +901,13 @@ def test_pm_risk_breach_rolls_back_and_reopens_with_safe_metric_id() -> None:
         node.node_id == "outcome-g1-failed-workflow-rate"
         for node in reopened.evidence_nodes
     )
+    outcome_node = next(
+        node
+        for node in reopened.evidence_nodes
+        if node.node_id == "outcome-g1-failed-workflow-rate"
+    )
+    assert outcome_node.confidence == 0.6
+    assert outcome_node.source_label.endswith("PM-provided measurement")
 
 
 def test_product_council_prompts_encode_distinct_decision_mandates() -> None:

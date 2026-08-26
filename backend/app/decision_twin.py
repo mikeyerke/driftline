@@ -1349,7 +1349,9 @@ def _rebuild_council_after_outcome(
         source_label=outcome.source_label,
         observed_at=outcome.observed_at,
         content_hash=outcome.content_hash,
-        confidence=0.98,
+        confidence=(
+            0.6 if "pm-provided" in outcome.source_label.casefold() else 0.98
+        ),
         segment=outcome.segment,
         value=outcome.value,
         unit=outcome.unit,
