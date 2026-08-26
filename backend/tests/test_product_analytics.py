@@ -23,6 +23,7 @@ def test_bigquery_seed_refresh_is_current_bounded_and_non_accumulating() -> None
     assert sql.count("CURRENT_TIMESTAMP()") >= 4
     assert "DELETE FROM" in sql
     assert "source_mode = 'pinned_aggregate_fixture'" in sql
+    assert "ARRAY<FLOAT64> NOT NULL" not in sql
 
 
 def test_fixture_metrics_are_bounded_aggregates_without_customer_rows() -> None:

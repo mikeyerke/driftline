@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS
   chosen_response STRING NOT NULL,
   outcome STRING NOT NULL,
   lesson STRING NOT NULL,
-  decision_vector ARRAY<FLOAT64> NOT NULL,
+  -- BigQuery arrays are never NULL; the platform stores a missing array as [].
+  decision_vector ARRAY<FLOAT64>,
   source_mode STRING NOT NULL
 )
 PARTITION BY TIMESTAMP_TRUNC(observed_at, DAY)
