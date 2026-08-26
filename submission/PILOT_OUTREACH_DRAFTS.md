@@ -1,6 +1,9 @@
-# Driftline pilot outreach drafts
+# Driftline pilot outreach records and drafts
 
-Status: local draft only. Do not send, post, register, or publish without Mike approving the exact recipient, channel, and final text.
+Status: the Kevin Smith and Hatch Labs invitations were sent August 26 after
+individual approval. Every other message below remains an unsent draft. Do not
+send, follow up, post, register, or publish without Mike approving the exact
+recipient, channel, and final text.
 
 ## Recommended sequence
 
@@ -33,6 +36,9 @@ Subject: One private real-decision test for a ProductTank attendee
 Why this is personalized: the event specifically covers roadmap decisions shaped by platforms, APIs, integrations, cloud services, and AI models.
 
 ## Amanda Bradford — Hatch Labs
+
+Delivery state: **sent August 26; no reply or delivery failure observed in the
+latest read-only mailbox audit**. Do not follow up without approval.
 
 Channel: official Hatch Labs collaborator contact route.
 
@@ -81,6 +87,9 @@ team and an explicit product tension among simplicity, AI innovation, and
 quality.
 
 ## Kevin Smith — Just Add PRODUCT
+
+Delivery state: **sent August 26; no reply or delivery failure observed in the
+latest read-only mailbox audit**. Do not follow up without approval.
 
 Channel: website contact form or `info@justaddprod.com`, both publicly listed for the business.
 
