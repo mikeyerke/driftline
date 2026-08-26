@@ -292,15 +292,16 @@ in `submission/JUDGE_EVIDENCE_INDEX.md`. It remains ineligible as live proof
 until the exact candidate is released and the native browser journey is rerun.
 The capture now centers the complete generation-1 action and learning receipt
 inside the recorded browser sequence rather than merely asserting it in the
-DOM. An August 26 exact-app-candidate presentation run captured 525
-state-change frames and seven real mouse-input clicks, with generation 2,
+DOM. The August 26 current-HEAD local autonomous presentation run at `a0b52f8`
+captured 536 state-change frames and seven real mouse-input clicks, with generation 2,
 rollback selected, the approver cleared, external writes still none, and the
-action visibly rolled back. Its fresh local 2:58 rebuild passed a labeled
+action visibly rolled back without a second PM action. Its fresh local 2:58 rebuild passed a labeled
 full-resolution audit at 1:08 for the named human, 1:15 for the bounded and
 rolled-back receipt, 1:30 for generation 2, and 2:15 for the
-architecture/Cloud-proof section. The fallback variant has an eighth click for
-the explicit measurement-fallback action. These are local rehearsal QA facts,
-not production proof or timestamps to copy into the final release manifest.
+architecture/Cloud-proof section. A separate current-HEAD fallback run passed
+with 612 frames and eight clicks, including the explicitly labelled fallback
+action. These are local rehearsal QA facts, not production proof or timestamps
+to copy into the final release manifest.
 
 ## Requirement checklist
 

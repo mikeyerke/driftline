@@ -72,8 +72,11 @@ eighth browser click for **Run demo measurement fallback**; that extra click is
 not part of the autonomous-monitor presentation. Strongest window:
 **0:00–2:58**.
 
-The August 26 exact-app-candidate rehearsal captured 525 state-change frames
-and seven real mouse-input clicks. Its labeled full-resolution audit shows the
+The August 26 current-HEAD autonomous local rehearsal at `a0b52f8` captured 536
+state-change frames and seven real mouse-input clicks, with the bounded local
+background monitor completing the outcome without a second PM action. A
+separate fallback-mode run passed with 612 frames and eight clicks. Neither is
+evidence of hosted Cloud Tasks execution. The labeled full-resolution audit shows the
 named human at 1:08, the bounded and rolled-back action receipt at 1:15,
 generation 2 with rollback selected at 1:30, and the candidate
 architecture/Cloud-proof section at 2:15. This is local rehearsal evidence,

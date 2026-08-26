@@ -60,25 +60,34 @@ public demo and not production proof.
 
 ## Exact-current narrated rehearsal
 
-An additional local-only rehearsal was rebuilt from candidate commit
-`89d9ed62c6191f1d55ba54e690b93019cb57fd5c`. It does not replace the required
-post-release live take and has not been uploaded or published.
+The complete local-only rehearsal was rebuilt again on August 26 from the
+current candidate commit `a0b52f89d8fae602277fc7894fa959bd5a84dcf5` after
+the four security remediations. It does not replace the required post-release
+live take and has not been uploaded or published.
 
 - Presentation capture SHA-256:
-  `6cd9bdbbd9af71d46aca2226f481c766a6e32f7ff211f53b938bc63eab95d130`.
+  `309ae2359de4eb5b405d6a048be7f2d49a795dba478b5a7cc69a6711aaa5a744`.
 - Narrated rehearsal SHA-256:
-  `8d69f24a62b29a17dcec0fbd9c5d8b3e75b949949cdf67fc4abc3436c4955705`.
-- Capture assertions: 500 state-change frames, seven visible pointer clicks,
+  `45db10a98b231429a8e8cc6854595cb4f5b7f77da2cfd5aadcad2f3dbdd2ee28`.
+- Capture assertions: 536 state-change frames, seven visible pointer clicks,
   generation 2 reopened, rollback selected, approver cleared, bounded action
   rolled back, and external writes remained none.
+- The local bounded background monitor completed the outcome without a second
+  PM click. This reproduces the hosted interaction shape but remains local
+  synthetic evidence, not proof that Cloud Tasks served the run.
 - Media checks: 178 seconds; H.264, 1920 × 1080, 30 fps, YUV420p; AAC,
-  48 kHz stereo; embedded English captions; 15,252,510 bytes.
+  48 kHz stereo; embedded English captions; 17,785,282 bytes.
 - Audio checks: -16.10 LUFS integrated loudness, -4.16 dBTP true peak, and
   2.00 LU loudness range.
 - Black intervals detected: none.
-- Manual frame review at 68, 75, 90, and 135 seconds confirmed the named
-  approver state, generation-two rollback, bounded internal allocation,
-  **External writes: none**, and the permanent unreleased-candidate warning.
+- Manual frame review across seven judge-critical timestamps confirmed the
+  evidence-backed council, named approver, generation-two rollback, bounded
+  internal allocation, **External writes: none**, candidate architecture, and
+  the permanent unreleased-candidate warning.
+
+A separate current-HEAD fallback run also passed with 612 frames and eight
+mouse clicks; its extra click activates the truthfully labelled demo
+measurement fallback. The two modes are not conflated.
 
 This is the strongest current presentation rehearsal because it combines the
 continuous working flow, narration, captions, and the exact current candidate.

@@ -53,6 +53,19 @@ final narrated take.
 ## Capture setup
 
 - 1920×1080, 30 fps, browser zoom 100%, notifications off.
+- From the repository root, start the local autonomous rehearsal exactly as
+  follows; Vite's checked-in proxy targets port 8080:
+
+  ```sh
+  DECISION_TWIN_AUTONOMOUS_MONITOR=true uv run --project backend \
+    uvicorn app.api:app --host 127.0.0.1 --port 8080
+  npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
+  CAPTURE_PRESENTATION_MODE=true node \
+    scripts/capture_decision_twin_candidate.mjs /tmp/driftline-presentation.mp4
+  ```
+
+  Run the servers in separate terminals. A backend on port 8000 is not a valid
+  default rehearsal setup unless `VITE_DEV_API_TARGET` is explicitly changed.
 - Use a fresh logged-out window for the public lane.
 - Preload `/health` and either the Cloud Run service/revision console or the
   live `*.run.app` backend URL in separate tabs; verify there are no
