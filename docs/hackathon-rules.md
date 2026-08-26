@@ -63,10 +63,10 @@ The live form's exact answers matter. Driftline's submitter type is
 `Individuals`, its start date must be entered as `08-18-26`, and the SDK option
 is `Agent Development Kit (ADK)`. The Google Cloud multi-select offers Cloud Run,
 Cloud SQL, Firestore, GKE, and Pub/Sub; Driftline selects only `Cloud Run` and
-`Firestore` there. BigQuery, Vertex AI, Cloud Tasks, Cloud Scheduler, Cloud
-Storage, Secret Manager, Cloud Build, and Artifact Registry belong in the
-additional-services narrative. The model answer is `Gemini 3.5 Flash via Vertex
-AI (global endpoint)`. The private testing instructions provide a logged-out,
+`Firestore` there. Firebase Hosting, BigQuery, Vertex AI, Cloud Tasks, Cloud
+Scheduler, Cloud Storage, Secret Manager, Cloud Build, and Artifact Registry
+belong in the additional-services narrative. The model answer is `Gemini 3.5
+Flash via Vertex AI (global endpoint)`. The private testing instructions provide a logged-out,
 credential-free judge path through approval, autonomous generation-2 reopening,
 lineage, and `/health` release identity.
 
@@ -140,8 +140,9 @@ imply an action occurred when it did not.
 - The final form must identify Google ADK, the August 18 implementation start,
   and the disclosed pre-existing ideation/source package.
 - The exact form selections are `Individuals`, `08-18-26`, `Agent Development
-  Kit (ADK)`, `Cloud Run`, and `Firestore`; BigQuery and Vertex AI are described
-  in the additional-services narrative rather than selected in that dropdown.
+  Kit (ADK)`, `Cloud Run`, and `Firestore`; Firebase Hosting, BigQuery, and
+  Vertex AI are described in the additional-services narrative rather than
+  selected in that dropdown.
 - After the deadline, freeze the submitted repository, video, and linked
   materials until winners are announced; continue any work only in a separate
   copy that cannot change the submitted evidence.

@@ -66,12 +66,14 @@ require_text README.md 'exactly equals the'
 require_text docs/STATUS.md '## Unreleased candidate custody'
 require_text submission/REMOTE_CHECKLIST.md 'Nothing here authorizes a push, merge, Cloud'
 require_text submission/DEVPOST.md 'unreleased local candidate'
+require_text submission/DEVPOST.md '**Taskmaster proof:** one named authorization'
+require_text submission/DEVPOST.md '**Firebase Hosting** for the stable public judge URL'
 require_text devpost-submission.md 'Status: draft-ready, not release-ready or form-ready.'
 require_text devpost-submission.md '| Submitter type | Individuals |'
 require_text devpost-submission.md '| Project start date | 08-18-26 |'
 require_text devpost-submission.md '| Google SDK | Agent Development Kit (ADK) |'
 require_text devpost-submission.md '| Google Cloud service selections | Cloud Run; Firestore |'
-require_text devpost-submission.md '| Additional Google Cloud services described in entry | BigQuery; Vertex AI;'
+require_text devpost-submission.md '| Additional Google Cloud services described in entry | Firebase Hosting; BigQuery; Vertex AI;'
 require_text devpost-submission.md '| Google AI model | Gemini 3.5 Flash via Vertex AI (global endpoint) |'
 require_text devpost-submission.md '| Private testing instructions | Open https://driftline-ops.web.app/'
 require_text devpost-submission.md '| Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |'
@@ -82,6 +84,8 @@ require_text submission/assets/driftline-decision-twin-final.srt 'Gemini 3.5 Fla
 require_text submission/BUILD_STORY.md 'for the purpose of entering the Google All Things'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'UNRELEASED CANDIDATE'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'release proof required before publication'
+require_text submission/assets/driftline-decision-twin-architecture.svg 'Firebase → Cloud Run + Firestore'
+require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'Firebase → Cloud Run + Firestore'
 require_text submission/assets/driftline-candidate-rehearsal-overlays.svg 'UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION'
 require_text submission/assets/driftline-candidate-rehearsal-narration.txt 'not production proof'
 
@@ -133,8 +137,8 @@ for path, expected_size in expected_dimensions.items():
         )
 
 reviewed_assets = {
-    Path("submission/assets/driftline-decision-twin-architecture.png"): "8b2d310178f484884360965b512a99237d75c202f8e0cc4a3115cf067837eaf6",
-    Path("submission/assets/driftline-decision-twin-candidate-architecture.png"): "d03fa9106a860ce94fef5c6ca13b6cd967a0b4fa5b5c276092e233aea165c7db",
+    Path("submission/assets/driftline-decision-twin-architecture.png"): "fe68de40fc7d07e29a5b55c9af425c2e2517f0e6c4fd9c3b65a6df31685486c4",
+    Path("submission/assets/driftline-decision-twin-candidate-architecture.png"): "b439c5eb3062d89384dc0cc7046578b8d73b9c738c737e0b6e4e999d781d631e",
     Path("submission/assets/decision-twin-generation-1-final.png"): "b5bef1a0ac833a145784d8c60cdd83c89fc8c15b850011b7aee1e4cfaae93ab9",
     Path("submission/assets/decision-twin-generation-2-final.png"): "d0aaaa42995fbcb0fee961fb2d849f341e817396f0cef7ca4ff3919b190e2158",
     Path("submission/assets/decision-twin-generation-2-receipt-final.png"): "476ad1e87466d758ab7bc1ce26b0bb51a91de8e60d258f73da9d0d834620c2dd",

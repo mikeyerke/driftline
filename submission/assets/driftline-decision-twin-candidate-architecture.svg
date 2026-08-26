@@ -40,7 +40,7 @@
   <rect x="55" y="625" width="1490" height="182" rx="22" fill="#10213d"/>
   <text x="90" y="672" class="coreh">Google Cloud release proof required before publication</text>
   <text x="90" y="708" class="proof">Vertex AI + Google ADK</text><text x="90" y="735" class="proof2">Gemini council and bounded inspect tools</text>
-  <text x="410" y="708" class="proof">Cloud Run + Firestore</text><text x="410" y="735" class="proof2">Cases, CAS transitions, TTL, audit</text>
+  <text x="410" y="708" class="proof">Firebase → Cloud Run + Firestore</text><text x="410" y="735" class="proof2">Public facade, cases, CAS, TTL, audit</text>
   <text x="730" y="708" class="proof">BigQuery + vector memory</text><text x="730" y="735" class="proof2">Aggregate evidence and precedents</text>
   <text x="1080" y="708" class="proof">Tasks + Scheduler</text><text x="1080" y="735" class="proof2">Durable pinned outcomes and cadence</text>
   <text x="90" y="779" class="proof2">Pending gate · bind candidate commit to Cloud Run revision, Cloud Build ID, image digest, live trace, and browser proof.</text>

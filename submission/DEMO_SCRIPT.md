@@ -85,7 +85,8 @@ citation contract, the reopened council is visibly labeled bounded fallback.”
 **Screen:** Architecture view, evaluation score, then Cloud Run/Firestore/
 BigQuery proof for the exact serving SHA.
 
-**Narration:** “This is the exact serving release. Cloud Run hosts the control room. Firestore stores cases and
+**Narration:** “This is the exact serving release. Firebase Hosting gives judges
+the stable public URL and rewrites to Cloud Run; Firestore stores cases and
 lineage. Google ADK and Gemini power the bounded council. BigQuery supplies
 privacy-thresholded aggregates. A deterministic seven-check evaluator tests
 provenance, role independence, disagreement, citations, falsifiability, human

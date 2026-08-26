@@ -21,7 +21,7 @@ publish or submit without explicit entrant approval.
 | Reproducible testing | Yes |
 | Google SDK | Agent Development Kit (ADK) |
 | Google Cloud service selections | Cloud Run; Firestore |
-| Additional Google Cloud services described in entry | BigQuery; Vertex AI; Cloud Tasks; Cloud Scheduler; Cloud Storage; Secret Manager; Cloud Build; Artifact Registry |
+| Additional Google Cloud services described in entry | Firebase Hosting; BigQuery; Vertex AI; Cloud Tasks; Cloud Scheduler; Cloud Storage; Secret Manager; Cloud Build; Artifact Registry |
 | Google AI model | Gemini 3.5 Flash via Vertex AI (global endpoint) |
 | Private testing instructions | Open https://driftline-ops.web.app/ while logged out. Click **Run the decision workflow**; inspect the five cited agents and disagreement; enter a review name; approve the segmented experiment; then stop clicking. Verify that Cloud Tasks reopens generation 2 with rollback selected, the approver cleared, 7/7 policy checks, and the original lineage preserved. Open https://driftline-ops.web.app/health to confirm the serving SHA and build. No credentials are required. |
 | Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |
@@ -32,13 +32,14 @@ publish or submit without explicit entrant approval.
 
 ## Short description
 
-Driftline is a Decision Twin for consequential product calls. Five independent
-Google ADK specialists use Gemini 3.5 Flash to evaluate bounded usage,
-customer, strategy, and feasibility evidence, preserve dissent, and compare
-ship, rollback, segment, or defer. A named human alone approves a falsifiable
-experiment. BigQuery supplies privacy-thresholded aggregates, Firestore keeps
-the decision lineage, and a measured outcome can reopen the same case without
-erasing the original reasoning.
+Product teams lose the reasoning behind a roadmap call just when new evidence
+makes the commitment unsafe. Driftline turns one contested call into an
+evidence-bound Decision Twin. Five independent Google ADK specialists use Gemini
+3.5 Flash to preserve dissent and compare ship, rollback, segment, or defer. A
+named human approves one falsifiable experiment; then Cloud Tasks evaluates the
+outcome with no second PM prompt. BigQuery supplies privacy-thresholded evidence,
+Firestore keeps the lineage, and a breached guardrail reopens the same case
+without erasing the original reasoning.
 
 ## Judge scan — the first 45 seconds
 

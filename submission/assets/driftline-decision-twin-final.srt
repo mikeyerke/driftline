@@ -94,8 +94,8 @@ Evidence, dissent, approval, result, and lineage stay linked.
 
 20
 00:03:05,000 --> 00:03:15,000
-This is the exact serving release.
-Cloud Run hosts the control room; Firestore stores decision lineage.
+This is the exact serving release. Firebase Hosting provides the public URL.
+It rewrites to Cloud Run; Firestore stores decision lineage.
 
 21
 00:03:15,000 --> 00:03:25,000

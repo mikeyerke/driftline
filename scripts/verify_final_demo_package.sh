@@ -136,6 +136,7 @@ required_caption_claims = (
     "Driftline",
     "Google ADK",
     "Gemini",
+    "Firebase Hosting",
     "Cloud Run",
     "Firestore",
     "BigQuery",

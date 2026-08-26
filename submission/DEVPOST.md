@@ -23,6 +23,11 @@ falsifiable experiment as a named human. Then stop clicking: a durable Cloud
 Tasks monitor processes the bounded measurement and the same case reopens as
 generation 2 while retaining the complete original approval and experiment plan.
 
+**Taskmaster proof:** one named authorization starts the multi-step background
+workflow. After that approval, Driftline evaluates the committed measurement,
+writes the learning receipt, and reopens the decision without another prompt or
+PM click.
+
 ## Inspiration
 
 I kept recreating the same friction while building products: the decision was
@@ -36,8 +41,7 @@ without giving a model approval authority.
 
 ## What it does
 
-Driftline is an evidence-bound Decision Twin built on a durable
-change-to-action agent:
+Driftline takes one contested product commitment through five visible stages:
 
 1. It combines bounded customer, usage, strategy, and feasibility evidence in
    a provenance-preserving graph. Live product metrics come from a
@@ -66,25 +70,13 @@ link is view access and must never contain secret or customer-identifying data.
 Expired cases fail closed at read and mutation boundaries rather than waiting
 for background TTL deletion.
 
-The underlying operational foundation remains independently useful:
-
-1. It monitors a bounded registry of approved public sources.
-2. A material transition creates an immutable before/after snapshot, SHA-256
-   evidence hash, and stable Change Card identity.
-3. Cloud Tasks invokes a Google ADK workflow asynchronously.
-4. Gemini 3.5 Flash interprets the evidence, maps affected work surfaces, and
-   drafts decision options with citations, tradeoffs, and rollback paths.
-5. Deterministic policy outside the model stops high-risk work at a named human
-   approval gate.
-6. Approval creates evidence-linked owner work. In the authenticated tenant
-   lane, Driftline can create or reactivate one least-privilege Jira marker.
-7. Before side effects begin, Driftline claims one durable operation. An
-   interrupted result blocks conflicting decisions and reconciles the same ID;
-   an expired lease also recovers a hard process termination through a separate
-   Firestore compare-and-set before retrying.
-8. Repeating the same action reuses the marker instead of duplicating work.
-9. **Reopen decision** reverses only Driftline-owned Jira state and appends the
-   reversal to the audit ledger.
+The Decision Twin runs on Driftline's durable action foundation. Approved public
+sources become immutable before/after snapshots, SHA-256 evidence hashes, and
+stable retry-safe identities. Cloud Tasks invokes the ADK workflow; deterministic
+policy gates every consequential transition. In the signed tenant lane, the same
+engine claims one credential-free operation before a least-privilege Jira action,
+reconciles an interrupted attempt against that same ID, reuses rather than
+duplicates the marker, and reverses only Driftline-owned state.
 
 The public judge lane is deliberately packet-safe and requires no credentials.
 It proves the full Gemini/ADK evidence, dissent, approval, autonomous outcome,
@@ -93,7 +85,7 @@ external system.
 
 ## Proof of action
 
-The final verified release serves application Git SHA
+The current verified release serves application Git SHA
 `03ec8f12fc23d265c89b462a345a5b599a6411e8` on Cloud Run revision
 `driftline-00305-xln` from Cloud Build
 `c01bec2e-a950-407c-873b-b1d4fdc6bae6`. `/health`, the Cloud Run revision, and
@@ -104,7 +96,12 @@ Artifact Registry all resolve to immutable digest
 frontend, standalone-image, dependency, and repository-hygiene gates on that
 same merge commit.
 
-The final live browser proof ran the Decision Twin from generation 1 through a
+Firebase Hosting serves the stable `driftline-ops.web.app` judge URL and
+rewrites application traffic to that Cloud Run service. Google Analytics is
+disabled; the facade exists for stable, credential-free judge access rather
+than a separate application runtime.
+
+The live browser proof ran the Decision Twin from generation 1 through a
 named-human approval and autonomous Cloud Tasks measurement. The initial
 Google ADK council recommended `segment`; the measured enterprise guardrail
 then invalidated the plan, reopened the same case as generation 2, and changed
@@ -116,7 +113,9 @@ The release verifier independently ran five real Google ADK specialists with
 Gemini 3.5 Flash, attached sample-weighted BigQuery aggregate evidence and a
 BigQuery-vector precedent, preserved dissent, passed the 14/14 trace evaluation,
 and completed the same two-generation workflow through Cloud Tasks. The public
-browser console was clean on desktop and at a 390-pixel viewport.
+browser console was clean on desktop and at a 390-pixel viewport. A fresh August
+26 mobile run again reached generation 2 with rollback selected, the approver
+cleared, and 7/7 policy checks.
 
 In the signed operator lane, a live Gemini/ADK job reached the deterministic
 approval gate and approval reactivated Jira marker `KAN-19`. The same hosted
@@ -137,7 +136,8 @@ ROI claim.
   impact analysis, and bounded Decision Copilot options.
 - **Google Agent Development Kit** for the coordinator and two allowlisted
   read/inspect tools. The agent is intentionally not given an approval tool.
-- **Cloud Run** for the FastAPI API and React operations console.
+- **Firebase Hosting** for the stable public judge URL and rewrite to Cloud Run.
+- **Cloud Run** for the FastAPI API, workflow runtime, and React operations console.
 - **Cloud Tasks** for asynchronous OIDC-authenticated job dispatch and retries.
 - **Cloud Scheduler** for the bounded monitor cadence.
 - **Firestore** for jobs, workflows, observations, traces, tenant metadata,
@@ -202,8 +202,8 @@ proof, both using the same workflow and deterministic policy contracts.
 - Durable Cloud Tasks/Firestore execution that survives browser reloads
 - Real source, trace, impact, policy, approval, artifact, and reversal records
 - One hosted signed Jira create/reactivate/reverse round trip
-- Full local backend suite, Ruff, frontend build, and 14/14 trace evaluation
-  cases passing at the final packaging checkpoint
+- 450 backend tests, Ruff, the frontend production build, and all 14 trace
+  evaluation cases passing at the current local-candidate checkpoint
 - Public release metadata exposing the exact serving SHA and Cloud Build ID
 - No embedded credentials found in the repository
 
