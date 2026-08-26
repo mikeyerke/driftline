@@ -1,8 +1,9 @@
 # Fastest credible PM recruiting route — August 26, 2026
 
-Research status: read-only. No account was created, no study was launched, no
-RSVP or registration was made, and no person or organization was contacted.
-Every action below requires Mike's separate approval. The hackathon submission
+Research status: read-only refresh. No account was created, no study was launched,
+and no RSVP or registration was made. Two previously approved invitations were
+sent to Kevin Smith and Hatch Labs; the latest mailbox audit found no reply or
+delivery failure. Every new action below requires Mike's separate approval. The hackathon submission
 deadline is **August 31, 2026 at 5:00 PM PT** ([official rules](https://allthingsagentichackathon.devpost.com/rules)).
 
 ## Bottom line
@@ -88,9 +89,9 @@ be published without explicit later permission.
 3. **If no paid-panel applicant qualifies within 8 hours,** review Respondent's
    live price and feasibility; launch there only with a second explicit spend
    approval. Do not pay duplicate recruits for the same evidence gap.
-4. **If no session is booked by midday August 27,** approve at most two direct
-   asks: Kevin Smith and Amanda Bradford. Do not widen the blast radius until
-   those replies or expire.
+4. **The two direct asks are already sent** to Kevin Smith and Hatch Labs.
+   Await replies; do not follow up or widen the blast radius without a separate
+   approval.
 5. **If ProductTank access fails or produces no qualified owner,** use Austin UX
    only as a targeted contingency: ask a host for one opt-in introduction to a
    product decision owner. Do not pitch the room.

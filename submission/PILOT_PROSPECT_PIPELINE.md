@@ -1,7 +1,8 @@
 # Driftline PM pilot prospect pipeline
 
-Status: research-only local artifact, refreshed August 26, 2026. No message,
-registration, RSVP, contact-form submission, or outreach has been performed.
+Status: private funnel-evidence artifact, refreshed August 26, 2026. Two
+individually approved invitations were sent; no registration, RSVP, publication,
+new outreach, or follow-up was performed in this refresh.
 
 ## Ongoing prospect watch
 
@@ -30,8 +31,8 @@ Nagel and centers new API, dashboard, reporting, and services commitments on
 decision intelligence. Acoustic has unusually strong conceptual fit but a
 weaker conversion path: its August 17 Acoustic AI launch names Chief Product
 Officer John Riewerts and explicitly combines evidence-backed recommendations,
-execution, and human launch control. Neither company has been contacted, and a
-public contact page is not evidence of interest or availability.
+execution, and human launch control. Neither Qvinci nor Acoustic has been
+contacted, and a public contact page is not evidence of interest or availability.
 
 The direct-source refresh also confirmed Kevin Smith's 20+ years of B2B and
 enterprise product leadership and public business-contact route; Hatch Labs'
@@ -40,6 +41,20 @@ founder authority, 10+ active apps, portfolio analytics, and identify → valida
 Venkatraj's active fractional-CPO positioning around ad-hoc decisions, roadmap
 churn, AI paralysis, and platform confusion. Those facts support fit, not
 availability or willingness to participate.
+
+## Verified invitation ledger
+
+A read-only mailbox audit on August 26 found exactly two personalized Driftline
+invitations sent at 12:53 UTC: one to Kevin Smith / Just Add PRODUCT and one to
+Hatch Labs for Amanda Bradford. Each used the approved falsification-first,
+real-decision ask through the public business route. Neither thread contained a
+reply, and no delivery-failure notice was found at the time of the audit.
+
+This is outreach evidence only: **2 sent, 0 replies, 0 qualified decisions,
+0 scheduled sessions, 0 completed sessions, and 0 customers**. Do not send a
+follow-up, broaden the wave, or infer rejection without Mike's approval and a
+new mailbox check. The separate Allie Shapiro / Slank Solutions message remains
+an unsent Gmail draft.
 
 ## Warm-network audit
 
@@ -118,8 +133,8 @@ ProductTank's.
 | Rank | Route | Likely role | Why now | Exact next action if approved | Qualification risk |
 | --- | --- | --- | --- | --- | --- |
 | 1 | [ProductTank Austin, Aug 27](https://www.meetup.com/producttank-austin/events/316217241/) | Real PM decision owner | The event is explicitly about roadmap decisions under Salesforce, API, integration, cloud, and AI-model dependency. Networking runs 6:00–6:30 and 7:30–8:00 PM. | Attend in person and ask Edwin or Ian B. for one opt-in introduction to an attendee with a decision due within 30 days. | An attendee who only watches a demo does not qualify. |
-| 2 | [Kevin Smith, Just Add PRODUCT](https://www.justaddprod.com/) | Fractional product leader, evaluator, and plausible buyer | Public work spans product strategy, outcome metrics, roadmaps, prioritization, pricing, feedback, and validation; his business lists a direct contact route. | Send the prepared falsification-first request for one client-safe current decision and ask whether the resulting workflow is worth using on a second decision. | Critique is not customer evidence unless he personally adopts or pays. |
-| 3 | [Hatch Labs](https://hatchlabs.com/) | Founder-led venture studio and plausible buyer | The Austin studio reports 10+ apps in development and a repeatable identify → validate → build → scale process across retention, monetization, analytics, and shared platform decisions. | Ask Amanda Bradford to test one current portfolio allocation or rollout decision; use the official collaborator contact route only. | Consumer-app evidence may expose a different workflow than the B2B SaaS wedge, but the repeated decisions and direct authority are unusually strong. |
+| 2 | [Kevin Smith, Just Add PRODUCT](https://www.justaddprod.com/) | Fractional product leader, evaluator, and plausible buyer | Public work spans product strategy, outcome metrics, roadmaps, prioritization, pricing, feedback, and validation; his business lists a direct contact route. | Invitation sent August 26. Await a reply; do not follow up without approval. | Critique is not customer evidence unless he personally adopts or pays. |
+| 3 | [Hatch Labs](https://hatchlabs.com/) | Founder-led venture studio and plausible buyer | The Austin studio reports 10+ apps in development and a repeatable identify → validate → build → scale process across retention, monetization, analytics, and shared platform decisions. | Invitation sent August 26. Await a reply; do not follow up without approval. | Consumer-app evidence may expose a different workflow than the B2B SaaS wedge, but the repeated decisions and direct authority are unusually strong. |
 | 4 | [VentureKind](https://venturekind.com/) | Venture studio and plausible portfolio buyer | The Austin studio reports five portfolio companies and 20+ products, with explicit validate, build, launch, and scale gates. | Ask for one live portfolio commitment where evidence could change which product or experiment receives resources. | A general partnership conversation does not qualify; require an active decision and named owner. |
 | 5 | [Ashok Venkatraj, Clarity for Product](https://clarityforproduct.com/) | Fractional CPO, evaluator, and potential design partner | His live positioning names ad-hoc decisions, roadmap churn, stakeholder misalignment, AI paralysis, and platform confusion—the exact operating failure Driftline targets. | Ask him to compare one safely redacted current decision against his own judgment and operating process. | A fit call or advice alone is not a pilot. |
 | 6 | [John Leonard, RoadMapVenture](https://www.roadmapventure.com/) | Fractional CPO, evaluator, and referral channel | His current site says he is open to engagements in Austin, with SaaS, data/AI, roadmap, portfolio, and 0-to-1 experience. | Request one current or client-safe decision and ask for the first reason he would reject the result. | A historical example without a current commitment is weaker evidence. |
@@ -143,9 +158,9 @@ ProductTank's.
    access and fit.
 3. If the first panel is infeasible, review Respondent's live price and timing;
    do not launch or spend without a second explicit approval.
-4. In parallel, send at most two direct, personalized requests: Kevin Smith and
-   Hatch Labs. They combine a current public route with repeated decision work
-   and personal authority; do not widen the list before testing those routes.
+4. The two direct, personalized requests to Kevin Smith and Hatch Labs are
+   already sent. Await replies; do not follow up or widen the list without a
+   separate approval.
 5. Stop widening the pipeline as soon as one participant confirms a decision
    due within 30 days, two real options, meaningful downside, safe redaction,
    and decision authority.
@@ -171,6 +186,15 @@ the right title. Relationship context is part of qualification.
 Do not promise a three-day result when the product decision cannot produce a
 meaningful leading indicator that quickly. In that case, capture the initial
 decision-quality evidence before judging and keep the outcome follow-up open.
+
+## Research-only deadline contingency
+
+[Product Lens LIVE](https://maven.com/p/9abfc2/product-lens-live-aug-2026-10-stories-10-judgment-calls)
+is a free virtual session on August 28 built around ten ship, do-not-ship, or
+pivot judgment calls and live Q&A with product operator Rocky Sharma. Its topic
+is unusually close to Driftline's decision wedge, but registration requires an
+email and acceptance of Maven's terms. It is therefore a possible opt-in
+introduction route, not a qualified participant and not an authorized action.
 
 ## Conversion sequence
 
