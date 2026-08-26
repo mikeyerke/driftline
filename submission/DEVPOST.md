@@ -39,6 +39,24 @@ choice right or wrong; and carry the measured result back into the original
 decision. Driftline turns that decision debt into an inspectable learning loop
 without giving a model approval authority.
 
+### Why now
+
+Current product-leadership research points to a decision-system problem, not a
+lack of roadmap templates. Atlassian's 1,000+ respondent State of Product 2026
+reports balancing projects, priorities, and capacity (39%), prioritization
+(37%), strategy (36%), customer insight (33%), stakeholder alignment (31%), and
+demonstrating impact (29%) among the most significant challenges. Product
+Focus's 677-person 2026 survey reports too much firefighting (58%), lack of
+resource (38%), weak or missing strategy (33%), and prioritization (29%).
+ProductPlan's 250-leader 2026 study says more than 60% of prioritization
+frameworks are overridden by leadership escalations and becoming
+outcome-focused remains a top challenge.
+
+Driftline targets the seam connecting those findings: preserve the evidence and
+dissent behind a choice, bind authority and rollback before acting, then return
+the measured result to the same decision. These surveys establish market pain;
+they do not establish Driftline adoption or customer value.
+
 ## What it does
 
 Driftline takes one contested product commitment through five visible stages:
@@ -277,3 +295,10 @@ The next milestone is a small independent Product Management or fractional
 product-leader pilot using one real, currently open decision and paired
 before/after timing. Until then, Driftline will
 describe its live deployment as engineering proof rather than customer ROI.
+
+Market references: [Atlassian State of Product
+2026](https://www.atlassian.com/software/jira/product-discovery/resources/state-of-product-2026),
+[Product Focus 2026 profession
+survey](https://www.productfocus.com/product-management-resources/profession-survey/),
+and [ProductPlan State of Product Management
+2026](https://www.productplan.com/ebooks/the-state-of-product-management-report-2026).
