@@ -192,8 +192,9 @@ cuts or splices.
 Exact-release desktop/mobile screenshots, the Decision Twin architecture, and
 a three-minute 1080p captioned local review cut are complete. A continuous
 local candidate proof now also runs the actual browser state machine and asserts
-the generation-2 rollback outcome. Two fresh runs passed with 574 and 582 frames
-and eight visible Chrome mouse-input clicks apiece. The retained 31.17-second
+the generation-2 rollback outcome. Fresh post-fix desktop and 390-pixel runs
+passed with 514 and 563 frames and seven visible Chrome mouse-input clicks
+apiece; neither required a second outcome click. The retained 31.17-second
 clip is silent and unreleased; a narrated native browser take remains
 preferable, and no video is complete for submission until it has a public
 YouTube or Vimeo URL.
@@ -212,6 +213,12 @@ passed 1080p/30fps H.264, stereo AAC, playback pixel-format, duration,
 black-frame, silence, and -18 to -14 LUFS checks. Its timestamped rubric map is
 in `submission/JUDGE_EVIDENCE_INDEX.md`. It remains ineligible as live proof
 until the exact candidate is released and the native browser journey is rerun.
+The capture now centers the complete generation-1 action and learning receipt
+inside the recorded browser sequence rather than merely asserting it in the
+DOM. A fresh local 2:58 rebuild passed a labeled full-resolution audit at 1:08
+for the named human, 1:15 for the bounded receipt, 1:30 for generation 2, and
+2:15 for the architecture/Cloud-proof section. Those are rehearsal QA points,
+not timestamps to copy into the final release manifest.
 
 ## Requirement checklist
 

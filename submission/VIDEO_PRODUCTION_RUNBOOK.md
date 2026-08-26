@@ -37,8 +37,11 @@ unless generation 2 is present, rollback is selected, the approver is cleared,
 external writes remain none, and the action is visibly rolled back. It emits a
 silent 1280 × 720 H.264 proof clip with a visible pointer and click pulse. Every
 captured control is activated through Chrome's mouse-input protocol rather than
-a direct DOM `.click()`. That clip is candidate QA and must not be described as
-deployed or used as the entrant's final narrated take.
+a direct DOM `.click()`. The recorded sequence now centers the complete action
+and learning receipt before returning to the generation-2 choice, so the video
+itself—not a DOM assertion—contains the decisive state change. That clip is
+candidate QA and must not be described as deployed or used as the entrant's
+final narrated take.
 
 ## Capture setup
 
