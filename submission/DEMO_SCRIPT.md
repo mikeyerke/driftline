@@ -65,7 +65,9 @@ and new case generation with prior lineage retained.
 prompt or PM click. Cloud Tasks processes the measurement against the exact
 thresholds committed at approval. When the guardrail breaks, Driftline writes
 a learning receipt and reopens the same decision as a new generation. The
-evidence, dissent, approval, and result stay linked.”
+evidence, dissent, approval, and result stay linked. The original live ADK
+council remains in the lineage; if the post-outcome synthesis cannot satisfy its
+citation contract, the reopened council is visibly labeled bounded fallback.”
 
 ## 3:05–3:38 — Google architecture and bounded cost
 
@@ -89,6 +91,10 @@ measurable, auditable learning loop: evidence, dissent, decision, outcome.”
 ## Recording gates
 
 - Serving `/health` SHA equals the release commit.
+- Final candidate identity is public `main`
+  `03ec8f12fc23d265c89b462a345a5b599a6411e8`, Cloud Run
+  `driftline-00305-xln`, and Cloud Build
+  `c01bec2e-a950-407c-873b-b1d4fdc6bae6`.
 - `./scripts/release_and_verify.sh` passes against the public URL. This refreshes
   the release-bound live trace before checking the Decision Twin and production
   proof surfaces, so the architecture disclosure must show a verified gate.

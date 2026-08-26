@@ -1,7 +1,9 @@
 # Final demo video production runbook
 
-Status: production-ready script and capture plan. The existing short MP4 is a
-rehearsal artifact, not the final submission video. Nothing has been uploaded.
+Status: exact-release frames, captions, architecture, and a three-minute 1080p
+reference cut are ready. The existing 43-second MP4 is historical and must not
+be submitted. Prefer one continuous native browser take for the final upload;
+nothing has been published.
 
 ## Capture setup
 
@@ -11,20 +13,28 @@ rehearsal artifact, not the final submission video. Nothing has been uploaded.
   tokens, tenant names, private records, or editable secret fields on screen.
 - Use the serving release only. Record the release SHA and build ID in the take
   log before capture.
-- Turn Judge Mode on and rehearse the path twice without recording.
+- Rehearse the no-sign-in **Decision Twin** path twice without recording.
 
 ## Single-take product sequence
 
-1. URL and packet-safe lane.
-2. Judge Mode and **Run live agent**.
-3. Exact before/after evidence and full hash.
-4. Four mapped surfaces and one artifact detail.
-5. Decision Copilot, policy review, and visible human gate.
-6. Human approval click in-frame.
-7. Four-part proof receipt: Firestore action, artifact persistence, rollback,
-   operation ID.
-8. Owner queue and audit event.
-9. Reopen decision; show return to the human gate and reversed history.
+1. Show `https://driftline-ops.web.app/`, the no-sign-in judge lane, and **Run
+   the decision workflow**.
+2. Start generation 1 and show the council recommendation, five cited signals,
+   five independent agents, competing responses, and BigQuery-vector precedent.
+3. Open the evidence/council disclosure and preserve one visible dissenting
+   position.
+4. Compare ship, rollback, segment, and defer; return to the recommended
+   segmented experiment.
+5. Show the disabled approval, enter the named reviewer, and click **Approve
+   segmented experiment** in-frame.
+6. Stop clicking. Keep the autonomous-monitor state visible while Cloud Tasks
+   processes the bounded measurement.
+7. Show generation 2 reopening automatically with **Roll back globally** both
+   recommended and selected.
+8. Show the cleared approver, disabled new action, 7/7 policy checks, measured
+   invalidation, evidence/synthesis hashes, and preserved generation-1 lineage.
+9. Finish on `/health`, the exact public `main` SHA, and the Google architecture
+   diagram.
 
 Do not splice across the approval click and receipt. A judge should be able to
 see that the result came from the visible action in the same workflow.
@@ -33,8 +43,9 @@ see that the result came from the visible action in the same workflow.
 
 - `/health`: model, persistence, tasks, serving SHA, Cloud Build ID.
 - Cloud Run revision and one redacted request log.
-- Firestore workflow fields: status, operation, evidence hash, action record.
-- Architecture image for the closing 20–25 seconds.
+- Decision Twin receipt: generation, evidence hash, synthesis hash, measured
+  outcome, and prior-approval lineage.
+- `driftline-decision-twin-architecture.png` for the closing 20–25 seconds.
 
 ## Edit and QA
 
@@ -51,7 +62,7 @@ see that the result came from the visible action in the same workflow.
 
 | Take | Release SHA | Duration | Approval continuous | Secrets clean | Notes |
 | --- | --- | ---: | --- | --- | --- |
-|  |  |  |  |  |  |
+| Browser QA | `03ec8f12fc23d265c89b462a345a5b599a6411e8` | Continuous live workflow verified; final recording open | Yes | Yes | Desktop and 390px journeys passed; console clean. |
 
 ## Entrant-owned final actions
 

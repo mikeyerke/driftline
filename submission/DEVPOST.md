@@ -6,7 +6,7 @@ outcome can reopen the decision.
 - Category: **Taskmaster**
 - Live application: https://driftline-ops.web.app/
 - Public repository: https://github.com/mikeyerke/driftline
-- Architecture: `submission/assets/driftline-architecture.png`
+- Architecture: `submission/assets/driftline-decision-twin-architecture.png`
 - Demo video: **TODO — public YouTube or Vimeo URL, maximum four minutes**
 
 ## Judge this in 45 seconds
@@ -65,27 +65,35 @@ The underlying operational foundation remains independently useful:
    reversal to the audit ledger.
 
 The public judge lane is deliberately packet-safe and requires no credentials.
-It proves the full Gemini/ADK, evidence, impact, approval, output, and reversal
-journey without granting anonymous visitors access to an external system.
+It proves the full Gemini/ADK evidence, dissent, approval, autonomous outcome,
+and generation-reopen journey without granting anonymous visitors access to an
+external system.
 
 ## Proof of action
 
-The August 24 verified baseline release served Git SHA
-`1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6` on Cloud Run revision
-`driftline-00291-v89` from Cloud Build
-`154547e7-36ae-4eb2-a79a-35064e293191`. `/health`, the Cloud Run revision, and
+The final verified release serves public `main` Git SHA
+`03ec8f12fc23d265c89b462a345a5b599a6411e8` on Cloud Run revision
+`driftline-00305-xln` from Cloud Build
+`c01bec2e-a950-407c-873b-b1d4fdc6bae6`. `/health`, the Cloud Run revision, and
 Artifact Registry all resolve to immutable digest
-`sha256:18d8e1f76dd3c2a305f6e76aacbbc75fe876a2028f6881e371f9d3b21e34d450`
-(verified August 24, 2026). Final submission metadata must use the identity
-returned by `/health` and `./scripts/verify_production.sh` for the final
-candidate.
+`sha256:fca505ce56c6bd933f9cde8d55ff1e4ea7f9cad099d6fe39e8bb8321c96ea6d3`
+(verified August 25, 2026). GitHub Actions run `32923233214` passed backend,
+frontend, standalone-image, dependency, and repository-hygiene gates on that
+same merge commit.
 
-The live Decision Twin proof ran five real Google ADK specialists with cited
-customer, usage, strategy, feasibility, and challenger positions. It preserved
-`ship`/`segment`/`defer` disagreement, attached sample-weighted BigQuery
-aggregate evidence, stopped for named-human approval, evaluated a measured
-outcome, and reopened the same case as generation 2 with its complete prior
-approval and experiment plan retained.
+The final live browser proof ran the Decision Twin from generation 1 through a
+named-human approval and autonomous Cloud Tasks measurement. The initial
+Google ADK council recommended `segment`; the measured enterprise guardrail
+then invalidated the plan, reopened the same case as generation 2, and changed
+the selected recommendation to `rollback`. The original approval, outcome,
+evidence hash, synthesis hash, and trigger reason remained attached. The
+reopened action was disabled until a fresh human name was entered.
+
+The release verifier independently ran five real Google ADK specialists with
+Gemini 3.5 Flash, attached sample-weighted BigQuery aggregate evidence and a
+BigQuery-vector precedent, preserved dissent, passed the 14/14 trace evaluation,
+and completed the same two-generation workflow through Cloud Tasks. The public
+browser console was clean on desktop and at a 390-pixel viewport.
 
 In the signed operator lane, a live Gemini/ADK job reached the deterministic
 approval gate and approval reactivated Jira marker `KAN-19`. The same hosted
@@ -178,12 +186,13 @@ proof, both using the same workflow and deterministic policy contracts.
 
 ## Other data sources
 
-The public lane uses five pinned, synthetic GitHub fixtures covering own pricing,
-own terms, competitor pricing, competitor offerings, and competitor narrative
-changes. They are labeled as fixtures and observed claims, not product truth.
-The signed lane can read aggregate Jira, Confluence, Slack, GitHub, and consented
-Salesforce context, but raw private records never enter the public console or
-submission materials.
+The showcased Decision Twin uses a live, privacy-thresholded BigQuery aggregate
+for activation by segment plus explicitly labeled redacted/synthetic support,
+customer, strategy, and feasibility evidence. Its nearest-decision precedent is
+an explicitly labeled synthetic fixture retrieved through BigQuery vector
+similarity. The signed operator lane can read bounded aggregate Jira,
+Confluence, Slack, GitHub, and consented Salesforce context, but raw private
+records never enter the public console or submission materials.
 
 ## What we learned
 
@@ -199,17 +208,21 @@ to pay as `not_measured` until an independent pilot provides evidence.
 ## Testing instructions
 
 1. Open https://driftline-ops.web.app/ logged out.
-2. Leave **Competitor pricing snapshot** selected and click **Run live agent**.
-3. Wait for the asynchronous job to reach **Human approval required**.
-4. Inspect **Evidence diff**, **Open evidence**, **Agent trace**, the impact map,
-   and an artifact detail row.
-5. Select an action option and click **Approve action plan**.
-6. Open the packet and activity history. The public lane states
-   `External systems changed: No` by design.
-7. Click **Reopen decision** and confirm reversed owner-action history while the
-   workflow returns to the approval gate.
-8. Check `/health` for the serving SHA/build and `/api/ops/summary` for the
-   runtime, persistence, policy, and source-health posture.
+2. Click **Run the decision workflow**.
+3. Confirm generation 1 recommends **Segment the rollout**, shows five cited
+   signals, five independent agents, competing responses, and the BigQuery
+   vector precedent.
+4. Open the full evidence/council disclosure or compare the four decision
+   options. Notice that no action is available until a human approver is named.
+5. Enter any review name and click **Approve segmented experiment**.
+6. Stop clicking. Cloud Tasks evaluates the bounded aggregate and automatically
+   reopens generation 2.
+7. Confirm **Roll back globally** is now both recommended and selected, the new
+   approval is disabled pending a fresh human name, and the learning receipt
+   shows 7/7 policy checks plus the preserved prior approval and outcome.
+8. Check `/health` for serving SHA
+   `03ec8f12fc23d265c89b462a345a5b599a6411e8` and Cloud Build
+   `c01bec2e-a950-407c-873b-b1d4fdc6bae6`.
 
 Local and deployment reproduction steps are in the repository README.
 
