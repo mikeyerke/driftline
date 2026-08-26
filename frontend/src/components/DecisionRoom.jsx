@@ -260,6 +260,18 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         <div className="decision-room-kicker">For product managers <span>making high-stakes product calls</span></div>
         <h2 id="decision-room-hero-title">Turn conflicting evidence into a decision your team can defend.</h2>
         <p>When usage, customer calls, support, and roadmap commitments disagree, Driftline shows what changed, compares the safe responses, and turns your choice into a measurable experiment.</p>
+        <div className="decision-room-hero-actions">
+          <button className="primary decision-room-run" type="button" onClick={runCouncil} disabled={Boolean(busy)} aria-busy={busy === "council"}>
+            {busy ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}
+            {busy ? "Reading the decision evidence…" : "Run the decision workflow"}
+          </button>
+          <button className="secondary decision-room-intake-trigger" type="button" onClick={() => setIntakeOpen((open) => !open)} disabled={Boolean(busy)} aria-expanded={intakeOpen} aria-controls="decision-intake-form">
+            <PencilLine size={17} />Use my decision
+          </button>
+          <span>One approval starts the autonomous monitor · no second PM prompt</span>
+        </div>
+        {busy === "council" && <p className="decision-room-status" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Checking evidence, disagreement, and reversible options.</p>}
+        {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
         <div className="decision-room-outcome-rail" aria-label="What Driftline produces">
           <span><b>Understand</b>What changed—and which segment is at risk</span>
           <span><b>Decide</b>Ship, segment, roll back, or defer</span>
@@ -274,18 +286,6 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <span>Same loop for</span>
           <b>Rollouts</b><b>Launches</b><b>Pricing</b><b>Packaging</b>
         </div>
-        <div className="decision-room-hero-actions">
-          <button className="primary decision-room-run" type="button" onClick={runCouncil} disabled={Boolean(busy)} aria-busy={busy === "council"}>
-            {busy ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}
-            {busy ? "Reading the decision evidence…" : "Run the decision workflow"}
-          </button>
-          <button className="secondary decision-room-intake-trigger" type="button" onClick={() => setIntakeOpen((open) => !open)} disabled={Boolean(busy)} aria-expanded={intakeOpen} aria-controls="decision-intake-form">
-            <PencilLine size={17} />Use my decision
-          </button>
-          <span>One approval starts the autonomous monitor · no second PM prompt</span>
-        </div>
-        {busy === "council" && <p className="decision-room-status" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Checking evidence, disagreement, and reversible options.</p>}
-        {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
       </div>
       <div className="decision-room-promise decision-room-risk-card">
         <div className="decision-room-risk-heading"><span><ShieldCheck size={18} />Example decision at risk</span><strong>7 days to rollout</strong></div>

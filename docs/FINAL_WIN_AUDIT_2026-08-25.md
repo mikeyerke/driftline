@@ -145,6 +145,10 @@ forecast because judges award subjective 1–5 criterion scores.
   serving SHA after the last deploy.
 - Any future candidate must refresh and verify the release-bound trace before
   recording; local passing tests are not a substitute for that proof.
+- In a fresh 1453 × 726 Chrome viewport, the live primary workflow CTA began
+  31 pixels below the fold. The unreleased candidate moves both workflow
+  actions directly beneath the value proposition and keeps the primary CTA
+  fully visible on desktop and at 390 × 844. This is not live proof yet.
 
 ### Winning polish
 
@@ -203,7 +207,7 @@ After the candidate is frozen, capture the low-risk optional points:
 
 | Step | Result | Health |
 | --- | --- | --- |
-| First viewport | Decision, urgency, PM utility, and primary CTA are immediately legible. | Pass |
+| First viewport | Decision, urgency, and PM utility are immediately legible; the live CTA starts just below one tested desktop fold. Candidate fix is locally verified. | Pass with local fix pending release |
 | Council run | Live ADK mode, BigQuery aggregate, five cited perspectives, and real dissent appear. | Pass |
 | Option comparison | Four bounded choices expose guardrail, mind-change condition, rollback, and risk. | Pass |
 | Human approval | Human authority is explicit and creates a measurable, reversible plan. | Pass |

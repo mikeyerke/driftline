@@ -5,6 +5,13 @@ reference cut are ready. The existing 43-second MP4 is historical and must not
 be submitted. Prefer one continuous native browser take for the final upload;
 nothing has been published.
 
+Brutal QA note: `driftline-final-demo-candidate.mp4` is a technically clean
+fallback, not the winning final. It is 3:40, 1920×1080 at 30 fps, has integrated
+audio near -16.3 LUFS with -4.5 dB true peak, and contains no detected black
+frames. It is nevertheless built mostly from long static browser frames. That
+weakens the official proof-of-action story and cannot substitute for the
+continuous in-product approval → outcome → reopen take below.
+
 ## Capture setup
 
 - 1920×1080, 30 fps, browser zoom 100%, notifications off.

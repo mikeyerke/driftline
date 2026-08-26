@@ -41,6 +41,11 @@ the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. It cannot be scored as production proof until released
 and independently reverified against its serving SHA.
 
+The candidate also fixes a first-impression issue found through a fresh live
+browser run: at 1453 × 726 the production workflow CTA started 31 pixels below
+the fold. The local CTA is now fully visible at 1453 × 670 and 390 × 844 with
+zero horizontal overflow.
+
 ## 40% — Innovation and operational utility
 
 ### Judge thesis
@@ -136,6 +141,10 @@ Exact-release desktop/mobile screenshots, the Decision Twin architecture, and
 a three-minute 1080p captioned local review cut are complete. A continuous
 native browser take remains preferable, and no video is complete for submission
 until it has a public YouTube or Vimeo URL.
+
+The 3:40 candidate MP4 passed format, loudness, and black-frame checks, but it
+uses long static browser holds. Treat it as an emergency fallback, not as the
+rubric's strongest proof of a working agent.
 
 ## Requirement checklist
 

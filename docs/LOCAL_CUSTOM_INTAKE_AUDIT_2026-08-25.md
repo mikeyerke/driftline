@@ -67,6 +67,12 @@ reversible state transition, not a Jira or customer-system side-effect claim.
 - Complete backend suite: 432 passed, with two dependency deprecation warnings.
 - Frontend production build: passed.
 - Frontend literal contract: passed.
+- First-viewport desktop check: at 1453 × 670, the primary workflow CTA is
+  fully visible at y=531–581 with zero horizontal overflow. The production
+  layout placed that CTA below the same browser's fold; the candidate moves the
+  action directly beneath the value proposition.
+- First-viewport phone check: at 390 × 844, the primary CTA is fully visible
+  at y=730–780 with document and body widths exactly 390 pixels.
 - Python static checks on changed backend and tests: passed.
 - Persistence boundary tests: 17 passed, including expired-read and
   expired-compare-and-set rejection.
