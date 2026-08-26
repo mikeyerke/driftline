@@ -9,6 +9,10 @@ URL in the first 10–15 seconds, and finish with Google Cloud proof. Do not cla
 customer study, BigQuery deployment, or live council unless each is verifiable
 on the serving SHA.
 
+Candidate-only recording gate: include the bounded internal-allocation action
+below only after it is deployed and verified on the serving SHA. Otherwise use
+the current-release narration and do not show or claim the action card.
+
 ## 0:00–0:16 — The product decision bottleneck
 
 **Screen:** Decision Room hero and the pinned onboarding decision.
@@ -51,9 +55,10 @@ segmented rollout preserves upside and contains the observed failure mode.”
 **Screen:** Approve the segmented option and show the experiment receipt.
 
 **Narration:** “The model recommends; a named human authorizes. Approval freezes
-a falsifiable experiment: target segment, success metric, enterprise guardrail,
-stop condition, owner, and review date. Driftline rejects stale generations and
-conflicting approvals with compare-and-set persistence.”
+a falsifiable experiment and executes one bounded internal allocation in
+Driftline's decision state: exact segment, owner, metric, guardrail, stop rule,
+and review date. The receipt says external writes: none. Driftline rejects stale
+generations and conflicting approvals with compare-and-set persistence.”
 
 ## 2:28–3:05 — The wow moment: outcome reopens the same decision
 
@@ -63,8 +68,9 @@ and new case generation with prior lineage retained.
 
 **Narration:** “One human approval starts the bounded monitor; there is no second
 prompt or PM click. Cloud Tasks processes the measurement against the exact
-thresholds committed at approval. When the guardrail breaks, Driftline writes
-a learning receipt and reopens the same decision as a new generation. The
+thresholds committed at approval. When the guardrail breaks, Driftline rolls
+the internal allocation back, writes a learning receipt, and reopens the same
+decision as a new generation. The
 evidence, dissent, approval, and result stay linked. The original live ADK
 council remains in the lineage; if the post-outcome synthesis cannot satisfy its
 citation contract, the reopened council is visibly labeled bounded fallback.”
@@ -103,6 +109,8 @@ measurable, auditable learning loop: evidence, dissent, decision, outcome.”
 - BigQuery is provisioned and the production result reports its aggregate
   source before claiming it in narration.
 - No invented user, ROI, retention, or revenue result appears on screen.
+- The action card visibly states **external writes: none**; narration calls it
+  an internal decision-state allocation, never a customer-system mutation.
 - Public YouTube/Vimeo result is under four minutes, English or English-
   subtitled, and visibly shows the working agent plus Google Cloud backend.
 - Submission form names Google ADK and the August 18 implementation start and

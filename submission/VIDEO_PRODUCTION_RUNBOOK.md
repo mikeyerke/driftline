@@ -13,6 +13,8 @@ nothing has been published.
   tokens, tenant names, private records, or editable secret fields on screen.
 - Use the serving release only. Record the release SHA and build ID in the take
   log before capture.
+- Do not record the candidate-only action narration until the serving release
+  visibly contains the bounded allocation card and passes fresh release proof.
 - Rehearse the no-sign-in **Decision Twin** path twice without recording.
 
 ## Single-take product sequence
@@ -27,13 +29,17 @@ nothing has been published.
    segmented experiment.
 5. Show the disabled approval, enter the named reviewer, and click **Approve
    segmented experiment** in-frame.
-6. Stop clicking. Keep the autonomous-monitor state visible while Cloud Tasks
+6. If present on the verified release, show **Bounded internal action
+   executed**, generation 1, decision-state-only scope, and **External writes:
+   none**.
+7. Stop clicking. Keep the autonomous-monitor state visible while Cloud Tasks
    processes the bounded measurement.
-7. Show generation 2 reopening automatically with **Roll back globally** both
+8. Show the action marked rolled back and generation 2 reopening automatically
+   with **Roll back globally** both
    recommended and selected.
-8. Show the cleared approver, disabled new action, 7/7 policy checks, measured
+9. Show the cleared approver, disabled new action, 7/7 policy checks, measured
    invalidation, evidence/synthesis hashes, and preserved generation-1 lineage.
-9. Finish on `/health`, the exact public `main` SHA, and the Google architecture
+10. Finish on `/health`, the exact public `main` SHA, and the Google architecture
    diagram.
 
 Do not splice across the approval click and receipt. A judge should be able to

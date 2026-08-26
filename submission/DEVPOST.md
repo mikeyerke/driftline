@@ -9,6 +9,11 @@ outcome can reopen the decision.
 - Architecture: `submission/assets/driftline-decision-twin-architecture.png`
 - Demo video: **TODO — public YouTube or Vimeo URL, maximum four minutes**
 
+> Draft custody note: the immutable production proof below describes the
+> currently serving release. The bounded internal-allocation card and authored
+> custom measurement contract exist only in the unreleased local candidate and
+> must not be presented as live until that candidate is released and reverified.
+
 ## Judge this in 45 seconds
 
 Open the Decision Room and start the pinned onboarding council. Inspect the
@@ -20,7 +25,10 @@ generation 2 while retaining the complete original approval and experiment plan.
 
 ## Inspiration
 
-PMs do not lack opinions. They lack a defensible way to combine contradictory
+I kept recreating the same friction while building products: the decision was
+scattered across evidence, commitments, and follow-up, and the decision
+outlived the assumptions that created it. PMs do not lack opinions. They lack a
+defensible way to combine contradictory
 usage, customer, strategy, and delivery evidence; freeze what would prove a
 choice right or wrong; and carry the measured result back into the original
 decision. Driftline turns that decision debt into an inspectable learning loop
@@ -43,6 +51,13 @@ change-to-action agent:
 5. Human approval starts an idempotent Cloud Tasks monitor. A measured outcome
    produces a learning receipt and either closes the case or reopens the next
    generation with complete prior lineage—without another PM prompt.
+
+In the unreleased candidate, that same approval also executes one bounded
+internal allocation in Driftline's own decision state. The receipt exposes its
+generation, segment, and status, states **external writes: none**, and the
+guardrail automatically completes or rolls it back before any reopen. This is
+judge-visible action with an honest authority boundary, not a simulated customer
+system write.
 
 The underlying operational foundation remains independently useful:
 
@@ -239,6 +254,7 @@ during the submission period.
 
 ## What's next
 
-The next milestone is a small independent Product Marketing pilot with paired
-before/after timing and one bounded change class. Until then, Driftline will
+The next milestone is a small independent Product Management or fractional
+product-leader pilot using one real, currently open decision and paired
+before/after timing. Until then, Driftline will
 describe its live deployment as engineering proof rather than customer ROI.

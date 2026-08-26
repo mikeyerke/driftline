@@ -16,6 +16,17 @@ const emptyIntake = {
   positive_signal: "",
   risk_signal: "",
   affected_segment: "",
+  primary_metric: "",
+  risk_metric: "",
+  metric_unit: "%",
+  baseline: "",
+  success_operator: "gte",
+  success_threshold: "",
+  risk_baseline: "",
+  stop_operator: "gte",
+  stop_threshold: "",
+  review_days: "7",
+  action_owner: "",
 };
 
 export default function DecisionRoom({ onOpenWorkflow }) {
@@ -88,7 +99,27 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     event.preventDefault();
     setBusy("intake"); setError("");
     try {
-      const payload = { ...intake };
+      const payload = {
+        question: intake.question,
+        current_commitment: intake.current_commitment,
+        urgency: intake.urgency,
+        positive_signal: intake.positive_signal,
+        risk_signal: intake.risk_signal,
+        affected_segment: intake.affected_segment,
+        measurement_contract: {
+          primary_metric: intake.primary_metric,
+          risk_metric: intake.risk_metric,
+          metric_unit: intake.metric_unit,
+          baseline: Number(intake.baseline),
+          success_operator: intake.success_operator,
+          success_threshold: Number(intake.success_threshold),
+          risk_baseline: Number(intake.risk_baseline),
+          stop_operator: intake.stop_operator,
+          stop_threshold: Number(intake.stop_threshold),
+          review_days: Number(intake.review_days),
+          action_owner: intake.action_owner,
+        },
+      };
       if (!payload.affected_segment.trim()) delete payload.affected_segment;
       applyDecisionCase(await startDecisionTwinIntake(payload));
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
@@ -104,7 +135,9 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const observeOutcome = async () => {
     setBusy("outcome"); setError("");
     try {
-      setDecisionCase(await recordDecisionTwinOutcome(decisionCase.case_id, decisionCase.generation));
+      const next = await recordDecisionTwinOutcome(decisionCase.case_id, decisionCase.generation);
+      applyDecisionCase(next);
+      if (["reopened", "review_required"].includes(next.status)) setApproverName("");
     } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
   };
 
@@ -211,7 +244,20 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         <label><span>Why now</span><textarea required minLength="12" maxLength="320" rows="3" value={intake.urgency} onChange={(event) => setIntake({ ...intake, urgency: event.target.value })} placeholder="Sales has committed the date and the allocation decision is due Friday." /></label>
         <label><span>Strongest signal in favor</span><textarea required minLength="12" maxLength="500" rows="3" value={intake.positive_signal} onChange={(event) => setIntake({ ...intake, positive_signal: event.target.value })} placeholder="Beta users complete the core workflow faster and renewal intent improved." /></label>
         <label><span>Strongest risk signal</span><textarea required minLength="12" maxLength="500" rows="3" value={intake.risk_signal} onChange={(event) => setIntake({ ...intake, risk_signal: event.target.value })} placeholder="Admins report permission confusion and support volume is rising." /></label>
-        <label className="decision-intake-segment"><span>Affected segment <small>Optional</small></span><input maxLength="80" value={intake.affected_segment} onChange={(event) => setIntake({ ...intake, affected_segment: event.target.value })} placeholder="Mid-market admins" /></label>
+        <fieldset className="decision-intake-contract">
+          <legend>Define the operating contract before approval</legend>
+          <p>The result stays provisional until you name what success means, what stops the action, who owns it, and when the team reviews it.</p>
+          <label><span>Affected segment</span><input required minLength="2" maxLength="80" value={intake.affected_segment} onChange={(event) => setIntake({ ...intake, affected_segment: event.target.value })} placeholder="Mid-market admins" /></label>
+          <label><span>Action owner</span><input required minLength="2" maxLength="120" value={intake.action_owner} onChange={(event) => setIntake({ ...intake, action_owner: event.target.value })} placeholder="Taylor, Product Lead" /></label>
+          <label><span>Primary outcome metric</span><input required minLength="2" maxLength="100" value={intake.primary_metric} onChange={(event) => setIntake({ ...intake, primary_metric: event.target.value })} placeholder="Workflow completion rate" /></label>
+          <label><span>Risk guardrail metric</span><input required minLength="2" maxLength="100" value={intake.risk_metric} onChange={(event) => setIntake({ ...intake, risk_metric: event.target.value })} placeholder="Failed workflow rate" /></label>
+          <label><span>Unit</span><input required minLength="1" maxLength="20" value={intake.metric_unit} onChange={(event) => setIntake({ ...intake, metric_unit: event.target.value })} placeholder="%" /></label>
+          <label><span>Review window</span><select required value={intake.review_days} onChange={(event) => setIntake({ ...intake, review_days: event.target.value })}><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label>
+          <label><span>Outcome baseline</span><input required type="number" step="any" value={intake.baseline} onChange={(event) => setIntake({ ...intake, baseline: event.target.value })} placeholder="38" /></label>
+          <label><span>Success threshold</span><span className="decision-intake-threshold"><select aria-label="Success direction" value={intake.success_operator} onChange={(event) => setIntake({ ...intake, success_operator: event.target.value })}><option value="gte">At least</option><option value="lte">At most</option></select><input aria-label="Success threshold" required type="number" step="any" value={intake.success_threshold} onChange={(event) => setIntake({ ...intake, success_threshold: event.target.value })} placeholder="45" /></span></label>
+          <label><span>Risk baseline</span><input required type="number" step="any" value={intake.risk_baseline} onChange={(event) => setIntake({ ...intake, risk_baseline: event.target.value })} placeholder="3" /></label>
+          <label><span>Stop threshold</span><span className="decision-intake-threshold"><select aria-label="Stop direction" value={intake.stop_operator} onChange={(event) => setIntake({ ...intake, stop_operator: event.target.value })}><option value="gte">At least</option><option value="lte">At most</option></select><input aria-label="Stop threshold" required type="number" step="any" value={intake.stop_threshold} onChange={(event) => setIntake({ ...intake, stop_threshold: event.target.value })} placeholder="8" /></span></label>
+        </fieldset>
         <div className="decision-intake-submit"><div><ShieldCheck size={15} /><span>No external actions. A human still approves the response.</span></div><button className="primary" type="submit" disabled={Boolean(busy)}>{busy === "intake" ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />}{busy === "intake" ? "Building the decision brief…" : "Build my decision brief"}</button></div>
       </form>
       {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}

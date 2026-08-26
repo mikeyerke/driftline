@@ -15,6 +15,12 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
   ));
   const triggerOutcome = (reopened || terminalReview) ? decisionCase.decision_history?.[decisionCase.decision_history.length - 1]?.trigger_observation : null;
   const latestOutcome = triggerOutcome || currentOutcome;
+  const latestAction = [...(decisionCase.action_records || [])].reverse()[0];
+  const actionTitle = latestAction?.status === "rolled_back"
+    ? "Guardrail rolled the internal action back"
+    : latestAction?.status === "completed"
+      ? "Bounded internal action completed"
+      : "Bounded internal action executed";
   return (
     <section className={`decision-room-section learning-receipt${reopened ? " reopened" : ""}`} aria-labelledby="learning-receipt-title" aria-live="polite">
       <header className="decision-room-section-header">
@@ -23,10 +29,14 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
       </header>
       {plan && <div className="experiment-contract">
         <div><FlaskConical size={20} /><span><strong>{plan.hypothesis}</strong><small>{plan.target_segment.replaceAll("_", " ")} · review {new Date(plan.review_at).toLocaleDateString()}</small></span></div>
-        <dl><div><dt>Primary metric</dt><dd>{plan.primary_metric.replaceAll("_", " ")}</dd></div><div><dt>Success</dt><dd>{plan.success_condition}</dd></div><div><dt>Stop</dt><dd>{plan.stop_conditions[0]}</dd></div></dl>
+        <dl><div><dt>Primary metric</dt><dd>{plan.primary_metric.replaceAll("_", " ")}</dd></div>{plan.risk_metric && <div><dt>Risk metric</dt><dd>{plan.risk_metric.replaceAll("_", " ")}</dd></div>}<div><dt>Success</dt><dd>{plan.success_condition}</dd></div><div><dt>Stop</dt><dd>{plan.stop_conditions[0]}</dd></div>{plan.owner && <div><dt>Owner</dt><dd>{plan.owner}</dd></div>}</dl>
       </div>}
+      {latestAction && <section className={`bounded-action-record ${latestAction.status}`} aria-labelledby="bounded-action-title">
+        <div>{latestAction.status === "rolled_back" ? <RotateCcw size={19} /> : <Activity size={19} />}<span><strong id="bounded-action-title">{actionTitle}</strong><small>{latestAction.status === "rolled_back" ? "Driftline reversed the allocation automatically when the measured outcome crossed the approved stop condition." : `Driftline created an internal allocation record for ${latestAction.target_segment.replaceAll("_", " ")} after human approval.`}</small></span></div>
+        <dl><div><dt>Generation</dt><dd>{latestAction.generation}</dd></div><div><dt>Status</dt><dd>{latestAction.status.replaceAll("_", " ")}</dd></div><div><dt>Scope</dt><dd>Decision state only</dd></div><div><dt>External writes</dt><dd>None</dd></div></dl>
+      </section>}
       {plan?.owner_actions?.length > 0 && <section className="owner-action-list" aria-labelledby="owner-action-title">
-        <header><ClipboardList size={17} /><strong id="owner-action-title">Owner handoff prepared</strong><span>{plan.owner_actions.length} bounded actions</span></header>
+        <header><ClipboardList size={17} /><strong id="owner-action-title">Owner follow-through attached</strong><span>{plan.owner_actions.length} bounded steps</span></header>
         <ul>{plan.owner_actions.map((action) => <li key={action}><CheckCircle2 size={14} />{action}</li>)}</ul>
       </section>}
       {reopened && <div className="reopen-alert"><AlertTriangle size={22} /><div><strong>Generation {decisionCase.generation} reopened for human review</strong><p>{decisionCase.reopen_reason}</p><small>The original approval and outcome remain preserved in decision memory.</small></div></div>}

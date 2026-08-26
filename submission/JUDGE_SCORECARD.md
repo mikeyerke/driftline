@@ -21,6 +21,22 @@ rules prevail over this working scorecard.
 GitHub `main` history, and the production verifier all resolved to the identity
 above on August 25. Later `main` commits update submission media only.
 
+## Unreleased local candidate
+
+The isolated candidate is not part of the live score above. It adds two
+judge-facing improvements:
+
+- custom decisions require a PM-authored measurement contract instead of
+  placeholder success and stop language; and
+- named approval creates a bounded internal allocation record that is active,
+  completed, or automatically rolled back within the same decision lineage.
+
+The UI discloses **scope: decision state only** and **external writes: none**.
+The candidate passed 425 backend tests, Ruff, the production frontend build,
+the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
+rollback/reopen journey. It cannot be scored as production proof until released
+and independently reverified against its serving SHA.
+
 ## 40% — Innovation and operational utility
 
 ### Judge thesis
@@ -146,22 +162,28 @@ until it has a public YouTube or Vimeo URL.
   before the final public video; 29/30 is attainable with a fast, legible,
   truthful recording.
 - Overall current evidence: roughly 91/100. With a strong final video, 94/100 is
-  defensible. Independent PM evidence is the remaining route toward 96–97.
+  defensible. If the local action candidate is released and re-proven, roughly
+  95/100 is defensible because Taskmaster action becomes explicit without a
+  false external-write claim. Independent PM evidence is the remaining route
+  toward 96–97.
   Winning remains uncertain because judge
   preference and competing entries are unknowable.
 
 ## Ranked remaining work
 
-1. Run 6–8 genuine PM sessions; publish only anonymized aggregates that pass the
-   pre-registered human-control and data-quality gates.
-2. Record the under-four-minute public demo from this verified release. Show the
+1. Release and exact-SHA re-prove the bounded internal-action candidate, but
+   only after explicit publication authorization.
+2. Run at least three genuine PM sessions; six to eight is stronger. Publish
+   only anonymized aggregates that pass the pre-registered human-control and
+   data-quality gates.
+3. Record the under-four-minute public demo from the verified release. Show the
    working product in the first 10–15 seconds and keep the core proof continuous.
-3. Approve the captured desktop/mobile screenshots and architecture asset.
-4. Fill the Devpost form with category, Google SDK, August 18 start date,
+4. Approve the captured desktop/mobile screenshots and architecture asset.
+5. Fill the Devpost form with category, Google SDK, August 18 start date,
    disclosure, repo, hosted URL, architecture, and video.
-5. Read and explicitly accept the official rules, register, then separately
+6. Read and explicitly accept the official rules, register, then separately
    authorize final submission.
-6. After submission, freeze the submitted repo/video/links until winners are
+7. After submission, freeze the submitted repo/video/links until winners are
    announced. Optional public content/social bonuses require separate approval.
 
 No registration, submission, email, social post, or public bonus content is

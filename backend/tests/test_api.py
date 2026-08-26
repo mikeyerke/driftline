@@ -21,6 +21,22 @@ from app.tenant import principal_for_hmac, tenant_operator_signing_secret_name
 client = TestClient(app)
 
 
+def _pm_measurement_contract_payload() -> dict:
+    return {
+        "primary_metric": "workflow completion rate",
+        "risk_metric": "failed workflow rate",
+        "metric_unit": "%",
+        "baseline": 38,
+        "success_operator": "gte",
+        "success_threshold": 45,
+        "risk_baseline": 3,
+        "stop_operator": "gte",
+        "stop_threshold": 8,
+        "review_days": 7,
+        "action_owner": "Taylor PM",
+    }
+
+
 def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
@@ -68,6 +84,8 @@ def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
     assert approved.status_code == 200
     assert approved.json()["status"] == "experiment_active"
     assert approved.json()["experiment_plan"]["reversible"] is True
+    assert approved.json()["action_records"][0]["status"] == "active"
+    assert approved.json()["action_records"][0]["external_write"] is False
 
     reopened = client.post(
         f"/api/decision-twin/{case['case_id']}/outcomes/demo",
@@ -79,6 +97,7 @@ def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
     assert payload["generation"] == 2
     assert payload["decision_history"][0]["option_id"] == "segment"
     assert payload["outcomes"][0]["evaluation"]["verdict"] == "invalidated"
+    assert payload["action_records"][0]["status"] == "rolled_back"
 
     restored = client.get(f"/api/decision-twin/{case['case_id']}")
     assert restored.status_code == 200
@@ -100,6 +119,7 @@ def test_decision_twin_intake_builds_an_honestly_labelled_pm_case(monkeypatch) -
             "positive_signal": "Beta users complete the core workflow faster than the control group.",
             "risk_signal": "Admins report permission confusion and support volume is rising.",
             "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
         },
     )
 
@@ -126,12 +146,31 @@ def test_decision_twin_intake_rejects_extra_or_underspecified_context(monkeypatc
         "urgency": "Sales committed the date and allocation is due this Friday.",
         "positive_signal": "too short",
         "risk_signal": "Admins report permission confusion and support volume is rising.",
+        "measurement_contract": _pm_measurement_contract_payload(),
         "invented_connected_source": "salesforce",
     }
 
     response = client.post("/api/decision-twin/intake", json=payload)
 
     assert response.status_code == 422
+
+
+def test_decision_twin_intake_requires_an_operating_contract(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    response = client.post(
+        "/api/decision-twin/intake",
+        json={
+            "question": "Should we expand the beta to all mid-market accounts next month?",
+            "current_commitment": "Launch to every mid-market account on September 15.",
+            "urgency": "Sales committed the date and allocation is due this Friday.",
+            "positive_signal": "Beta users complete the core workflow faster than the control group.",
+            "risk_signal": "Admins report permission confusion and support volume is rising.",
+            "affected_segment": "mid-market admins",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"][-1] == "measurement_contract"
 
 
 def test_decision_twin_approval_enqueues_autonomous_monitor(monkeypatch) -> None:
@@ -186,6 +225,7 @@ def test_pm_intake_approval_never_enqueues_or_accepts_synthetic_outcome(
             "positive_signal": "Beta users complete the core workflow faster than the control group.",
             "risk_signal": "Admins report permission confusion and support volume is rising.",
             "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
         },
     ).json()
 

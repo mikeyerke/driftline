@@ -113,6 +113,8 @@ class ExperimentPlan(BaseModel):
     hypothesis: str = Field(min_length=1, max_length=320)
     target_segment: str = Field(min_length=1, max_length=100)
     primary_metric: str = Field(min_length=1, max_length=100)
+    risk_metric: str | None = Field(default=None, min_length=1, max_length=100)
+    owner: str | None = Field(default=None, min_length=2, max_length=120)
     success_condition: str = Field(min_length=1, max_length=240)
     success_operator: Literal["gte", "lte"]
     success_threshold: float
@@ -124,6 +126,24 @@ class ExperimentPlan(BaseModel):
     owner_actions: list[str] = Field(min_length=1, max_length=6)
     rollback: str = Field(min_length=1, max_length=240)
     reversible: bool = True
+
+
+class PMMeasurementContract(BaseModel):
+    """A PM-authored operating contract for a public, unverified intake."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    primary_metric: str = Field(min_length=2, max_length=100)
+    risk_metric: str = Field(min_length=2, max_length=100)
+    metric_unit: str = Field(min_length=1, max_length=20)
+    baseline: float
+    success_operator: Literal["gte", "lte"]
+    success_threshold: float
+    risk_baseline: float
+    stop_operator: Literal["gte", "lte"]
+    stop_threshold: float
+    review_days: int = Field(ge=1, le=90)
+    action_owner: str = Field(min_length=2, max_length=120)
 
 
 class OutcomeEvaluation(BaseModel):
@@ -163,6 +183,25 @@ class DecisionPrecedent(BaseModel):
     source_label: str = Field(min_length=1, max_length=160)
 
 
+class BoundedActionRecord(BaseModel):
+    """A reversible internal allocation created only after human approval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,100}$")
+    generation: int = Field(ge=1, le=MAX_DECISION_GENERATION)
+    option_id: DecisionOptionId
+    action_type: Literal["internal_allocation"] = "internal_allocation"
+    status: Literal["active", "rolled_back", "completed"]
+    target_segment: str = Field(min_length=1, max_length=100)
+    evidence_manifest_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    synthesis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    created_at: str = Field(min_length=1, max_length=50)
+    finished_at: str | None = Field(default=None, min_length=1, max_length=50)
+    reason: str | None = Field(default=None, min_length=1, max_length=280)
+    external_write: bool = False
+
+
 class DecisionHistoryRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -195,6 +234,7 @@ class DecisionCase(BaseModel):
     ] = "needs_approval"
     current_commitment: str
     urgency: str
+    measurement_contract: PMMeasurementContract | None = None
     precedents: list[DecisionPrecedent] = Field(default_factory=list, max_length=3)
     evidence_nodes: list[EvidenceNode] = Field(min_length=1, max_length=32)
     evidence_edges: list[EvidenceEdge] = Field(default_factory=list, max_length=64)
@@ -203,6 +243,9 @@ class DecisionCase(BaseModel):
     experiment_plan: ExperimentPlan | None = None
     outcomes: list[OutcomeObservation] = Field(default_factory=list, max_length=32)
     decision_history: list[DecisionHistoryRecord] = Field(
+        default_factory=list, max_length=MAX_DECISION_GENERATION
+    )
+    action_records: list[BoundedActionRecord] = Field(
         default_factory=list, max_length=MAX_DECISION_GENERATION
     )
     reopen_reason: str | None = None
@@ -510,6 +553,7 @@ def build_intake_decision_case(
     urgency: str,
     positive_signal: str,
     risk_signal: str,
+    measurement_contract: PMMeasurementContract,
     affected_segment: str | None = None,
 ) -> DecisionCase:
     """Build an honest evidence packet from PM-provided, unverified context."""
@@ -658,6 +702,7 @@ def build_intake_decision_case(
         "positions": [position.model_dump(mode="json") for position in positions],
         "options": [option.model_dump(mode="json") for option in options],
         "evidence_manifest_hash": manifest_hash,
+        "measurement_contract": measurement_contract.model_dump(mode="json"),
     }
     council = CouncilSynthesis(
         question=question,
@@ -677,6 +722,7 @@ def build_intake_decision_case(
         question=question,
         current_commitment=current_commitment,
         urgency=urgency,
+        measurement_contract=measurement_contract,
         evidence_nodes=nodes,
         evidence_edges=[
             EvidenceEdge(
@@ -876,6 +922,7 @@ def _experiment_plan(
     evidence_nodes: list[EvidenceNode],
     *,
     approved_at: datetime,
+    measurement_contract: PMMeasurementContract | None = None,
 ) -> ExperimentPlan:
     metric_node = next(
         (node for node in evidence_nodes if node.node_id == "metric-activation-split"),
@@ -883,6 +930,26 @@ def _experiment_plan(
     )
     if metric_node is None:
         target = option.affected_segments[0]
+        if measurement_contract is None:
+            raise DecisionTwinPolicyError(
+                "A PM-provided decision requires a measurement contract"
+            )
+        success_direction = (
+            "at least" if measurement_contract.success_operator == "gte" else "at most"
+        )
+        stop_direction = (
+            "at least" if measurement_contract.stop_operator == "gte" else "at most"
+        )
+        success_condition = (
+            f"{measurement_contract.primary_metric} reaches {success_direction} "
+            f"{measurement_contract.success_threshold:g} {measurement_contract.metric_unit} "
+            f"from a {measurement_contract.baseline:g} {measurement_contract.metric_unit} baseline."
+        )
+        stop_condition = (
+            f"Stop if {measurement_contract.risk_metric} reaches {stop_direction} "
+            f"{measurement_contract.stop_threshold:g} {measurement_contract.metric_unit} "
+            f"from a {measurement_contract.risk_baseline:g} {measurement_contract.metric_unit} baseline."
+        )
         return ExperimentPlan(
             plan_id=f"experiment-{option.option_id}-intake",
             option_id=option.option_id,
@@ -891,20 +958,20 @@ def _experiment_plan(
                 "human-approved risk threshold."
             ),
             target_segment=target,
-            primary_metric="decision_success_metric",
-            success_condition=(
-                "The PM-defined success measure improves from baseline within the review window."
-            ),
-            success_operator="gte",
-            success_threshold=0.05,
+            primary_metric=measurement_contract.primary_metric,
+            risk_metric=measurement_contract.risk_metric,
+            owner=measurement_contract.action_owner,
+            success_condition=success_condition,
+            success_operator=measurement_contract.success_operator,
+            success_threshold=measurement_contract.success_threshold,
             guardrails=option.guardrails,
-            stop_conditions=["Stop if the PM-defined risk measure worsens from baseline."],
-            stop_operator="lte",
-            stop_threshold=-0.01,
-            review_at=(approved_at + timedelta(days=7)).isoformat(),
+            stop_conditions=[stop_condition],
+            stop_operator=measurement_contract.stop_operator,
+            stop_threshold=measurement_contract.stop_threshold,
+            review_at=(approved_at + timedelta(days=measurement_contract.review_days)).isoformat(),
             owner_actions=[
-                "Name one success measure and its baseline before starting.",
-                "Name one risk measure and the threshold that stops the action.",
+                f"{measurement_contract.action_owner} owns the measurement and stop decision.",
+                f"Record the {measurement_contract.primary_metric} and {measurement_contract.risk_metric} baselines before starting.",
                 f"Limit the first action to {target}.",
                 "Return to the human decision gate when the review window closes.",
             ],
@@ -1038,9 +1105,22 @@ def approve_decision_case(
         option,
         case.evidence_nodes,
         approved_at=approved_at,
+        measurement_contract=case.measurement_contract,
     )
     approved.status = "experiment_active"
     approved.reopen_reason = None
+    approved.action_records.append(
+        BoundedActionRecord(
+            action_id=f"allocation-g{approved.generation}-{option_id}",
+            generation=approved.generation,
+            option_id=option_id,
+            status="active",
+            target_segment=approved.experiment_plan.target_segment,
+            evidence_manifest_hash=approved.council.evidence_manifest_hash,
+            synthesis_hash=approved.council.synthesis_hash,
+            created_at=approved_at.isoformat(),
+        )
+    )
     approved.events.append(
         {
             "event_id": f"decision-approved-g{approved.generation}",
@@ -1048,6 +1128,16 @@ def approve_decision_case(
             "outcome": f"{option_id}_approved",
             "generation": approved.generation,
             "synthesis_hash": approved.council.synthesis_hash,
+        }
+    )
+    approved.events.append(
+        {
+            "event_id": f"bounded-action-executed-g{approved.generation}",
+            "action": "internal_allocation_executor",
+            "outcome": "internal_allocation_active",
+            "generation": approved.generation,
+            "action_id": approved.action_records[-1].action_id,
+            "external_write": False,
         }
     )
     return approved
@@ -1233,6 +1323,35 @@ def record_outcome(
             "content_hash": outcome.content_hash,
         }
     )
+    active_action = next(
+        (
+            item
+            for item in reversed(recorded.action_records)
+            if item.generation == recorded.generation and item.status == "active"
+        ),
+        None,
+    )
+    if evaluation.verdict in {"invalidated", "validated"}:
+        if active_action is None:
+            raise DecisionTwinPolicyError(
+                "A resolving outcome requires an active bounded action"
+            )
+        active_action.status = (
+            "rolled_back" if evaluation.verdict == "invalidated" else "completed"
+        )
+        active_action.finished_at = outcome.observed_at
+        active_action.reason = evaluation.reason
+        recorded.events.append(
+            {
+                "event_id": f"bounded-action-{active_action.status}-g{recorded.generation}",
+                "action": "internal_allocation_executor",
+                "outcome": f"internal_allocation_{active_action.status}",
+                "generation": recorded.generation,
+                "action_id": active_action.action_id,
+                "trigger_observation_id": outcome.observation_id,
+                "external_write": False,
+            }
+        )
     if evaluation.reopen_required:
         if recorded.approval is None:
             raise DecisionTwinPolicyError("Reopening requires a prior human decision")

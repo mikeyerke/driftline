@@ -76,6 +76,7 @@ from .credential_broker import (
 from .decision_copilot import validate_approval_choice
 from .decision_twin import (
     DecisionTwinPolicyError,
+    PMMeasurementContract,
     approve_decision_case,
     attach_aggregate_metrics,
     attach_decision_precedents,
@@ -367,6 +368,7 @@ class DecisionTwinIntakeRequest(BaseModel):
     positive_signal: str = Field(min_length=12, max_length=500)
     risk_signal: str = Field(min_length=12, max_length=500)
     affected_segment: str | None = Field(default=None, min_length=2, max_length=80)
+    measurement_contract: PMMeasurementContract
 
 
 class DecisionTwinOutcomeRequest(BaseModel):
@@ -6040,6 +6042,7 @@ async def start_decision_twin_intake(request: DecisionTwinIntakeRequest) -> dict
         positive_signal=request.positive_signal,
         risk_signal=request.risk_signal,
         affected_segment=request.affected_segment,
+        measurement_contract=request.measurement_contract,
     )
     if os.getenv("DECISION_TWIN_LIVE_COUNCIL", "false").casefold() == "true":
         if not _reserve_product_council_calls():
