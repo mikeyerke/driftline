@@ -1002,6 +1002,24 @@ def evaluate_decision_twin_case(case: DecisionCase) -> dict[str, Any]:
         and bool(case.outcomes)
         and bool(case.reopen_reason)
     )
+    expected_debt_state = {
+        "needs_approval": "open",
+        "experiment_active": "monitoring",
+        "validated": "resolved",
+        "reopened": "reopened",
+        "inconclusive": "monitoring",
+        "review_required": "requires_human_review",
+    }[case.status]
+    decision_debt_lineage = (
+        case.decision_debt is not None
+        and case.decision_debt.generation == case.generation
+        and case.decision_debt.state == expected_debt_state
+        and set(case.decision_debt.evidence_node_ids).issubset(known_nodes)
+        and (
+            case.status != "reopened"
+            or bool(case.decision_debt_history)
+        )
+    )
     cases = [
         result(
             "evidence_provenance",
@@ -1037,6 +1055,11 @@ def evaluate_decision_twin_case(case: DecisionCase) -> dict[str, Any]:
             "reopening_lineage",
             reopening_lineage,
             "Reopened generations preserve the prior decision and trigger outcome.",
+        ),
+        result(
+            "decision_debt_lineage",
+            decision_debt_lineage,
+            "The current debt state is evidence-cited and follows approval, monitoring, resolution, or reopening.",
         ),
     ]
     passed = sum(item["status"] == "pass" for item in cases)

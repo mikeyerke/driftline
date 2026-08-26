@@ -8,11 +8,19 @@ story. The rehearsal is permanently marked **UNRELEASED LOCAL CANDIDATE · NOT
 PRODUCTION**. Its timestamps are an edit contract for the final exact-release
 take, not evidence that the candidate is already live.
 
+Post-rehearsal improvement: the current local candidate now opens the workflow
+with a cited **Autonomous decision inbox** showing the affected commitment,
+decision-debt score, missing evidence, and next bounded decision. Approval moves
+that debt into monitoring; the demonstrated guardrail breach reopens it at a
+higher score while preserving the prior debt cycle. This was real-click verified
+on desktop and at 390 × 844, but it is not present in the 2:58 rehearsal and must
+be captured in the exact-release final take before judges can score it.
+
 ## First-pass timeline
 
 | Time | Visible proof | Judge question answered |
 | --- | --- | --- |
-| 0:00–0:11 | Public-style Decision Room and one contested roadmap commitment | What concrete PM problem is this solving? |
+| 0:00–0:11 | Final-take target: autonomous decision-inbox item and one contested roadmap commitment | What concrete PM problem is this solving, and why does it need attention now? |
 | 0:11–0:27 | Five source-bound signals, including the privacy-thresholded BigQuery aggregate | Is the agent reasoning over evidence rather than a prompt-only toy? |
 | 0:27–0:42 | Five independent Google ADK specialist positions | Is this actually an agent system, and are roles distinct? |
 | 0:42–0:53 | Gemini synthesis retains citations and visible dissent | Does synthesis preserve disagreement rather than erase it? |

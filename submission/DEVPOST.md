@@ -1,7 +1,7 @@
 # Driftline
 
-**Tagline:** Contradictory evidence becomes a reversible experiment—and the
-outcome can reopen the decision.
+**Tagline:** Driftline detects decision debt, turns it into a reversible
+experiment, and reopens the decision when reality changes.
 
 - Category: **Taskmaster**
 - Live application: https://driftline-ops.web.app/
@@ -17,7 +17,8 @@ outcome can reopen the decision.
 ## Judge this in 45 seconds
 
 Open the Decision Room and start the pinned onboarding council. Inspect the
-evidence graph and five cited specialist positions, pause on strategy and
+autonomously detected decision-debt item, its affected commitment, missing
+evidence, and urgency score. Then inspect the evidence graph and five cited specialist positions, pause on strategy and
 challenger dissent, compare ship/rollback/segment/defer, and approve one
 falsifiable experiment as a named human. Then stop clicking: a durable Cloud
 Tasks monitor processes the bounded measurement and the same case reopens as
@@ -65,7 +66,11 @@ they do not establish Driftline adoption or customer value.
 
 ## What it does
 
-Driftline takes one contested product commitment through five visible stages:
+Driftline first watches active commitments for decision debt: fresh evidence
+that contradicts a bet, an overdue measurement, or a breached guardrail. It
+creates a cited decision-inbox item with the affected commitment, why it matters
+now, what evidence is still missing, and the next bounded decision. It then
+takes that commitment through five visible stages:
 
 1. It combines bounded customer, usage, strategy, and feasibility evidence in
    a provenance-preserving graph. Live product metrics come from a
@@ -200,6 +205,8 @@ a tenant-scoped Secret Manager binding, and an allowlisted operation.
 ## Key features
 
 - Bounded source registry with cadence and freshness health
+- Autonomous Decision Debt Radar with cited triggers, severity, missing
+  evidence, and compounding generation history
 - Immutable evidence diff and full SHA-256 provenance
 - Stable, retry-safe Change Card identity
 - Gemini-generated impact map across four named owner surfaces

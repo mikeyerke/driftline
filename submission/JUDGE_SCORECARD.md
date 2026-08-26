@@ -26,6 +26,10 @@ above on August 25. Later `main` commits update submission media only.
 The isolated candidate is not part of the live score above. It adds ten
 judge-facing improvements:
 
+- an autonomous Decision Debt Radar turns contradictory signals into a cited
+  inbox item before the PM asks a question, carries that item through open,
+  monitoring, resolved, or reopened states, and preserves prior debt cycles as
+  compounding decision memory; and
 - custom decisions require a PM-authored measurement contract instead of
   placeholder success and stop language; and
 - named approval creates a bounded internal allocation record that is active,
@@ -63,6 +67,13 @@ and desktop/mobile Lighthouse snapshots at 100 across accessibility, best
 practices, SEO, and agentic browsing with no horizontal overflow. It cannot be
 scored as production proof until released and independently reverified against
 its serving SHA.
+
+The new Decision Debt lifecycle was separately exercised through real browser
+clicks on desktop and at 390 × 844: the cited inbox opened at 88/100, named
+approval moved it to monitoring, the measured stop-condition breach rolled back
+the bounded action, and generation 2 reopened at 98/100 with one prior debt
+cycle preserved. The Decision Twin evaluator now checks this lifecycle as an
+eighth deterministic case; the complete local policy surface passes 8/8.
 
 The clean-checkout browser retest also passed first click, refresh/deep-link
 resume, double-click approval idempotency, outcome-triggered generation-2

@@ -87,6 +87,13 @@ def test_demo_case_is_complete_grounded_and_preserves_real_disagreement() -> Non
     assert case.council.recommendation == "segment"
     assert case.council.decisive_conflict
     assert case.council.synthesis_hash
+    assert case.decision_debt is not None
+    assert case.decision_debt.detection_mode == "autonomous_monitor"
+    assert case.decision_debt.state == "open"
+    assert case.decision_debt.score == 88
+    assert set(case.decision_debt.evidence_node_ids) <= {
+        node.node_id for node in case.evidence_nodes
+    }
 
 
 def test_evidence_graph_rejects_missing_provenance_and_unknown_edges() -> None:
@@ -178,6 +185,8 @@ def test_approval_requires_current_synthesis_named_human_and_complete_plan() -> 
         == case.council.evidence_manifest_hash
     )
     assert approved.action_records[0].synthesis_hash == case.council.synthesis_hash
+    assert approved.decision_debt.state == "monitoring"
+    assert "reopen automatically" in approved.decision_debt.recommended_next_step
     assert any(
         event.get("action") == "internal_allocation_executor"
         and event.get("outcome") == "internal_allocation_active"
@@ -274,6 +283,14 @@ def test_invalidated_outcome_reopens_same_case_with_preserved_lineage() -> None:
     assert reopened.action_records[0].status == "rolled_back"
     assert reopened.action_records[0].finished_at == observation["observed_at"]
     assert reopened.action_records[0].reason == reopened.reopen_reason
+    assert reopened.decision_debt.state == "reopened"
+    assert reopened.decision_debt.generation == 2
+    assert reopened.decision_debt.previous_score == 88
+    assert reopened.decision_debt.score == 98
+    assert reopened.decision_debt_history[0].state == "reopened"
+    assert reopened.decision_debt.evidence_node_ids == [
+        "outcome-g1-enterprise-activation-rate"
+    ]
     assert any(
         event.get("outcome") == "internal_allocation_rolled_back"
         and event.get("trigger_observation_id") == observation["observation_id"]
@@ -320,6 +337,10 @@ def test_successful_outcome_validates_and_duplicate_is_idempotent() -> None:
     assert len(active.outcomes) == 1
     assert active.action_records[0].status == "completed"
     assert active.action_records[0].finished_at == observation["observed_at"]
+    assert active.decision_debt.state == "resolved"
+    assert active.decision_debt.previous_score == 88
+    assert active.decision_debt.score == 0
+    assert active.decision_debt_history[0].state == "resolved"
     assert duplicate.model_dump() == active.model_dump()
 
 
@@ -988,4 +1009,5 @@ def test_decision_twin_trace_eval_scores_grounding_disagreement_and_falsifiabili
         "falsifiability",
         "human_authority",
         "reopening_lineage",
+        "decision_debt_lineage",
     }

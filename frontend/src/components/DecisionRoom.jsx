@@ -1,4 +1,4 @@
-import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Radar, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, startDecisionTwin, startDecisionTwinIntake } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
@@ -280,6 +280,13 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     const brief = [
       `# ${decisionCase.title}`,
       "",
+      ...(decisionCase.decision_debt ? [
+        `Decision debt: ${decisionCase.decision_debt.title}`,
+        `Debt score: ${decisionCase.decision_debt.score}/100 · ${decisionCase.decision_debt.state}`,
+        `Trigger: ${decisionCase.decision_debt.trigger}`,
+        `Next: ${decisionCase.decision_debt.recommended_next_step}`,
+        "",
+      ] : []),
       `Decision: ${decisionCase.question}`,
       `Why now: ${decisionCase.urgency}`,
       `Current commitment: ${decisionCase.current_commitment}`,
@@ -457,6 +464,24 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           {index < activeStage ? <CheckCircle2 size={15} /> : <b>{index + 1}</b>}{stage}{index < stages.length - 1 && <ArrowRight size={14} />}
         </span>)}
       </nav>
+      {decisionCase.decision_debt && <section className={`decision-debt-radar ${decisionCase.decision_debt.state}`} aria-labelledby="decision-debt-title">
+        <div className="decision-debt-radar-icon"><Radar size={21} /></div>
+        <div className="decision-debt-radar-copy">
+          <span>{decisionCase.decision_debt.detection_mode === "autonomous_monitor" ? "Autonomous decision inbox" : "PM-surfaced decision debt"}</span>
+          <h3 id="decision-debt-title">{decisionCase.decision_debt.title}</h3>
+          <p>{decisionCase.decision_debt.trigger}</p>
+          <small><strong>Next:</strong> {decisionCase.decision_debt.recommended_next_step}</small>
+        </div>
+        <div className="decision-debt-radar-score" aria-label={`Decision debt score ${decisionCase.decision_debt.score} out of 100`}>
+          <strong>{decisionCase.decision_debt.score}</strong><span>/100</span><small>{decisionCase.decision_debt.state.replaceAll("_", " ")}</small>
+        </div>
+        <dl>
+          <div><dt>Commitment affected</dt><dd>{decisionCase.decision_debt.affected_commitment}</dd></div>
+          <div><dt>Why now</dt><dd>{decisionCase.decision_debt.why_now}</dd></div>
+          <div><dt>Still missing</dt><dd>{decisionCase.decision_debt.missing_evidence.length ? decisionCase.decision_debt.missing_evidence.join(" · ") : "No blocking evidence"}</dd></div>
+          <div><dt>Compounding memory</dt><dd>{decisionCase.decision_debt_history?.length || 0} prior debt cycle{decisionCase.decision_debt_history?.length === 1 ? "" : "s"} preserved</dd></div>
+        </dl>
+      </section>}
       <section className="decision-at-risk" aria-label="Decision at risk">
         <div><span>Current commitment</span><strong>{decisionCase.current_commitment}</strong></div>
         <div><span>Why this needs a decision now</span><p>{decisionCase.urgency}</p></div>

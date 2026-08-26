@@ -205,6 +205,31 @@ class DecisionPrecedent(BaseModel):
     source_label: str = Field(min_length=1, max_length=160)
 
 
+class DecisionDebtAssessment(BaseModel):
+    """A cited reason an active product commitment needs attention now."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    debt_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,100}$")
+    generation: int = Field(ge=1, le=MAX_DECISION_GENERATION)
+    state: Literal[
+        "open", "monitoring", "resolved", "reopened", "requires_human_review"
+    ]
+    severity: Literal["watch", "material", "urgent"]
+    score: int = Field(ge=0, le=100)
+    previous_score: int | None = Field(default=None, ge=0, le=100)
+    detection_mode: Literal["autonomous_monitor", "pm_intake"]
+    title: str = Field(min_length=1, max_length=120)
+    trigger: str = Field(min_length=1, max_length=320)
+    affected_commitment: str = Field(min_length=1, max_length=320)
+    why_now: str = Field(min_length=1, max_length=320)
+    detected_at: str = Field(min_length=1, max_length=50)
+    evidence_node_ids: list[str] = Field(min_length=1, max_length=8)
+    missing_evidence: list[str] = Field(default_factory=list, max_length=4)
+    recommended_next_step: str = Field(min_length=1, max_length=280)
+    resolved_at: str | None = Field(default=None, min_length=1, max_length=50)
+
+
 class BoundedActionRecord(BaseModel):
     """A reversible internal allocation created only after human approval."""
 
@@ -263,6 +288,10 @@ class DecisionCase(BaseModel):
     urgency: str
     measurement_contract: PMMeasurementContract | None = None
     precedents: list[DecisionPrecedent] = Field(default_factory=list, max_length=3)
+    decision_debt: DecisionDebtAssessment | None = None
+    decision_debt_history: list[DecisionDebtAssessment] = Field(
+        default_factory=list, max_length=MAX_DECISION_GENERATION
+    )
     evidence_nodes: list[EvidenceNode] = Field(min_length=1, max_length=32)
     evidence_edges: list[EvidenceEdge] = Field(default_factory=list, max_length=64)
     council: CouncilSynthesis
@@ -511,6 +540,75 @@ def _build_synthesis(nodes: list[EvidenceNode]) -> CouncilSynthesis:
     )
 
 
+def _demo_decision_debt() -> DecisionDebtAssessment:
+    return DecisionDebtAssessment(
+        debt_id="debt-enterprise-rollout-guardrail",
+        generation=1,
+        state="open",
+        severity="urgent",
+        score=88,
+        detection_mode="autonomous_monitor",
+        title="Enterprise rollout commitment is contradicted",
+        trigger=(
+            "The source monitor found enterprise activation down 11% while "
+            "small-workspace activation improved and a full rollout remains committed."
+        ),
+        affected_commitment=(
+            "Roll out the redesigned onboarding flow to every workspace next week."
+        ),
+        why_now=(
+            "The rollout window is seven days away; waiting would expose every "
+            "enterprise workspace to an unresolved permission failure mode."
+        ),
+        detected_at=datetime.now(UTC).isoformat(),
+        evidence_node_ids=[
+            "metric-activation-split",
+            "commitment-full-rollout",
+            "support-permission-confusion",
+        ],
+        missing_evidence=[
+            "Controlled enterprise result for the permission preview",
+            "Workspace-mix analysis for the activation decline",
+        ],
+        recommended_next_step=(
+            "Review the bounded rollout options and authorize a measurable response."
+        ),
+    )
+
+
+def _intake_decision_debt(
+    *, current_commitment: str, urgency: str
+) -> DecisionDebtAssessment:
+    return DecisionDebtAssessment(
+        debt_id="debt-pm-intake-conflict",
+        generation=1,
+        state="open",
+        severity="material",
+        score=64,
+        detection_mode="pm_intake",
+        title="PM surfaced a commitment with unresolved evidence",
+        trigger=(
+            "The supplied positive and risk signals point in opposing directions; "
+            "neither has been independently verified."
+        ),
+        affected_commitment=current_commitment,
+        why_now=urgency,
+        detected_at=datetime.now(UTC).isoformat(),
+        evidence_node_ids=[
+            "commitment-provided",
+            "positive-signal-provided",
+            "risk-signal-provided",
+        ],
+        missing_evidence=[
+            "Independent evidence for the decision-driving signal",
+            "Observed outcome from the named measurement contract",
+        ],
+        recommended_next_step=(
+            "Validate one independent signal, then review the bounded options."
+        ),
+    )
+
+
 def build_demo_decision_case(
     *, case_id: str = "decision-onboarding-segment"
 ) -> DecisionCase:
@@ -521,6 +619,7 @@ def build_demo_decision_case(
         question="Should the onboarding redesign ship to every workspace next week?",
         current_commitment="Roll out the redesigned onboarding flow to every workspace next week.",
         urgency="Enterprise activation is down while the public rollout commitment is seven days away.",
+        decision_debt=_demo_decision_debt(),
         precedents=[
             DecisionPrecedent(
                 precedent_id="precedent-permission-preview",
@@ -752,6 +851,10 @@ def build_intake_decision_case(
         current_commitment=current_commitment,
         urgency=urgency,
         measurement_contract=measurement_contract,
+        decision_debt=_intake_decision_debt(
+            current_commitment=current_commitment,
+            urgency=urgency,
+        ),
         evidence_nodes=nodes,
         evidence_edges=[
             EvidenceEdge(
@@ -1141,6 +1244,12 @@ def approve_decision_case(
     )
     approved.status = "experiment_active"
     approved.reopen_reason = None
+    if approved.decision_debt is not None:
+        approved.decision_debt.state = "monitoring"
+        approved.decision_debt.recommended_next_step = (
+            "Monitor the human-approved success and stop conditions; reopen "
+            "automatically if the guardrail is crossed."
+        )
     approved.action_records.append(
         BoundedActionRecord(
             action_id=f"allocation-g{approved.generation}-{option_id}",
@@ -1172,6 +1281,16 @@ def approve_decision_case(
             "external_write": False,
         }
     )
+    if approved.decision_debt is not None:
+        approved.events.append(
+            {
+                "event_id": f"decision-debt-monitoring-g{approved.generation}",
+                "action": "decision_debt_detector",
+                "outcome": "approved_bet_under_monitoring",
+                "generation": approved.generation,
+                "debt_id": approved.decision_debt.debt_id,
+            }
+        )
     return approved
 
 
@@ -1520,6 +1639,46 @@ def record_outcome(
         if recorded.status == "reopened":
             recorded.approval = None
             recorded.experiment_plan = None
+        if recorded.decision_debt is not None:
+            previous_debt = recorded.decision_debt.model_copy(deep=True)
+            previous_debt.state = (
+                "reopened"
+                if recorded.status == "reopened"
+                else "requires_human_review"
+            )
+            previous_debt.resolved_at = outcome.observed_at
+            recorded.decision_debt_history.append(previous_debt)
+            recorded.decision_debt = DecisionDebtAssessment(
+                debt_id=f"debt-outcome-g{recorded.generation}",
+                generation=recorded.generation,
+                state=(
+                    "reopened"
+                    if recorded.status == "reopened"
+                    else "requires_human_review"
+                ),
+                severity="urgent",
+                score=min(100, previous_debt.score + 10),
+                previous_score=previous_debt.score,
+                detection_mode="autonomous_monitor",
+                title="Measured outcome invalidated the approved bet",
+                trigger=evaluation.reason,
+                affected_commitment=previous_debt.affected_commitment,
+                why_now=(
+                    "The named stop condition was crossed. The active internal "
+                    "allocation was rolled back and the prior approval no longer holds."
+                ),
+                detected_at=outcome.observed_at,
+                evidence_node_ids=list(recorded.council.evidence_node_ids),
+                missing_evidence=[
+                    "Confirm the rollback restored the guardrail metric",
+                    f"Identify which assumption failed before authorizing generation {recorded.generation}",
+                ],
+                recommended_next_step=(
+                    "Review the rebuilt council and authorize a new bounded response."
+                    if recorded.status == "reopened"
+                    else "Resolve or archive the decision with a named human review."
+                ),
+            )
         recorded.events.append(
             {
                 "event_id": (
@@ -1539,6 +1698,25 @@ def record_outcome(
         )
     elif evaluation.verdict == "validated":
         recorded.status = "validated"
+        if recorded.decision_debt is not None:
+            previous_debt = recorded.decision_debt.model_copy(deep=True)
+            previous_debt.state = "resolved"
+            previous_debt.resolved_at = outcome.observed_at
+            recorded.decision_debt_history.append(previous_debt)
+            recorded.decision_debt.state = "resolved"
+            recorded.decision_debt.previous_score = previous_debt.score
+            recorded.decision_debt.score = 0
+            recorded.decision_debt.resolved_at = outcome.observed_at
+            recorded.decision_debt.recommended_next_step = (
+                "Preserve this outcome as a cited precedent for the next similar bet."
+            )
     elif evaluation.verdict == "inconclusive":
         recorded.status = "inconclusive"
+        if recorded.decision_debt is not None:
+            recorded.decision_debt.previous_score = recorded.decision_debt.score
+            recorded.decision_debt.score = max(40, recorded.decision_debt.score - 8)
+            recorded.decision_debt.state = "monitoring"
+            recorded.decision_debt.recommended_next_step = (
+                "Collect the missing measurement and keep the approved guardrail active."
+            )
     return recorded
