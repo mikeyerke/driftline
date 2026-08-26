@@ -23,7 +23,9 @@ for file in \
   submission/JUDGE_SCORECARD.md \
   docs/JUDGE_SCORECARD.md \
   scripts/build_candidate_rehearsal.sh \
+  scripts/summarize_real_pm_pilot.py \
   scripts/verify_release_candidate_local.sh \
+  docs/validation/real-pm-pilot-template.json \
   submission/assets/driftline-candidate-rehearsal-narration.txt \
   submission/assets/driftline-candidate-rehearsal-overlays.svg \
   submission/assets/driftline-decision-twin-candidate-architecture.svg \
@@ -42,6 +44,9 @@ require_text submission/DEMO_SCRIPT.md 'Reject the take unless public `main`,'
 require_text scripts/release_and_verify.sh './scripts/verify_release_candidate_local.sh --release-candidate'
 require_text scripts/verify_release_candidate_local.sh 'expected mikeyerke/driftline'
 require_text scripts/verify_release_candidate_local.sh 'refs/heads/$release_ref'
+require_text scripts/summarize_real_pm_pilot.py 'unexpected fields are forbidden to reduce identity/raw-data risk'
+require_text scripts/summarize_real_pm_pilot.py 'not a customer'
+require_text scripts/summarize_real_pm_pilot.py 'No public pilot statement is authorized.'
 require_text README.md 'exactly equals the'
 require_text docs/STATUS.md '## Unreleased candidate custody'
 require_text submission/REMOTE_CHECKLIST.md 'Nothing here authorizes a push, merge, Cloud'

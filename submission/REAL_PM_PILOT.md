@@ -123,6 +123,21 @@ worktree until Mike separately authorizes a release. The outcome path stores
 the PM's aggregate primary and risk values as unverified, never substitutes a
 fixture, and requires both success and safety before completing the action.
 
+After the session, copy
+`docs/validation/real-pm-pilot-template.json` to a private path, replace every
+field from observed evidence, and run:
+
+```bash
+python scripts/summarize_real_pm_pilot.py /private/path/pilot.json \
+  --output /private/path/pilot-evidence.md
+```
+
+The summarizer rejects names, emails, company fields, raw notes, incomplete
+qualification, unbound paid claims, and outcome claims before follow-up. A
+private session remains blocked from publication without explicit anonymized-
+result consent. One valid record is labeled directional `n=1` evidence, never
+causal or statistically representative validation.
+
 ## Success bar
 
 For judging, the strongest honest result available in days is: one qualified PM used a real current decision; all cited evidence was inspected; the workflow exposed a disagreement or changed/sharpened the decision; the PM made a second costly commitment; and any claim is supported by a consented, anonymized evidence record.

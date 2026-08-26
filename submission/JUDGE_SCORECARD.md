@@ -46,7 +46,7 @@ judge-facing improvements:
   exposing raw browser or HTTP errors.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed the complete backend suite, Ruff, the production frontend build,
+The candidate passed 450 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold
@@ -102,6 +102,12 @@ Case `decision-onboarding-75c4ca50b1faaab179a02b29` proved:
 The onboarding case and outcome are bounded demo evidence. No customer time
 saved, revenue, retention, willingness-to-pay, or PM adoption result has been
 measured. The pre-registered 6–8 participant study remains open.
+
+A separate single-real-PM evidence gate is ready for the deadline-constrained
+`n=1` case: it rejects identity/raw-data fields, weak qualification, premature
+outcome claims, publication without consent or authority comprehension, and a
+customer label without payment or a signed paid commitment. Seventeen focused
+tests pass. This improves evidence custody; it does not manufacture a participant.
 
 ## 30% — Architectural discipline and tech stack
 

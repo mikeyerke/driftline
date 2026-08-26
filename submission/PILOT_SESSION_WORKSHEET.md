@@ -116,3 +116,12 @@ Use only after the fields above are complete and the participant has approved th
 > An anonymized [role] at a [company stage] company used Driftline on a real [decision type] decision due within [timeframe]. The workflow [changed / sharpened / did not change] the decision, moved stated confidence from [before] to [after], and produced a bounded operating contract in [minutes]. The participant's next commitment was [observable action].
 
 Never substitute unobserved ROI, revenue, retention, time savings, or customer status.
+
+## Machine-checked evidence handoff
+
+Copy `docs/validation/real-pm-pilot-template.json` to a private location and
+transcribe only the bounded categories above. Do not add identity or raw-data
+fields. Run `scripts/summarize_real_pm_pilot.py`; it will classify the session,
+public-consent gate, commercial evidence, and outcome status independently.
+Keep the source JSON private. A generated public statement is still subject to
+the participant's exact consent scope and entrant review.

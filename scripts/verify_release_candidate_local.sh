@@ -27,8 +27,13 @@ release_sha="$(git rev-parse --verify HEAD)"
   exit 1
 }
 
+initial_tree_state="clean"
+if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+  initial_tree_state="dirty"
+fi
+
 if [[ "$MODE" == "--release-candidate" ]]; then
-  if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+  if [[ "$initial_tree_state" == "dirty" ]]; then
     printf 'Release preflight refuses a dirty candidate.\n' >&2
     git status --short >&2
     exit 1
@@ -61,7 +66,7 @@ fi
 (
   cd backend
   uv sync --locked --extra dev
-  uv run ruff check app tests
+  uv run ruff check app tests ../scripts/summarize_validation.py ../scripts/summarize_real_pm_pilot.py
   uv run pytest -q
   uv run python -m app.trace_eval --baseline trace_eval_baseline.json
 )
@@ -87,5 +92,10 @@ if [[ "$MODE" == "--release-candidate" && -n "$(git status --porcelain=v1 --untr
   exit 1
 fi
 
-printf 'Local release-candidate preflight: PASS (sha=%s, mode=%s)\n' \
-  "$release_sha" "$MODE"
+if [[ "$MODE" == "--release-candidate" ]]; then
+  printf 'Exact release-candidate preflight: PASS (sha=%s, public_ref=%s/%s)\n' \
+    "$release_sha" "$release_remote" "$release_ref"
+else
+  printf 'Local working-tree checks: PASS (base_head=%s, initial_tree=%s)\n' \
+    "$release_sha" "$initial_tree_state"
+fi
