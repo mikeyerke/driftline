@@ -36,7 +36,10 @@ def valid_record() -> dict:
         "all_citations_reviewed": True,
         "human_control_understood": True,
         "external_writes_none_understood": True,
+        "primary_decision_pain": "competing_priorities",
+        "incumbent_decision_workflow": "meeting_or_chat_only",
         "adoption_blocker": "integration",
+        "willingness_to_reuse": "yes",
         "costly_commitments": ["second_live_decision"],
         "commercial_status": "none",
         "paid_amount_usd": 0,
@@ -56,6 +59,10 @@ def test_private_single_session_is_not_customer_or_public_proof() -> None:
     assert "Public claim gate: **blocked**" in report
     assert "No public pilot statement is authorized" in report
     assert "not causal or statistically representative" in report
+    assert "Primary decision pain: **competing priorities**" in report
+    assert "Incumbent decision workflow: **meeting or chat only**" in report
+    assert "Stated willingness to reuse: **yes**" in report
+    assert "weaker than an observed costly commitment" in report
 
 
 def test_public_statement_discloses_unreleased_candidate_and_narrow_claim() -> None:
@@ -158,6 +165,21 @@ def test_placeholder_release_sha_is_rejected() -> None:
     record = valid_record()
     record["app_release_sha"] = "0" * 40
     with pytest.raises(MODULE.PilotValidationError, match="placeholder"):
+        MODULE.summarize(record)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "primary_decision_pain",
+        "incumbent_decision_workflow",
+        "willingness_to_reuse",
+    ],
+)
+def test_market_fit_fields_reject_unregistered_values(key: str) -> None:
+    record = valid_record()
+    record[key] = "unbounded_free_text"
+    with pytest.raises(MODULE.PilotValidationError, match=f"invalid {key}"):
         MODULE.summarize(record)
 
 
