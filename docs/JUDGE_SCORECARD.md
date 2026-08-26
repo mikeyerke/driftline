@@ -161,9 +161,11 @@ council → approval → outcome → reopen sequence tied to the same case.
 Exact-release desktop/mobile screenshots, the Decision Twin architecture, and
 a three-minute 1080p captioned local review cut are complete. A continuous
 local candidate proof now also runs the actual browser state machine and asserts
-the generation-2 rollback outcome. It is silent, cursor-free, and unreleased;
-a narrated native browser take remains preferable, and no video is complete for
-submission until it has a public YouTube or Vimeo URL.
+the generation-2 rollback outcome. Two fresh runs passed with 574 and 582 frames
+and eight visible Chrome mouse-input clicks apiece. The retained 31.17-second
+clip is silent and unreleased; a narrated native browser take remains
+preferable, and no video is complete for submission until it has a public
+YouTube or Vimeo URL.
 
 The 3:40 candidate MP4 passed format, loudness, and black-frame checks, but it
 uses long static browser holds. Treat it as an emergency fallback, not as the
@@ -181,7 +183,7 @@ rubric's strongest proof of a working agent.
 | Hosted URL | Public Firebase facade to Cloud Run | Proven live |
 | Repository and spin-up instructions | Public repo and README | Proven |
 | Architecture diagram | Submission PNG/SVG assets | Prepared; final upload QA open |
-| Public demo under four minutes | 3:00 1080p review cut, 16.47s continuous candidate proof, script, captions, and native-take runbook | Prepared locally; unproven until publicly uploaded |
+| Public demo under four minutes | 3:00 1080p review cut, 31.17s continuous visible-click candidate proof, script, captions, and native-take runbook | Prepared locally; unproven until publicly uploaded |
 | SDK and start date answers | Google ADK; implementation repo began August 18 | Prepared; entrant must enter |
 | Originality/third-party disclosure | Earlier ideation/source package and dependencies disclosed | Prepared; entrant must confirm |
 | PM validation | Study kit and fail-closed summarizer | Unproven; no sessions |

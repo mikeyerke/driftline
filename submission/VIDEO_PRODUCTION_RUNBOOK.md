@@ -19,8 +19,10 @@ actual generation-1 council, response comparison, named approval, measured
 outcome, internal-action rollback, and generation-2 reopen. The script fails
 unless generation 2 is present, rollback is selected, the approver is cleared,
 external writes remain none, and the action is visibly rolled back. It emits a
-silent 1280 × 720 H.264 proof clip; that clip is candidate QA and must not be
-described as deployed or used as the entrant's final narrated take.
+silent 1280 × 720 H.264 proof clip with a visible pointer and click pulse. Every
+captured control is activated through Chrome's mouse-input protocol rather than
+a direct DOM `.click()`. That clip is candidate QA and must not be described as
+deployed or used as the entrant's final narrated take.
 
 ## Capture setup
 

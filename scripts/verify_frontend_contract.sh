@@ -163,6 +163,14 @@ if ! check_frontend_literal '"/api": localApiTarget' frontend/vite.config.js \
   exit 1
 fi
 
+if ! node --check scripts/capture_decision_twin_candidate.mjs >/dev/null \
+  || ! check_frontend_literal 'Input.dispatchMouseEvent' scripts/capture_decision_twin_candidate.mjs \
+  || ! check_frontend_literal 'driftline-capture-pointer' scripts/capture_decision_twin_candidate.mjs \
+  || ! check_frontend_literal 'pointerClicks' scripts/capture_decision_twin_candidate.mjs; then
+  printf 'Continuous candidate capture lost its visible Chrome mouse-event proof contract.\n' >&2
+  exit 1
+fi
+
 if ! check_frontend_literal 'Turn conflicting evidence into a decision your team can defend.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'The alignment meeting, evidence hunt, and post-launch guesswork.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \

@@ -166,32 +166,170 @@ try {
     );
   };
 
-  const clickButton = async (label) => {
-    const serialized = JSON.stringify(label);
-    const clicked = await evaluate(`(() => {
-      const target = [...document.querySelectorAll('button')].find(
-        (node) => node.textContent.trim().includes(${serialized}),
+  await evaluate(`(() => {
+    const style = document.createElement('style');
+    style.textContent = \`
+      #driftline-capture-pointer {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 2147483647;
+        width: 18px;
+        height: 18px;
+        border: 3px solid #ffffff;
+        border-radius: 999px;
+        background: #155eef;
+        box-shadow: 0 2px 8px rgba(5, 18, 48, .42);
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        transition: width 90ms ease, height 90ms ease, background 90ms ease;
+      }
+      #driftline-capture-pointer.pressed {
+        width: 14px;
+        height: 14px;
+        background: #0b3ea8;
+      }
+      .driftline-capture-pulse {
+        position: fixed;
+        z-index: 2147483646;
+        width: 18px;
+        height: 18px;
+        border: 3px solid #155eef;
+        border-radius: 999px;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        animation: driftline-capture-pulse 520ms ease-out forwards;
+      }
+      @keyframes driftline-capture-pulse {
+        from { opacity: .9; width: 18px; height: 18px; }
+        to { opacity: 0; width: 52px; height: 52px; }
+      }
+    \`;
+    document.head.append(style);
+    const pointer = document.createElement('div');
+    pointer.id = 'driftline-capture-pointer';
+    pointer.setAttribute('aria-hidden', 'true');
+    document.body.append(pointer);
+    window.__driftlineCapturePointer = (x, y, pressed = false) => {
+      pointer.style.left = x + 'px';
+      pointer.style.top = y + 'px';
+      pointer.classList.toggle('pressed', pressed);
+    };
+    window.__driftlineCapturePulse = (x, y) => {
+      const pulse = document.createElement('div');
+      pulse.className = 'driftline-capture-pulse';
+      pulse.style.left = x + 'px';
+      pulse.style.top = y + 'px';
+      document.body.append(pulse);
+      setTimeout(() => pulse.remove(), 600);
+    };
+    window.__driftlineCapturePointer(1190, 670);
+    return true;
+  })()`);
+
+  let pointerX = 1190;
+  let pointerY = 670;
+  let pointerClicks = 0;
+
+  const movePointer = async (x, y) => {
+    const steps = 9;
+    const startX = pointerX;
+    const startY = pointerY;
+    for (let step = 1; step <= steps; step += 1) {
+      const progress = step / steps;
+      pointerX = startX + (x - startX) * progress;
+      pointerY = startY + (y - startY) * progress;
+      await client.send("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: pointerX,
+        y: pointerY,
+      });
+      await evaluate(
+        `window.__driftlineCapturePointer?.(${pointerX}, ${pointerY}, false)`,
       );
+      await sleep(24);
+    }
+  };
+
+  const clickAt = async ({ x, y }) => {
+    await movePointer(x, y);
+    await evaluate(`window.__driftlineCapturePointer?.(${x}, ${y}, true)`);
+    await client.send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+    await sleep(90);
+    await client.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+    pointerClicks += 1;
+    await evaluate(`(() => {
+      window.__driftlineCapturePointer?.(${x}, ${y}, false);
+      window.__driftlineCapturePulse?.(${x}, ${y});
+    })()`);
+    await sleep(180);
+  };
+
+  const targetCenter = async (targetExpression, label) => {
+    const found = await evaluate(`(() => {
+      const target = ${targetExpression};
       if (!target || target.disabled) return false;
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target.click();
       return true;
     })()`);
-    if (!clicked) throw new Error(`Could not click button: ${label}`);
+    if (!found) throw new Error(`Could not find interactive target: ${label}`);
+    await sleep(520);
+    const center = await evaluate(`(() => {
+      const target = ${targetExpression};
+      if (!target || target.disabled) return null;
+      const bounds = target.getBoundingClientRect();
+      return {
+        x: bounds.left + bounds.width / 2,
+        y: bounds.top + bounds.height / 2,
+      };
+    })()`);
+    if (!center) throw new Error(`Could not locate interactive target: ${label}`);
+    return center;
+  };
+
+  const clickButton = async (label) => {
+    const serialized = JSON.stringify(label);
+    const center = await targetCenter(
+      `[...document.querySelectorAll('button')].find(
+        (node) => node.textContent.trim().includes(${serialized}),
+      )`,
+      `button ${label}`,
+    );
+    await clickAt(center);
   };
 
   const clickRadio = async (label) => {
     const serialized = JSON.stringify(label);
-    const clicked = await evaluate(`(() => {
-      const target = [...document.querySelectorAll('[role="radio"]')].find(
+    const center = await targetCenter(
+      `[...document.querySelectorAll('[role="radio"]')].find(
         (node) => node.textContent.trim().includes(${serialized}),
-      );
-      if (!target) return false;
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target.click();
-      return true;
-    })()`);
-    if (!clicked) throw new Error(`Could not click response: ${label}`);
+      )`,
+      `response ${label}`,
+    );
+    await clickAt(center);
+  };
+
+  const clickSummary = async (label) => {
+    const serialized = JSON.stringify(label);
+    const center = await targetCenter(
+      `[...document.querySelectorAll('summary')].find(
+        (node) => node.textContent.includes(${serialized}),
+      )`,
+      `summary ${label}`,
+    );
+    await clickAt(center);
   };
 
   await waitFor(
@@ -232,15 +370,7 @@ try {
   );
   await sleep(1_200);
 
-  await evaluate(`(() => {
-    const target = [...document.querySelectorAll('summary')].find(
-      (node) => node.textContent.includes('Open full evidence'),
-    );
-    if (!target) return false;
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    target.click();
-    return true;
-  })()`);
+  await clickSummary("Open full evidence");
   await sleep(1_400);
 
   await clickRadio("Ship to every workspace");
@@ -250,17 +380,12 @@ try {
   await clickRadio("Segment the rollout");
   await sleep(1_000);
 
-  await evaluate(`(() => {
-    const input = document.querySelector('input[placeholder="Your name"]');
-    if (!input) return false;
-    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    input.focus();
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
-      .set.call(input, 'Mike E.');
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  })()`);
+  const approverCenter = await targetCenter(
+    `document.querySelector('input[placeholder="Your name"]')`,
+    "human approver input",
+  );
+  await clickAt(approverCenter);
+  await client.send("Input.insertText", { text: "Mike E." });
   await sleep(900);
   await waitFor(
     `[...document.querySelectorAll('button')].some(
@@ -383,6 +508,7 @@ try {
       {
         output: outputPath,
         frames: frames.length,
+        pointerClicks,
         finalState,
         label: "local unreleased candidate proof",
       },

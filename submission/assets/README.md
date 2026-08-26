@@ -36,6 +36,9 @@ synthesized.
   review cut with English reference narration. It is upload-ready as a fallback,
   but a continuous native browser take remains the strongest final submission.
 - `driftline-final-demo.srt`: matching accessible caption track.
+- `driftline-continuous-candidate-proof.mp4`: 31.17-second local-only
+  visible-click continuity rehearsal. It is unreleased candidate QA, not a
+  deploy or customer-outcome claim.
 
 The final entry still needs a public YouTube or Vimeo URL. Prefer a continuous
 native browser recording that follows `submission/DEMO_SCRIPT.md`; use the
