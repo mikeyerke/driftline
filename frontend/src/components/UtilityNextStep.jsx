@@ -71,7 +71,7 @@ export default function UtilityNextStep({ workflow, job, scanning, sourcePaused,
     return (
       <section className="utility-next-step review" aria-label="Next best action">
         <span className="utility-next-step-icon"><ShieldCheck size={16} /></span>
-        <div><strong>Compare the evidence-cited response plans</strong><p>Gemini mapped {count} downstream surface{count === 1 ? "" : "s"}. Choose the narrowest safe plan, then approve or dismiss it.</p></div>
+        <div><strong>Compare the evidence-cited response plans</strong><p>Driftline mapped {count} downstream surface{count === 1 ? "" : "s"}. The analysis card and trace identify whether this run used Gemini or the deterministic demo fallback.</p></div>
         <button className="primary compact" type="button" onClick={() => onNavigate?.("approvals-section")}>Review decision<ArrowRight size={14} /></button>
       </section>
     );

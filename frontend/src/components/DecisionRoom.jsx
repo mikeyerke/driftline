@@ -174,12 +174,12 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         <div className="decision-room-hero-actions">
           <button className="primary decision-room-run" type="button" onClick={runCouncil} disabled={Boolean(busy)} aria-busy={busy === "council"}>
             {busy ? <LoaderCircle className="spin" size={18} /> : <Play size={18} />}
-            {busy ? "Reading the decision evidence…" : "See the decision brief"}
+            {busy ? "Reading the decision evidence…" : "Run the decision workflow"}
           </button>
           <button className="secondary decision-room-intake-trigger" type="button" onClick={() => setIntakeOpen((open) => !open)} disabled={Boolean(busy)} aria-expanded={intakeOpen} aria-controls="decision-intake-form">
             <PencilLine size={17} />Use my decision
           </button>
-          <span>Interactive 90-second example · no sign-in required</span>
+          <span>One approval starts the autonomous monitor · no second PM prompt</span>
         </div>
         {busy === "council" && <p className="decision-room-status" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Checking evidence, disagreement, and reversible options.</p>}
         {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
