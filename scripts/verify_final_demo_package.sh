@@ -27,7 +27,7 @@ for input_path in "$VIDEO_PATH" "$CAPTIONS_PATH" "$MANIFEST_PATH"; do
 done
 
 case "$(basename "$VIDEO_PATH")" in
-  driftline-final-demo-candidate.mp4|driftline-candidate-rehearsal-tight.mp4|driftline-continuous-candidate-proof.mp4|driftline-live-demo.mp4)
+  driftline-final-demo-candidate.mp4|driftline-final-demo-rehearsal.mp4|driftline-candidate-rehearsal-tight.mp4|driftline-continuous-candidate-proof.mp4|driftline-continuous-candidate-presentation.mp4|driftline-live-demo.mp4)
     printf 'Final demo check failed: %s is a quarantined rehearsal or historical proof asset.\n' \
       "$(basename "$VIDEO_PATH")" >&2
     exit 1
@@ -40,6 +40,32 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 ffprobe -v error \
   -show_entries format=duration,size:stream=codec_name,codec_type,width,height,pix_fmt,r_frame_rate,sample_rate,channels \
   -of json "$VIDEO_PATH" >"$TMP_DIR/probe.json"
+
+# Rehearsals carry a permanent dark-red custody band across the top 42 pixels.
+# Sample it by content so renaming a quarantined file cannot turn it into a
+# final package. A real take may contain isolated red UI, but must not preserve
+# this full-width band across the recording.
+ffmpeg -v error -i "$VIDEO_PATH" \
+  -vf "fps=1/30,crop=iw:42:0:0,scale=1:1,format=rgb24" \
+  -frames:v 6 -f rawvideo "$TMP_DIR/top-band.rgb"
+
+python3 - "$TMP_DIR/top-band.rgb" <<'PY'
+from pathlib import Path
+import sys
+
+samples = list(Path(sys.argv[1]).read_bytes())
+if len(samples) < 9 or len(samples) % 3:
+    raise SystemExit("Final demo check failed: top-band custody scan produced invalid samples")
+rgb = [tuple(samples[index:index + 3]) for index in range(0, len(samples), 3)]
+red_band_samples = [
+    sample for sample in rgb
+    if sample[0] >= 105 and sample[0] >= sample[1] * 1.55 and sample[0] >= sample[2] * 1.35
+]
+if len(red_band_samples) >= max(2, len(rgb) - 1):
+    raise SystemExit(
+        "Final demo check failed: persistent red top-band custody watermark detected"
+    )
+PY
 
 ffmpeg -hide_banner -i "$VIDEO_PATH" -vf "blackdetect=d=0.25:pix_th=0.02" \
   -an -f null - >"$TMP_DIR/black.stdout" 2>"$TMP_DIR/black.log"

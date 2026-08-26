@@ -59,7 +59,7 @@ Seven deterministic checks cover provenance, independence,
 citations, falsifiability, human authority, and reopening.
 
 13
-00:02:32,000 --> 00:02:43,000
+00:02:36,000 --> 00:02:43,000
 UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION PROOF
 Final take must match public main, health, build, digest, and live trace.
 

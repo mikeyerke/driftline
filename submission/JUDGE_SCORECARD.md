@@ -184,13 +184,15 @@ The 3:40 candidate MP4 passed format, loudness, and black-frame checks, but it
 uses long static browser holds and combines candidate screens with
 pre-candidate release narration. Do not submit it.
 
-A separate 52-second local rehearsal now combines the 31-second continuous
-visible-click state-machine proof with the candidate architecture. It is
-watermarked throughout as **UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION**, and
-its narration ends on the pending commit/Cloud Run/build/digest/live-trace/
-browser gate. The reproducible build passed 1080p/30fps H.264, stereo AAC,
-playback pixel-format, duration, black-frame, and -18 to -14 LUFS checks. This
-is the strongest candidate rehearsal, but it remains ineligible as live proof
+A 52-second local continuity rehearsal first proved the visible-click state
+machine and custody boundary. The stronger 2:58 long-form rehearsal now keeps
+the actual browser workflow first, preserves all seven clicks and the
+approval-to-reopen continuity, then closes on the candidate architecture and
+release-proof gate. It is watermarked throughout as **UNRELEASED LOCAL
+CANDIDATE · NOT PRODUCTION**, has burned and embedded English captions, and
+passed 1080p/30fps H.264, stereo AAC, playback pixel-format, duration,
+black-frame, silence, and -18 to -14 LUFS checks. Its timestamped rubric map is
+in `submission/JUDGE_EVIDENCE_INDEX.md`. It remains ineligible as live proof
 until the exact candidate is released and the native browser journey is rerun.
 
 ## Requirement checklist

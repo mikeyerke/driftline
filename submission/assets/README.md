@@ -38,8 +38,10 @@ written for a caption-led demo so no likeness is synthesized.
   `decision-twin-mobile-result-final.png`; do not upload or call it live.
 - `demo-slide-*.png`: 1920×1080 captioned frames rendered from those captures.
 - `driftline-final-demo-review.mp4`: three-minute, 1080p/30fps, captioned local
-  review cut with English reference narration. It is upload-ready as a fallback,
-  but a continuous native browser take remains the strongest final submission.
+  review cut with English reference narration. It is review-only: the strict
+  final-package gate detects a 4.53-second narration silence, and its static
+  sequence is weaker than the continuous native browser path. Do not upload it
+  as the final submission.
 - `driftline-final-demo.srt`: matching accessible caption track.
 - `driftline-decision-twin-final.srt`: timed caption master for the unreleased
   3:48 Decision Twin script. It includes every judge-critical Google, authority,

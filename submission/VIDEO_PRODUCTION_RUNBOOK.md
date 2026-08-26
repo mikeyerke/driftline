@@ -109,7 +109,9 @@ see that the result came from the visible action in the same workflow.
 
 ## Edit and QA
 
-- Target 3:45–3:50; hard reject at 3:56 to protect the four-minute rule.
+- Target 2:50–3:20; hard reject at 3:56 to protect the four-minute rule. The
+  current 2:58 blueprint proves the complete loop without spending the extra
+  minute on static holds.
 - Remove waits, not policy steps. Never accelerate narration beyond clarity.
 - Burn in English captions and attach the matching `.srt`.
 - Normalize speech, remove long silences, and confirm no music masks narration.

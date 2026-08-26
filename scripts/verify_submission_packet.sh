@@ -21,6 +21,7 @@ for file in \
   submission/DEMO_SCRIPT.md \
   submission/REMOTE_CHECKLIST.md \
   submission/GITHUB_REPOSITORY_METADATA.md \
+  submission/JUDGE_EVIDENCE_INDEX.md \
   submission/JUDGE_SCORECARD.md \
   submission/final-demo-manifest.template.json \
   docs/JUDGE_SCORECARD.md \
@@ -61,6 +62,11 @@ require_text scripts/verify_release_candidate_local.sh 'refs/heads/$release_ref'
 require_text scripts/verify_final_demo_package.sh 'approval_to_reopen_continuous'
 require_text scripts/verify_final_demo_package.sh 'External writes: none'
 require_text scripts/verify_final_demo_package.sh 'quarantined rehearsal or historical proof asset'
+require_text scripts/verify_final_demo_package.sh 'driftline-final-demo-rehearsal.mp4'
+require_text scripts/verify_final_demo_package.sh 'persistent red top-band custody watermark detected'
+require_text submission/JUDGE_EVIDENCE_INDEX.md '0:00–0:11'
+require_text submission/JUDGE_EVIDENCE_INDEX.md 'Not demonstrated by the video'
+require_text submission/assets/README.md 'detects a 4.53-second narration silence'
 require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'verify_final_demo_package.sh'
 require_text submission/assets/ASSET_REVIEW.md 'inspected at original resolution'
 require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_EXPECT_ACTION'

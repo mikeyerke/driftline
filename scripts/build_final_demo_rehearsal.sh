@@ -24,6 +24,40 @@ for input_path in "$PROOF" "$ARCHITECTURE" "$NARRATION" "$CAPTIONS" "$WATERMARK"
   }
 done
 
+python3 - "$CAPTIONS" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+caption_path = Path(sys.argv[1])
+caption_text = caption_path.read_text()
+pattern = re.compile(
+    r"(?P<sh>\d{2}):(?P<sm>\d{2}):(?P<ss>\d{2}),(?P<sms>\d{3})\s+-->\s+"
+    r"(?P<eh>\d{2}):(?P<em>\d{2}):(?P<es>\d{2}),(?P<ems>\d{3})"
+)
+
+
+def seconds(match: re.Match[str], prefix: str) -> float:
+    return (
+        int(match[f"{prefix}h"]) * 3600
+        + int(match[f"{prefix}m"]) * 60
+        + int(match[f"{prefix}s"])
+        + int(match[f"{prefix}ms"]) / 1000
+    )
+
+
+cues = [(seconds(match, "s"), seconds(match, "e")) for match in pattern.finditer(caption_text)]
+if len(cues) != 15:
+    raise SystemExit(f"final rehearsal captions contain {len(cues)} cues; expected 15")
+previous_end = 0.0
+for start, end in cues:
+    if start < previous_end or end <= start:
+        raise SystemExit("final rehearsal captions overlap or are not strictly increasing")
+    previous_end = end
+if cues[0][0] != 0 or cues[-1][1] != 178:
+    raise SystemExit("final rehearsal captions must cover exactly 0–178 seconds")
+PY
+
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
