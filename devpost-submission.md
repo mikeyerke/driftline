@@ -1,9 +1,11 @@
 # Driftline — Devpost submission packet
 
-Status: draft-ready, not release-ready or form-ready. The local candidate must
-be released and reverified before its behavior can be presented as live; the
-entrant-owned public video and registration answers also remain open. Do not
-publish or submit without explicit entrant approval.
+Status: live-field-schema-ready, not release-ready, publish-ready, or
+submission-ready. Devpost's authenticated MCP verified all 17 custom fields,
+selector options, deliverable flags, and the architecture upload contract on
+August 26. The local candidate must still be released and reverified before its
+behavior can be presented as live; the public video and entrant attestations
+also remain open. Do not publish or submit without explicit entrant approval.
 
 ## Core fields
 
@@ -73,6 +75,12 @@ Cloud architecture, safety boundaries, and disclosure live in
 from older drafts. At this checkpoint, production is the release identified in
 that file; the internal-allocation card and authored custom measurement
 contract remain an unreleased local candidate.
+
+The exact live custom-field IDs, options, required flags, and upload constraints
+are mapped in
+[`submission/DEVPOST_FORM_AUDIT.md`](submission/DEVPOST_FORM_AUDIT.md). That
+read-only schema proof does not mean a project was created, saved, uploaded, or
+submitted.
 
 Use [`submission/DEMO_SCRIPT.md`](submission/DEMO_SCRIPT.md) for the final
 continuous recording and [`submission/assets/README.md`](submission/assets/README.md)

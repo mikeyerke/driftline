@@ -132,8 +132,15 @@ require_text docs/STATUS.md '## Unreleased candidate custody'
 require_text submission/REMOTE_CHECKLIST.md 'Nothing here authorizes a push, merge, Cloud'
 require_text submission/GITHUB_REPOSITORY_METADATA.md 'requires explicit publication authorization'
 require_text submission/GITHUB_REPOSITORY_METADATA.md 'google-adk'
-require_text submission/DEVPOST_FORM_AUDIT.md 'No Devpost account login'
-require_text submission/DEVPOST_FORM_AUDIT.md 'not proof of exact form compatibility'
+require_text submission/DEVPOST_FORM_AUDIT.md "Devpost's authenticated MCP returned the live submission requirements"
+require_text submission/DEVPOST_FORM_AUDIT.md 'No registration, project'
+require_text submission/DEVPOST_FORM_AUDIT.md 'maximum size is 36,700,160 bytes (35 MiB)'
+require_text submission/DEVPOST_FORM_AUDIT.md 'This audit proves the live field schema and the local packet'
+for field_id in \
+  28083 28084 28085 28086 28087 28141 28089 28088 28090 \
+  28091 28142 28092 28093 28101 28143 28106 28107; do
+  require_text submission/DEVPOST_FORM_AUDIT.md "| $field_id |"
+done
 require_text README.md '## Judge it in 60 seconds'
 require_text README.md 'The local candidate is **not deployed**.'
 require_text README.md '03ec8f12fc23d265c89b462a345a5b599a6411e8'
@@ -143,7 +150,8 @@ require_text submission/DEVPOST.md '9026ee2eccc94fd925ec00a54228c8b858442baaf8ac
 require_text submission/DEVPOST.md 'Its 50 regular files are timestamped August 18, 2026'
 require_text submission/DEVPOST.md '**Taskmaster proof:** one named authorization'
 require_text submission/DEVPOST.md '**Firebase Hosting** for the stable public judge URL'
-require_text devpost-submission.md 'Status: draft-ready, not release-ready or form-ready.'
+require_text devpost-submission.md 'Status: live-field-schema-ready, not release-ready, publish-ready, or'
+require_text devpost-submission.md "Devpost's authenticated MCP verified all 17 custom fields"
 require_text devpost-submission.md '| Submitter type | Individuals |'
 require_text devpost-submission.md '| Project start date | 08-18-26 |'
 require_text devpost-submission.md '| Originality disclosure | Driftline continued earlier product ideation.'
@@ -230,6 +238,14 @@ for path, expected_size in expected_dimensions.items():
             f"{actual_size[0]}x{actual_size[1]}, expected "
             f"{expected_size[0]}x{expected_size[1]}"
         )
+
+architecture_path = Path("submission/assets/driftline-decision-twin-architecture.png")
+architecture_max_bytes = 36_700_160
+if architecture_path.stat().st_size > architecture_max_bytes:
+    raise SystemExit(
+        "Submission packet check failed: architecture upload exceeds the live "
+        f"Devpost 35 MiB limit ({architecture_path.stat().st_size} bytes)"
+    )
 
 reviewed_assets = {
     Path("submission/assets/decision-twin-hero-final.png"): "1434148fe26f9b271c3a56d46b231a2a4774b693eb8623a454e6c2298d3cf111",
