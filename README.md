@@ -635,6 +635,21 @@ cd frontend && npm run build
 cd ../backend && uv run --extra dev pytest
 ~~~
 
+The optional real-PM browser gate exercises the complete custom-decision path
+at 1453 × 726 and 390 × 844. Start the local API on port 8080 and Vite on 5173,
+then point it at any local Node package root that contains Playwright:
+
+~~~bash
+PLAYWRIGHT_MODULE_ROOT=/path/to/node-project-with-playwright \
+  node scripts/verify_custom_decision_browser.mjs
+~~~
+
+It is loopback-only by default and fails unless both viewports preserve the
+PM-provided/unverified disclosure, named approval, bounded internal action,
+decision-state-only/no-external-write boundary, early-measurement lock, copied
+opaque return link, fresh-browser restoration, console cleanliness, and zero
+horizontal overflow. It does not contact production or require credentials.
+
 The verified local suite also runs Ruff lint checks. Formatting is not a CI
 gate; do not describe `ruff format --check` as passing unless the current
 toolchain has been run explicitly. For dependency

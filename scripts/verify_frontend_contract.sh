@@ -171,6 +171,14 @@ if ! node --check scripts/capture_decision_twin_candidate.mjs >/dev/null \
   exit 1
 fi
 
+if ! node --check scripts/verify_custom_decision_browser.mjs >/dev/null \
+  || ! check_frontend_literal 'CUSTOM_BROWSER_ALLOW_REMOTE' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'earlyMeasurementBlocked' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'freshContextRestored' scripts/verify_custom_decision_browser.mjs; then
+  printf 'Custom-decision browser gate lost its loopback, review-window, or fresh-context contract.\n' >&2
+  exit 1
+fi
+
 if ! check_frontend_literal 'Public demo · no sign-in needed' frontend/src/components/OperatorAccess.jsx \
   || check_frontend_literal 'Operator sign-in unavailable' frontend/src/components/OperatorAccess.jsx; then
   printf 'Public judge lane exposes a broken-sign-in message instead of intentional no-sign-in access.\n' >&2

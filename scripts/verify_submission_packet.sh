@@ -123,6 +123,8 @@ require_text submission/PAID_PM_RECRUIT_PACKET.md 'Compensation is for the parti
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'not revenue'
 require_text submission/PAID_PM_RECRUIT_PACKET.md 'Do not create an account'
 require_text submission/DEVPOST.md '462 backend tests'
+require_text scripts/verify_custom_decision_browser.mjs 'Custom-decision browser verification is loopback-only'
+require_text scripts/verify_custom_decision_browser.mjs 'freshContextRestored'
 require_text submission/PILOT_PROSPECT_PIPELINE.md 'The watch is a discovery aid, not a sales agent.'
 require_text README.md 'exactly equals the'
 require_text docs/STATUS.md '## Unreleased candidate custody'

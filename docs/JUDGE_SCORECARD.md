@@ -81,6 +81,14 @@ heading, and returns step two to the top of the operating contract. Desktop and
 mobile both exposed the first contract field with zero overflow and no console
 errors.
 
+The completed custom-decision journey is now repeatable through a loopback-only
+browser gate. At desktop and mobile widths it built the PM-authored brief,
+retained the unverified evidence label, copied the brief and opaque return link,
+recorded named approval, exposed the bounded internal action with decision-state-
+only scope and no external writes, rejected an early measurement with HTTP 409,
+and restored the approved case in a truly fresh browser context. Every check
+passed with zero console errors and no horizontal overflow.
+
 Full-resolution asset QA is now complete. The exact-release desktop/mobile
 captures were corrected from JPEG data with misleading `.png` extensions to
 actual PNGs and bound by dimensions and checksums. A fresh production mobile
