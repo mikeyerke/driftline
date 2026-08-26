@@ -26,6 +26,8 @@ approval-to-reopen path continuous, uses the candidate
 architecture only after the browser proof, burns judge-critical captions into
 the picture, embeds the matching English caption track, and holds -16 LUFS
 reference narration with no detected four-second silence or black interval.
+The opening frames now expose the ten-stage continuous PM operating loop, and
+the post-council hold shows what the agents completed before human approval.
 It is permanently watermarked **UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION**.
 This is the edit blueprint to reproduce against the released exact SHA, not an
 uploadable proof artifact.
@@ -109,7 +111,7 @@ final narrated take.
 8. Show the action marked rolled back and generation 2 reopening automatically
    with **Roll back globally** both
    recommended and selected.
-9. Show the cleared approver, disabled new action, 7/7 policy checks, measured
+9. Show the cleared approver, disabled new action, 10/10 evaluation checks, measured
    invalidation, evidence/synthesis hashes, and preserved generation-1 lineage.
 10. Show the Cloud Run console or live `*.run.app` backend URL in-frame, then
     finish on `/health`, the exact serving application SHA preserved at the

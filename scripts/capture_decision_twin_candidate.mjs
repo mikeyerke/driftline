@@ -380,6 +380,20 @@ try {
     await clickAt(center);
   };
 
+  const showText = async (label, block = "center") => {
+    const serialized = JSON.stringify(label);
+    const found = await evaluate(`(() => {
+      const target = [...document.querySelectorAll('h1, h2, h3, p, span, [aria-label]')].find(
+        (node) => (node.textContent.trim() + ' ' + (node.getAttribute('aria-label') || '')).includes(${serialized}),
+      );
+      if (!target) return false;
+      target.scrollIntoView({ behavior: 'smooth', block: ${JSON.stringify(block)} });
+      return true;
+    })()`);
+    if (!found) throw new Error(`Could not frame capture text: ${label}`);
+    await sleep(620);
+  };
+
   await waitFor(
     `document.body.innerText.includes('Run the decision workflow')`,
     "candidate overview",
@@ -410,13 +424,17 @@ try {
     everyNthFrame: 1,
   });
 
-  await hold(1_000, 4_000);
+  await hold(1_000, 2_500);
   await clickButton("Run the decision workflow");
   await waitFor(
     `document.body.innerText.toLowerCase().includes('council recommendation')`,
     "generation 1 council",
   );
+  await showText("Continuous PM operating loop");
   await hold(1_200, 12_000);
+
+  await showText("What Driftline completed autonomously");
+  await hold(900, 5_000);
 
   await clickSummary("Open full evidence");
   await hold(1_400, 12_000);
