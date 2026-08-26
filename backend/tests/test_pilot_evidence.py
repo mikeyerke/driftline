@@ -6,9 +6,13 @@ from datetime import UTC, datetime
 import pytest
 
 from app.decision_twin import (
+    DecisionTwinPolicyError,
     PMMeasurementContract,
     build_demo_decision_case,
     build_intake_decision_case,
+    decision_citation_node_ids,
+    evidence_review_status,
+    review_decision_evidence,
 )
 from app.pilot_evidence import PilotEvidenceError, build_pilot_evidence_starter
 
@@ -52,6 +56,7 @@ def test_starter_binds_product_evidence_without_raw_pm_context() -> None:
     assert starter["record"]["plausible_option_count"] == 4
     assert starter["record"]["review_window_days"] == 7
     assert starter["record"]["participant_role"] is None
+    assert starter["record"]["all_citations_reviewed"] is False
     assert starter["evidence_binding"]["release_sha"] == "a" * 40
     assert starter["evidence_binding"]["external_writes_none"] is True
     serialized = json.dumps(starter)
@@ -63,6 +68,49 @@ def test_starter_binds_product_evidence_without_raw_pm_context() -> None:
         case.evidence_nodes[1].excerpt,
     ):
         assert private_value not in serialized
+
+
+def test_review_receipts_bind_every_cited_source_without_copying_text() -> None:
+    case = intake_case()
+    cited = decision_citation_node_ids(case)
+    for node_id in cited:
+        case = review_decision_evidence(
+            case,
+            evidence_node_id=node_id,
+            expected_generation=1,
+        )
+    status = evidence_review_status(case)
+    assert status["reviewed_evidence_count"] == len(cited)
+    assert status["all_citations_reviewed"] is True
+
+    starter = build_pilot_evidence_starter(
+        case,
+        release_sha="a" * 40,
+        verified_production=False,
+    )
+    assert starter["record"]["all_citations_reviewed"] is True
+    assert starter["evidence_binding"]["review_receipt_hash"] == status[
+        "review_receipt_hash"
+    ]
+    serialized = json.dumps(starter)
+    assert case.question not in serialized
+    assert all(node.excerpt not in serialized for node in case.evidence_nodes)
+
+
+def test_review_receipt_rejects_stale_generation_and_uncited_source() -> None:
+    case = intake_case()
+    with pytest.raises(DecisionTwinPolicyError, match="stale generation"):
+        review_decision_evidence(
+            case,
+            evidence_node_id=decision_citation_node_ids(case)[0],
+            expected_generation=2,
+        )
+    with pytest.raises(DecisionTwinPolicyError, match="uncited source"):
+        review_decision_evidence(
+            case,
+            evidence_node_id="not-cited",
+            expected_generation=1,
+        )
 
 
 def test_starter_rejects_demo_case_and_unknown_release() -> None:

@@ -180,7 +180,10 @@ if ! node --check scripts/verify_custom_decision_browser.mjs >/dev/null \
   || ! check_frontend_literal 'keyboardRadioRoving' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'namedInteractiveControls' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'minimumControlTargets' scripts/verify_custom_decision_browser.mjs \
-  || ! check_frontend_literal 'validAriaReferences' scripts/verify_custom_decision_browser.mjs; then
+  || ! check_frontend_literal 'validAriaReferences' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'allEvidenceReviewed' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'pilotStarterVerified' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'CUSTOM_BROWSER_EXPECT_RELEASE_SHA' scripts/verify_custom_decision_browser.mjs; then
   printf 'Custom-decision browser gate lost its loopback, review-window, fresh-context, or accessibility contract.\n' >&2
   exit 1
 fi
@@ -241,6 +244,9 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Download private pilot starter' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'not your decision text, identity, consent, or a validation claim' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal '/pilot-evidence-starter' frontend/src/api.js \
+  || ! check_frontend_literal '/review' frontend/src/api.js \
+  || ! check_frontend_literal 'Mark source reviewed' frontend/src/components/EvidenceCouncil.jsx \
+  || ! check_frontend_literal 'capability-bound review receipt' frontend/src/components/EvidenceCouncil.jsx \
   || ! check_frontend_literal 'Decision intake progress' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'error && !intakeOpen' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Define the operating contract before approval' frontend/src/components/DecisionRoom.jsx \

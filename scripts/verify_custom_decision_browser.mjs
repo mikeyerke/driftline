@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const baseUrl = new URL(process.env.CUSTOM_BROWSER_BASE_URL || "http://127.0.0.1:5173/");
@@ -31,6 +32,7 @@ function loadPlaywright() {
 const { chromium } = loadPlaywright();
 const browser = await chromium.launch({ headless: true });
 const results = {};
+const expectedReleaseSha = process.env.CUSTOM_BROWSER_EXPECT_RELEASE_SHA || "";
 
 async function auditAccessibility(page) {
   return page.evaluate(() => {
@@ -134,8 +136,10 @@ try {
       return rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
     });
     await page.getByRole("button", { name: "Use my decision" }).click();
-    await page.getByLabel("Decision question").fill("Should we expand the beta to every mid-market account next month?");
-    await page.getByLabel("Current commitment").fill("Launch to every mid-market account on September 15.");
+    const decisionText = "Should we expand the beta to every mid-market account next month?";
+    const commitmentText = "Launch to every mid-market account on September 15.";
+    await page.getByLabel("Decision question").fill(decisionText);
+    await page.getByLabel("Current commitment").fill(commitmentText);
     await page.getByLabel("Why now").fill("Sales committed the date and the allocation decision is due Friday.");
     await page.getByLabel("Strongest signal in favor").fill("Beta users complete the core workflow faster and renewal intent improved.");
     await page.getByLabel("Strongest risk signal").fill("Admins report permission confusion and support volume is rising.");
@@ -161,6 +165,65 @@ try {
     }
     await page.getByText(/PM-provided context · unverified/).first().waitFor();
     const intakeResultFocused = await page.locator("#decision-room-title").evaluate((element) => document.activeElement === element);
+
+    const markVisibleEvidenceReviewed = async () => {
+      let safety = 0;
+      while (true) {
+        const pending = page.locator("button.evidence-review-button:not(.reviewed)");
+        const count = await pending.count();
+        let visibleButton = null;
+        for (let index = 0; index < count; index += 1) {
+          const candidate = pending.nth(index);
+          if (await candidate.isVisible()) {
+            visibleButton = candidate;
+            break;
+          }
+        }
+        if (!visibleButton) break;
+        const pendingBefore = await pending.count();
+        const reviewResponse = page.waitForResponse((response) => (
+          response.request().method() === "POST"
+          && new URL(response.url()).pathname.endsWith("/review")
+        ));
+        await visibleButton.click();
+        const response = await reviewResponse;
+        if (!response.ok()) throw new Error(`Evidence review failed for ${name}: HTTP ${response.status()}`);
+        await page.waitForFunction(
+          (expected) => document.querySelectorAll("button.evidence-review-button:not(.reviewed)").length < expected,
+          pendingBefore,
+        );
+        safety += 1;
+        if (safety > 12) throw new Error(`Evidence review did not converge for ${name}`);
+      }
+    };
+    await markVisibleEvidenceReviewed();
+    const councilReasoning = page.locator("details.council-reasoning");
+    if (!(await councilReasoning.evaluate((element) => element.open))) {
+      await councilReasoning.locator(":scope > summary").click();
+    }
+    await markVisibleEvidenceReviewed();
+    const reviewSummary = await page.locator(".evidence-review-summary").innerText();
+    const reviewedButtons = await page.getByRole("button", { name: "Reviewed" }).count();
+    const allEvidenceReviewed = reviewSummary.includes(`Source review: ${reviewedButtons} of ${reviewedButtons}`)
+      && reviewedButtons >= 3
+      && (await page.getByRole("button", { name: "Mark source reviewed" }).count()) === 0;
+
+    let pilotStarterVerified = true;
+    if (expectedReleaseSha) {
+      const downloadPromise = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Download private pilot starter" }).click();
+      const download = await downloadPromise;
+      const payload = JSON.parse(await readFile(await download.path(), "utf8"));
+      const serialized = JSON.stringify(payload);
+      pilotStarterVerified = download.suggestedFilename() === "driftline-private-pilot-evidence-starter.json"
+        && payload.evidence_binding.release_sha === expectedReleaseSha
+        && payload.evidence_binding.all_citations_reviewed === true
+        && payload.evidence_binding.reviewed_evidence_count === reviewedButtons
+        && payload.record.all_citations_reviewed === true
+        && payload.record.participant_role === null
+        && !serialized.includes(decisionText)
+        && !serialized.includes(commitmentText);
+    }
 
     const selectedRadio = page.getByRole("radio", { checked: true });
     const originalRadioName = await selectedRadio.innerText();
@@ -274,6 +337,8 @@ try {
       conciseDistinctTitle: decisionTitle === "Mid-market admins decision review" && decisionTitle !== decisionQuestion.replace(/[ ?.]+$/, ""),
       opaqueCase: Boolean(caseId && /^[a-z0-9][a-z0-9_-]{2,100}$/.test(caseId)),
       pmProvidedVisible: body.includes("PM-provided context · unverified"),
+      allEvidenceReviewed,
+      pilotStarterVerified,
       internalActionVisible: body.includes("Bounded internal action executed"),
       namedApproverVisible: body.includes("Named human approval") && body.includes("Independent PM"),
       copiedReturnLinkMatches: copiedReturnLink === decisionUrl,

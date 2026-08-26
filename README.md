@@ -650,11 +650,13 @@ then point it at any local Node package root that contains Playwright:
 
 ~~~bash
 PLAYWRIGHT_MODULE_ROOT=/path/to/node-project-with-playwright \
+CUSTOM_BROWSER_EXPECT_RELEASE_SHA=$(git rev-parse HEAD) \
   node scripts/verify_custom_decision_browser.mjs
 ~~~
 
 It is loopback-only by default and fails unless both viewports preserve the
-PM-provided/unverified disclosure, named approval, bounded internal action,
+PM-provided/unverified disclosure, capability-bound review of every cited source,
+private release-bound pilot starter, named approval, bounded internal action,
 decision-state-only/no-external-write boundary, early-measurement lock, copied
 view-only return link, fresh-browser restoration, console cleanliness, and zero
 horizontal overflow. It also verifies the keyboard radiogroup and approval

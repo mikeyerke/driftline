@@ -8,7 +8,12 @@ from types import SimpleNamespace
 import pytest
 
 from app import persistence
-from app.decision_twin import approve_decision_case, build_demo_decision_case
+from app.decision_twin import (
+    approve_decision_case,
+    build_demo_decision_case,
+    decision_citation_node_ids,
+    evidence_review_status,
+)
 from app.models import JobState
 from app.trace_eval import build_quality_fixture, run_quality_gate
 
@@ -54,6 +59,33 @@ def test_decision_case_memory_compare_and_set_is_atomic(monkeypatch) -> None:
     assert stored is not None
     assert stored.status == "experiment_active"
     assert stored.approval.option_id in {"ship", "rollback"}
+
+
+def test_concurrent_evidence_reviews_merge_without_lost_receipts(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    persistence._decision_cases_memory.clear()
+    case = build_demo_decision_case(case_id="decision-review-merge")
+    persistence.persist_decision_case(case)
+    node_ids = decision_citation_node_ids(case)[:2]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        reviewed = list(
+            executor.map(
+                lambda node_id: persistence.append_decision_evidence_review(
+                    case.case_id,
+                    evidence_node_id=node_id,
+                    expected_generation=1,
+                ),
+                node_ids,
+            )
+        )
+
+    assert all(item is not None for item in reviewed)
+    stored = persistence.load_decision_case(case.case_id)
+    assert stored is not None
+    status = evidence_review_status(stored)
+    assert status["reviewed_evidence_count"] == 2
+    assert set(status["reviewed_evidence_node_ids"]) == set(node_ids)
 
 
 def test_decision_case_firestore_audit_failure_rolls_back_parent(monkeypatch) -> None:

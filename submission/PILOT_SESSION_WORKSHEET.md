@@ -72,6 +72,7 @@ For each input, record source, observed date, affected segment, and whether it i
 
 ## After Driftline
 
+- Product source-review counter shows every cited source reviewed: yes / no
 - Recommended option:
 - Participant's final option:
 - Confidence, 1–7:
@@ -124,9 +125,11 @@ Never substitute unobserved ROI, revenue, retention, time savings, or customer s
 
 ## Machine-checked evidence handoff
 
-Before leaving the originating browser, click **Download private pilot starter**.
+Before leaving the originating browser, mark every cited source reviewed, confirm
+the counter reads **Source review: N of N**, then click **Download private pilot starter**.
 Keep the JSON private: it contains hashes, release identity, and bounded counts,
-not decision text, identity, consent, validation, or a customer claim. Complete
+not decision text, identity, consent, validation, or a customer claim. Its
+review receipt makes `all_citations_reviewed` product-observed; do not edit it. Complete
 only its manual `record` fields from this worksheet and save the completed record
 as a separate private JSON file. Run:
 

@@ -61,6 +61,7 @@ def valid_starter(record: dict) -> dict:
         "plausible_option_count",
         "evidence_input_count",
         "review_window_days",
+        "all_citations_reviewed",
     ]
     starter_record = {
         key: value if key in automated_fields else None for key, value in record.items()
@@ -81,6 +82,10 @@ def valid_starter(record: dict) -> dict:
             "human_approval_present": True,
             "outcome_count": 0,
             "external_writes_none": True,
+            "cited_evidence_count": record["evidence_input_count"],
+            "reviewed_evidence_count": record["evidence_input_count"],
+            "all_citations_reviewed": True,
+            "review_receipt_hash": "e" * 64,
         },
         "record": starter_record,
         "automated_fields": automated_fields,

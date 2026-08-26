@@ -224,6 +224,13 @@ export function getDecisionTwinEvaluation(caseId) {
   return request(`/api/decision-twin/${encodeURIComponent(caseId)}/evaluation`);
 }
 
+export function reviewDecisionTwinEvidence(caseId, evidenceNodeId, expectedGeneration) {
+  return request(`/api/decision-twin/${encodeURIComponent(caseId)}/evidence/${encodeURIComponent(evidenceNodeId)}/review`, {
+    method: "POST",
+    body: JSON.stringify({ expected_generation: expectedGeneration }),
+  });
+}
+
 export async function downloadDecisionTwinPilotStarter(caseId) {
   const payload = await request(`/api/decision-twin/${encodeURIComponent(caseId)}/pilot-evidence-starter`);
   const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json" });
