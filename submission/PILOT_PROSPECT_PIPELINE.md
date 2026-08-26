@@ -49,7 +49,8 @@ decision-quality evidence before judging and keep the outcome follow-up open.
 3. Ask for one costly next step: follow-up, teammate, introduction, or price
    conversation.
 4. If the participant wants continued use, offer a narrowly scoped paid pilot;
-   do not invent urgency, discounts, or a customer label.
+   use `submission/PAID_DESIGN_PARTNER_OFFER.md` as the local draft and do not
+   invent urgency, discounts, or a customer label.
 5. Request anonymized publication consent separately from product participation
    and separately from any commercial agreement.
 

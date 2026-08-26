@@ -119,6 +119,11 @@ For judging, the strongest honest result available in days is: one qualified PM 
 
 For commercial validation, require at least three similar pilots and one price conversation. For a customer claim, require money or a signed paid-pilot commitment.
 
+If a qualified participant wants continued use, the bounded fixed-fee offer is
+defined in `submission/PAID_DESIGN_PARTNER_OFFER.md`. Do not lead with price
+before confirming that a real decision, safe evidence, decision owner, and
+measurable outcome exist.
+
 ## Stop conditions
 
 - Do not fabricate or backfill a testimonial.
