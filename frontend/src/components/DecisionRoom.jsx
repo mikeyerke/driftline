@@ -1,5 +1,5 @@
 import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, RotateCcw, ShieldCheck } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { approveDecisionTwin, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, startDecisionTwin, startDecisionTwinIntake } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
 import EvidenceCouncil from "./EvidenceCouncil";
@@ -42,6 +42,8 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const [copyStatus, setCopyStatus] = useState("");
   const [linkStatus, setLinkStatus] = useState("");
   const [approverName, setApproverName] = useState("");
+  const intakeSectionRef = useRef(null);
+  const intakeTitleRef = useRef(null);
   const isProvidedIntake = Boolean(decisionCase?.events?.some((event) => event.source_mode === "pm_provided_unverified"));
 
   const applyDecisionCase = (next) => {
@@ -70,6 +72,18 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!intakeOpen) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      intakeTitleRef.current?.focus({ preventScroll: true });
+      intakeSectionRef.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [intakeOpen, intakeStep]);
 
   useEffect(() => {
     if (!decisionCase?.case_id) return;
@@ -333,9 +347,9 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         <div className="decision-room-safe-note"><ShieldCheck size={15} />No external writes before approval</div>
       </div>
     </section>
-    {intakeOpen && <section className="decision-intake" id="decision-intake-form" aria-labelledby="decision-intake-title">
+    {intakeOpen && <section ref={intakeSectionRef} className="decision-intake" id="decision-intake-form" aria-labelledby="decision-intake-title">
       <header>
-        <div><span className="decision-room-bridge-kicker">Bring your own decision</span><h2 id="decision-intake-title">Turn the decision already blocking your team into a bounded brief.</h2></div>
+        <div><span className="decision-room-bridge-kicker">Bring your own decision</span><h2 ref={intakeTitleRef} tabIndex="-1" id="decision-intake-title">Turn the decision already blocking your team into a bounded brief.</h2></div>
         <p>{intakeStep === 1 ? "Start with the commitment and the strongest evidence on each side. No metrics or configuration yet." : "Now define what success, harm, ownership, and review mean before any response can be approved."}</p>
       </header>
       <ol className="decision-intake-progress" aria-label="Decision intake progress">

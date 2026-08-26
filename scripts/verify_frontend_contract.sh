@@ -185,6 +185,9 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Open source-connected workspace flow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Run the decision workflow' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'One approval starts the autonomous monitor · no second PM prompt' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'intakeSectionRef.current?.scrollIntoView' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'prefers-reduced-motion: reduce' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'tabIndex="-1" id="decision-intake-title"' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Human approver' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'setSelectedId(latest.council.recommendation)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'This never generates a synthetic result.' frontend/src/components/LearningReceipt.jsx \

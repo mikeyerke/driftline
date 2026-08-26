@@ -1103,7 +1103,7 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .decision-room-safe-note svg { color: var(--green); }
 
 .decision-room-intake-trigger { min-height: 50px; padding: 0 18px; font-weight: 800; }
-.decision-intake { margin: 0 0 28px; padding: 26px; border: 1px solid #bfd1ec; border-radius: 10px; background: #f8fbff; box-shadow: 0 12px 30px rgba(14, 45, 94, .06); }
+.decision-intake { scroll-margin-top: 16px; margin: 0 0 28px; padding: 26px; border: 1px solid #bfd1ec; border-radius: 10px; background: #f8fbff; box-shadow: 0 12px 30px rgba(14, 45, 94, .06); }
 .decision-intake > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 28px; padding-bottom: 18px; border-bottom: 1px solid #d9e5f3; }
 .decision-intake h2 { max-width: 650px; margin: 5px 0 0; color: #071a42; font-size: 24px; letter-spacing: -.03em; }
 .decision-intake > header > p { max-width: 430px; margin: 0; color: #526a91; font-size: 12px; line-height: 1.55; }

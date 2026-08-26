@@ -36,7 +36,9 @@ judge-facing improvements:
   fresh browser session for that follow-up measurement;
 - the real-decision intake reveals decision context and the operating contract
   as two progressive steps instead of presenting sixteen required fields at
-  once, without weakening any required threshold; and
+  once, without weakening any required threshold. Opening the intake and moving
+  between steps now bring the active form into view and focus its heading,
+  including reduced-motion-safe behavior; and
 - PM measurements fail closed until the committed review timestamp. Before
   then, the UI shows the exact opening time and the API returns 409 without
   changing the active action, outcomes, or decision generation; and
@@ -70,6 +72,14 @@ CTA, zero horizontal overflow, and no browser console errors. The complete
 action/reopen driver then passed again with eight real Chrome mouse clicks,
 generation 2, rollback selected, approver cleared, external writes none, and
 the bounded action rolled back.
+
+The same fresh browser audit caught a real-decision conversion failure: after
+**Use my decision**, the new form began 923 pixels below the desktop viewport
+and 1,716 pixels below the mobile viewport, so the click appeared to do nothing.
+The candidate now moves the opened intake into view, transfers focus to its
+heading, and returns step two to the top of the operating contract. Desktop and
+mobile both exposed the first contract field with zero overflow and no console
+errors.
 
 Full-resolution asset QA is now complete. The exact-release desktop/mobile
 captures were corrected from JPEG data with misleading `.png` extensions to
