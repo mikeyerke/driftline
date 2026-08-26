@@ -23,7 +23,7 @@ above on August 25. Later `main` commits update submission media only.
 
 ## Unreleased local candidate
 
-The isolated candidate is not part of the live score above. It adds eight
+The isolated candidate is not part of the live score above. It adds ten
 judge-facing improvements:
 
 - custom decisions require a PM-authored measurement contract instead of
@@ -33,7 +33,11 @@ judge-facing improvements:
 - a real PM can attach the primary and risk aggregates after the review window,
   with both retained as unverified and evaluated as a two-metric contract; and
 - an opaque return link restores the same non-confidential approved case in a
-  fresh browser session for that follow-up measurement;
+  fresh browser session as a read-only view. A separate HttpOnly, case-specific
+  capability in the originating browser is required for approval or follow-up
+  measurement; and
+- the signed ADK workflow-state tool and all post-turn persistence are bound to
+  the exact current workflow and tenant, closing a cross-tenant read/write seam;
 - the real-decision intake reveals decision context and the operating contract
   as two progressive steps instead of presenting sixteen required fields at
   once, without weakening any required threshold. Opening the intake and moving
@@ -50,7 +54,7 @@ judge-facing improvements:
   instead of presenting disabled operator authentication as a product failure.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 462 backend tests, Ruff, the production frontend build,
+The candidate passed 469 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold
@@ -84,7 +88,7 @@ errors.
 The completed custom-decision journey is now repeatable through a loopback-only
 browser gate. At desktop and mobile widths it built the PM-authored brief,
 used a concise affected-segment title instead of repeating the full question,
-retained the unverified evidence label, copied the brief and opaque return link,
+retained the unverified evidence label, copied the brief and view-only return link,
 recorded named approval, exposed the bounded internal action with decision-state-
 only scope and no external writes, preserved the approver and approval timestamp
 on the saved receipt, rejected an early measurement with HTTP 409, and restored
@@ -186,6 +190,14 @@ Codex Security diff scan `80f0982d-2b2e-4efb-b974-d88ec45233ab` reviewed all
 audit attribution and first-attempt connector false completion. Both were fixed
 and regression-tested before the full backend pass.
 
+Codex Security standard scan `2bd6cb67-d0b1-4a2d-88c7-d44267629d63` then
+validated a high-severity cross-tenant ADK workflow-state path and a medium
+shared-link write-authority issue in the unreleased candidate. Both are now
+closed locally with adversarial tests: model-supplied workflow IDs cannot
+override the turn binding, and copied decision links cannot mutate cases.
+The scan's repository coverage was partial; two medium availability findings
+remain open for public-quota fairness and uncached visual fetches.
+
 `verify_production.sh` independently proved the serving SHA/build/digest,
 Firestore, Cloud Tasks, Scheduler, uptime check, alert policy, runtime IAM,
 security headers, bounded value windows, and zero current-revision Cloud Run
@@ -200,7 +212,7 @@ ownership attestation.
 
 `scripts/verify_clean_checkout.sh` separately exports only committed `HEAD`
 into a new temporary directory, creates a fresh backend environment, installs
-the locked frontend tree, and reruns all 462 backend tests, the 14-case agent
+the locked frontend tree, and reruns all 469 backend tests, the 14-case agent
 evaluation, frontend production build, frontend contract, submission packet,
 and shell syntax checks. This closes the gap between “works in the development
 worktree” and the reproducibility claim a judge receives from the repository.

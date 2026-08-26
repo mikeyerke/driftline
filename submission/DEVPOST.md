@@ -91,8 +91,10 @@ system write. A PM-provided decision never receives a synthetic outcome: after
 the review window, the PM attaches the actual primary and risk aggregates, both
 labeled unverified. Success resolves only when both metrics support it; a risk
 breach rolls the action back and reopens the case. An opaque return link restores
-the same non-confidential case after the review window; the UI warns that the
-link is view access and must never contain secret or customer-identifying data.
+the same non-confidential case after the review window as a read-only view. A
+separate HttpOnly, case-specific capability in the originating browser is
+required for approval or measurement; the UI warns that shared links must never
+contain secret or customer-identifying data.
 Expired cases fail closed at read and mutation boundaries rather than waiting
 for background TTL deletion.
 
@@ -228,7 +230,7 @@ proof, both using the same workflow and deterministic policy contracts.
 - Durable Cloud Tasks/Firestore execution that survives browser reloads
 - Real source, trace, impact, policy, approval, artifact, and reversal records
 - One hosted signed Jira create/reactivate/reverse round trip
-- 462 backend tests, Ruff, the frontend production build, and all 14 trace
+- 469 backend tests, Ruff, the frontend production build, and all 14 trace
   evaluation cases passing at the current local-candidate checkpoint
 - Public release metadata exposing the exact serving SHA and Cloud Build ID
 - No embedded credentials found in the repository

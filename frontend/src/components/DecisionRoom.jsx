@@ -49,6 +49,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const intakeSectionRef = useRef(null);
   const intakeTitleRef = useRef(null);
   const isProvidedIntake = Boolean(decisionCase?.events?.some((event) => event.source_mode === "pm_provided_unverified"));
+  const canEdit = decisionCase?.can_edit !== false;
 
   const applyDecisionCase = (next) => {
     setDecisionCase(next);
@@ -254,7 +255,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const copyReturnLink = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      setLinkStatus("Copied return link");
+      setLinkStatus("Copied view-only link");
       window.setTimeout(() => setLinkStatus(""), 1800);
     } catch {
       setError("Copy was blocked by the browser. Copy the current address manually.");
@@ -447,9 +448,10 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <h2 id="decision-room-title" tabIndex="-1">{decisionCase.title}</h2>
           <p>{decisionCase.question}</p>
         </div>
-        <div className="decision-room-header-actions"><button className="secondary compact" type="button" onClick={copyDecisionBrief}><span aria-live="polite">{copyStatus === "Copied" ? <Check size={14} /> : <Copy size={14} />}{copyStatus || "Copy decision brief"}</span></button>{isProvidedIntake && <button className="secondary compact" type="button" onClick={copyReturnLink}><span aria-live="polite">{linkStatus ? <Check size={14} /> : <Copy size={14} />}{linkStatus || "Copy return link"}</span></button>}<button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button></div>
+        <div className="decision-room-header-actions"><button className="secondary compact" type="button" onClick={copyDecisionBrief}><span aria-live="polite">{copyStatus === "Copied" ? <Check size={14} /> : <Copy size={14} />}{copyStatus || "Copy decision brief"}</span></button>{isProvidedIntake && <button className="secondary compact" type="button" onClick={copyReturnLink}><span aria-live="polite">{linkStatus ? <Check size={14} /> : <Copy size={14} />}{linkStatus || "Copy view-only link"}</span></button>}<button className="secondary compact" type="button" onClick={resetDecision} disabled={Boolean(busy)}><RotateCcw size={14} />Back to overview</button></div>
       </header>
-      {isProvidedIntake && <p className="decision-return-disclosure"><ShieldCheck size={13} />Use this link after the review window. Anyone with it can view this non-confidential case, so never enter secrets or customer-identifying data. It expires under the deployment's bounded retention policy.</p>}
+      {isProvidedIntake && <p className="decision-return-disclosure"><ShieldCheck size={13} />The copied link is view-only. This browser keeps a separate private edit capability for approval and measurements. Never enter secrets or customer-identifying data; the case expires under the deployment's bounded retention policy.</p>}
+      {!canEdit && <p className="decision-return-disclosure"><ShieldCheck size={13} />Read-only shared view. Approval, measurements, and reopening require the originating browser's private edit capability.</p>}
       <nav className="decision-room-stages" aria-label="Decision Twin progress">
         {stages.map((stage, index) => <span className={index < activeStage ? "complete" : index === activeStage ? "current" : ""} key={stage}>
           {index < activeStage ? <CheckCircle2 size={15} /> : <b>{index + 1}</b>}{stage}{index < stages.length - 1 && <ArrowRight size={14} />}
@@ -488,7 +490,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       </section>}
       <EvidenceCouncil decisionCase={decisionCase} />
       <CounterfactualCompare options={decisionCase.council.options} recommendedId={decisionCase.council.recommendation} selectedId={selectedId} onSelect={setSelectedId} />
-      {waitingForDecision && <section className="decision-approval-gate">
+      {waitingForDecision && canEdit && <section className="decision-approval-gate">
         <div>
           <div className="decision-approval-heading"><ClipboardCheck size={19} /><span>Human approval required</span></div>
           <h3>{decisionCase.status === "reopened" ? "The prior decision no longer holds" : "Turn the recommendation into bounded owner work"}</h3>
@@ -507,7 +509,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           </button>
         </div>
       </section>}
-      {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} monitoring={monitoring} fixtureEligible={!isProvidedIntake} onOutcome={observeOutcome} onMeasuredOutcome={attachMeasurement} />}
+      {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} monitoring={monitoring} fixtureEligible={!isProvidedIntake} canEdit={canEdit} onOutcome={observeOutcome} onMeasuredOutcome={attachMeasurement} />}
       {busy === "outcome" && <p className="decision-room-status decision-room-status-bottom" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Evaluating the guardrail and preserving the next generation.</p>}
       {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
       {selectedOption && waitingForDecision && <p className="decision-selection-note"><CheckCircle2 size={14} />Selected response: <strong>{selectedOption.title}</strong></p>}

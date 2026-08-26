@@ -153,6 +153,56 @@ from .trace_eval import (
     run_quality_gate,
 )
 
+DECISION_MUTATION_COOKIE_PREFIX = "driftline_decision_mutation_"
+
+
+def _decision_capability_hash(capability: str) -> str:
+    return hashlib.sha256(capability.encode()).hexdigest()
+
+
+def _decision_mutation_cookie_name(case_id: str) -> str:
+    suffix = hashlib.sha256(case_id.encode()).hexdigest()[:16]
+    return f"{DECISION_MUTATION_COOKIE_PREFIX}{suffix}"
+
+
+def _issue_decision_mutation_capability(case: object, response: Response) -> None:
+    capability = secrets.token_urlsafe(32)
+    case.mutation_capability_hash = _decision_capability_hash(capability)
+    response.set_cookie(
+        _decision_mutation_cookie_name(case.case_id),
+        capability,
+        max_age=max(1, int(os.getenv("DRIFTLINE_RETENTION_DAYS", "30"))) * 86400,
+        httponly=True,
+        secure=bool(os.getenv("K_SERVICE")),
+        samesite="strict",
+        path=f"/api/decision-twin/{case.case_id}",
+    )
+
+
+def _has_decision_mutation_capability(case: object, request: Request) -> bool:
+    expected = getattr(case, "mutation_capability_hash", None)
+    capability = request.cookies.get(
+        _decision_mutation_cookie_name(case.case_id),
+        "",
+    )
+    return bool(
+        expected
+        and capability
+        and hmac.compare_digest(expected, _decision_capability_hash(capability))
+    )
+
+
+def _require_decision_mutation_capability(case: object, request: Request) -> None:
+    if not _has_decision_mutation_capability(case, request):
+        raise HTTPException(
+            status_code=403,
+            detail="This shared decision link is read-only.",
+        )
+
+
+def _public_decision_case(case: object, *, can_edit: bool) -> dict[str, object]:
+    return {**case.model_dump(mode="json"), "can_edit": can_edit}
+
 
 def _read_tenant_secret(tenant_id: str, secret_name: str, *, version: str = "latest") -> str:
     """Read through the tenant identity with compatibility for local fakes."""
@@ -6040,7 +6090,10 @@ def get_workflow_scenarios(
 
 
 @app.post("/api/decision-twin/intake")
-async def start_decision_twin_intake(request: DecisionTwinIntakeRequest) -> dict:
+async def start_decision_twin_intake(
+    request: DecisionTwinIntakeRequest,
+    response: Response,
+) -> dict:
     """Create a Decision Twin from bounded, explicitly unverified PM context."""
     if not _reserve_demo_mutation():
         raise _demo_mutation_rate_limit_error(
@@ -6091,12 +6144,13 @@ async def start_decision_twin_intake(request: DecisionTwinIntakeRequest) -> dict
                         "reason": str(exc)[:240],
                     }
                 )
+    _issue_decision_mutation_capability(case, response)
     persist_decision_case(case)
-    return case.model_dump(mode="json")
+    return _public_decision_case(case, can_edit=True)
 
 
 @app.post("/api/decision-twin/demo")
-async def start_decision_twin_demo() -> dict:
+async def start_decision_twin_demo(response: Response) -> dict:
     """Create the pinned PM decision case and optionally run the live ADK council."""
     if not _reserve_demo_mutation():
         raise _demo_mutation_rate_limit_error(
@@ -6195,18 +6249,22 @@ async def start_decision_twin_demo() -> dict:
                         "reason": str(exc)[:240],
                     }
                 )
+    _issue_decision_mutation_capability(case, response)
     persist_decision_case(case)
-    return case.model_dump(mode="json")
+    return _public_decision_case(case, can_edit=True)
 
 
 @app.get("/api/decision-twin/{case_id}")
-def get_decision_twin(case_id: str) -> dict:
+def get_decision_twin(case_id: str, request: Request) -> dict:
     case = load_decision_case(case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="Decision case not found")
     if case.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
-    return case.model_dump(mode="json")
+    return _public_decision_case(
+        case,
+        can_edit=_has_decision_mutation_capability(case, request),
+    )
 
 
 @app.get("/api/decision-twin/{case_id}/evaluation")
@@ -6222,6 +6280,7 @@ def approve_decision_twin(
     case_id: str,
     request: DecisionTwinApprovalRequest,
     background_tasks: BackgroundTasks,
+    http_request: Request,
 ) -> dict:
     if not _reserve_demo_mutation():
         raise _demo_mutation_rate_limit_error(
@@ -6230,6 +6289,7 @@ def approve_decision_twin(
     current = load_decision_case(case_id)
     if current is None or current.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
+    _require_decision_mutation_capability(current, http_request)
     previous_status = current.status
     previous_generation = current.generation
     try:
@@ -6288,6 +6348,7 @@ def approve_decision_twin(
     return {
         **approved.model_dump(mode="json"),
         "monitor_status": monitor_status,
+        "can_edit": True,
     }
 
 
@@ -6364,18 +6425,29 @@ def _record_decision_twin_demo_outcome(
 
 @app.post("/api/decision-twin/{case_id}/outcomes/demo")
 def record_decision_twin_demo_outcome(
-    case_id: str, request: DecisionTwinOutcomeRequest
+    case_id: str,
+    request: DecisionTwinOutcomeRequest,
+    http_request: Request,
 ) -> dict:
     if not _reserve_demo_mutation():
         raise _demo_mutation_rate_limit_error(
             "Decision Twin outcome rate limit reached; retry later."
         )
-    return _record_decision_twin_demo_outcome(case_id, request)
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    _require_decision_mutation_capability(current, http_request)
+    return {
+        **_record_decision_twin_demo_outcome(case_id, request),
+        "can_edit": True,
+    }
 
 
 @app.post("/api/decision-twin/{case_id}/outcomes/measured")
 def record_decision_twin_measured_outcome(
-    case_id: str, request: DecisionTwinMeasuredOutcomeRequest
+    case_id: str,
+    request: DecisionTwinMeasuredOutcomeRequest,
+    http_request: Request,
 ) -> dict:
     """Attach explicit, unverified PM measurements without fabricating an outcome."""
     if not _reserve_demo_mutation():
@@ -6385,6 +6457,7 @@ def record_decision_twin_measured_outcome(
     current = load_decision_case(case_id)
     if current is None or current.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
+    _require_decision_mutation_capability(current, http_request)
     is_pm_provided = any(
         event.get("source_mode") == "pm_provided_unverified"
         for event in current.events
@@ -6425,7 +6498,7 @@ def record_decision_twin_measured_outcome(
     risk_id = f"outcome-g{request.expected_generation}-{request.measurement_id}-risk"
     existing_ids = {item.observation_id for item in current.outcomes}
     if {primary_id, risk_id}.issubset(existing_ids):
-        return current.model_dump(mode="json")
+        return _public_decision_case(current, can_edit=True)
     observed_at = datetime.now(UTC).isoformat()
 
     def observation(
@@ -6495,7 +6568,7 @@ def record_decision_twin_measured_outcome(
             status_code=409,
             detail="Decision changed before the measurement was recorded; reload it.",
         )
-    return updated.model_dump(mode="json")
+    return _public_decision_case(updated, can_edit=True)
 
 
 @app.post("/api/decision-twin/{case_id}/monitor/run")

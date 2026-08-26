@@ -5,7 +5,7 @@ function shortHash(value) {
   return value ? `${value.slice(0, 12)}…` : "pending";
 }
 
-export default function LearningReceipt({ decisionCase, evaluation, busy, monitoring, fixtureEligible, onOutcome, onMeasuredOutcome }) {
+export default function LearningReceipt({ decisionCase, evaluation, busy, monitoring, fixtureEligible, canEdit, onOutcome, onMeasuredOutcome }) {
   const active = decisionCase.status === "experiment_active";
   const inconclusive = decisionCase.status === "inconclusive";
   const validated = decisionCase.status === "validated";
@@ -72,10 +72,10 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
       </div>
       <details className="decision-proof-details"><summary>Inspect IDs and policy lineage</summary><dl><div><dt>Case</dt><dd>{decisionCase.case_id}</dd></div><div><dt>Evidence</dt><dd>{decisionCase.council.evidence_manifest_hash}</dd></div><div><dt>Synthesis</dt><dd>{decisionCase.council.synthesis_hash}</dd></div>{latestOutcome && <div><dt>Outcome</dt><dd>{latestOutcome.observation_id} · {latestOutcome.content_hash}</dd></div>}</dl></details>
       {active && monitoring && <div className="autonomous-monitor-status" role="status" aria-live="polite"><Activity size={18} /><span><strong>Autonomous monitor active</strong><small>Cloud Tasks is checking the approved guardrail. No second PM action is required.</small></span></div>}
-      {active && fixtureEligible && !monitoring && <button className="secondary decision-outcome-button" type="button" onClick={onOutcome} disabled={busy}><Activity size={17} />{busy ? "Evaluating outcome…" : "Run demo measurement fallback"}</button>}
+      {active && fixtureEligible && !monitoring && canEdit && <button className="secondary decision-outcome-button" type="button" onClick={onOutcome} disabled={busy}><Activity size={17} />{busy ? "Evaluating outcome…" : "Run demo measurement fallback"}</button>}
       {active && fixtureEligible && <p className="fixture-disclosure">The public judge lane automatically processes a pinned aggregate measurement fixture; it is not presented as customer validation.</p>}
       {measurementPending && !measurementWindowOpen && <div className="measurement-window-locked" role="status"><History size={18} /><span><strong>Measurement opens {Number.isFinite(reviewAt) ? new Date(reviewAt).toLocaleString() : "after a valid review date is restored"}</strong><small>Return with this decision link after the review window. The internal action remains active; Driftline will reject early measurements at the API boundary.</small></span></div>}
-      {measurementPending && measurementWindowOpen && <form className="measured-outcome-form" onSubmit={(event) => {
+      {measurementPending && measurementWindowOpen && canEdit && <form className="measured-outcome-form" onSubmit={(event) => {
         event.preventDefault();
         onMeasuredOutcome({
           ...measurement,

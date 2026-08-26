@@ -647,7 +647,7 @@ PLAYWRIGHT_MODULE_ROOT=/path/to/node-project-with-playwright \
 It is loopback-only by default and fails unless both viewports preserve the
 PM-provided/unverified disclosure, named approval, bounded internal action,
 decision-state-only/no-external-write boundary, early-measurement lock, copied
-opaque return link, fresh-browser restoration, console cleanliness, and zero
+view-only return link, fresh-browser restoration, console cleanliness, and zero
 horizontal overflow. It also verifies the keyboard radiogroup and approval
 path, visible skip link, accessible control names, 24-pixel minimum standalone
 targets, landmarks, unique IDs, ARIA references, and the absence of positive

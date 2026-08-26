@@ -242,6 +242,11 @@ class DecisionCase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     case_id: str
+    mutation_capability_hash: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+        exclude=True,
+    )
     tenant_id: str | None = None
     title: str
     question: str

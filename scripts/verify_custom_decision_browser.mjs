@@ -227,8 +227,8 @@ try {
       document.getElementById("main-content"),
     ].every((element) => element && !element.inert));
 
-    await page.getByRole("button", { name: "Copy return link" }).click();
-    await page.getByRole("button", { name: "Copied return link" }).waitFor();
+    await page.getByRole("button", { name: "Copy view-only link" }).click();
+    await page.getByRole("button", { name: "Copied view-only link" }).waitFor();
     const copiedReturnLink = await page.evaluate(() => navigator.clipboard.readText());
     const early = await page.request.post(
       new URL(`/api/decision-twin/${caseId}/outcomes/measured`, baseUrl).href,
@@ -253,6 +253,19 @@ try {
     await restored.goto(decisionUrl, { waitUntil: "networkidle" });
     await restored.getByText(/Attach the real measurement when the review window closes/).waitFor();
     const restoredLower = (await restored.locator("body").innerText()).toLowerCase();
+    const sharedMutation = await restored.request.post(
+      new URL(`/api/decision-twin/${caseId}/outcomes/measured`, baseUrl).href,
+      {
+        data: {
+          expected_generation: 1,
+          measurement_id: `browser-shared-${name}`,
+          primary_value: 46,
+          risk_value: 4,
+          source_label: "Shared browser audit",
+        },
+      },
+    );
+    const sharedMutationBody = await sharedMutation.json();
     const accessibility = await auditAccessibility(page);
 
     results[name] = {
@@ -264,6 +277,10 @@ try {
       internalActionVisible: body.includes("Bounded internal action executed"),
       namedApproverVisible: body.includes("Named human approval") && body.includes("Independent PM"),
       copiedReturnLinkMatches: copiedReturnLink === decisionUrl,
+      sharedLinkReadOnly: restoredLower.includes("read-only shared view")
+        && sharedMutation.status() === 403
+        && sharedMutationBody.detail === "This shared decision link is read-only."
+        && (await restored.getByLabel("Human approver").count()) === 0,
       decisionStateOnly: bodyLower.includes("decision state only"),
       externalWritesNone: bodyLower.includes("external writes") && bodyLower.includes("none"),
       windowLocked: body.includes("Driftline will reject early measurements at the API boundary"),

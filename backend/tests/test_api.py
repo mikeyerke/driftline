@@ -112,6 +112,100 @@ def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
     assert restored.json() == payload
 
 
+def test_shared_decision_link_is_read_only_and_owner_cookie_is_case_bound(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    owner = TestClient(app)
+    shared_viewer = TestClient(app)
+
+    created_response = owner.post("/api/decision-twin/demo")
+    case = created_response.json()
+    cookie_header = created_response.headers["set-cookie"]
+    assert "HttpOnly" in cookie_header
+    assert "SameSite=strict" in cookie_header
+    assert f"Path=/api/decision-twin/{case['case_id']}" in cookie_header
+    assert "mutation_capability" not in str(case)
+    stored = persistence._decision_cases_memory[case["case_id"]]
+    assert "_mutation_capability_hash" in stored
+    assert api.DECISION_MUTATION_COOKIE_PREFIX not in str(stored)
+
+    shared = shared_viewer.get(f"/api/decision-twin/{case['case_id']}")
+    assert shared.status_code == 200
+    assert shared.json()["can_edit"] is False
+    assert "mutation_capability_hash" not in shared.json()
+    denied = shared_viewer.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Link Recipient",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "This shared decision link is read-only."
+
+    owner_view = owner.get(f"/api/decision-twin/{case['case_id']}")
+    assert owner_view.status_code == 200
+    assert owner_view.json()["can_edit"] is True
+    approved = owner.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json={
+            "approver": "Owner PM",
+            "option_id": "segment",
+            "expected_synthesis_hash": case["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    assert approved.status_code == 200
+
+
+def test_decision_mutation_cookie_cannot_edit_another_case(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    first_owner = TestClient(app)
+    second_owner = TestClient(app)
+    first = first_owner.post("/api/decision-twin/demo").json()
+    second = second_owner.post("/api/decision-twin/demo").json()
+
+    denied = second_owner.post(
+        f"/api/decision-twin/{first['case_id']}/approve",
+        json={
+            "approver": "Wrong Case Owner",
+            "option_id": "segment",
+            "expected_synthesis_hash": first["council"]["synthesis_hash"],
+            "expected_generation": 1,
+        },
+    )
+    assert denied.status_code == 403
+    assert second_owner.get(
+        f"/api/decision-twin/{second['case_id']}"
+    ).json()["can_edit"] is True
+
+
+def test_one_browser_retains_edit_authority_for_multiple_decisions(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    owner = TestClient(app)
+    first = owner.post("/api/decision-twin/demo").json()
+    second = owner.post("/api/decision-twin/demo").json()
+
+    assert owner.get(f"/api/decision-twin/{first['case_id']}").json()[
+        "can_edit"
+    ] is True
+    assert owner.get(f"/api/decision-twin/{second['case_id']}").json()[
+        "can_edit"
+    ] is True
+
+
 def test_decision_twin_intake_builds_an_honestly_labelled_pm_case(monkeypatch) -> None:
     monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
     monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")

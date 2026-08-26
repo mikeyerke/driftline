@@ -241,8 +241,10 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Operating contract:' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Risk stop:' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'days after approval' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'Copy return link' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'Use this link after the review window.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Copy view-only link' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'The copied link is view-only.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Read-only shared view.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'decisionCase?.can_edit !== false' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'url.searchParams.set("decision", next.case_id)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'getDecisionTwin(caseId)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal '/api/decision-twin/intake' frontend/src/api.js \
