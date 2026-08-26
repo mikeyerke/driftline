@@ -238,6 +238,9 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Build my decision brief' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Continue to operating contract' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Back to decision context' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Download private pilot starter' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'not your decision text, identity, consent, or a validation claim' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal '/pilot-evidence-starter' frontend/src/api.js \
   || ! check_frontend_literal 'Decision intake progress' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'error && !intakeOpen' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Define the operating contract before approval' frontend/src/components/DecisionRoom.jsx \

@@ -52,6 +52,46 @@ def valid_record() -> dict:
     }
 
 
+def valid_starter(record: dict) -> dict:
+    automated_fields = [
+        "session_id",
+        "session_date",
+        "app_release_sha",
+        "app_state",
+        "plausible_option_count",
+        "evidence_input_count",
+        "review_window_days",
+    ]
+    starter_record = {
+        key: value if key in automated_fields else None for key, value in record.items()
+    }
+    return {
+        "schema_version": 1,
+        "generated_at": "2026-08-27T15:30:00+00:00",
+        "evidence_binding": {
+            "case_reference_hash": "b" * 64,
+            "release_sha": record["app_release_sha"],
+            "generation": 2,
+            "case_status": "approved",
+            "evidence_manifest_hash": "c" * 64,
+            "synthesis_hash": "d" * 64,
+            "evidence_input_count": record["evidence_input_count"],
+            "plausible_option_count": record["plausible_option_count"],
+            "review_window_days": record["review_window_days"],
+            "human_approval_present": True,
+            "outcome_count": 0,
+            "external_writes_none": True,
+        },
+        "record": starter_record,
+        "automated_fields": automated_fields,
+        "manual_fields": sorted(set(record) - set(automated_fields)),
+        "disclosure": (
+            "Private starter only. It contains no decision text, participant identity, "
+            "customer data, consent, validation, or customer claim."
+        ),
+    }
+
+
 def test_private_single_session_is_not_customer_or_public_proof() -> None:
     report = MODULE.summarize(valid_record())
     assert "qualified single-session evidence (n=1)" in report
@@ -63,6 +103,36 @@ def test_private_single_session_is_not_customer_or_public_proof() -> None:
     assert "Incumbent decision workflow: **meeting or chat only**" in report
     assert "Stated willingness to reuse: **yes**" in report
     assert "weaker than an observed costly commitment" in report
+
+
+def test_product_bound_starter_proves_machine_field_custody() -> None:
+    record = valid_record()
+    report = MODULE.summarize(record, valid_starter(record))
+    assert "product-bound private starter verified" in report
+    assert f"Private case reference SHA-256: `{'b' * 64}`" in report
+    assert f"Evidence manifest SHA-256: `{'c' * 64}`" in report
+    assert "Product-observed external writes: **none**" in report
+    assert "human approval present: **yes**" in report
+
+
+def test_product_bound_starter_rejects_changed_automated_field() -> None:
+    record = valid_record()
+    starter = valid_starter(record)
+    record["evidence_input_count"] = 5
+    with pytest.raises(MODULE.PilotValidationError, match="changed after export"):
+        MODULE.summarize(record, starter)
+
+
+def test_product_bound_starter_rejects_malformed_binding() -> None:
+    record = valid_record()
+    starter = valid_starter(record)
+    starter["evidence_binding"]["synthesis_hash"] = "not-a-hash"
+    with pytest.raises(MODULE.PilotValidationError, match="synthesis_hash"):
+        MODULE.summarize(record, starter)
+
+
+def test_manual_report_is_explicitly_weaker_custody() -> None:
+    assert "manual record only; not product-bound" in MODULE.summarize(valid_record())
 
 
 def test_public_statement_discloses_unreleased_candidate_and_narrow_claim() -> None:
@@ -108,7 +178,11 @@ def test_public_statement_discloses_citation_errors() -> None:
 @pytest.mark.parametrize(
     ("commercial_status", "commitment", "classification"),
     [
-        ("signed_paid_pilot", "signed_paid_pilot", "signed paid-pilot customer evidence"),
+        (
+            "signed_paid_pilot",
+            "signed_paid_pilot",
+            "signed paid-pilot customer evidence",
+        ),
         ("payment_received", "payment_received", "paid customer evidence"),
     ],
 )

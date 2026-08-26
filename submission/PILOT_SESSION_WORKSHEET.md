@@ -124,9 +124,21 @@ Never substitute unobserved ROI, revenue, retention, time savings, or customer s
 
 ## Machine-checked evidence handoff
 
-Copy `docs/validation/real-pm-pilot-template.json` to a private location and
-transcribe only the bounded categories above. Do not add identity or raw-data
-fields. Run `scripts/summarize_real_pm_pilot.py`; it will classify the session,
-public-consent gate, commercial evidence, and outcome status independently.
-Keep the source JSON private. A generated public statement is still subject to
-the participant's exact consent scope and entrant review.
+Before leaving the originating browser, click **Download private pilot starter**.
+Keep the JSON private: it contains hashes, release identity, and bounded counts,
+not decision text, identity, consent, validation, or a customer claim. Complete
+only its manual `record` fields from this worksheet and save the completed record
+as a separate private JSON file. Run:
+
+```bash
+python scripts/summarize_real_pm_pilot.py /private/path/completed-record.json \
+  --starter /private/path/driftline-private-pilot-evidence-starter.json \
+  --output /private/path/pilot-evidence.md
+```
+
+The check rejects edits to product-observed custody fields and independently
+classifies the session, public-consent gate, commercial evidence, and outcome
+status. If the export was missed, `docs/validation/real-pm-pilot-template.json`
+remains a weaker manual fallback; the resulting report says it is not product-bound.
+A generated public statement is still subject to the
+participant's exact consent scope and entrant review.

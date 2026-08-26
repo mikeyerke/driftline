@@ -149,17 +149,28 @@ worktree until Mike separately authorizes a release. The outcome path stores
 the PM's aggregate primary and risk values as unverified, never substitutes a
 fixture, and requires both success and safety before completing the action.
 
-After the session, copy
-`docs/validation/real-pm-pilot-template.json` to a private path, replace every
-field from observed evidence, and run:
+From the originating browser, use **Download private pilot starter** before the
+session ends. The owner-only export contains the exact release SHA, hashed case
+reference, evidence-manifest and synthesis hashes, and bounded product-observed
+counts. It contains no decision text, participant identity, consent, validation,
+or customer claim. Keep it private.
+
+Complete the starter's `record` manual fields from the observed session and save
+that record as a separate private JSON file. Do not edit the product-observed
+fields. Then run:
 
 ```bash
 python scripts/summarize_real_pm_pilot.py /private/path/pilot.json \
+  --starter /private/path/driftline-private-pilot-evidence-starter.json \
   --output /private/path/pilot-evidence.md
 ```
 
-The summarizer rejects names, emails, company fields, raw notes, incomplete
-qualification, unbound paid claims, and outcome claims before follow-up. A
+If the starter was not downloaded, the template-only command remains available,
+but its report is explicitly labeled **manual record only; not product-bound**.
+
+The summarizer rejects names, emails, company fields, raw notes, changed
+product-observed fields, malformed custody hashes, incomplete qualification,
+unbound paid claims, and outcome claims before follow-up. A
 private session remains blocked from publication without explicit anonymized-
 result consent. One valid record is labeled directional `n=1` evidence, never
 causal or statistically representative validation.
