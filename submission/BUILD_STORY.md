@@ -1,6 +1,7 @@
 # Building Driftline: giving an agent less authority than intelligence
 
-*This piece was created for the Google All Things Agentic Hackathon.*
+*I created this build story for the purpose of entering the Google All Things
+Agentic Hackathon.*
 
 Most agent demos focus on what the model can do. Driftline started with the
 opposite question: what must the model never be allowed to authorize?

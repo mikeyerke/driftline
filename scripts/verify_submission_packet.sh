@@ -52,7 +52,16 @@ require_text docs/STATUS.md '## Unreleased candidate custody'
 require_text submission/REMOTE_CHECKLIST.md 'Nothing here authorizes a push, merge, Cloud'
 require_text submission/DEVPOST.md 'unreleased local candidate'
 require_text devpost-submission.md 'Status: draft-ready, not release-ready or form-ready.'
+require_text devpost-submission.md '| Submitter type | Individuals |'
+require_text devpost-submission.md '| Project start date | 08-18-26 |'
+require_text devpost-submission.md '| Google SDK | Agent Development Kit (ADK) |'
+require_text devpost-submission.md '| Google Cloud service selections | Cloud Run; Firestore |'
+require_text devpost-submission.md '| Additional Google Cloud services described in entry | BigQuery; Vertex AI;'
+require_text devpost-submission.md '| Google AI model | Gemini 3.5 Flash via Vertex AI (global endpoint) |'
+require_text devpost-submission.md '| Private testing instructions | Open https://driftline-ops.web.app/'
 require_text devpost-submission.md '| Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |'
+require_text submission/DEMO_SCRIPT.md 'I kept making roadmap calls whose evidence changed after the'
+require_text submission/BUILD_STORY.md 'for the purpose of entering the Google All Things'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'UNRELEASED CANDIDATE'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'release proof required before publication'
 require_text submission/assets/driftline-candidate-rehearsal-overlays.svg 'UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION'
@@ -60,6 +69,10 @@ require_text submission/assets/driftline-candidate-rehearsal-narration.txt 'not 
 
 if rg -Fq -- 'submission/assets/driftline-architecture.png' devpost-submission.md; then
   fail "form packet still points at the historical architecture diagram"
+fi
+
+if rg -Fq -- '| Google Cloud services | Cloud Run; Firestore; BigQuery |' devpost-submission.md; then
+  fail "form packet treats BigQuery as a selectable Google Cloud dropdown option"
 fi
 
 python3 - <<'PY'

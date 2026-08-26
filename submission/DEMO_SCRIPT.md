@@ -17,9 +17,10 @@ the current-release narration and do not show or claim the action card.
 
 **Screen:** Decision Room hero and the pinned onboarding decision.
 
-**Narration:** “A roadmap decision becomes dangerous when the evidence changes
-but the commitment does not. Driftline catches that drift, compares the safest
-responses, and keeps the outcome attached to the original decision.”
+**Narration:** “I kept making roadmap calls whose evidence changed after the
+commitment, then rebuilding the same decision trail by hand. Driftline catches
+that drift, compares the safest responses, and keeps the outcome attached to
+the original call.”
 
 ## 0:16–0:47 — Autonomous evidence work with provenance
 

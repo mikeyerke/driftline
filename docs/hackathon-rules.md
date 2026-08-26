@@ -1,8 +1,9 @@
 # Google All Things Agentic — verified submission requirements
 
 Checked against the official Devpost rules, judging criteria, prizes,
-submission requirements, key-date feed, and all seven organizer announcements
-on August 24, 2026. The
+submission requirements, key-date feed, and all seven organizer announcements.
+The rules, requirements, criteria, dates, and prizes were fetched again in full
+on August 26, 2026. The
 canonical sources are:
 
 - [Contest overview](https://allthingsagentichackathon.devpost.com/)
@@ -58,12 +59,23 @@ and third-party code, and leave the repository, video, and linked materials
 unchanged after the deadline until winners are announced. Those are explicit
 final-form and post-deadline freeze gates for Driftline.
 
-The optional content bonus includes public build content that explicitly says
-it was created for this hackathon, a separate social post using the required
-`#AllThingsAgenticHackathon` hashtag on the listed social platforms, and
-additional Google AI model integrations. Each contribution is optional and
-scored under the rules; Driftline does not claim any bonus unless the artifact
-is actually published or integrated.
+The live form's exact answers matter. Driftline's submitter type is
+`Individuals`, its start date must be entered as `08-18-26`, and the SDK option
+is `Agent Development Kit (ADK)`. The Google Cloud multi-select offers Cloud Run,
+Cloud SQL, Firestore, GKE, and Pub/Sub; Driftline selects only `Cloud Run` and
+`Firestore` there. BigQuery, Vertex AI, Cloud Tasks, Cloud Scheduler, Cloud
+Storage, Secret Manager, Cloud Build, and Artifact Registry belong in the
+additional-services narrative. The model answer is `Gemini 3.5 Flash via Vertex
+AI (global endpoint)`. The private testing instructions provide a logged-out,
+credential-free judge path through approval, autonomous generation-2 reopening,
+lineage, and `/health` release identity.
+
+The optional content bonus includes public—not unlisted—build content that
+explicitly says it was created for the purpose of entering this hackathon, a
+separate social post using the required `#AllThingsAgenticHackathon` hashtag on
+the listed social platforms, and additional Google AI model integrations. Each
+contribution is optional and scored under the rules; Driftline does not claim
+any bonus unless the artifact is actually published or integrated.
 
 ## Categories and selection
 
@@ -127,6 +139,9 @@ imply an action occurred when it did not.
   than four minutes; only the first four minutes are evaluated.
 - The final form must identify Google ADK, the August 18 implementation start,
   and the disclosed pre-existing ideation/source package.
+- The exact form selections are `Individuals`, `08-18-26`, `Agent Development
+  Kit (ADK)`, `Cloud Run`, and `Firestore`; BigQuery and Vertex AI are described
+  in the additional-services narrative rather than selected in that dropdown.
 - After the deadline, freeze the submitted repository, video, and linked
   materials until winners are announced; continue any work only in a separate
   copy that cannot change the submitted evidence.
