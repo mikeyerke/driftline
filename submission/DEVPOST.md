@@ -71,13 +71,14 @@ external system.
 
 ## Proof of action
 
-The final verified release serves public `main` Git SHA
+The final verified release serves application Git SHA
 `03ec8f12fc23d265c89b462a345a5b599a6411e8` on Cloud Run revision
 `driftline-00305-xln` from Cloud Build
 `c01bec2e-a950-407c-873b-b1d4fdc6bae6`. `/health`, the Cloud Run revision, and
 Artifact Registry all resolve to immutable digest
 `sha256:fca505ce56c6bd933f9cde8d55ff1e4ea7f9cad099d6fe39e8bb8321c96ea6d3`
-(verified August 25, 2026). GitHub Actions run `32923233214` passed backend,
+(verified August 25, 2026). That application commit is preserved in public
+`main` history. GitHub Actions run `32923233214` passed backend,
 frontend, standalone-image, dependency, and repository-hygiene gates on that
 same merge commit.
 

@@ -41,7 +41,7 @@
   <text x="410" y="708" class="proof">Cloud Run + Firestore</text><text x="410" y="735" class="proof2">API, cases, lineage, hashes, audit</text>
   <text x="730" y="708" class="proof">BigQuery + vector memory</text><text x="730" y="735" class="proof2">Aggregate evidence and precedent retrieval</text>
   <text x="1080" y="708" class="proof">Tasks + Scheduler</text><text x="1080" y="735" class="proof2">Durable outcomes, retries, cadence</text>
-  <text x="90" y="779" class="proof2">Cloud Build + Artifact Registry · revision driftline-00305-xln · public main 03ec8f12fc23 · 100% traffic · 0 recent errors</text>
+  <text x="90" y="779" class="proof2">Cloud Build + Artifact Registry · revision driftline-00305-xln · app SHA 03ec8f12fc23 · 100% traffic · 0 recent errors</text>
   <text x="70" y="855" class="tiny">Authority boundary: Gemini recommends from bounded evidence. Deterministic policy and a named human authorize action.</text>
   <text x="1260" y="855" class="tiny">Taskmaster · All Things Agentic</text>
 </svg>
