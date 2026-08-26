@@ -403,6 +403,21 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _validate_final_media_files(
+    manifest: dict[str, object], video_path: Path, captions_path: Path
+) -> None:
+    if not video_path.is_file() or video_path.suffix.casefold() != ".mp4":
+        raise ReleaseRenderError("final video must be an existing MP4")
+    if not captions_path.is_file() or captions_path.suffix.casefold() != ".srt":
+        raise ReleaseRenderError("final captions must be an existing SRT")
+    if _sha256_file(video_path) != manifest["video_sha256"]:
+        raise ReleaseRenderError("actual final video hash does not match the manifest")
+    if _sha256_file(captions_path) != manifest["captions_sha256"]:
+        raise ReleaseRenderError(
+            "actual final captions hash does not match the manifest"
+        )
+
+
 def _validate_output_target(output_dir: Path) -> Path:
     resolved = output_dir.resolve()
     if resolved.is_relative_to(ROOT.resolve()):
@@ -555,6 +570,8 @@ def _assert_final(text: str, *, label: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", required=True, type=Path)
+    parser.add_argument("--video-file", required=True, type=Path)
+    parser.add_argument("--captions-file", required=True, type=Path)
     parser.add_argument("--video-url", required=True)
     parser.add_argument("--hero-image", required=True, type=Path)
     parser.add_argument("--generation-1-image", required=True, type=Path)
@@ -568,6 +585,9 @@ def main() -> int:
 
     manifest = json.loads(args.manifest.read_text())
     identity = _validate_manifest(manifest)
+    video_path = args.video_file.resolve()
+    captions_path = args.captions_file.resolve()
+    _validate_final_media_files(manifest, video_path, captions_path)
     video_url = _validate_video_url(args.video_url)
     build_story_url = _validate_optional_public_url(
         args.build_story_url, "build-story URL"
@@ -586,6 +606,16 @@ def main() -> int:
         args.gallery_proof_video.resolve(),
     )
     output_dir = _validate_output_target(args.output_dir)
+
+    subprocess.run(
+        [
+            str(ROOT / "scripts/verify_final_demo_package.sh"),
+            str(video_path),
+            str(captions_path),
+            str(args.manifest.resolve()),
+        ],
+        check=True,
+    )
 
     story = render_devpost_story(
         (ROOT / "submission/DEVPOST.md").read_text(), identity, video_url
@@ -607,6 +637,21 @@ def main() -> int:
         tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent)
     )
     try:
+        captions_output = stage / "driftline-final-demo-release.srt"
+        shutil.copy2(captions_path, captions_output)
+        review_sheet_path = stage / "driftline-final-demo-review-sheet.png"
+        subprocess.run(
+            [
+                str(ROOT / "scripts/render_final_demo_review_sheet.sh"),
+                str(video_path),
+                str(args.manifest.resolve()),
+                str(review_sheet_path),
+            ],
+            check=True,
+        )
+        if _png_dimensions(review_sheet_path) != (1920, 1080):
+            raise ReleaseRenderError("final demo review sheet must be 1920x1080")
+
         names = (
             "decision-twin-hero-release.png",
             "decision-twin-generation-1-release.png",
@@ -684,6 +729,13 @@ def main() -> int:
             },
             "gallery_sha256": {name: _sha256_file(stage / name) for name in names},
             "gallery_capture_sha256": _sha256_file(gallery_capture_path),
+            "verified_media": {
+                "video_sha256": _sha256_file(video_path),
+                "captions_file": captions_output.name,
+                "captions_sha256": _sha256_file(captions_output),
+                "review_sheet_file": review_sheet_path.name,
+                "review_sheet_sha256": _sha256_file(review_sheet_path),
+            },
             "architecture_svg_sha256": _sha256_file(architecture_svg_path),
             "architecture_png_sha256": _sha256_file(staged_architecture_png),
             "submission_files_sha256": {

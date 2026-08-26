@@ -81,7 +81,7 @@ different labels. Stakeholder positions are explicitly evidence-bound decision
 lenses rather than fabricated human quotes.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 518 backend tests, Ruff, the production frontend build,
+The candidate passed 521 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold
@@ -250,7 +250,7 @@ ownership attestation.
 
 `scripts/verify_clean_checkout.sh` separately exports only committed `HEAD`
 into a new temporary directory, creates a fresh backend environment, installs
-the locked frontend tree, and reruns all 518 backend tests, the 14-case agent
+the locked frontend tree, and reruns all 521 backend tests, the 14-case agent
 evaluation, frontend production build, frontend contract, submission packet,
 and shell syntax checks. This closes the gap between “works in the development
 worktree” and the reproducibility claim a judge receives from the repository.
