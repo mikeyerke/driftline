@@ -5561,6 +5561,7 @@ def test_identity_free_demo_mutations_are_rate_limited(monkeypatch) -> None:
     monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 1)
     with api._demo_mutation_lock:
         api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
 
     first = client.post("/api/workflows/demo")
     second = client.post("/api/workflows/demo")
@@ -5571,6 +5572,171 @@ def test_identity_free_demo_mutations_are_rate_limited(monkeypatch) -> None:
     assert second.headers["retry-after"] == str(api.DEMO_WINDOW_SECONDS)
     with api._demo_mutation_lock:
         api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+
+
+def test_public_mutation_quota_is_fair_per_browser_not_proxy_header(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 1)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 3)
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+    first_browser = TestClient(app)
+    second_browser = TestClient(app)
+    proxy_headers = {
+        "x-forwarded-for": "203.0.113.8",
+        "forwarded": "for=203.0.113.8;proto=https",
+    }
+
+    first = first_browser.post("/api/workflows/demo", headers=proxy_headers)
+    exhausted = first_browser.post(
+        "/api/decision-twin/demo",
+        headers={
+            "x-forwarded-for": "198.51.100.19",
+            "forwarded": "for=198.51.100.19;proto=https",
+        },
+    )
+    independent = second_browser.post("/api/workflows/demo", headers=proxy_headers)
+
+    assert first.status_code == 200
+    assert exhausted.status_code == 429
+    assert independent.status_code == 200
+    assert len(api._demo_mutation_times) == 2
+    assert sorted(len(times) for times in api._public_demo_mutation_times.values()) == [
+        1,
+        1,
+    ]
+
+
+def test_public_mutation_quota_keeps_a_global_emergency_ceiling(monkeypatch) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 2)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 2)
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+
+    responses = [
+        TestClient(app).post("/api/workflows/demo")
+        for _index in range(3)
+    ]
+
+    assert [response.status_code for response in responses] == [200, 200, 429]
+    assert responses[-1].headers["retry-after"] == str(api.DEMO_WINDOW_SECONDS)
+    assert len(api._demo_mutation_times) == 2
+
+
+def test_public_mutation_quota_does_not_retain_rejected_or_stale_sessions(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 2)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 1)
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+    assert TestClient(app).post("/api/workflows/demo").status_code == 200
+    assert len(api._public_demo_mutation_times) == 1
+
+    for index in range(20):
+        attacker = TestClient(app)
+        attacker.cookies.set(
+            api.PUBLIC_MUTATION_SESSION_COOKIE,
+            f"invalid-{index}",
+        )
+        rejected = attacker.post("/api/workflows/demo")
+        assert rejected.status_code == 429
+    assert len(api._public_demo_mutation_times) == 1
+
+    expired = api.monotonic() - api.DEMO_WINDOW_SECONDS - 1
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        for bucket in api._public_demo_mutation_times.values():
+            bucket.clear()
+            bucket.append(expired)
+    assert TestClient(app).post("/api/workflows/demo").status_code == 200
+    assert len(api._public_demo_mutation_times) == 1
+
+
+def test_invalid_demo_source_is_quota_neutral(monkeypatch) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 1)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 1)
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+
+    invalid = TestClient(app).post(
+        "/api/workflows/demo",
+        params={"source_id": "not/allowlisted"},
+    )
+
+    assert invalid.status_code == 422
+    assert not api._demo_mutation_times
+    assert not api._public_demo_mutation_times
+
+
+def test_public_mutation_cookie_is_server_validated_and_hardened(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 2)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 10)
+    monkeypatch.setenv("K_SERVICE", "driftline")
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+    browser = TestClient(app)
+    browser.cookies.set(api.PUBLIC_MUTATION_SESSION_COOKIE, "attacker-chosen")
+
+    response = browser.post("/api/workflows/demo")
+
+    assert response.status_code == 200
+    cookie_header = response.headers["set-cookie"]
+    assert f"{api.PUBLIC_MUTATION_SESSION_COOKIE}=" in cookie_header
+    assert "attacker-chosen" not in cookie_header
+    assert "HttpOnly" in cookie_header
+    assert "SameSite=strict" in cookie_header
+    assert "Secure" in cookie_header
+    assert "Path=/api" in cookie_header
+
+
+def test_unauthorized_decision_requests_do_not_consume_public_quota(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "DEMO_MAX_MUTATIONS", 2)
+    monkeypatch.setattr(api, "PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", 10)
+    persistence._decision_cases_memory.clear()
+    with api._demo_mutation_lock:
+        api._demo_mutation_times.clear()
+        api._public_demo_mutation_times.clear()
+    owner = TestClient(app)
+    shared_viewer = TestClient(app)
+    case = owner.post("/api/decision-twin/demo").json()
+    payload = {
+        "approver": "Owner PM",
+        "option_id": "segment",
+        "expected_synthesis_hash": case["council"]["synthesis_hash"],
+        "expected_generation": 1,
+    }
+
+    missing = shared_viewer.post(
+        "/api/decision-twin/not-a-case/approve",
+        json=payload,
+    )
+    denied = shared_viewer.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json=payload,
+    )
+    approved = owner.post(
+        f"/api/decision-twin/{case['case_id']}/approve",
+        json=payload,
+    )
+
+    assert missing.status_code == 404
+    assert denied.status_code == 403
+    assert approved.status_code == 200
+    assert len(api._demo_mutation_times) == 2
 
 
 def test_live_agent_rate_limit_includes_retry_after_header(monkeypatch) -> None:

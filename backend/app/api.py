@@ -155,6 +155,9 @@ from .trace_eval import (
 )
 
 DECISION_MUTATION_COOKIE_PREFIX = "driftline_decision_mutation_"
+PUBLIC_MUTATION_SESSION_COOKIE = "driftline_public_mutation_session"
+_PUBLIC_MUTATION_SESSION_KEY = secrets.token_bytes(32)
+_PUBLIC_MUTATION_SESSION_TOKEN = re.compile(r"^[A-Za-z0-9_-]{32}$")
 
 
 def _decision_capability_hash(capability: str) -> str:
@@ -164,6 +167,27 @@ def _decision_capability_hash(capability: str) -> str:
 def _decision_mutation_cookie_name(case_id: str) -> str:
     suffix = hashlib.sha256(case_id.encode()).hexdigest()[:16]
     return f"{DECISION_MUTATION_COOKIE_PREFIX}{suffix}"
+
+
+def _sign_public_mutation_session(token: str) -> str:
+    signature = hmac.new(
+        _PUBLIC_MUTATION_SESSION_KEY,
+        token.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{token}.{signature}"
+
+
+def _public_mutation_session(cookie_value: str | None) -> tuple[str, str | None]:
+    """Return a server-validated quota key and an optional replacement cookie."""
+    if cookie_value:
+        token, separator, supplied_signature = cookie_value.partition(".")
+        if separator and _PUBLIC_MUTATION_SESSION_TOKEN.fullmatch(token):
+            expected = _sign_public_mutation_session(token).partition(".")[2]
+            if hmac.compare_digest(supplied_signature, expected):
+                return hashlib.sha256(token.encode()).hexdigest(), None
+    token = secrets.token_urlsafe(24)
+    return hashlib.sha256(token.encode()).hexdigest(), _sign_public_mutation_session(token)
 
 
 def _issue_decision_mutation_capability(case: object, response: Response) -> None:
@@ -268,6 +292,9 @@ app = FastAPI(title="Driftline API", version="0.2.0")
 _request_auth: ContextVar[tuple[str | None, str | None]] = ContextVar(
     "driftline_request_auth", default=(None, None)
 )
+_public_mutation_request: ContextVar[dict[str, object] | None] = ContextVar(
+    "driftline_public_mutation_request", default=None
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -370,9 +397,30 @@ async def secure_get_auth(request: Request, call_next):
     auth_token = _request_auth.set(
         (request.headers.get("x-driftline-approval"), request.headers.get("authorization"))
     )
+    session_key, replacement_cookie = _public_mutation_session(
+        request.cookies.get(PUBLIC_MUTATION_SESSION_COOKIE)
+    )
+    public_session = {
+        "key": session_key,
+        "replacement_cookie": replacement_cookie,
+        "used": False,
+    }
+    public_session_token = _public_mutation_request.set(public_session)
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        if public_session["used"] and public_session["replacement_cookie"]:
+            response.set_cookie(
+                PUBLIC_MUTATION_SESSION_COOKIE,
+                str(public_session["replacement_cookie"]),
+                max_age=DEMO_WINDOW_SECONDS,
+                httponly=True,
+                secure=bool(os.getenv("K_SERVICE")),
+                samesite="strict",
+                path="/api",
+            )
+        return response
     finally:
+        _public_mutation_request.reset(public_session_token)
         _request_auth.reset(auth_token)
 
 
@@ -704,8 +752,15 @@ _tenant_agent_call_times: dict[str, deque[float]] = {}
 _agent_call_lock = Lock()
 
 DEMO_MAX_MUTATIONS = _positive_int("DRIFTLINE_DEMO_MAX_MUTATIONS", 30)
+PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS = _positive_int(
+    "DRIFTLINE_PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS", DEMO_MAX_MUTATIONS * 10
+)
 DEMO_WINDOW_SECONDS = _positive_int("DRIFTLINE_DEMO_WINDOW_SECONDS", 3600)
+# Public browser sessions receive their own normal allowance. This aggregate
+# deque is a higher emergency ceiling that still bounds cookie rotation/Sybil
+# traffic while the deployed service remains at max-instances=1.
 _demo_mutation_times: deque[float] = deque()
+_public_demo_mutation_times: dict[str, deque[float]] = {}
 _tenant_demo_mutation_times: dict[str, deque[float]] = {}
 _demo_mutation_lock = Lock()
 CONNECTOR_MAX_CALLS = _positive_int("DRIFTLINE_CONNECTOR_MAX_CALLS", 60)
@@ -971,11 +1026,40 @@ def _reserve_demo_mutation(tenant_id: str | None = None) -> bool:
     now = monotonic()
     cutoff = now - DEMO_WINDOW_SECONDS
     with _demo_mutation_lock:
-        times = (
-            _tenant_demo_mutation_times.setdefault(tenant_id, deque())
-            if tenant_id
-            else _demo_mutation_times
-        )
+        if not tenant_id:
+            request_session = _public_mutation_request.get()
+            session_key = (
+                str(request_session["key"])
+                if request_session is not None
+                else "direct-call"
+            )
+            while _demo_mutation_times and _demo_mutation_times[0] <= cutoff:
+                _demo_mutation_times.popleft()
+            for key, bucket in list(_public_demo_mutation_times.items()):
+                while bucket and bucket[0] <= cutoff:
+                    bucket.popleft()
+                if not bucket:
+                    del _public_demo_mutation_times[key]
+            if len(_demo_mutation_times) >= PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS:
+                return False
+            if (
+                session_key not in _public_demo_mutation_times
+                and len(_public_demo_mutation_times)
+                >= PUBLIC_DEMO_GLOBAL_MAX_MUTATIONS
+            ):
+                return False
+            session_times = _public_demo_mutation_times.setdefault(
+                session_key, deque()
+            )
+            if len(session_times) >= limit:
+                return False
+            session_times.append(now)
+            _demo_mutation_times.append(now)
+            if request_session is not None:
+                request_session["used"] = True
+            _record_tenant_usage(None, "workflow_mutations")
+            return True
+        times = _tenant_demo_mutation_times.setdefault(tenant_id, deque())
         while times and times[0] <= cutoff:
             times.popleft()
         if len(times) >= limit:
@@ -6299,14 +6383,14 @@ def approve_decision_twin(
     background_tasks: BackgroundTasks,
     http_request: Request,
 ) -> dict:
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Decision Twin approval rate limit reached; retry later."
-        )
     current = load_decision_case(case_id)
     if current is None or current.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
     _require_decision_mutation_capability(current, http_request)
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin approval rate limit reached; retry later."
+        )
     previous_status = current.status
     previous_generation = current.generation
     try:
@@ -6446,14 +6530,14 @@ def record_decision_twin_demo_outcome(
     request: DecisionTwinOutcomeRequest,
     http_request: Request,
 ) -> dict:
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Decision Twin outcome rate limit reached; retry later."
-        )
     current = load_decision_case(case_id)
     if current is None or current.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
     _require_decision_mutation_capability(current, http_request)
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin outcome rate limit reached; retry later."
+        )
     return {
         **_record_decision_twin_demo_outcome(case_id, request),
         "can_edit": True,
@@ -6467,14 +6551,14 @@ def record_decision_twin_measured_outcome(
     http_request: Request,
 ) -> dict:
     """Attach explicit, unverified PM measurements without fabricating an outcome."""
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Decision Twin measurement rate limit reached; retry later."
-        )
     current = load_decision_case(case_id)
     if current is None or current.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
     _require_decision_mutation_capability(current, http_request)
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin measurement rate limit reached; retry later."
+        )
     is_pm_provided = any(
         event.get("source_mode") == "pm_provided_unverified"
         for event in current.events
@@ -6602,10 +6686,6 @@ def run_decision_twin_monitor(
 @app.post("/api/workflows/demo")
 def start_demo(source_id: str = "public/pricing") -> dict:
     """Legacy deterministic fixture endpoint retained for reproducible tests."""
-    if not _reserve_demo_mutation():
-        raise _demo_mutation_rate_limit_error(
-            "Demo workflow rate limit reached; retry later."
-        )
     definition = source_definition(source_id)
     if definition is None:
         raise HTTPException(status_code=422, detail="Source is not allowlisted")
@@ -6613,6 +6693,10 @@ def start_demo(source_id: str = "public/pricing") -> dict:
         raise HTTPException(
             status_code=422,
             detail="Operator-registered sources require a public monitor run",
+        )
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Demo workflow rate limit reached; retry later."
         )
     state = workflow_store.start_demo(
         source_id=source_id,

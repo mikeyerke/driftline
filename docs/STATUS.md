@@ -90,9 +90,11 @@ The current isolated worktree on
 and is not deployed. It adds the PM-authored two-metric operating contract,
 bounded internal allocation, real-measurement follow-up, opaque return link,
 review-window lock, progressive custom-decision intake, clean-checkout API
-routing, and explicit retry recovery described in the judge scorecard.
+routing, explicit retry recovery, tenant-bound agent tools, read-only shared
+links, fair anonymous mutation quotas, and bounded visual-asset fetches described
+in the judge scorecard.
 
-The local candidate passed 469 backend tests, Ruff, the 14/14 trace evaluation,
+The local candidate passed 481 backend tests, Ruff, the 14/14 trace evaluation,
 the locked frontend build, dependency audit, frontend and submission contracts,
 and shell/diff hygiene on August 26. That is local candidate evidence only.
 `scripts/verify_release_candidate_local.sh --release-candidate` now fails before
