@@ -1,3 +1,5 @@
+import pytest
+
 import app.agent as agent_module
 from app.agent import root_agent
 from app.models import SourceEvidence, Stage, WorkflowStatus
@@ -229,6 +231,31 @@ def test_agent_resolves_placeholder_workflow_to_current_adk_turn() -> None:
         agent_module.reset_workflow_id(token)
 
     assert resolved["workflow_id"] == payload["workflow_id"]
+
+
+def test_agent_rejects_foreign_workflow_id_even_for_same_tenant() -> None:
+    tenant_token = agent_module.set_tenant_id("tenant-a")
+    bound = agent_module.workflow_store.start_demo(tenant_id="tenant-a")
+    foreign = agent_module.workflow_store.start_demo(tenant_id="tenant-a")
+    workflow_token = agent_module.set_workflow_id(bound.workflow_id)
+    try:
+        with pytest.raises(PermissionError, match="workflow_turn_mismatch"):
+            agent_module.get_workflow_state(foreign.workflow_id)
+    finally:
+        agent_module.reset_workflow_id(workflow_token)
+        agent_module.reset_tenant_id(tenant_token)
+
+
+def test_agent_rejects_bound_workflow_from_another_tenant() -> None:
+    foreign = agent_module.workflow_store.start_demo(tenant_id="tenant-b")
+    tenant_token = agent_module.set_tenant_id("tenant-a")
+    workflow_token = agent_module.set_workflow_id(foreign.workflow_id)
+    try:
+        with pytest.raises(PermissionError, match="workflow_tenant_mismatch"):
+            agent_module.get_workflow_state("current")
+    finally:
+        agent_module.reset_workflow_id(workflow_token)
+        agent_module.reset_tenant_id(tenant_token)
 
 
 def test_approval_creates_evidence_bound_sandbox_packets() -> None:

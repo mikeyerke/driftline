@@ -94,7 +94,23 @@ def _workflow_id_from_turn(workflow_id: str | None) -> str | None:
     source of truth instead of orphaning the workflow or retrying it as a new
     monitor run.
     """
-    return workflow_id or workflow_id_from_context()
+    bound_workflow_id = workflow_id_from_context()
+    if workflow_id and workflow_id != bound_workflow_id:
+        raise PermissionError("workflow_turn_mismatch")
+    return bound_workflow_id
+
+
+def _require_bound_state(
+    state: object,
+    *,
+    workflow_id: str,
+    tenant_id: str | None,
+) -> None:
+    """Fail closed before post-turn analysis or persistence crosses a boundary."""
+    if getattr(state, "workflow_id", None) != workflow_id:
+        raise PermissionError("workflow_turn_mismatch")
+    if getattr(state, "tenant_id", None) != tenant_id:
+        raise PermissionError("workflow_tenant_mismatch")
 
 
 def _ensure_state_verification(
@@ -220,12 +236,22 @@ async def run_agent_task(
                 "reason": "Workflow state unavailable for decision copilot",
             }
         else:
+            _require_bound_state(
+                state,
+                workflow_id=workflow_id,
+                tenant_id=tenant_id,
+            )
             if internal_context is not None:
                 event_count_before_context = len(state.events)
                 workflow_store.attach_internal_context(state, internal_context)
                 data_mode = state.data_mode
                 trace_event_count += max(
                     0, len(state.events) - event_count_before_context
+                )
+                _require_bound_state(
+                    state,
+                    workflow_id=workflow_id,
+                    tenant_id=tenant_id,
                 )
                 persist_workflow(state)
             try:
@@ -245,6 +271,11 @@ async def run_agent_task(
                     event_count=trace_event_count,
                     analysis_info=analysis_info,
                 )
+                _require_bound_state(
+                    state,
+                    workflow_id=workflow_id,
+                    tenant_id=tenant_id,
+                )
                 persist_workflow(state)
             except AnalysisUnavailable as exc:
                 analysis_info = _analysis_failure_result(
@@ -257,6 +288,11 @@ async def run_agent_task(
                     tool_calls=trace,
                     event_count=trace_event_count,
                     analysis_info=analysis_info,
+                )
+                _require_bound_state(
+                    state,
+                    workflow_id=workflow_id,
+                    tenant_id=tenant_id,
                 )
                 persist_workflow(state)
             try:
@@ -281,6 +317,11 @@ async def run_agent_task(
                 event_count=trace_event_count,
                 analysis_info=analysis_info,
                 decision_info=decision_info,
+            )
+            _require_bound_state(
+                state,
+                workflow_id=workflow_id,
+                tenant_id=tenant_id,
             )
             persist_workflow(state)
     else:
