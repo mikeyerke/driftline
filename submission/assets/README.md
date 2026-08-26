@@ -3,6 +3,12 @@
 - `driftline-decision-twin-architecture.png`: 1600×900 final Decision Twin
   architecture upload.
 - `driftline-decision-twin-architecture.svg`: editable source for that upload.
+- `driftline-decision-twin-candidate-architecture.png`: 1600×900 local review
+  render of the unreleased action-to-learning candidate. Do not upload it until
+  that exact candidate commit has passed release identity and browser proof.
+- `driftline-decision-twin-candidate-architecture.svg`: editable source for the
+  candidate render. Its unreleased badge and pending release gate are
+  intentional custody controls.
 - `driftline-architecture.png` / `.svg`: historical operational-foundation
   diagram; do not use as the primary Devpost image.
 

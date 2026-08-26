@@ -51,7 +51,13 @@ see that the result came from the visible action in the same workflow.
 - Cloud Run revision and one redacted request log.
 - Decision Twin receipt: generation, evidence hash, synthesis hash, measured
   outcome, and prior-approval lineage.
-- `driftline-decision-twin-architecture.png` for the closing 20–25 seconds.
+- `driftline-decision-twin-architecture.png` for the closing 20–25 seconds on
+  the currently verified release.
+- Replace it with `driftline-decision-twin-candidate-architecture.png` only
+  after the candidate's exact commit, Cloud Run revision, Cloud Build ID, image
+  digest, live ADK trace, and desktop/mobile journeys have all been reverified.
+  Do not show the candidate asset while its **UNRELEASED CANDIDATE** badge is
+  still true.
 
 ## Edit and QA
 
