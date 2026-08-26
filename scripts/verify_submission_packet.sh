@@ -21,14 +21,17 @@ for file in \
   submission/DEMO_SCRIPT.md \
   submission/REMOTE_CHECKLIST.md \
   submission/JUDGE_SCORECARD.md \
+  submission/final-demo-manifest.template.json \
   docs/JUDGE_SCORECARD.md \
   scripts/build_candidate_rehearsal.sh \
+  scripts/verify_final_demo_package.sh \
   scripts/summarize_real_pm_pilot.py \
   scripts/verify_release_candidate_local.sh \
   docs/REAL_PM_CUSTOMER_SPRINT.md \
   docs/validation/real-pm-pilot-template.json \
   submission/assets/driftline-candidate-rehearsal-narration.txt \
   submission/assets/driftline-candidate-rehearsal-overlays.svg \
+  submission/assets/driftline-decision-twin-final.srt \
   submission/assets/driftline-decision-twin-candidate-architecture.svg \
   submission/assets/driftline-decision-twin-candidate-architecture.png; do
   [[ -s "$file" ]] || fail "$file is missing or empty"
@@ -45,6 +48,10 @@ require_text submission/DEMO_SCRIPT.md 'Reject the take unless public `main`,'
 require_text scripts/release_and_verify.sh './scripts/verify_release_candidate_local.sh --release-candidate'
 require_text scripts/verify_release_candidate_local.sh 'expected mikeyerke/driftline'
 require_text scripts/verify_release_candidate_local.sh 'refs/heads/$release_ref'
+require_text scripts/verify_final_demo_package.sh 'approval_to_reopen_continuous'
+require_text scripts/verify_final_demo_package.sh 'External writes: none'
+require_text scripts/verify_final_demo_package.sh 'quarantined rehearsal or historical proof asset'
+require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'verify_final_demo_package.sh'
 require_text scripts/summarize_real_pm_pilot.py 'unexpected fields are forbidden to reduce identity/raw-data risk'
 require_text scripts/summarize_real_pm_pilot.py 'not a customer'
 require_text scripts/summarize_real_pm_pilot.py 'No public pilot statement is authorized.'
@@ -64,6 +71,9 @@ require_text devpost-submission.md '| Google AI model | Gemini 3.5 Flash via Ver
 require_text devpost-submission.md '| Private testing instructions | Open https://driftline-ops.web.app/'
 require_text devpost-submission.md '| Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |'
 require_text submission/DEMO_SCRIPT.md 'I kept making roadmap calls whose evidence changed after the'
+require_text submission/DEMO_SCRIPT.md 'driftline-decision-twin-final.srt'
+require_text submission/assets/driftline-decision-twin-final.srt 'External writes: none.'
+require_text submission/assets/driftline-decision-twin-final.srt 'Gemini 3.5 Flash'
 require_text submission/BUILD_STORY.md 'for the purpose of entering the Google All Things'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'UNRELEASED CANDIDATE'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'release proof required before publication'

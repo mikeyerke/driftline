@@ -103,6 +103,13 @@ see that the result came from the visible action in the same workflow.
   once at 720p for small-text legibility.
 - Confirm the first 30 seconds shows the live URL and the last frame contains
   project name, URL, repository, category, and Google technology.
+- Copy `submission/final-demo-manifest.template.json`, replace every placeholder
+  from the exact released take, hash the final MP4 and SRT, and run:
+  `scripts/verify_final_demo_package.sh VIDEO.mp4 CAPTIONS.srt MANIFEST.json`.
+  Reject the package unless release, `/health`, and public-main SHAs match; the
+  approval-to-reopen core is continuous; the external-write boundary and Cloud
+  proof are visible; captions cover every judge-critical claim; and media,
+  loudness, silence, black-frame, duration, and checksum gates pass.
 
 ## Take log
 

@@ -36,6 +36,9 @@ synthesized.
   review cut with English reference narration. It is upload-ready as a fallback,
   but a continuous native browser take remains the strongest final submission.
 - `driftline-final-demo.srt`: matching accessible caption track.
+- `driftline-decision-twin-final.srt`: timed caption master for the unreleased
+  3:48 Decision Twin script. It includes every judge-critical Google, authority,
+  action, and release-proof claim; bind its checksum to the final take manifest.
 - `driftline-continuous-candidate-proof.mp4`: 31.17-second local-only
   visible-click continuity rehearsal. It is unreleased candidate QA, not a
   deploy or customer-outcome claim.

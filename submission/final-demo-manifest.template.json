@@ -1,0 +1,18 @@
+{
+  "recorded_at": "YYYY-MM-DDTHH:MM:SS-05:00",
+  "source_url": "https://driftline-ops.web.app/",
+  "release_sha": "0000000000000000000000000000000000000000",
+  "health_sha": "0000000000000000000000000000000000000000",
+  "public_main_sha": "0000000000000000000000000000000000000000",
+  "cloud_run_revision": "driftline-00000-xxx",
+  "cloud_build_id": "00000000-0000-0000-0000-000000000000",
+  "image_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "video_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "captions_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "duration_seconds": 0,
+  "approval_to_reopen_continuous": false,
+  "secrets_reviewed": false,
+  "external_writes_none_visible": false,
+  "release_proof_visible": false,
+  "candidate_watermark_absent": false
+}

@@ -9,6 +9,10 @@ URL in the first 10–15 seconds, and finish with Google Cloud proof. Do not cla
 customer study, BigQuery deployment, or live council unless each is verifiable
 on the serving SHA.
 
+Use `submission/assets/driftline-decision-twin-final.srt` as the timed English
+caption master for the 3:48 take. Update it only if the spoken script or timing
+changes, then bind its checksum to the final-demo manifest.
+
 Candidate-only recording gate: include the bounded internal-allocation action
 below only after it is deployed and verified on the serving SHA. Otherwise use
 the current-release narration and do not show or claim the action card.
