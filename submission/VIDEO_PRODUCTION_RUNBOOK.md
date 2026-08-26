@@ -179,6 +179,23 @@ see that the result came from the visible action in the same workflow.
   manifest timestamps and burns each proof label into the image. Reject the
   take if any panel fails its label.
 
+## Release-bound submission render
+
+After the authorized release, final native take, public video upload, and fresh
+release screenshots all pass, run `scripts/render_release_submission.py` using
+the final manifest. Its output directory must be outside the repository and
+empty. The renderer copies the three gallery images, replaces the candidate
+architecture badge with **RELEASE VERIFIED**, binds all copy to the exact SHA,
+revision, build, image digest, video hash, and caption hash, and records hashes
+for every emitted visual. It stages atomically so a failed check cannot leave a
+half-valid packet at the requested path.
+
+Do not commit the rendered packet. A post-deploy commit containing release IDs
+would move public `main` beyond the deployed SHA and invalidate the exact-SHA
+gate. The renderer validates that the video URL names a specific YouTube or
+Vimeo video, but it cannot prove public visibility; verify that separately in a
+fresh logged-out browser before the entrant approves submission.
+
 ## Take log
 
 | Take | Release SHA | Duration | Approval continuous | Secrets clean | Notes |

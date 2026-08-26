@@ -69,6 +69,26 @@ mutation, registration, upload, publication, or submission.
 7. Upload publicly to YouTube or Vimeo only after entrant approval. The working
    rules snapshot says an unlisted video is insufficient; verify visibility in
    a fresh logged-out browser.
+8. After the final package passes, render a self-contained release packet into
+   a new directory outside the repository. Use three fresh, distinct
+   release-bound PNG captures; never use candidate or rehearsal assets:
+
+   ```sh
+   python3 scripts/render_release_submission.py \
+     --manifest /tmp/driftline-final-demo-manifest.json \
+     --video-url https://youtu.be/EXACT_PUBLIC_VIDEO_ID \
+     --hero-image /tmp/driftline-release-hero.png \
+     --generation-1-image /tmp/driftline-release-generation-1.png \
+     --generation-2-image /tmp/driftline-release-generation-2.png \
+     --output-dir /tmp/driftline-release-submission
+   ```
+
+   The renderer fails unless release, health, and public-main SHAs match; all
+   final visible-proof gates are affirmed; the video has a specific approved
+   host URL; gallery images are release-sized; and stale candidate language is
+   absent. It atomically emits the story, form packet, three copied gallery
+   images, badge-free release architecture, and a hash-bound identity record.
+   Keep this output outside Git so public `main` remains the deployed SHA.
 
 ## 5. Devpost — requires authorization
 
@@ -76,9 +96,11 @@ mutation, registration, upload, publication, or submission.
    `submission/DEVPOST_FORM_AUDIT.md`; do not join, create, save, upload, accept,
    or submit during that audit.
 2. Reconcile exact labels, limits, selectors, and required confirmations into
-   `devpost-submission.md` and rerun the packet verifier.
-3. Replace only the approved video/social placeholders in
-   `devpost-submission.md`; rerun `./scripts/verify_submission_packet.sh`.
+   the tracked templates and rerun `./scripts/verify_submission_packet.sh`.
+3. Copy and upload only from the externally rendered release packet. Verify
+   the public video logged out; URL shape validation does not prove visibility.
+   If optional build-story or social bonus URLs are absent, leave them as
+   **Not claimed** rather than preserving a placeholder or inventing proof.
 4. Select only Taskmaster and enter Google ADK, the August 18 implementation
    start, repo, hosted URL, architecture, and originality/source disclosure.
 5. Recheck entrant identity, eligibility, rules, terms, privacy consent, links,
