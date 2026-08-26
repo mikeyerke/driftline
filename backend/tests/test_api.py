@@ -266,6 +266,31 @@ def test_private_pilot_starter_is_product_bound_and_owner_only(monkeypatch) -> N
         },
     ).json()
 
+    cited_node_ids = created["council"]["evidence_node_ids"]
+    denied_review = shared_viewer.post(
+        f"/api/decision-twin/{created['case_id']}/evidence/{cited_node_ids[0]}/review",
+        json={"expected_generation": 1},
+    )
+    assert denied_review.status_code == 403
+    for node_id in cited_node_ids:
+        reviewed = owner.post(
+            f"/api/decision-twin/{created['case_id']}/evidence/{node_id}/review",
+            json={"expected_generation": 1},
+        )
+        assert reviewed.status_code == 200
+    duplicate = owner.post(
+        f"/api/decision-twin/{created['case_id']}/evidence/{cited_node_ids[0]}/review",
+        json={"expected_generation": 1},
+    )
+    assert duplicate.status_code == 200
+    assert len(duplicate.json()["evidence_reviews"]) == len(cited_node_ids)
+    stale = owner.post(
+        f"/api/decision-twin/{created['case_id']}/evidence/{cited_node_ids[0]}/review",
+        json={"expected_generation": 2},
+    )
+    assert stale.status_code == 409
+    assert "stale generation" in stale.json()["detail"]
+
     response = owner.get(
         f"/api/decision-twin/{created['case_id']}/pilot-evidence-starter"
     )
@@ -275,6 +300,11 @@ def test_private_pilot_starter_is_product_bound_and_owner_only(monkeypatch) -> N
     assert starter["record"]["app_release_sha"] == "a" * 40
     assert starter["record"]["app_state"] == "verified_production"
     assert starter["record"]["participant_role"] is None
+    assert starter["record"]["all_citations_reviewed"] is True
+    assert starter["evidence_binding"]["reviewed_evidence_count"] == len(
+        cited_node_ids
+    )
+    assert starter["evidence_binding"]["all_citations_reviewed"] is True
     assert starter["evidence_binding"]["evidence_manifest_hash"] == created["council"][
         "evidence_manifest_hash"
     ]

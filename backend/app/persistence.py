@@ -12,7 +12,7 @@ from uuid import uuid4
 from google.api_core.exceptions import AlreadyExists, InvalidArgument
 from google.cloud import firestore
 
-from .decision_twin import DecisionCase
+from .decision_twin import DecisionCase, review_decision_evidence
 from .models import (
     ArtifactImpact,
     JobState,
@@ -360,6 +360,72 @@ def compare_and_set_decision_case(
 
     committed = transition(client.transaction())
     return committed
+
+
+def append_decision_evidence_review(
+    case_id: str,
+    *,
+    evidence_node_id: str,
+    expected_generation: int,
+) -> DecisionCase | None:
+    """Atomically merge one idempotent review into the current case generation."""
+    if not _enabled():
+        with _decision_cases_lock:
+            stored = _decision_cases_memory.get(case_id)
+            if stored is None:
+                return None
+            current_payload = dict(stored)
+            if current_payload.get("_mutation_capability_hash"):
+                current_payload["mutation_capability_hash"] = current_payload.pop(
+                    "_mutation_capability_hash"
+                )
+            current = DecisionCase.model_validate(current_payload)
+            updated = review_decision_evidence(
+                current,
+                evidence_node_id=evidence_node_id,
+                expected_generation=expected_generation,
+            )
+            payload = updated.model_dump(mode="json")
+            if updated.mutation_capability_hash:
+                payload["_mutation_capability_hash"] = updated.mutation_capability_hash
+            _decision_cases_memory[case_id] = payload
+            return updated
+
+    client = _client()
+    document = client.collection(DECISION_CASES_COLLECTION).document(case_id)
+
+    @firestore.transactional
+    def append(transaction: Any) -> DecisionCase | None:
+        snapshot = document.get(transaction=transaction)
+        if not snapshot.exists:
+            return None
+        current_payload = snapshot.to_dict() or {}
+        if _payload_expired(current_payload):
+            return None
+        current_payload.pop("expires_at", None)
+        if current_payload.get("_mutation_capability_hash"):
+            current_payload["mutation_capability_hash"] = current_payload.pop(
+                "_mutation_capability_hash"
+            )
+        current = DecisionCase.model_validate(current_payload)
+        updated = review_decision_evidence(
+            current,
+            evidence_node_id=evidence_node_id,
+            expected_generation=expected_generation,
+        )
+        payload = updated.model_dump(mode="json")
+        if updated.mutation_capability_hash:
+            payload["_mutation_capability_hash"] = updated.mutation_capability_hash
+        payload["expires_at"] = _retention_expiry(updated.tenant_id)
+        _stage_audit_events(
+            transaction,
+            document.collection("audit_events"),
+            updated.events,
+        )
+        transaction.set(document, payload)
+        return updated
+
+    return append(client.transaction())
 
 
 def list_workflows(limit: int = 50) -> list[WorkflowState]:

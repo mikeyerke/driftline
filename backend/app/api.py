@@ -97,6 +97,7 @@ from .multimodal import (
     visual_asset_bytes,
 )
 from .persistence import (
+    append_decision_evidence_review,
     claim_job,
     compare_and_set_decision_case,
     compare_and_set_workflow,
@@ -473,6 +474,12 @@ class DecisionTwinIntakeRequest(BaseModel):
     evidence_inputs: list[PMEvidenceInput] = Field(default_factory=list, max_length=4)
     affected_segment: str | None = Field(default=None, min_length=2, max_length=80)
     measurement_contract: PMMeasurementContract
+
+
+class DecisionTwinEvidenceReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_generation: int = Field(ge=1, le=20)
 
 
 class DecisionTwinOutcomeRequest(BaseModel):
@@ -6380,6 +6387,35 @@ def get_decision_twin_evaluation(case_id: str) -> dict:
     if case is None or case.tenant_id is not None:
         raise HTTPException(status_code=404, detail="Decision case not found")
     return evaluate_decision_twin_case(case)
+
+
+@app.post("/api/decision-twin/{case_id}/evidence/{evidence_node_id}/review")
+def review_decision_twin_evidence(
+    case_id: str,
+    evidence_node_id: str,
+    review: DecisionTwinEvidenceReviewRequest,
+    request: Request,
+) -> dict[str, object]:
+    """Persist a source-text-free receipt from the originating browser."""
+    current = load_decision_case(case_id)
+    if current is None or current.tenant_id is not None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    _require_decision_mutation_capability(current, request)
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision evidence review rate limit reached; retry later."
+        )
+    try:
+        updated = append_decision_evidence_review(
+            case_id,
+            evidence_node_id=evidence_node_id,
+            expected_generation=review.expected_generation,
+        )
+    except DecisionTwinPolicyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Decision case not found")
+    return _public_decision_case(updated, can_edit=True)
 
 
 @app.get("/api/decision-twin/{case_id}/pilot-evidence-starter")

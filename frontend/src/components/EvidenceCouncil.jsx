@@ -11,7 +11,7 @@ const evidenceIcons = {
 const titleCase = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const observedDate = (value) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
 
-function EvidenceCard({ node }) {
+function EvidenceCard({ node, canReview, reviewed, reviewing, onReview }) {
   const Icon = evidenceIcons[node.kind] || ShieldQuestion;
   return (
     <article className="decision-evidence-item" key={node.node_id}>
@@ -20,12 +20,13 @@ function EvidenceCard({ node }) {
         <span className="decision-evidence-source">{titleCase(node.kind)} · {node.source_label} · observed {observedDate(node.observed_at)}</span>
         <strong>{node.title}</strong>
         <p>{node.excerpt}</p>
+        {canReview && <button className={`evidence-review-button ${reviewed ? "reviewed" : ""}`} type="button" onClick={() => onReview(node.node_id)} disabled={reviewed || reviewing}>{reviewed ? <><CheckCircle2 size={14} />Reviewed</> : <><SearchCheck size={14} />{reviewing ? "Recording review…" : "Mark source reviewed"}</>}</button>}
       </div>
     </article>
   );
 }
 
-export default function EvidenceCouncil({ decisionCase }) {
+export default function EvidenceCouncil({ decisionCase, canEdit, reviewingEvidenceId, onReviewEvidence }) {
   const council = decisionCase.council;
   const isProvidedIntake = decisionCase.events.some((event) => event.source_mode === "pm_provided_unverified");
   const priorityKinds = ["metric", "support", "customer"];
@@ -34,6 +35,21 @@ export default function EvidenceCouncil({ decisionCase }) {
   const harvest = decisionCase.operating_loop?.evidence_harvest;
   const decisionChannels = (harvest?.covered_channels || []).filter((channel) => channel !== "roadmap");
   const independentlyObserved = (harvest?.sources || []).filter((source) => source.mode === "connected_observed").length;
+  const citedNodeIds = new Set([
+    ...council.evidence_node_ids,
+    ...council.positions.flatMap((position) => [...position.supporting_node_ids, ...position.contradicting_node_ids]),
+    ...council.options.flatMap((option) => option.evidence_node_ids),
+  ]);
+  const reviewedNodeIds = new Set(
+    (decisionCase.evidence_reviews || [])
+      .filter((review) => review.generation === decisionCase.generation
+        && review.evidence_manifest_hash === council.evidence_manifest_hash
+        && review.synthesis_hash === council.synthesis_hash)
+      .map((review) => review.evidence_node_id),
+  );
+  const citedCount = citedNodeIds.size;
+  const reviewedCount = [...citedNodeIds].filter((nodeId) => reviewedNodeIds.has(nodeId)).length;
+  const evidenceCard = (node) => <EvidenceCard node={node} key={node.node_id} canReview={isProvidedIntake && canEdit && citedNodeIds.has(node.node_id)} reviewed={reviewedNodeIds.has(node.node_id)} reviewing={reviewingEvidenceId === node.node_id} onReview={onReviewEvidence} />;
   return (
     <section className="decision-room-section evidence-council" aria-labelledby="evidence-council-title">
       <header className="decision-room-section-header">
@@ -41,9 +57,10 @@ export default function EvidenceCouncil({ decisionCase }) {
         <span className={`council-mode ${council.mode === "google_adk" ? "live" : "fixture"}`}>{council.mode === "google_adk" ? "Live Google ADK" : isProvidedIntake ? "Bounded fallback" : "Pinned demo data"}</span>
       </header>
       <div className="decision-evidence-grid priority">
-        {primaryNodes.map((node) => <EvidenceCard node={node} key={node.node_id} />)}
+        {primaryNodes.map(evidenceCard)}
       </div>
       {isProvidedIntake && <section className="evidence-corroboration" aria-labelledby="evidence-corroboration-title">
+        <div className="evidence-review-summary"><SearchCheck size={16} /><span><strong>Source review: {reviewedCount} of {citedCount}</strong><small>{reviewedCount === citedCount && citedCount > 0 ? "Every cited source has a capability-bound review receipt." : "Open each cited source and mark it reviewed before making a validation claim."}</small></span></div>
         <div className="evidence-pack-summary"><span><strong>{decisionCase.evidence_nodes.length - 1} separately cited signals</strong><small>{decisionChannels.length} evidence channels captured</small></span><b>{independentlyObserved} independently observed</b></div>
         <header>
           <div><SearchCheck size={19} /><span><strong id="evidence-corroboration-title">Evidence readiness: 0 of 3 checks corroborated</strong><small>Driftline can structure the call now. These checks turn it into a defensible operating decision.</small></span></div>
@@ -59,7 +76,7 @@ export default function EvidenceCouncil({ decisionCase }) {
       <div className="council-conflict"><ShieldQuestion size={20} /><div><strong>The useful disagreement</strong><p>{council.decisive_conflict}</p></div></div>
       <details className="council-reasoning">
         <summary>Open full evidence and five council positions <span>{decisionCase.evidence_nodes.length} sources · {council.positions.length} perspectives</span></summary>
-        {supportingNodes.length > 0 && <div className="decision-evidence-grid supporting">{supportingNodes.map((node) => <EvidenceCard node={node} key={node.node_id} />)}</div>}
+        {supportingNodes.length > 0 && <div className="decision-evidence-grid supporting">{supportingNodes.map(evidenceCard)}</div>}
         <div className="council-position-list" aria-label="Product council positions">
           {council.positions.map((position) => (
             <details className={`council-position ${position.role === "challenger" ? "challenger" : ""}`} key={position.role}>

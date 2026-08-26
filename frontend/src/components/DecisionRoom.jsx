@@ -1,6 +1,6 @@
 import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, Download, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Plus, Radar, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { approveDecisionTwin, downloadDecisionTwinPilotStarter, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, startDecisionTwin, startDecisionTwinIntake } from "../api";
+import { approveDecisionTwin, downloadDecisionTwinPilotStarter, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, reviewDecisionTwinEvidence, startDecisionTwin, startDecisionTwinIntake } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
 import EvidenceCouncil from "./EvidenceCouncil";
 import LearningReceipt from "./LearningReceipt";
@@ -95,6 +95,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const [copyStatus, setCopyStatus] = useState("");
   const [linkStatus, setLinkStatus] = useState("");
   const [pilotExportStatus, setPilotExportStatus] = useState("");
+  const [reviewingEvidenceId, setReviewingEvidenceId] = useState("");
   const [approverName, setApproverName] = useState("");
   const intakeSectionRef = useRef(null);
   const intakeTitleRef = useRef(null);
@@ -325,6 +326,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     setCopyStatus("");
     setLinkStatus("");
     setPilotExportStatus("");
+    setReviewingEvidenceId("");
     setApproverName("");
     setIntakeOpen(false);
     setIntakeStep(1);
@@ -355,6 +357,24 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     } catch (nextError) {
       setPilotExportStatus("");
       setError(nextError.message);
+    }
+  };
+
+  const reviewEvidence = async (evidenceNodeId) => {
+    setReviewingEvidenceId(evidenceNodeId);
+    setError("");
+    try {
+      const next = await reviewDecisionTwinEvidence(
+        decisionCase.case_id,
+        evidenceNodeId,
+        decisionCase.generation,
+      );
+      setDecisionCase(next);
+      setEvaluation(null);
+    } catch (nextError) {
+      setError(nextError.message);
+    } finally {
+      setReviewingEvidenceId("");
     }
   };
 
@@ -629,7 +649,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <div><dt>Match</dt><dd>{Math.round(decisionCase.precedents[0].similarity * 100)}% · {decisionCase.precedents[0].source_label}</dd></div>
         </dl>
       </section>}
-      <EvidenceCouncil decisionCase={decisionCase} />
+      <EvidenceCouncil decisionCase={decisionCase} canEdit={canEdit} reviewingEvidenceId={reviewingEvidenceId} onReviewEvidence={reviewEvidence} />
       <CounterfactualCompare options={decisionCase.council.options} recommendedId={decisionCase.council.recommendation} selectedId={selectedId} onSelect={setSelectedId} />
       {waitingForDecision && canEdit && <section className="decision-approval-gate">
         <div>

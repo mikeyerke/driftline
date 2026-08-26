@@ -7,7 +7,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from .decision_twin import DecisionCase
+from .decision_twin import DecisionCase, evidence_review_status
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -50,6 +50,7 @@ def build_pilot_evidence_starter(
     external_writes_none = all(
         record.external_write is False for record in case.action_records
     )
+    review_status = evidence_review_status(case)
 
     automated_fields = [
         "session_id",
@@ -59,6 +60,7 @@ def build_pilot_evidence_starter(
         "plausible_option_count",
         "evidence_input_count",
         "review_window_days",
+        "all_citations_reviewed",
     ]
     record: dict[str, Any] = {
         "session_id": f"RP{session_number:04d}",
@@ -86,7 +88,7 @@ def build_pilot_evidence_starter(
         "minutes_to_brief": None,
         "decision_effect": None,
         "citation_error_count": None,
-        "all_citations_reviewed": None,
+        "all_citations_reviewed": review_status["all_citations_reviewed"],
         "human_control_understood": None,
         "external_writes_none_understood": None,
         "primary_decision_pain": None,
@@ -120,6 +122,10 @@ def build_pilot_evidence_starter(
             "human_approval_present": case.approval is not None,
             "outcome_count": len(case.outcomes),
             "external_writes_none": external_writes_none,
+            "cited_evidence_count": review_status["cited_evidence_count"],
+            "reviewed_evidence_count": review_status["reviewed_evidence_count"],
+            "all_citations_reviewed": review_status["all_citations_reviewed"],
+            "review_receipt_hash": review_status["review_receipt_hash"],
         },
         "record": record,
         "automated_fields": automated_fields,

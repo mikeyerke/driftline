@@ -264,6 +264,19 @@ class BoundedActionRecord(BaseModel):
     external_write: Literal[False] = False
 
 
+class EvidenceReviewRecord(BaseModel):
+    """Capability-bound receipt that records review without copying source text."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    review_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{2,140}$")
+    generation: int = Field(ge=1, le=MAX_DECISION_GENERATION)
+    evidence_node_id: str = Field(min_length=1, max_length=100)
+    reviewed_at: str = Field(min_length=1, max_length=50)
+    evidence_manifest_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    synthesis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class DecisionHistoryRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -319,6 +332,9 @@ class DecisionCase(BaseModel):
     action_records: list[BoundedActionRecord] = Field(
         default_factory=list, max_length=MAX_DECISION_GENERATION
     )
+    evidence_reviews: list[EvidenceReviewRecord] = Field(
+        default_factory=list, max_length=128
+    )
     operating_loop: ProductOperatingLoop | None = None
     reopen_reason: str | None = None
     events: list[dict[str, Any]] = Field(default_factory=list, max_length=128)
@@ -333,6 +349,111 @@ def refresh_product_operating_loop(case: DecisionCase) -> DecisionCase:
     """Refresh the read-only seven-capability projection after a state change."""
     case.operating_loop = build_product_operating_loop(case)
     return case
+
+
+def decision_citation_node_ids(case: DecisionCase) -> list[str]:
+    """Return the current synthesis's unique cited sources in product order."""
+    known = {node.node_id for node in case.evidence_nodes}
+    ordered: list[str] = []
+    for node_id in [
+        *case.council.evidence_node_ids,
+        *[
+            node_id
+            for position in case.council.positions
+            for node_id in (
+                position.supporting_node_ids + position.contradicting_node_ids
+            )
+        ],
+        *[
+            node_id
+            for option in case.council.options
+            for node_id in option.evidence_node_ids
+        ],
+    ]:
+        if node_id in known and node_id not in ordered:
+            ordered.append(node_id)
+    return ordered
+
+
+def evidence_review_status(case: DecisionCase) -> dict[str, Any]:
+    """Summarize current-generation review receipts without source content."""
+    cited = decision_citation_node_ids(case)
+    current_reviews = [
+        review
+        for review in case.evidence_reviews
+        if review.generation == case.generation
+        and review.evidence_manifest_hash == case.council.evidence_manifest_hash
+        and review.synthesis_hash == case.council.synthesis_hash
+        and review.evidence_node_id in cited
+    ]
+    reviewed_ids = list(dict.fromkeys(
+        review.evidence_node_id for review in current_reviews
+    ))
+    canonical = [
+        review.model_dump(mode="json")
+        for review in sorted(current_reviews, key=lambda item: item.review_id)
+    ]
+    return {
+        "generation": case.generation,
+        "cited_evidence_count": len(cited),
+        "reviewed_evidence_count": len(reviewed_ids),
+        "reviewed_evidence_node_ids": reviewed_ids,
+        "all_citations_reviewed": bool(cited) and set(cited).issubset(reviewed_ids),
+        "review_receipt_hash": _digest(canonical),
+    }
+
+
+def review_decision_evidence(
+    case: DecisionCase,
+    *,
+    evidence_node_id: str,
+    expected_generation: int,
+) -> DecisionCase:
+    """Record an idempotent, generation-bound evidence review receipt."""
+    if expected_generation != case.generation:
+        raise DecisionTwinPolicyError("Evidence review references a stale generation")
+    if case.status not in {"needs_approval", "reopened"}:
+        raise DecisionTwinPolicyError("Evidence review is closed after approval")
+    cited = decision_citation_node_ids(case)
+    if evidence_node_id not in cited:
+        raise DecisionTwinPolicyError("Evidence review references an uncited source")
+    existing = next(
+        (
+            review
+            for review in case.evidence_reviews
+            if review.generation == case.generation
+            and review.evidence_node_id == evidence_node_id
+            and review.evidence_manifest_hash == case.council.evidence_manifest_hash
+            and review.synthesis_hash == case.council.synthesis_hash
+        ),
+        None,
+    )
+    if existing is not None:
+        return case
+    updated = deepcopy(case)
+    safe_slug = re.sub(r"[^a-z0-9_-]+", "-", evidence_node_id.casefold()).strip("-")
+    review_id = f"evidence-review-g{case.generation}-{safe_slug}"[:140].rstrip("-")
+    updated.evidence_reviews.append(
+        EvidenceReviewRecord(
+            review_id=review_id,
+            generation=case.generation,
+            evidence_node_id=evidence_node_id,
+            reviewed_at=datetime.now(UTC).isoformat(),
+            evidence_manifest_hash=case.council.evidence_manifest_hash,
+            synthesis_hash=case.council.synthesis_hash,
+        )
+    )
+    updated.events.append(
+        {
+            "event_id": review_id,
+            "action": "human_evidence_review",
+            "outcome": "cited_source_reviewed",
+            "generation": case.generation,
+            "evidence_node_id": evidence_node_id,
+            "external_write": False,
+        }
+    )
+    return refresh_product_operating_loop(updated)
 
 
 def _node(

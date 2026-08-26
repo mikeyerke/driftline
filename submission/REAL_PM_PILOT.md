@@ -44,8 +44,10 @@ One pilot counts only if all of these are true:
 - The decision has at least two plausible options and meaningful downside if wrong.
 - The participant supplies at least three real, non-secret evidence inputs or faithful redactions.
 - Driftline produces a cited brief, competing recommendations, a bounded action, and a named approval step.
-- The participant opens and reviews every generated citation; an uninspected
-  brief does not count as evidence-grounded validation.
+- The participant opens every cited source and uses **Mark source reviewed**.
+  Driftline records a generation-, manifest-, and synthesis-bound receipt
+  without copying source text. An incomplete review cannot support the
+  all-citations-reviewed claim.
 - The participant records before/after measures and completes a follow-up after reviewing the brief.
 - Any public use is separately consented to and anonymized by default.
 - The participant keeps the opaque return link and can reopen the same
@@ -149,10 +151,12 @@ worktree until Mike separately authorizes a release. The outcome path stores
 the PM's aggregate primary and risk values as unverified, never substitutes a
 fixture, and requires both success and safety before completing the action.
 
-From the originating browser, use **Download private pilot starter** before the
+From the originating browser, first confirm **Source review: N of N**, then use
+**Download private pilot starter** before the
 session ends. The owner-only export contains the exact release SHA, hashed case
 reference, evidence-manifest and synthesis hashes, and bounded product-observed
-counts. It contains no decision text, participant identity, consent, validation,
+counts and a source-review receipt hash. The product—not the worksheet—fills
+`all_citations_reviewed`. It contains no decision text, participant identity, consent, validation,
 or customer claim. Keep it private.
 
 Complete the starter's `record` manual fields from the observed session and save

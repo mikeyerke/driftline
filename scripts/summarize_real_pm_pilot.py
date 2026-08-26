@@ -171,6 +171,7 @@ AUTOMATED_FIELDS = {
     "plausible_option_count",
     "evidence_input_count",
     "review_window_days",
+    "all_citations_reviewed",
 }
 BINDING_FIELDS = {
     "case_reference_hash",
@@ -185,6 +186,10 @@ BINDING_FIELDS = {
     "human_approval_present",
     "outcome_count",
     "external_writes_none",
+    "cited_evidence_count",
+    "reviewed_evidence_count",
+    "all_citations_reviewed",
+    "review_receipt_hash",
 }
 HASH_RE = re.compile(r"[0-9a-f]{64}")
 
@@ -362,6 +367,7 @@ def validate_starter(starter: dict[str, Any], record: dict[str, Any]) -> dict[st
         "case_reference_hash",
         "evidence_manifest_hash",
         "synthesis_hash",
+        "review_receipt_hash",
     ):
         if not isinstance(binding[field], str) or not HASH_RE.fullmatch(binding[field]):
             raise PilotValidationError(f"invalid starter {field}")
@@ -396,6 +402,25 @@ def validate_starter(starter: dict[str, Any], record: dict[str, Any]) -> dict[st
         raise PilotValidationError("invalid starter outcome_count")
     if not isinstance(binding["human_approval_present"], bool):
         raise PilotValidationError("invalid starter human_approval_present")
+    for field in ("cited_evidence_count", "reviewed_evidence_count"):
+        if (
+            isinstance(binding[field], bool)
+            or not isinstance(binding[field], int)
+            or binding[field] < 0
+        ):
+            raise PilotValidationError(f"invalid starter {field}")
+    if binding["reviewed_evidence_count"] > binding["cited_evidence_count"]:
+        raise PilotValidationError("starter review count exceeds cited evidence count")
+    expected_all_reviewed = (
+        binding["cited_evidence_count"] > 0
+        and binding["reviewed_evidence_count"] == binding["cited_evidence_count"]
+    )
+    if (
+        not isinstance(binding["all_citations_reviewed"], bool)
+        or binding["all_citations_reviewed"] is not expected_all_reviewed
+        or binding["all_citations_reviewed"] is not record["all_citations_reviewed"]
+    ):
+        raise PilotValidationError("starter citation review binding is inconsistent")
     if binding["external_writes_none"] is not True:
         raise PilotValidationError(
             "starter does not prove the external-writes-none boundary"
@@ -488,6 +513,7 @@ def summarize(record: dict[str, Any], starter: dict[str, Any] | None = None) -> 
 - Synthesis SHA-256: `{binding["synthesis_hash"]}`
 - Exported case state: generation {binding["generation"]}; status `{binding["case_status"]}`; human approval present: **{"yes" if binding["human_approval_present"] else "no"}**; recorded outcomes: {binding["outcome_count"]}
 - Product-observed external writes: **none**"""
+        custody += f"\n- Product-observed citation review: **{binding['reviewed_evidence_count']} of {binding['cited_evidence_count']}** cited sources; receipt `{binding['review_receipt_hash']}`"
     else:
         custody = "- Evidence custody: **manual record only; not product-bound**"
 
