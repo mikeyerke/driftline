@@ -68,6 +68,14 @@ final-demo manifest seed from that receipt outside the repository and refuses
 manual overwrite, preventing release identity from being copied between tools
 by hand. This control is implemented and tested; no new release was performed.
 
+The final readiness audit consumes that chain instead of requiring another
+status rewrite. Verified release identity, final media, rendered packet hashes,
+and private entrant affirmations can close exactly the three ready-to-submit
+gates. Devpost completion remains a later external state, while independent PM
+evidence and optional public contributions remain score opportunities rather
+than false eligibility requirements. With no supplied release artifacts, the
+audit continues to fail closed on all three readiness gates.
+
 Together, these public-main changes add these
 judge-facing improvements:
 

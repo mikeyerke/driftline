@@ -24,6 +24,7 @@ for file in \
   submission/DEVPOST_FORM_AUDIT.md \
   submission/JUDGE_EVIDENCE_INDEX.md \
   submission/judge-evidence-manifest.json \
+  submission/entrant-attestations.template.json \
   submission/ORIGINALITY_PROVENANCE.md \
   submission/THIRD_PARTY_DISCLOSURE.md \
   submission/SOCIAL_POST_DRAFTS.md \
@@ -36,6 +37,7 @@ for file in \
   scripts/verify_final_demo_package.sh \
   scripts/prepare_final_demo_manifest.py \
   scripts/verify_judge_evidence.py \
+  scripts/verify_submission_readiness.py \
   scripts/render_release_submission.py \
   scripts/render_final_demo_review_sheet.sh \
   scripts/verify_contest_provenance.sh \
@@ -198,8 +200,15 @@ require_text README.md '## Judge it in 60 seconds'
 require_text README.md 'python3 scripts/verify_judge_evidence.py --live'
 require_text scripts/verify_judge_evidence.py 'rubric weights do not match the official 40/30/30 criteria'
 require_text scripts/verify_judge_evidence.py 'submission is not ready; open gates:'
+require_text scripts/verify_submission_readiness.py 'release evidence inputs are all-or-none'
+require_text scripts/verify_submission_readiness.py 'release packet must remain outside the repository'
+require_text scripts/verify_submission_readiness.py 'not ready to submit; open gates:'
 require_text submission/judge-evidence-manifest.json '"taskmaster_preapproval_workflow"'
 require_text submission/judge-evidence-manifest.json '"record_and_publish_exact_release_video"'
+require_text submission/judge-evidence-manifest.json '"phase": "ready_to_submit"'
+require_text submission/judge-evidence-manifest.json '"score_gates"'
+require_text submission/entrant-attestations.template.json '"submission_authorized": false'
+require_text submission/REMOTE_CHECKLIST.md 'python3 scripts/verify_submission_readiness.py'
 require_text README.md '**Taskmaster proof:** before the named approval'
 require_text README.md 'without a prompt loop or human'
 require_text README.md './scripts/verify_clean_checkout.sh'

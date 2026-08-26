@@ -142,7 +142,7 @@ def validate_manifest(payload: dict[str, Any], *, check_files: bool = True) -> d
     if serving["release_sha"] == candidate["last_verified_sha"]:
         raise EvidenceAuditError("candidate cannot be marked separately unreleased while matching the serving SHA")
 
-    for section in ("stage_one_requirements", "submission_gates"):
+    for section in ("stage_one_requirements", "submission_gates", "score_gates"):
         rows = payload.get(section)
         if not isinstance(rows, list) or not rows:
             raise EvidenceAuditError(f"{section} must be a non-empty list")
@@ -156,13 +156,30 @@ def validate_manifest(payload: dict[str, Any], *, check_files: bool = True) -> d
             if row.get("state") not in ALLOWED_STATES:
                 raise EvidenceAuditError(f"{section} {row['id']} has invalid state")
 
+    allowed_phases = {"ready_to_submit", "submitted"}
+    for row in payload["submission_gates"]:
+        if row.get("phase") not in allowed_phases:
+            raise EvidenceAuditError(
+                f"submission gate {row['id']} has invalid phase: {row.get('phase')}"
+            )
+
     open_gates = [row["id"] for row in payload["submission_gates"] if row["state"] == "open"]
+    open_ready_gates = [
+        row["id"]
+        for row in payload["submission_gates"]
+        if row["state"] == "open" and row["phase"] == "ready_to_submit"
+    ]
+    open_score_gates = [
+        row["id"] for row in payload["score_gates"] if row["state"] == "open"
+    ]
     return {
         "criteria_weight": sum(weights.values()),
         "claims": len(claim_ids),
         "evidence_anchors": evidence_count,
         "claim_states": dict(sorted(state_counts.items())),
         "open_gates": open_gates,
+        "open_ready_gates": open_ready_gates,
+        "open_score_gates": open_score_gates,
         "candidate_sha": candidate["last_verified_sha"],
         "serving_sha": serving["release_sha"],
     }
@@ -221,7 +238,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--require-submission-ready",
         action="store_true",
-        help="fail while any submission gate remains open",
+        help="fail while any ready-to-submit gate remains open",
     )
     parser.add_argument("--json", action="store_true", help="emit a machine-readable result")
     return parser.parse_args()
@@ -236,9 +253,10 @@ def main() -> int:
             report["live_identity"] = verify_live_identity(payload)
         if args.release_candidate:
             report["release_candidate"] = verify_release_candidate()
-        if args.require_submission_ready and report["open_gates"]:
+        if args.require_submission_ready and report["open_ready_gates"]:
             raise EvidenceAuditError(
-                "submission is not ready; open gates: " + ", ".join(report["open_gates"])
+                "submission is not ready; open gates: "
+                + ", ".join(report["open_ready_gates"])
             )
     except (EvidenceAuditError, subprocess.CalledProcessError) as exc:
         print(f"Judge evidence audit failed: {exc}", file=sys.stderr)
@@ -253,6 +271,7 @@ def main() -> int:
         print(f"Candidate: {report['candidate_sha']} (tested, not deployed)")
         print(f"Serving:   {report['serving_sha']} (live verified)")
         print("Open gates: " + ", ".join(report["open_gates"]))
+        print("Open score opportunities: " + ", ".join(report["open_score_gates"]))
     return 0
 
 

@@ -24,6 +24,8 @@ def test_repository_judge_manifest_is_valid() -> None:
     assert report["evidence_anchors"] >= 20
     assert report["candidate_sha"] != report["serving_sha"]
     assert "record_and_publish_exact_release_video" in report["open_gates"]
+    assert "devpost_form_save_and_submit" not in report["open_ready_gates"]
+    assert "independent_pm_validation" in report["open_score_gates"]
 
 
 def test_rejects_rubric_weight_drift() -> None:

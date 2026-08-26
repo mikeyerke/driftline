@@ -138,10 +138,15 @@
     {"id": "third_party_and_originality_disclosure", "state": "tested"}
   ],
   "submission_gates": [
-    {"id": "deploy_exact_public_main_candidate", "state": "open", "requires_authorization": true},
-    {"id": "record_and_publish_exact_release_video", "state": "open", "requires_authorization": true},
-    {"id": "entrant_eligibility_ownership_and_rules_attestations", "state": "open", "requires_authorization": true},
-    {"id": "devpost_form_save_and_submit", "state": "open", "requires_authorization": true},
-    {"id": "independent_pm_validation", "state": "open", "requires_authorization": true}
+    {"id": "deploy_exact_public_main_candidate", "phase": "ready_to_submit", "state": "open", "requires_authorization": true},
+    {"id": "record_and_publish_exact_release_video", "phase": "ready_to_submit", "state": "open", "requires_authorization": true},
+    {"id": "entrant_eligibility_ownership_and_rules_attestations", "phase": "ready_to_submit", "state": "open", "requires_authorization": true},
+    {"id": "devpost_form_save_and_submit", "phase": "submitted", "state": "open", "requires_authorization": true}
+  ],
+  "score_gates": [
+    {"id": "independent_pm_validation", "state": "open", "requires_authorization": true},
+    {"id": "public_build_content_bonus", "state": "open", "requires_authorization": true},
+    {"id": "public_social_post_bonus", "state": "open", "requires_authorization": true},
+    {"id": "additional_google_ai_model_bonus", "state": "not_claimed", "requires_authorization": true}
   ]
 }
