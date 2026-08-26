@@ -253,6 +253,9 @@ proof, both using the same workflow and deterministic policy contracts.
 - 521 backend tests, Ruff, the frontend production build, and all 14 trace
   evaluation cases passing at the current local-candidate checkpoint
 - Public release metadata exposing the exact serving SHA and Cloud Build ID
+- A fail-closed release renderer that emits nothing unless the actual final
+  MP4/SRT package, three same-session gallery captures, proof video,
+  architecture, submission copy, and exact serving identity agree
 - No embedded credentials found in the repository
 
 ## Other data sources

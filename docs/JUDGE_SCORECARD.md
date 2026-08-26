@@ -26,12 +26,26 @@ passes again.
 ## Public-main release candidate, not production
 
 Public `main` now contains the continuous PM operating loop via PR #23, the
-redacted multi-source evidence pack via PR #24, and the strengthened final-demo
-proof pipeline via PR #25. Hosted GitHub Actions passed all four jobs for every
-PR, and PR #25's candidate tree was identical to its squash-merged `main` tree.
-The exact public-main release preflight then passed from a clean checkout. None
-of these merged changes is part of the live score above until Cloud Run serves
-the same public-main commit and the full production journey is reverified.
+redacted multi-source evidence pack via PR #24, the strengthened final-demo
+proof pipeline via PR #25, truthful judge-evidence custody via PR #26, and the
+fail-closed release-packet chain via PRs #27-#29. Hosted GitHub Actions passed
+all four jobs for every PR. Each PR #26-#29 tested tree was identical to its
+squash-merged `main` tree, and a fresh exact public-main release preflight then
+passed from a clean checkout at `08e7be09551aa833efd5ed93018cb6c32a8b3886`.
+None of these merged changes is part of the live score above until Cloud Run
+serves the same public-main commit and the full production journey is
+reverified.
+
+Release preparation is now one fail-closed evidence chain rather than a set of
+manually coordinated files. It binds the exact repository, deployed and
+`/health` identities to the actual final MP4 and SRT; reruns the complete media
+package verifier; checks three gallery images and their proof video came from
+the same browser session; renders a timestamped four-panel review sheet; and
+then renders the story, form copy, architecture, gallery, captions, video, and
+identity ledger outside the repository. A missing, stale, mismatched, or
+rehearsal-marked input produces no release packet. These are verified release
+controls, not evidence that the current public deployment or a public video has
+changed.
 
 Together, these public-main changes add these
 judge-facing improvements:
