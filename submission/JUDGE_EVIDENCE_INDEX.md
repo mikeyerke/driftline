@@ -8,20 +8,21 @@ story. The rehearsal is permanently marked **UNRELEASED LOCAL CANDIDATE · NOT
 PRODUCTION**. Its timestamps are an edit contract for the final exact-release
 take, not evidence that the candidate is already live.
 
-Post-rehearsal improvement: the current local candidate now opens the workflow
+The current rehearsal now opens the workflow
 with a cited **Autonomous decision inbox** showing the affected commitment,
 decision-debt score, missing evidence, and next bounded decision. Approval moves
 that debt into monitoring; the demonstrated guardrail breach reopens it at a
-higher score while preserving the prior debt cycle. This was real-click verified
-on desktop and at 390 × 844, but it is not present in the 2:58 rehearsal and must
-be captured in the exact-release final take before judges can score it.
+higher score while preserving the prior debt cycle. It also frames the ten-stage
+continuous PM operating loop and the work completed before human approval. The
+states were real-click verified on desktop and at 390 × 844; they still must be
+captured against the exact serving release before judges can score them as live.
 
-The later evidence-pack candidate adds a real-PM path for up to four additional
+The merged evidence-pack path adds up to four additional
 redacted, direction-labelled sources and shows the resulting source breadth in
 the continuous loop. It was real-click verified through decision brief,
 full-evidence review, named approval, and scheduled measurement at desktop and
-390 px with no horizontal overflow. It is not present in the rehearsal and is
-not production proof.
+390 px with no horizontal overflow. The canonical fixed-case rehearsal does not
+exercise this custom-intake branch, and neither branch is production proof.
 
 ## First-pass timeline
 
@@ -87,15 +88,15 @@ eighth browser click for **Run demo measurement fallback**; that extra click is
 not part of the autonomous-monitor presentation. Strongest window:
 **0:00–2:58**.
 
-The August 26 current-HEAD autonomous local rehearsal at `a0b52f8` captured 536
-state-change frames and seven real mouse-input clicks, with the bounded local
-background monitor completing the outcome without a second PM action. A
-separate fallback-mode run passed with 612 frames and eight clicks. Neither is
-evidence of hosted Cloud Tasks execution. The labeled full-resolution audit shows the
-named human at 1:08, the bounded and rolled-back action receipt at 1:15,
-generation 2 with rollback selected at 1:30, and the candidate
-architecture/Cloud-proof section at 2:15. This is local rehearsal evidence,
-not production or upload proof.
+The August 26 PR #25 candidate-tree autonomous rehearsal captured 573
+state-change frames and seven real mouse-input clicks over 105.867 seconds,
+with the bounded local background monitor completing the outcome without a
+second PM action. Neither that proof nor its 178-second narrated build is
+evidence of hosted Cloud Tasks execution. Full-resolution review shows named
+approval at 1:15, the bounded rolled-back receipt by 1:22, generation 2 by
+1:40, and the architecture/release gate beginning at 2:16. The narrated build
+passed 1080p/30fps, caption, audio, loudness, silence, and black-interval gates.
+This is local rehearsal evidence, not production or upload proof.
 
 The final package is unproven until it is captured against the exact serving
 release, passes `scripts/verify_final_demo_package.sh`, receives entrant review,
