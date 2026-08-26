@@ -25,6 +25,8 @@ for file in \
   submission/JUDGE_EVIDENCE_INDEX.md \
   submission/ORIGINALITY_PROVENANCE.md \
   submission/THIRD_PARTY_DISCLOSURE.md \
+  submission/SOCIAL_POST_DRAFTS.md \
+  submission/BONUS_PUBLICATION_CHECKLIST.md \
   submission/JUDGE_SCORECARD.md \
   submission/final-demo-manifest.template.json \
   docs/JUDGE_SCORECARD.md \
@@ -278,6 +280,19 @@ for required_phrase in (
             "Submission packet check failed: the first 300 words of "
             f"submission/DEVPOST.md do not contain {required_phrase!r}"
         )
+
+social_drafts = Path("submission/SOCIAL_POST_DRAFTS.md").read_text()
+try:
+    x_post = social_drafts.split("## X\n\n", 1)[1].strip()
+except IndexError as exc:
+    raise SystemExit(
+        "Submission packet check failed: X social draft is missing"
+    ) from exc
+if len(x_post) > 280:
+    raise SystemExit(
+        "Submission packet check failed: X social draft is "
+        f"{len(x_post)} characters, expected at most 280"
+    )
 PY
 
 todo_lines="$(rg -n -i 'todo|placeholder|tbd|fixme|lorem' \

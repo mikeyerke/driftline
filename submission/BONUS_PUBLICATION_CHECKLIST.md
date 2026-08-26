@@ -6,9 +6,13 @@ remain drafts until the entrant explicitly approves each public action.
 ## Build-story bonus
 
 - [x] Explicitly says it was created for the purpose of entering this hackathon.
-- [x] Explains the problem and why an alert/chat answer is insufficient.
+- [x] Explains the contested-product-decision problem and why a chat answer is
+  insufficient.
 - [x] Names Gemini, Vertex AI, Google ADK, and the deterministic authority gate.
-- [x] Shows the durable claim → action → reconcile → reverse lifecycle.
+- [x] Shows evidence → dissent → counterfactuals → human experiment → outcome
+  → reopen.
+- [x] States that the public action changes Driftline decision state only and
+  performs no external write.
 - [x] Discloses that customer ROI is not yet measured.
 - [ ] Entrant reviews facts against the final deployed release.
 - [ ] Entrant chooses a public—not unlisted—publication destination.
