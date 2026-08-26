@@ -41,4 +41,4 @@ plus 7/7 policy checks and complete decision lineage.
 9
 00:02:40,000 --> 00:03:00,000
 Vertex AI + Google ADK · Cloud Run + Firestore · BigQuery vector memory
-Cloud Tasks + Scheduler · exact public main 03ec8f12fc23
+Cloud Tasks + Scheduler · exact serving app 03ec8f12fc23

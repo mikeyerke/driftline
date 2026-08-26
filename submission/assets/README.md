@@ -23,7 +23,7 @@ synthesized.
 - `driftline-demo-captions.srt`: matching caption track for the four-minute
   silent demo render.
 - `driftline-live-demo.mp4`: 43-second historical proof clip; do not submit it.
-- `decision-twin-*-final.png`: exact-release browser captures from public `main`
+- `decision-twin-*-final.png`: exact-release browser captures from serving app
   `03ec8f12fc23d265c89b462a345a5b599a6411e8`.
 - `demo-slide-*.png`: 1920×1080 captioned frames rendered from those captures.
 - `driftline-final-demo-review.mp4`: three-minute, 1080p/30fps, captioned local

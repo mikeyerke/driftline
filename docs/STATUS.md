@@ -31,7 +31,7 @@ tenant and its configured connectors.
 
 | Capability | State | Evidence | Boundary |
 | --- | --- | --- | --- |
-| Cloud Run production service | **Deployed and live verified** | Final release: `driftline-00305-xln`, 100% traffic; `/health` returned public `main` SHA `03ec8f12fc23d265c89b462a345a5b599a6411e8` and build `c01bec2e-a950-407c-873b-b1d4fdc6bae6` | Isolated `driftline-hackathon-2026`; min 0/max 1 instance |
+| Cloud Run production service | **Deployed and live verified** | Final release: `driftline-00305-xln`, 100% traffic; `/health` returned serving application SHA `03ec8f12fc23d265c89b462a345a5b599a6411e8` and build `c01bec2e-a950-407c-873b-b1d4fdc6bae6` | Isolated `driftline-hackathon-2026`; min 0/max 1 instance |
 | Firebase Hosting public facade | **Live verified** | `driftline-ops.web.app` rewrites to Cloud Run; `/health` and the browser console load over HTTPS | Firebase is linked to the same isolated project; Google Analytics disabled |
 | Firestore workflow/audit persistence | **Live verified** | Production verifier and live workflow records | 30-day default retention; tenant policy can narrow/extend within bounds |
 | Google ADK + Gemini | **Live verified** | Final facade proof: `job-7afefad5be8f`, `eval-1c74b1b36cb8`, 14/14 trace gate | Public runs are fixed, bounded scenarios |
@@ -51,7 +51,7 @@ tenant and its configured connectors.
 
 ## Verified final release custody
 
-- PR #16 merged into public `main` as
+- PR #16 merged the serving application into public `main` as
   `03ec8f12fc23d265c89b462a345a5b599a6411e8`.
 - Cloud Run revision: `driftline-00305-xln` at 100% traffic.
 - Cloud Build: `c01bec2e-a950-407c-873b-b1d4fdc6bae6`.
@@ -59,7 +59,8 @@ tenant and its configured connectors.
 - GitHub Verify Driftline run `32923233214`: backend, frontend, standalone
   image, dependency audit, and repository hygiene all passed.
 - `release_and_verify.sh` and a fresh desktop/mobile browser journey both passed
-  on the same public `main` SHA; the browser console was clean.
+  on the same serving application SHA; the browser console was clean. Later
+  `main` commits contain submission documents/media and do not change runtime.
 
 ## What “real” means here
 

@@ -5,7 +5,7 @@ rules prevail over this working scorecard.
 
 ## Verified final live release
 
-- Public `main` Git SHA: `03ec8f12fc23d265c89b462a345a5b599a6411e8`
+- Serving application Git SHA: `03ec8f12fc23d265c89b462a345a5b599a6411e8`
 - Cloud Run revision: `driftline-00305-xln`, 100% traffic
 - Cloud Build: `c01bec2e-a950-407c-873b-b1d4fdc6bae6`
 - Image digest:
@@ -17,8 +17,9 @@ rules prevail over this working scorecard.
 - Local: full backend suite, Ruff, frontend build/contract, dependency audit,
   shell/diff hygiene, and 14/14 trace evaluation passed
 
-`/health`, Cloud Run, Artifact Registry, GitHub `main`, and the production
-verifier all resolved to the identity above on August 25.
+`/health`, Cloud Run, Artifact Registry, the application commit preserved in
+GitHub `main` history, and the production verifier all resolved to the identity
+above on August 25. Later `main` commits update submission media only.
 
 ## 40% — Innovation and operational utility
 
