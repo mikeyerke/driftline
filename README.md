@@ -873,8 +873,18 @@ the explicit open submission gates, and the current HTTPS serving identity. It
 must continue to report the public-main candidate as **tested, not deployed**
 until an authorized release makes the serving and candidate identities equal.
 Use `--require-submission-ready` as the final fail-closed gate; it intentionally
-fails while deployment, the public video, entrant attestations, Devpost, or
-independent-PM evidence remain open.
+fails while deployment, the public video, or entrant attestations remain open.
+Devpost completion and independent-PM/bonus opportunities are reported
+separately so eligibility, submission completion, and score potential cannot be
+mistaken for one another.
+
+After an authorized release and public-video upload, run
+`python3 scripts/verify_submission_readiness.py --help`. Its all-or-none evidence
+chain verifies the atomic release receipt, current public-main and live health
+identity, final MP4/SRT manifest and media gate, externally rendered release
+packet hashes, and an entrant-completed attestation file. The repository ships
+only a false-by-default attestation template; personal affirmations remain
+outside Git and cannot be inferred by automation.
 
 To prove the committed repository works without any untracked local files or
 pre-existing project environments, run the clean-checkout gate. It exports only

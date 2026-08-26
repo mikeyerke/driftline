@@ -106,6 +106,27 @@ mutation, registration, upload, publication, or submission.
    normalized capture manifest, badge-free release architecture, and a
    hash-bound identity record.
    Keep this output outside Git so public `main` remains the deployed SHA.
+9. Copy `submission/entrant-attestations.template.json` to a private path
+   outside the repository. The entrant alone completes it after reviewing
+   eligibility, ownership, originality, the official rules, every rendered
+   field, and the public video while logged out. Never prefill, infer, commit,
+   or publish those affirmations. Then run the chained gate:
+
+   ```sh
+   python3 scripts/verify_submission_readiness.py \
+     --release-identity /tmp/driftline-release-identity.json \
+     --final-demo-manifest /tmp/driftline-final-demo-manifest.json \
+     --video-file /tmp/driftline-final-demo.mp4 \
+     --captions-file /tmp/driftline-final-demo.srt \
+     --video-url https://youtu.be/EXACT_PUBLIC_VIDEO_ID \
+     --release-packet-dir /tmp/driftline-release-submission \
+     --entrant-attestations /tmp/driftline-entrant-attestations.json \
+     --require-ready-to-submit
+   ```
+
+   This can close only the three ready-to-submit gates. It reports Devpost
+   completion and independent-PM/bonus score opportunities separately; neither
+   is fabricated as an eligibility requirement or silently treated as done.
 
 ## 5. Devpost — requires authorization
 
