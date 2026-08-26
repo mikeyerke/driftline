@@ -3,6 +3,21 @@
 Status: research-only local artifact, refreshed August 26, 2026. No message,
 registration, RSVP, contact-form submission, or outreach has been performed.
 
+## Ongoing prospect watch
+
+Codex heartbeat `driftline-pm-prospect-watch` is active daily at 8:00 AM local
+time and reports into the current private task. It may research and
+deduplicate public candidates, but it may not draft or send messages, submit
+forms, RSVP, register, create calendar events, publish posts, expose addresses,
+modify repositories or deployments, or label anyone a customer. It reports at
+most three new high-confidence candidates and stays quiet when no material
+candidate is new.
+
+The watch is a discovery aid, not a sales agent. Every external action remains
+human-approved; independent-PM evidence still requires a completed qualified
+session, and customer evidence still requires payment or a signed paid-pilot
+commitment.
+
 Current availability was rechecked from public sources. ProductTank Austin's
 official event page still lists **August 27, 6:00–8:00 PM CDT**, Productside at
 Victory Plaza, hosted by Edwin and Ian B. This is research evidence only; no
