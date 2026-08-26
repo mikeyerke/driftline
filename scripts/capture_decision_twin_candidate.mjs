@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -16,6 +17,15 @@ const outputPath = resolve(
 const finalScreenshotPath = process.env.CAPTURE_FINAL_SCREENSHOT
   ? resolve(process.env.CAPTURE_FINAL_SCREENSHOT)
   : null;
+const heroScreenshotPath = process.env.CAPTURE_HERO_SCREENSHOT
+  ? resolve(process.env.CAPTURE_HERO_SCREENSHOT)
+  : null;
+const generation1ScreenshotPath = process.env.CAPTURE_GENERATION_1_SCREENSHOT
+  ? resolve(process.env.CAPTURE_GENERATION_1_SCREENSHOT)
+  : null;
+const galleryManifestPath = process.env.CAPTURE_GALLERY_MANIFEST
+  ? resolve(process.env.CAPTURE_GALLERY_MANIFEST)
+  : null;
 const captureWidth = Number(process.env.CAPTURE_WIDTH || "1280");
 const captureHeight = Number(process.env.CAPTURE_HEIGHT || "720");
 const captureWaitMs = Number(process.env.CAPTURE_WAIT_MS || "12000");
@@ -23,6 +33,19 @@ const captureExpectAction = process.env.CAPTURE_EXPECT_ACTION !== "false";
 const presentationMode = process.env.CAPTURE_PRESENTATION_MODE === "true";
 const expectedReleaseSha = process.env.CAPTURE_EXPECT_RELEASE_SHA || null;
 const expectedBuildId = process.env.CAPTURE_EXPECT_BUILD_ID || null;
+if (
+  galleryManifestPath &&
+  (!heroScreenshotPath || !generation1ScreenshotPath || !finalScreenshotPath)
+) {
+  throw new Error(
+    "CAPTURE_GALLERY_MANIFEST requires hero, generation-1, and final screenshot paths",
+  );
+}
+if (galleryManifestPath && (!expectedReleaseSha || !expectedBuildId)) {
+  throw new Error(
+    "CAPTURE_GALLERY_MANIFEST requires expected release SHA and build ID",
+  );
+}
 if (
   !Number.isInteger(captureWidth) ||
   !Number.isInteger(captureHeight) ||
@@ -214,6 +237,56 @@ try {
     );
   };
 
+  const capturedGalleryAssets = {};
+  let galleryManifest = null;
+  const captureReleaseScreenshot = async (path, key, prepareExpression = null) => {
+    if (!path) return;
+    if (prepareExpression) {
+      const ready = await evaluate(prepareExpression);
+      if (!ready) throw new Error(`Could not prepare ${key} release screenshot`);
+    }
+    await evaluate(`(() => {
+      const style = document.createElement('style');
+      style.id = 'driftline-release-screenshot-cleanup';
+      style.textContent = '#driftline-capture-pointer, .driftline-capture-pulse { visibility: hidden !important; }';
+      document.head.appendChild(style);
+    })()`);
+    await sleep(500);
+    let screenshot;
+    try {
+      screenshot = await client.send("Page.captureScreenshot", {
+        format: "png",
+        fromSurface: true,
+        captureBeyondViewport: false,
+      });
+    } finally {
+      await evaluate(
+        `document.querySelector('#driftline-release-screenshot-cleanup')?.remove()`,
+      );
+    }
+    const screenshotBytes = Buffer.from(screenshot.data, "base64");
+    const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    if (!screenshotBytes.subarray(0, 8).equals(pngSignature)) {
+      throw new Error(`${key} release screenshot is not a PNG`);
+    }
+    const width = screenshotBytes.readUInt32BE(16);
+    const height = screenshotBytes.readUInt32BE(20);
+    if (width !== captureWidth || height !== captureHeight) {
+      throw new Error(
+        `${key} release screenshot is ${width}x${height}; ` +
+          `expected ${captureWidth}x${captureHeight}`,
+      );
+    }
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, screenshotBytes);
+    capturedGalleryAssets[key] = {
+      path,
+      sha256: createHash("sha256").update(screenshotBytes).digest("hex"),
+      width,
+      height,
+    };
+  };
+
   await evaluate(`(() => {
     const style = document.createElement('style');
     style.textContent = \`
@@ -398,6 +471,14 @@ try {
     `document.body.innerText.includes('Run the decision workflow')`,
     "candidate overview",
   );
+  await captureReleaseScreenshot(
+    heroScreenshotPath,
+    "hero",
+    `(() => {
+      scrollTo({ top: 0, behavior: 'instant' });
+      return document.body.innerText.includes('Run the decision workflow');
+    })()`,
+  );
 
   const frames = [];
   let writeChain = Promise.resolve();
@@ -429,6 +510,19 @@ try {
   await waitFor(
     `document.body.innerText.toLowerCase().includes('council recommendation')`,
     "generation 1 council",
+  );
+  await captureReleaseScreenshot(
+    generation1ScreenshotPath,
+    "generation_1",
+    `(() => {
+      const target = [...document.querySelectorAll('h1, h2, h3, p, span')].find(
+        (node) => node.textContent.toLowerCase().includes('council recommendation'),
+      );
+      if (!target) return false;
+      target.scrollIntoView({ behavior: 'instant', block: 'start' });
+      scrollBy({ top: -100, behavior: 'instant' });
+      return true;
+    })()`,
   );
   await showText("Continuous PM operating loop");
   await hold(1_200, 12_000);
@@ -530,39 +624,35 @@ try {
   }
 
   if (finalScreenshotPath) {
-    const screenshotReady = await evaluate(`(() => {
-      const target = document.querySelector('.learning-receipt');
-      if (!target) return false;
-      target.scrollIntoView({ behavior: 'instant', block: 'start' });
-      scrollBy({ top: -160, behavior: 'instant' });
-      document.querySelector('#driftline-capture-pointer')?.remove();
-      document.querySelectorAll('.driftline-capture-pulse').forEach((node) => node.remove());
-      return true;
-    })()`);
-    if (!screenshotReady) {
-      throw new Error("Could not prepare the generation-2 learning receipt screenshot");
+    await captureReleaseScreenshot(
+      finalScreenshotPath,
+      "generation_2",
+      `(() => {
+        const target = document.querySelector('.learning-receipt');
+        if (!target) return false;
+        target.scrollIntoView({ behavior: 'instant', block: 'start' });
+        scrollBy({ top: -160, behavior: 'instant' });
+        return true;
+      })()`,
+    );
+  }
+
+  if (galleryManifestPath) {
+    if (!releaseIdentity) {
+      throw new Error("Release gallery capture is missing health identity");
     }
-    await sleep(500);
-    const screenshot = await client.send("Page.captureScreenshot", {
-      format: "png",
-      fromSurface: true,
-      captureBeyondViewport: false,
-    });
-    const screenshotBytes = Buffer.from(screenshot.data, "base64");
-    const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-    if (!screenshotBytes.subarray(0, 8).equals(pngSignature)) {
-      throw new Error("Final-state screenshot is not a PNG");
+    const expectedKeys = ["hero", "generation_1", "generation_2"];
+    if (!expectedKeys.every((key) => capturedGalleryAssets[key])) {
+      throw new Error("Release gallery capture did not emit all three assets");
     }
-    const screenshotWidth = screenshotBytes.readUInt32BE(16);
-    const screenshotHeight = screenshotBytes.readUInt32BE(20);
-    if (screenshotWidth !== captureWidth || screenshotHeight !== captureHeight) {
-      throw new Error(
-        `Final-state screenshot is ${screenshotWidth}x${screenshotHeight}; ` +
-          `expected ${captureWidth}x${captureHeight}`,
-      );
-    }
-    await mkdir(dirname(finalScreenshotPath), { recursive: true });
-    await writeFile(finalScreenshotPath, screenshotBytes);
+    galleryManifest = {
+      captured_at: new Date().toISOString(),
+      source_url: targetUrl,
+      release_sha: releaseIdentity.release_sha,
+      build_id: releaseIdentity.build_id,
+      continuous_browser_session: true,
+      assets: capturedGalleryAssets,
+    };
   }
 
   await evaluate(`scrollTo({ top: 0, behavior: 'smooth' })`);
@@ -631,6 +721,20 @@ try {
   if (ffmpeg.status !== 0) {
     throw new Error(ffmpeg.stderr || `ffmpeg exited ${ffmpeg.status}`);
   }
+  if (galleryManifestPath && galleryManifest) {
+    const proofVideoBytes = await readFile(outputPath);
+    galleryManifest.proof_video = {
+      path: outputPath,
+      sha256: createHash("sha256").update(proofVideoBytes).digest("hex"),
+      frames: frames.length,
+      pointer_clicks: pointerClicks,
+    };
+    await mkdir(dirname(galleryManifestPath), { recursive: true });
+    await writeFile(
+      galleryManifestPath,
+      `${JSON.stringify(galleryManifest, null, 2)}\n`,
+    );
+  }
 
   console.log(
     JSON.stringify(
@@ -640,6 +744,12 @@ try {
         pointerClicks,
         finalState,
         finalScreenshot: finalScreenshotPath,
+        galleryManifest: galleryManifestPath,
+        galleryScreenshots: {
+          hero: heroScreenshotPath,
+          generation1: generation1ScreenshotPath,
+          generation2: finalScreenshotPath,
+        },
         viewport: `${captureWidth}x${captureHeight}`,
         presentationMode,
         releaseIdentity,

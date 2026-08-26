@@ -84,6 +84,26 @@ final narrated take.
 - For a serving-release capture, also set `CAPTURE_EXPECT_RELEASE_SHA` and
   `CAPTURE_EXPECT_BUILD_ID`. The capture must verify `/health` before its first
   click and fail if either identity differs.
+- For the final release gallery, set a 1600×900 viewport and provide all four
+  custody paths together:
+
+  ```sh
+  CAPTURE_WIDTH=1600 CAPTURE_HEIGHT=900 \
+  CAPTURE_EXPECT_RELEASE_SHA="$RELEASE_SHA" \
+  CAPTURE_EXPECT_BUILD_ID="$BUILD_ID" \
+  CAPTURE_HERO_SCREENSHOT=/tmp/driftline-release-hero.png \
+  CAPTURE_GENERATION_1_SCREENSHOT=/tmp/driftline-release-generation-1.png \
+  CAPTURE_FINAL_SCREENSHOT=/tmp/driftline-release-generation-2.png \
+  CAPTURE_GALLERY_MANIFEST=/tmp/driftline-release-gallery.json \
+    node scripts/capture_decision_twin_candidate.mjs \
+      /tmp/driftline-release-continuous-proof.mp4
+  ```
+
+  The manifest is emitted only after the identity preflight, all real clicks,
+  all three screenshots, the bounded receipt, generation-2 assertions, and
+  continuous proof-video encoding pass in one browser session. It binds each
+  absolute source path, dimensions, and SHA-256. Do not rename or modify an
+  image between capture and final rendering.
 - For a local-only rehearsal, set
   `DECISION_TWIN_AUTONOMOUS_MONITOR=true` while leaving Cloud Tasks disabled so
   the bounded background fallback exercises the same no-second-click timing.
@@ -187,8 +207,11 @@ the final manifest. Its output directory must be outside the repository and
 empty. The renderer copies the three gallery images, replaces the candidate
 architecture badge with **RELEASE VERIFIED**, binds all copy to the exact SHA,
 revision, build, image digest, video hash, and caption hash, and records hashes
-for every emitted visual. It stages atomically so a failed check cannot leave a
-half-valid packet at the requested path.
+for every emitted visual. It also requires the one-session gallery manifest to
+match the final release, every supplied image byte-for-byte, and the encoded
+complete-click capture proof by hash, then emits a portable normalized copy. It
+stages atomically so a failed check cannot leave a half-valid packet at the
+requested path.
 
 Do not commit the rendered packet. A post-deploy commit containing release IDs
 would move public `main` beyond the deployed SHA and invalidate the exact-SHA

@@ -80,14 +80,18 @@ mutation, registration, upload, publication, or submission.
      --hero-image /tmp/driftline-release-hero.png \
      --generation-1-image /tmp/driftline-release-generation-1.png \
      --generation-2-image /tmp/driftline-release-generation-2.png \
+     --gallery-manifest /tmp/driftline-release-gallery.json \
+     --gallery-proof-video /tmp/driftline-release-continuous-proof.mp4 \
      --output-dir /tmp/driftline-release-submission
    ```
 
    The renderer fails unless release, health, and public-main SHAs match; all
    final visible-proof gates are affirmed; the video has a specific approved
-   host URL; gallery images are release-sized; and stale candidate language is
-   absent. It atomically emits the story, form packet, three copied gallery
-   images, badge-free release architecture, and a hash-bound identity record.
+   host URL; all three gallery images and a hash-bound complete-click proof video
+   came from one health-identity-checked browser session; and stale candidate
+   language is absent. It atomically emits
+   the story, form packet, three copied gallery images, normalized capture
+   manifest, badge-free release architecture, and a hash-bound identity record.
    Keep this output outside Git so public `main` remains the deployed SHA.
 
 ## 5. Devpost — requires authorization

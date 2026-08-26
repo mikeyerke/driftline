@@ -82,6 +82,8 @@ def _replace(text: str, old: str, new: str, *, count: int = 1) -> str:
 
 
 def _validate_manifest(manifest: dict[str, object]) -> dict[str, str]:
+    if not isinstance(manifest, dict):
+        raise ReleaseRenderError("final-demo manifest must be a JSON object")
     if set(manifest) != REQUIRED_MANIFEST_FIELDS:
         missing = sorted(REQUIRED_MANIFEST_FIELDS - set(manifest))
         unexpected = sorted(set(manifest) - REQUIRED_MANIFEST_FIELDS)
@@ -249,6 +251,130 @@ def _validate_gallery(paths: list[Path]) -> None:
             raise ReleaseRenderError(
                 f"release gallery filename carries candidate custody: {path}"
             )
+
+
+def _validate_gallery_manifest(
+    manifest_path: Path,
+    identity: dict[str, str],
+    paths: list[Path],
+    proof_video_path: Path,
+) -> dict[str, object]:
+    manifest = json.loads(manifest_path.read_text())
+    if not isinstance(manifest, dict):
+        raise ReleaseRenderError("release gallery manifest must be a JSON object")
+    expected_fields = {
+        "captured_at",
+        "source_url",
+        "release_sha",
+        "build_id",
+        "continuous_browser_session",
+        "assets",
+        "proof_video",
+    }
+    if set(manifest) != expected_fields:
+        raise ReleaseRenderError("release gallery manifest fields differ")
+    try:
+        captured_at = dt.datetime.fromisoformat(
+            str(manifest["captured_at"]).replace("Z", "+00:00")
+        )
+    except ValueError as exc:
+        raise ReleaseRenderError("gallery captured_at must be ISO-8601") from exc
+    if captured_at.tzinfo is None:
+        raise ReleaseRenderError("gallery captured_at must include a timezone")
+    if manifest["source_url"] != "https://driftline-ops.web.app/":
+        raise ReleaseRenderError(
+            "gallery must come from the canonical hosted application"
+        )
+    if manifest["release_sha"] != identity["release_sha"]:
+        raise ReleaseRenderError(
+            "gallery release SHA does not match the final manifest"
+        )
+    if manifest["build_id"] != identity["build_id"]:
+        raise ReleaseRenderError("gallery build ID does not match the final manifest")
+    if manifest["continuous_browser_session"] is not True:
+        raise ReleaseRenderError(
+            "gallery must come from one continuous browser session"
+        )
+
+    assets = manifest["assets"]
+    keys = ("hero", "generation_1", "generation_2")
+    if not isinstance(assets, dict) or set(assets) != set(keys):
+        raise ReleaseRenderError(
+            "gallery manifest must contain hero and both generations"
+        )
+    normalized_assets: dict[str, object] = {}
+    for key, expected_path in zip(keys, paths, strict=True):
+        asset = assets[key]
+        if not isinstance(asset, dict) or set(asset) != {
+            "path",
+            "sha256",
+            "width",
+            "height",
+        }:
+            raise ReleaseRenderError(f"gallery manifest asset fields differ: {key}")
+        if Path(str(asset["path"])).resolve() != expected_path.resolve():
+            raise ReleaseRenderError(
+                f"gallery path does not match supplied asset: {key}"
+            )
+        digest = str(asset["sha256"])
+        if not HASH_RE.fullmatch(digest) or digest != _sha256_file(expected_path):
+            raise ReleaseRenderError(
+                f"gallery hash does not match supplied asset: {key}"
+            )
+        width, height = _png_dimensions(expected_path)
+        if asset["width"] != width or asset["height"] != height:
+            raise ReleaseRenderError(
+                f"gallery dimensions do not match supplied asset: {key}"
+            )
+        normalized_assets[key] = {
+            "sha256": digest,
+            "width": width,
+            "height": height,
+        }
+    proof_video = manifest["proof_video"]
+    if not isinstance(proof_video, dict) or set(proof_video) != {
+        "path",
+        "sha256",
+        "frames",
+        "pointer_clicks",
+    }:
+        raise ReleaseRenderError("gallery proof-video fields differ")
+    if Path(str(proof_video["path"])).resolve() != proof_video_path.resolve():
+        raise ReleaseRenderError("gallery proof-video path does not match")
+    if (
+        proof_video_path.suffix.casefold() != ".mp4"
+        or proof_video_path.stat().st_size < 100_000
+    ):
+        raise ReleaseRenderError("gallery proof video is missing or too small")
+    proof_digest = str(proof_video["sha256"])
+    if not HASH_RE.fullmatch(proof_digest) or proof_digest != _sha256_file(
+        proof_video_path
+    ):
+        raise ReleaseRenderError("gallery proof-video hash does not match")
+    frames = proof_video["frames"]
+    pointer_clicks = proof_video["pointer_clicks"]
+    if (
+        not isinstance(frames, int)
+        or isinstance(frames, bool)
+        or frames < 10
+        or not isinstance(pointer_clicks, int)
+        or isinstance(pointer_clicks, bool)
+        or pointer_clicks < 7
+    ):
+        raise ReleaseRenderError("gallery proof video lacks the complete click journey")
+    return {
+        "captured_at": manifest["captured_at"],
+        "source_url": manifest["source_url"],
+        "release_sha": manifest["release_sha"],
+        "build_id": manifest["build_id"],
+        "continuous_browser_session": True,
+        "assets": normalized_assets,
+        "proof_video": {
+            "sha256": proof_digest,
+            "frames": frames,
+            "pointer_clicks": pointer_clicks,
+        },
+    }
 
 
 def _validate_gallery_decodable(paths: list[Path]) -> None:
@@ -433,6 +559,8 @@ def main() -> int:
     parser.add_argument("--hero-image", required=True, type=Path)
     parser.add_argument("--generation-1-image", required=True, type=Path)
     parser.add_argument("--generation-2-image", required=True, type=Path)
+    parser.add_argument("--gallery-manifest", required=True, type=Path)
+    parser.add_argument("--gallery-proof-video", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--build-story-url")
     parser.add_argument("--social-url")
@@ -451,6 +579,12 @@ def main() -> int:
         args.generation_2_image.resolve(),
     ]
     _validate_gallery(gallery)
+    gallery_capture = _validate_gallery_manifest(
+        args.gallery_manifest.resolve(),
+        identity,
+        gallery,
+        args.gallery_proof_video.resolve(),
+    )
     output_dir = _validate_output_target(args.output_dir)
 
     story = render_devpost_story(
@@ -481,6 +615,18 @@ def main() -> int:
         rendered_gallery = [Path(name) for name in names]
         for source, name in zip(gallery, names, strict=True):
             shutil.copy2(source, stage / name)
+        source_assets = gallery_capture["assets"]
+        assert isinstance(source_assets, dict)
+        gallery_capture["assets"] = {
+            key: {"file": name, **source_assets[key]}
+            for key, name in zip(
+                ("hero", "generation_1", "generation_2"), names, strict=True
+            )
+        }
+        gallery_capture_path = stage / "release-gallery-capture.json"
+        gallery_capture_path.write_text(
+            json.dumps(gallery_capture, indent=2, sort_keys=True) + "\n"
+        )
 
         architecture_svg_path = (
             stage / "driftline-decision-twin-release-architecture.svg"
@@ -537,6 +683,7 @@ def main() -> int:
                 )
             },
             "gallery_sha256": {name: _sha256_file(stage / name) for name in names},
+            "gallery_capture_sha256": _sha256_file(gallery_capture_path),
             "architecture_svg_sha256": _sha256_file(architecture_svg_path),
             "architecture_png_sha256": _sha256_file(staged_architecture_png),
             "submission_files_sha256": {
