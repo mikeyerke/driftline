@@ -206,9 +206,11 @@ try {
     const reviewedButtons = await page.getByRole("button", { name: "Reviewed" }).count();
     const allEvidenceReviewed = reviewSummary.includes(`Source review: ${reviewedButtons} of ${reviewedButtons}`)
       && reviewedButtons >= 3
+      && reviewSummary.includes("min from complete intake")
       && (await page.getByRole("button", { name: "Mark source reviewed" }).count()) === 0;
 
     let pilotStarterVerified = true;
+    let productObservedBriefTiming = true;
     if (expectedReleaseSha) {
       const downloadPromise = page.waitForEvent("download");
       await page.getByRole("button", { name: "Download private pilot starter" }).click();
@@ -223,6 +225,11 @@ try {
         && payload.record.participant_role === null
         && !serialized.includes(decisionText)
         && !serialized.includes(commitmentText);
+      productObservedBriefTiming = Number.isFinite(payload.record.minutes_to_brief)
+        && payload.record.minutes_to_brief >= 0
+        && payload.record.minutes_to_brief === payload.evidence_binding.minutes_to_reviewed_brief
+        && typeof payload.evidence_binding.intake_completed_at === "string"
+        && typeof payload.evidence_binding.review_completed_at === "string";
     }
 
     const selectedRadio = page.getByRole("radio", { checked: true });
@@ -339,6 +346,7 @@ try {
       pmProvidedVisible: body.includes("PM-provided context · unverified"),
       allEvidenceReviewed,
       pilotStarterVerified,
+      productObservedBriefTiming,
       internalActionVisible: body.includes("Bounded internal action executed"),
       namedApproverVisible: body.includes("Named human approval") && body.includes("Independent PM"),
       copiedReturnLinkMatches: copiedReturnLink === decisionUrl,

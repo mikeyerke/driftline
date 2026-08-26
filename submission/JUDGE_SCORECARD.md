@@ -247,6 +247,10 @@ disclosed as evaluation
 spend rather than customer revenue. Twenty-nine focused tests pass. This
 improves evidence custody; it does not manufacture a participant.
 
+The product also measures elapsed time from complete intake to the final cited-
+source review and binds it to the private receipt. That is session timing—not a
+baseline comparison, time-saved claim, ROI result, or causal productivity proof.
+
 ## 30% — Architectural discipline and tech stack
 
 ### Live architecture proof
