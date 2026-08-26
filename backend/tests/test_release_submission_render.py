@@ -1,4 +1,6 @@
+import hashlib
 import importlib.util
+import json
 import struct
 from pathlib import Path
 
@@ -68,6 +70,41 @@ def write_png_header(path: Path, width: int = 1200, height: int = 675) -> None:
         + b"\x00\x00\x00\x0dIHDR"
         + struct.pack(">II", width, height)
     )
+
+
+def write_gallery_manifest(path: Path, gallery: list[Path]) -> Path:
+    assets = {}
+    for key, image in zip(
+        ("hero", "generation_1", "generation_2"), gallery, strict=True
+    ):
+        width, height = MODULE._png_dimensions(image)
+        assets[key] = {
+            "path": str(image.resolve()),
+            "sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+            "width": width,
+            "height": height,
+        }
+    proof_video = path.parent / "continuous-proof.mp4"
+    proof_video.write_bytes(b"release-proof" * 10_000)
+    path.write_text(
+        json.dumps(
+            {
+                "captured_at": "2026-08-26T09:05:00-05:00",
+                "source_url": "https://driftline-ops.web.app/",
+                "release_sha": IDENTITY["release_sha"],
+                "build_id": IDENTITY["build_id"],
+                "continuous_browser_session": True,
+                "assets": assets,
+                "proof_video": {
+                    "path": str(proof_video.resolve()),
+                    "sha256": hashlib.sha256(proof_video.read_bytes()).hexdigest(),
+                    "frames": 500,
+                    "pointer_clicks": 7,
+                },
+            }
+        )
+    )
+    return proof_video
 
 
 def test_valid_manifest_returns_one_release_identity() -> None:
@@ -145,6 +182,69 @@ def test_gallery_rejects_candidate_custody_filename(tmp_path: Path) -> None:
         write_png_header(path)
     with pytest.raises(MODULE.ReleaseRenderError, match="candidate custody"):
         MODULE._validate_gallery(gallery)
+
+
+def test_gallery_manifest_binds_same_release_session_and_asset_hashes(
+    tmp_path: Path,
+) -> None:
+    gallery = [tmp_path / f"release-{index}.png" for index in range(3)]
+    for image in gallery:
+        write_png_header(image)
+    manifest_path = tmp_path / "gallery.json"
+    proof_video = write_gallery_manifest(manifest_path, gallery)
+
+    validated = MODULE._validate_gallery_manifest(
+        manifest_path, IDENTITY, gallery, proof_video
+    )
+    assert validated["release_sha"] == IDENTITY["release_sha"]
+    assert validated["continuous_browser_session"] is True
+    assert set(validated["assets"]) == {"hero", "generation_1", "generation_2"}
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("release_sha", "5" * 40, "release SHA"),
+        ("build_id", "87654321-4321-4321-4321-cba987654321", "build ID"),
+        ("continuous_browser_session", False, "continuous browser session"),
+        ("source_url", "https://example.com/", "canonical hosted"),
+    ],
+)
+def test_gallery_manifest_rejects_mixed_custody(
+    tmp_path: Path, field: str, value: object, message: str
+) -> None:
+    gallery = [tmp_path / f"release-{index}.png" for index in range(3)]
+    for image in gallery:
+        write_png_header(image)
+    manifest_path = tmp_path / "gallery.json"
+    proof_video = write_gallery_manifest(manifest_path, gallery)
+    manifest = json.loads(manifest_path.read_text())
+    manifest[field] = value
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(MODULE.ReleaseRenderError, match=message):
+        MODULE._validate_gallery_manifest(manifest_path, IDENTITY, gallery, proof_video)
+
+
+def test_gallery_manifest_rejects_changed_asset(tmp_path: Path) -> None:
+    gallery = [tmp_path / f"release-{index}.png" for index in range(3)]
+    for image in gallery:
+        write_png_header(image)
+    manifest_path = tmp_path / "gallery.json"
+    proof_video = write_gallery_manifest(manifest_path, gallery)
+    gallery[1].write_bytes(gallery[1].read_bytes() + b"changed")
+    with pytest.raises(MODULE.ReleaseRenderError, match="hash does not match"):
+        MODULE._validate_gallery_manifest(manifest_path, IDENTITY, gallery, proof_video)
+
+
+def test_gallery_manifest_rejects_changed_proof_video(tmp_path: Path) -> None:
+    gallery = [tmp_path / f"release-{index}.png" for index in range(3)]
+    for image in gallery:
+        write_png_header(image)
+    manifest_path = tmp_path / "gallery.json"
+    proof_video = write_gallery_manifest(manifest_path, gallery)
+    proof_video.write_bytes(proof_video.read_bytes() + b"changed")
+    with pytest.raises(MODULE.ReleaseRenderError, match="proof-video hash"):
+        MODULE._validate_gallery_manifest(manifest_path, IDENTITY, gallery, proof_video)
 
 
 def test_output_must_stay_outside_repository(tmp_path: Path) -> None:
