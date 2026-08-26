@@ -83,7 +83,9 @@ Driftline takes one contested product commitment through five visible stages:
 In the unreleased candidate, that same approval also executes one bounded
 internal allocation in Driftline's own decision state. The receipt exposes its
 generation, segment, and status, states **external writes: none**, and the
-guardrail automatically completes or rolls it back before any reopen. This is
+durable named-human approver and approval time remain visible after refresh.
+The guardrail automatically completes or rolls the allocation back before any
+reopen. This is
 judge-visible action with an honest authority boundary, not a simulated customer
 system write. A PM-provided decision never receives a synthetic outcome: after
 the review window, the PM attaches the actual primary and risk aggregates, both

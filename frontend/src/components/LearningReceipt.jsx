@@ -26,6 +26,7 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
   const triggerOutcome = (reopened || terminalReview) ? decisionCase.decision_history?.[decisionCase.decision_history.length - 1]?.trigger_observation : null;
   const latestOutcome = triggerOutcome || currentOutcome;
   const latestAction = [...(decisionCase.action_records || [])].reverse()[0];
+  const actionApproval = decisionCase.approval || decisionCase.decision_history?.at(-1)?.approval;
   const [measurement, setMeasurement] = useState({
     sourceLabel: "",
     primaryValue: "",
@@ -50,7 +51,7 @@ export default function LearningReceipt({ decisionCase, evaluation, busy, monito
         <dl><div><dt>Primary metric</dt><dd>{plan.primary_metric.replaceAll("_", " ")}</dd></div>{plan.risk_metric && <div><dt>Risk metric</dt><dd>{plan.risk_metric.replaceAll("_", " ")}</dd></div>}<div><dt>Success</dt><dd>{plan.success_condition}</dd></div><div><dt>Stop</dt><dd>{plan.stop_conditions[0]}</dd></div>{plan.owner && <div><dt>Owner</dt><dd>{plan.owner}</dd></div>}</dl>
       </div>}
       {latestAction && <section className={`bounded-action-record ${latestAction.status}`} aria-labelledby="bounded-action-title">
-        <div>{latestAction.status === "rolled_back" ? <RotateCcw size={19} /> : <Activity size={19} />}<span><strong id="bounded-action-title">{actionTitle}</strong><small>{latestAction.status === "rolled_back" ? "Driftline reversed the allocation automatically when the measured outcome crossed the approved stop condition." : latestAction.status === "completed" ? "Driftline completed the internal allocation after the primary outcome met success and the risk metric remained inside its guardrail." : `Driftline created an internal allocation record for ${latestAction.target_segment.replaceAll("_", " ")} after human approval.`}</small></span></div>
+        <div>{latestAction.status === "rolled_back" ? <RotateCcw size={19} /> : <Activity size={19} />}<span><strong id="bounded-action-title">{actionTitle}</strong><small>{latestAction.status === "rolled_back" ? "Driftline reversed the allocation automatically when the measured outcome crossed the approved stop condition." : latestAction.status === "completed" ? "Driftline completed the internal allocation after the primary outcome met success and the risk metric remained inside its guardrail." : `Driftline created an internal allocation record for ${latestAction.target_segment.replaceAll("_", " ")} after human approval.`}</small>{actionApproval && <small className="bounded-action-approver"><b>Named human approval</b> · {actionApproval.approver} · {new Date(actionApproval.approved_at).toLocaleString()}</small>}</span></div>
         <dl><div><dt>Generation</dt><dd>{latestAction.generation}</dd></div><div><dt>Status</dt><dd>{latestAction.status.replaceAll("_", " ")}</dd></div><div><dt>Scope</dt><dd>Decision state only</dd></div><div><dt>External writes</dt><dd>None</dd></div></dl>
       </section>}
       {currentOutcomes.length > 0 && <section className="measured-outcome-summary" aria-labelledby="measured-outcome-title">

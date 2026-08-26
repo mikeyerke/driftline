@@ -199,6 +199,8 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Human approver' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'setSelectedId(latest.council.recommendation)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'This never generates a synthetic result.' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'Named human approval' frontend/src/components/LearningReceipt.jsx \
+  || ! check_frontend_literal 'actionApproval.approver' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Attach the PM-observed outcome' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Measurement opens' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'Driftline will reject early measurements at the API boundary.' frontend/src/components/LearningReceipt.jsx \

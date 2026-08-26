@@ -971,6 +971,8 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .bounded-action-record > div > svg { flex: 0 0 auto; margin-top: 1px; }
 .bounded-action-record > div > span { display: grid; gap: 3px; }
 .bounded-action-record > div small { color: #4f6f65; line-height: 1.45; }
+.bounded-action-record .bounded-action-approver { margin-top: 3px; font-weight: 650; }
+.bounded-action-record .bounded-action-approver b { font-weight: 850; }
 .bounded-action-record dl { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0; border-top: 1px solid #d0e6dc; }
 .bounded-action-record dl div { padding: 10px 13px; border-right: 1px solid #d0e6dc; }
 .bounded-action-record dl div:last-child { border-right: 0; }
