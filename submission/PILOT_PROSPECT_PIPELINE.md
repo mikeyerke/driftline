@@ -87,6 +87,9 @@ guarantee, and the exact feasibility estimate and checkout total have not been
 verified. Creating an account, launching a study, scheduling a participant, or
 spending money requires Mike's separate approval.
 
+The exact local listing, targeting, screener, conflict exclusions, and truthful
+classification rules are ready in `submission/PAID_PM_RECRUIT_PACKET.md`.
+
 Use the five-gate screener in
 `docs/validation/PM_RECRUITING_RESEARCH_2026-08-26.md`: the participant must
 personally own a contested decision due by September 25, name two real options

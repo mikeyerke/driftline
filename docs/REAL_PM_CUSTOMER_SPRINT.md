@@ -16,6 +16,11 @@ sale: bring one consequential decision whose evidence may change, leave with a
 cited and reversible decision brief, then review the same decision after its
 pre-agreed measurement window.
 
+If speed matters more than organic buyer signal, the launch-ready screened
+research route is in `submission/PAID_PM_RECRUIT_PACKET.md`. It can produce an
+independent evaluation faster than cold outreach, but paying a participant is
+evaluation spend and cannot produce customer evidence by itself.
+
 ## Pain worth targeting
 
 Current first-party product research points to four connected problems:
