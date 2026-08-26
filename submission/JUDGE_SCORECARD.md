@@ -38,6 +38,14 @@ PR #33 then refreshed the mirrored judge evidence; its exact head passed all
 four hosted jobs, its squash-merged tree was identical, and a new clean
 release-candidate preflight plus hosted run `32986603518` passed at public-main
 SHA `484e764760c06350733189246a17dfa651502891`.
+PR #34 made the two autonomous Taskmaster tasks and the deliberate human
+authority boundary explicit in the final-take contract. PR #35 put that proof
+chain in the README's first viewport. PR #36 eliminated manual release-to-video
+identity transcription with an atomic verified release receipt and derived
+manifest seed. The exact PR #36 tested tree equaled its squash-merged tree;
+fresh public-main preflight passed 532 backend tests and 14/14 evaluations at
+`dfdbe2b22579135b9ebedab71ee2bfbe38fc897b`, and hosted run `32988583543`
+passed all four jobs.
 None of these merged changes is part of the live score above until Cloud Run
 serves the same public-main commit and the full production journey is
 reverified.
@@ -406,9 +414,12 @@ production proof or timestamps to copy into the final release manifest.
   truthful recording.
 - Overall live evidence: roughly 91/100 because production still serves the
   pre-candidate release. The merged and fully checked public-main candidate plus
-  the stronger local final-take blueprint support roughly 93/100 readiness, but
-  they are not live proof. A strong exact-release final video makes 95/100
-  defensible. Independent PM evidence is the remaining route toward 96–97.
+  the stronger Taskmaster opening, local final-take blueprint, and atomic
+  release-to-video custody support roughly 95/100 submission readiness, but
+  they are not live proof. An authorized exact release plus strong public final
+  video makes 96/100 defensible. Independent PM evidence is the remaining route
+  toward 97; optional published contributions can add up to the separate bonus
+  ceiling only after explicit authorization.
   Winning remains uncertain because judge
   preference and competing entries are unknowable.
 
