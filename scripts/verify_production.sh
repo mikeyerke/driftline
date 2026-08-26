@@ -8,6 +8,7 @@ readonly expected_project_number="724959673622"
 readonly region="us-central1"
 readonly service="driftline"
 readonly public_url="${DRIFTLINE_BASE_URL:-https://driftline-ops.web.app}"
+readonly canonical_public_url="https://driftline-ops.web.app/"
 readonly scheduler_job="driftline-monitor"
 readonly task_queue="driftline-jobs"
 readonly uptime_id="driftline-health-Hmxqs16MUkY"
@@ -250,7 +251,7 @@ if [[ -n "${release_identity_out}" ]]; then
   trap 'rm -f "${release_identity_tmp:-}"' EXIT
   jq -n \
     --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --arg source_url "${public_url}" \
+    --arg source_url "${canonical_public_url}" \
     --arg release_sha "${serving_release_sha}" \
     --arg revision "${revision}" \
     --arg build_id "${serving_build_id}" \
