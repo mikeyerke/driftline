@@ -849,6 +849,16 @@ their cadence deadlines.
 
 ## Reproducible verification
 
+To prove the committed repository works without any untracked local files or
+pre-existing project environments, run the clean-checkout gate. It exports only
+`HEAD` into a temporary directory, installs the locked dependencies, and reruns
+the backend, agent evaluation, frontend build, contract, submission, and shell
+syntax checks:
+
+~~~bash
+./scripts/verify_clean_checkout.sh
+~~~
+
 ~~~bash
 BASE=https://driftline-ops.web.app
 curl -fsS "$BASE/health"

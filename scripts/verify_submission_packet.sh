@@ -37,6 +37,7 @@ for file in \
   scripts/verify_contest_provenance.sh \
   scripts/verify_third_party_licenses.py \
   scripts/summarize_real_pm_pilot.py \
+  scripts/verify_clean_checkout.sh \
   scripts/verify_release_candidate_local.sh \
   docs/REAL_PM_CUSTOMER_SPRINT.md \
   docs/validation/real-pm-pilot-template.json \
@@ -142,6 +143,9 @@ for field_id in \
   require_text submission/DEVPOST_FORM_AUDIT.md "| $field_id |"
 done
 require_text README.md '## Judge it in 60 seconds'
+require_text README.md './scripts/verify_clean_checkout.sh'
+require_text scripts/verify_clean_checkout.sh 'git archive --format=tar "$candidate_sha"'
+require_text scripts/verify_clean_checkout.sh 'Clean-checkout verification: PASS'
 require_text README.md 'The local candidate is **not deployed**.'
 require_text README.md '03ec8f12fc23d265c89b462a345a5b599a6411e8'
 require_text README.md 'c01bec2e-a950-407c-873b-b1d4fdc6bae6'
