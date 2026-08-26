@@ -22,6 +22,7 @@ for file in \
   submission/JUDGE_SCORECARD.md \
   docs/JUDGE_SCORECARD.md \
   scripts/build_candidate_rehearsal.sh \
+  scripts/verify_release_candidate_local.sh \
   submission/assets/driftline-candidate-rehearsal-narration.txt \
   submission/assets/driftline-candidate-rehearsal-overlays.svg \
   submission/assets/driftline-decision-twin-candidate-architecture.svg \
@@ -37,6 +38,9 @@ if rg -Fq -- 'Final candidate identity is public `main`' submission/DEMO_SCRIPT.
 fi
 require_text submission/DEMO_SCRIPT.md 'This is the pre-candidate release,'
 require_text submission/DEMO_SCRIPT.md 'Reject the take unless public `main`,'
+require_text scripts/release_and_verify.sh './scripts/verify_release_candidate_local.sh --release-candidate'
+require_text scripts/verify_release_candidate_local.sh 'expected mikeyerke/driftline'
+require_text scripts/verify_release_candidate_local.sh 'refs/heads/$release_ref'
 require_text submission/DEVPOST.md 'unreleased local candidate'
 require_text devpost-submission.md 'Status: draft-ready, not release-ready or form-ready.'
 require_text devpost-submission.md '| Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |'

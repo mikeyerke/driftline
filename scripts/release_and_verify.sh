@@ -7,11 +7,9 @@ readonly project_id="driftline-hackathon-2026"
 readonly base_url="${DRIFTLINE_BASE_URL:-https://driftline-ops.web.app}"
 readonly release_sha="$(git rev-parse --verify HEAD)"
 
-if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
-  printf 'Refusing release: working tree is not clean.\n' >&2
-  git status --short >&2
-  exit 1
-fi
+# Fail before the first Google Cloud mutation unless the complete local suite
+# passes and HEAD is the exact public main tip of mikeyerke/driftline.
+./scripts/verify_release_candidate_local.sh --release-candidate
 
 gcloud config set project "${project_id}"
 ./scripts/provision_decision_twin_bigquery.sh

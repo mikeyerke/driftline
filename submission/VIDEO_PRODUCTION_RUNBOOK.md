@@ -8,9 +8,14 @@ nothing has been published.
 Brutal QA note: `driftline-final-demo-candidate.mp4` is a technically clean
 fallback, not the winning final. It is 3:40, 1920×1080 at 30 fps, has integrated
 audio near -16.3 LUFS with -4.5 dB true peak, and contains no detected black
-frames. It is nevertheless built mostly from long static browser frames. That
-weakens the official proof-of-action story and cannot substitute for the
-continuous in-product approval → outcome → reopen take below.
+frames. It is nevertheless built mostly from long static browser frames and
+mixes candidate screens with pre-candidate release narration. Do not submit it.
+
+`scripts/build_candidate_rehearsal.sh` produces a 52-second local-only review
+artifact from the continuous candidate proof. It is permanently watermarked
+**UNRELEASED LOCAL CANDIDATE · NOT PRODUCTION**, ends on the pending release
+identity gate, and validates format, duration, loudness, and black intervals.
+It is a rehearsal template, not the final upload.
 
 The repository includes `scripts/capture_decision_twin_candidate.mjs` as a
 local-only continuity rehearsal. With the local API on port 8080 and the Vite
@@ -68,8 +73,8 @@ deployed or used as the entrant's final narrated take.
    recommended and selected.
 9. Show the cleared approver, disabled new action, 7/7 policy checks, measured
    invalidation, evidence/synthesis hashes, and preserved generation-1 lineage.
-10. Finish on `/health`, the exact public `main` SHA, and the Google architecture
-   diagram.
+10. Finish on `/health`, the exact serving application SHA preserved at the
+    public `main` tip, and the Google architecture diagram.
 
 Do not splice across the approval click and receipt. A judge should be able to
 see that the result came from the visible action in the same workflow.
