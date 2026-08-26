@@ -12,7 +12,7 @@ fail() {
 require_text() {
   local file="$1"
   local text="$2"
-  rg -Fq -- "$text" "$file" || fail "$file is missing required text: $text"
+  grep -Fq -- "$text" "$file" || fail "$file is missing required text: $text"
 }
 
 for file in \
@@ -59,10 +59,10 @@ done
 cmp -s docs/JUDGE_SCORECARD.md submission/JUDGE_SCORECARD.md || \
   fail "judge scorecards have diverged"
 
-if rg -Fq -- 'Final candidate identity is public `main`' submission/DEMO_SCRIPT.md; then
+if grep -Fq -- 'Final candidate identity is public `main`' submission/DEMO_SCRIPT.md; then
   fail "demo script mislabels the pre-candidate production release as the final candidate"
 fi
-if rg -Fq -- '1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6' README.md; then
+if grep -Fq -- '1b8a8bfbcf2249136dbf08de54c0f7ee15f575d6' README.md; then
   fail "README release truth still carries the superseded August 24 identity"
 fi
 require_text submission/DEMO_SCRIPT.md 'This is the pre-candidate release,'
@@ -206,11 +206,11 @@ require_text submission/assets/driftline-candidate-rehearsal-narration.txt 'not 
 require_text submission/assets/driftline-final-rehearsal-narration.txt 'not production proof'
 require_text submission/assets/driftline-final-rehearsal-caption-overlays.svg 'External writes: none'
 
-if rg -Fq -- 'submission/assets/driftline-architecture.png' devpost-submission.md; then
+if grep -Fq -- 'submission/assets/driftline-architecture.png' devpost-submission.md; then
   fail "form packet still points at the historical architecture diagram"
 fi
 
-if rg -Fq -- '| Google Cloud services | Cloud Run; Firestore; BigQuery |' devpost-submission.md; then
+if grep -Fq -- '| Google Cloud services | Cloud Run; Firestore; BigQuery |' devpost-submission.md; then
   fail "form packet treats BigQuery as a selectable Google Cloud dropdown option"
 fi
 
@@ -387,13 +387,13 @@ if len(built_with.split("; ")) > 25:
     )
 PY
 
-todo_lines="$(rg -n -i 'todo|placeholder|tbd|fixme|lorem' \
+todo_lines="$(grep -HniE 'todo|placeholder|tbd|fixme|lorem' \
   devpost-submission.md submission/DEVPOST.md || true)"
-unexpected_todo_lines="$(printf '%s\n' "$todo_lines" | rg -v \
+unexpected_todo_lines="$(printf '%s\n' "$todo_lines" | grep -Ev \
   '(public YouTube or Vimeo URL|publish the reviewed Decision Twin story|publish an approved draft from `submission/SOCIAL_POST_DRAFTS\.md`)' || true)"
 [[ -z "$unexpected_todo_lines" ]] || \
   fail "unexpected placeholder text exists in the canonical submission copy"
-[[ "$(printf '%s\n' "$todo_lines" | rg -c '.' || true)" == "4" ]] || \
+[[ "$(printf '%s\n' "$todo_lines" | grep -c '.' || true)" == "4" ]] || \
   fail "the submission packet must contain exactly the four approved owner-only placeholders"
 
 printf 'Submission packet checks passed.\n'
