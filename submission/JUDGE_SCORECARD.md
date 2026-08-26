@@ -227,7 +227,7 @@ until the exact candidate is released and the native browser journey is rerun.
 | Architecture diagram | 1600×900 PNG/SVG plus checksum-bound full-resolution review | Prepared; local asset QA complete, entrant upload open |
 | Public demo under four minutes | 3:00 review cut, 31.17s continuity proof, and a 2:58 1080p real-click long-form candidate rehearsal with burned and embedded captions | Prepared locally; exact-release final take and public upload remain unproven |
 | SDK and start date answers | Google ADK; implementation repo began August 18 | Prepared; entrant must enter |
-| Originality/third-party disclosure | Root commit, public repo, cloud project, and first build independently date to August 18; pre-contest ideation/source package is disclosed | Timeline proven; entrant must attest exact package contents |
+| Originality/third-party disclosure | Source archive hash, 50-file manifest and timestamps, root commit, public repo, cloud project, first build, and locked dependency licenses | Package contents/timeline proven; entrant must personally attest ownership/rights |
 | Optional public build content | Stand-alone 883-word Decision Twin build story with required hackathon-purpose disclosure | Prepared locally; candidate release and form link open |
 | Optional social post | Consent-gated drafts only | Intentionally unpublished |
 | PM validation | Study kit and fail-closed summarizer | Unproven; no sessions |
@@ -293,9 +293,9 @@ Reference projects:
    that pass the pre-registered human-control and data-quality gates.
 3. Record the under-four-minute public demo from the verified release. Show the
    working product in the first 10–15 seconds and keep the core proof continuous.
-4. Inspect the actual pre-contest source package and select the factually exact
-   originality-disclosure branch. Git and Cloud timestamps prove when this
-   repository and deployment began; they do not prove the package contents.
+4. Personally confirm ownership/rights for the now-verified source archive and
+   accept the live originality/eligibility terms. The content, hash, manifest,
+   and contest-period timestamps are already prepared and reproducible.
 5. Fill the Devpost form with category, Google SDK, August 18 start date,
    disclosure, repo, hosted URL, architecture, and video.
 6. Read and explicitly accept the official rules, register, then separately

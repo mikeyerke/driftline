@@ -1,8 +1,8 @@
 # Driftline third-party dependency disclosure
 
 Status: locked-environment engineering inventory, refreshed August 26, 2026.
-This is not legal advice and does not replace the separate entrant attestation
-for the pre-contest source package.
+This is not legal advice and does not replace the entrant's personal
+ownership/rights attestation for the now-verified source archive.
 
 ## Reproducible inventory result
 
@@ -62,5 +62,6 @@ must be regenerated and reviewed whenever either lockfile changes.
   applicable service terms; they are not redistributed dependencies.
 - Public/synthetic demonstration evidence is labeled in the product and is not
   presented as proprietary customer data.
-- The origin, ownership, and contents of the pre-contest source package remain
-  a separate owner gate in `submission/ORIGINALITY_PROVENANCE.md`.
+- The source archive's hash, contents, and contest-period member timestamps are
+  verified in `submission/ORIGINALITY_PROVENANCE.md`; personal ownership/rights
+  remain an entrant attestation.

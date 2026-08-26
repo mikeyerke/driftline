@@ -275,21 +275,23 @@ Local and deployment reproduction steps are in the repository README.
 
 ## New-project and third-party disclosure
 
-The implementation repository began August 18, 2026, within the contest period.
+Driftline continued earlier product ideation. Its implementation began during
+the contest period from an entrant-supplied archive,
+`driftline-source.tar.gz` (SHA-256
+`9026ee2eccc94fd925ec00a54228c8b858442baaf8ac695e2ca56f54bbce37b0`).
+Its 50 regular files are timestamped August 18, 2026 and included the initial
+FastAPI/Google ADK backend, React frontend, tests, deployment and dependency
+files, submission drafts, and two concept images. The Git repository began
+later that morning and materially evolved those files. The entry does not claim
+that the earlier ideation originated during the contest.
+
 The public GitHub repository was created at 13:57:39Z, the dedicated Google
 Cloud project at 14:14:30Z, and the first successful Cloud Build at 20:23:59Z
-that day. The project continued from earlier product ideation and a source
-package, which are not represented as contest-period work. The repository uses
-open-source Python, React, Vite, Google ADK, Google Cloud client libraries,
-FastAPI, Pydantic, and Lucide components under their licenses.
-
-The repository timeline does not prove what the source package contained.
-Before submission, the entrant must verify whether it contained ideation only
-or any code, images, copy, or other implementation assets. If it contained
-implementation material, the final disclosure must enumerate the incorporated
-components, dates, sources, rights, and current derived paths. See
-`submission/ORIGINALITY_PROVENANCE.md`. Until that attestation is complete, this
-disclosure is prepared but not final.
+that day. The archive hash, 50-file manifest, member timestamp window, Git root,
+repository creation, project creation, and first build are independently
+recheckable through `submission/ORIGINALITY_PROVENANCE.md` and
+`scripts/verify_contest_provenance.sh`. The entrant must still personally
+confirm ownership/rights and accept the live eligibility terms.
 
 The locked third-party runtime and build inventory is documented in
 `submission/THIRD_PARTY_DISCLOSURE.md` and fails closed on missing license

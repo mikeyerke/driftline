@@ -5,8 +5,32 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 EXPECTED_ROOT="b7a45f1b456f8e5e8cb630574b6e829bd4f575c4"
+EXPECTED_SOURCE_ARCHIVE_SHA256="9026ee2eccc94fd925ec00a54228c8b858442baaf8ac695e2ca56f54bbce37b0"
 CONTEST_START="2026-08-03T16:00:00+00:00"
 CONTEST_END="2026-09-01T00:00:00+00:00"
+
+verify_external=false
+source_archive=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --external)
+      verify_external=true
+      shift
+      ;;
+    --source-archive)
+      [[ $# -ge 2 ]] || {
+        printf 'Contest provenance failed: --source-archive requires a path.\n' >&2
+        exit 1
+      }
+      source_archive="$2"
+      shift 2
+      ;;
+    *)
+      printf 'Contest provenance failed: unknown argument %s.\n' "$1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 roots="$(git rev-list --max-parents=0 HEAD)"
 [[ "$roots" == "$EXPECTED_ROOT" ]] || {
@@ -28,7 +52,89 @@ PY
 
 printf 'Local contest provenance passed: root %s at %s.\n' "$EXPECTED_ROOT" "$root_time"
 
-if [[ "${1:-}" != "--external" ]]; then
+if [[ -n "$source_archive" ]]; then
+  [[ -f "$source_archive" ]] || {
+    printf 'Contest provenance failed: source archive not found: %s\n' "$source_archive" >&2
+    exit 1
+  }
+  python3 - "$source_archive" "$EXPECTED_SOURCE_ARCHIVE_SHA256" \
+    "$CONTEST_START" "$CONTEST_END" <<'PY'
+from datetime import datetime, timezone
+import hashlib
+from pathlib import Path, PurePosixPath
+import sys
+import tarfile
+
+archive = Path(sys.argv[1])
+expected_hash = sys.argv[2]
+contest_start = datetime.fromisoformat(sys.argv[3])
+contest_end = datetime.fromisoformat(sys.argv[4])
+
+actual_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
+if actual_hash != expected_hash:
+    raise SystemExit(
+        "Contest provenance failed: source archive hash mismatch: "
+        f"{actual_hash}"
+    )
+
+required_members = {
+    "driftline/backend/app/api.py",
+    "driftline/backend/app/agent.py",
+    "driftline/backend/app/adk_runtime.py",
+    "driftline/backend/app/models.py",
+    "driftline/backend/app/persistence.py",
+    "driftline/backend/app/workflow.py",
+    "driftline/frontend/src/App.jsx",
+    "driftline/frontend/src/styles.css",
+    "driftline/cloudbuild.yaml",
+    "driftline/docs/concepts/change-operations-approved.png",
+    "driftline/docs/concepts/change-operations-primary.png",
+    "driftline/submission/DEVPOST.md",
+}
+
+with tarfile.open(archive, "r:gz") as package:
+    files = [member for member in package.getmembers() if member.isfile()]
+    names = {member.name for member in files}
+    missing = sorted(required_members - names)
+    if missing:
+        raise SystemExit(
+            "Contest provenance failed: source archive is missing expected "
+            f"members: {', '.join(missing)}"
+        )
+    if len(files) != 50:
+        raise SystemExit(
+            "Contest provenance failed: source archive contains "
+            f"{len(files)} regular files, expected 50"
+        )
+    for member in files:
+        path = PurePosixPath(member.name)
+        if path.is_absolute() or ".." in path.parts:
+            raise SystemExit(
+                "Contest provenance failed: unsafe source archive member: "
+                f"{member.name}"
+            )
+        timestamp = datetime.fromtimestamp(member.mtime, timezone.utc)
+        if not contest_start <= timestamp <= contest_end:
+            raise SystemExit(
+                "Contest provenance failed: source archive member is outside "
+                f"the contest window: {member.name}@{timestamp.isoformat()}"
+            )
+
+first_mtime = min(
+    datetime.fromtimestamp(member.mtime, timezone.utc) for member in files
+)
+last_mtime = max(
+    datetime.fromtimestamp(member.mtime, timezone.utc) for member in files
+)
+print(
+    "Source archive provenance passed: "
+    f"sha256={actual_hash}, files={len(files)}, "
+    f"member_window={first_mtime.isoformat()}..{last_mtime.isoformat()}."
+)
+PY
+fi
+
+if [[ "$verify_external" != true ]]; then
   exit 0
 fi
 

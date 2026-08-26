@@ -113,14 +113,17 @@ incorporation and corporate-email eligibility.
 The rules require projects to be newly created during the submission period and
 require disclosure of pre-existing code or work incorporated into the entry.
 Driftline is a continuation of an earlier concept conversation and includes a
-source package supplied for this build. Repository history does not establish
-that package's contents. The entrant must confirm whether it contained ideation
-only or implementation material and enumerate any code, images, copy, or assets
-that were incorporated. The Devpost disclosure must describe that boundary
-rather than imply that a Git timestamp proves authorship.
-The repository's first commit is dated August 18, 2026, inside the August 3–31
-submission period; that timestamp is a reproducible implementation-history
-anchor, not a claim that the earlier concept conversation was contest work.
+source package supplied for this build. That exact archive has now been
+recovered: SHA-256
+`9026ee2eccc94fd925ec00a54228c8b858442baaf8ac695e2ca56f54bbce37b0`,
+50 regular files, all member timestamps on August 18 inside the contest window.
+It contained the initial FastAPI/Google ADK backend, React frontend, tests,
+deployment/dependency files, submission drafts, and two concept images. The
+Devpost disclosure enumerates that foundation and does not claim that the
+earlier ideation originated during the contest. The repository's first commit
+is dated later on August 18 and materially evolved the archive. The entrant
+still personally attests ownership/rights and accepts the live eligibility
+terms.
 
 ## Judging emphasis
 
