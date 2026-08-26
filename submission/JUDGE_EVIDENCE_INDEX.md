@@ -83,6 +83,11 @@ Reject the take if any of these is true:
 - the browser sequence is not from the release identified by `/health`;
 - public `main`, `/health`, and the manifest release SHA differ;
 - the approval-to-reopen core is spliced or requires a hidden second action;
+- the named-human approval is not visibly completed, even if narration or
+  captions say it happened;
+- the bounded action receipt is not visibly shown after that approval;
+- generation 2 is shown without a cleared approver and visible generation-1
+  lineage, making it indistinguishable from a reset or edited state;
 - candidate-only behavior is described as live before release verification;
 - a rehearsal custody watermark remains, even if the file was renamed;
 - the video bytes match any known quarantined rehearsal or historical proof,

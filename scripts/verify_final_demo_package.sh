@@ -230,6 +230,13 @@ required_fields = {
     "video_sha256",
     "captions_sha256",
     "duration_seconds",
+    "human_approval_timestamp_seconds",
+    "named_human_approval_visible",
+    "bounded_action_receipt_timestamp_seconds",
+    "bounded_action_receipt_visible",
+    "generation_2_timestamp_seconds",
+    "generation_2_reopen_visible",
+    "generation_1_lineage_visible",
     "approval_to_reopen_continuous",
     "secrets_reviewed",
     "external_writes_none_visible",
@@ -278,6 +285,10 @@ if abs(float(manifest["duration_seconds"]) - duration) > 0.1:
     fail("manifest duration does not match the media")
 
 for key in (
+    "named_human_approval_visible",
+    "bounded_action_receipt_visible",
+    "generation_2_reopen_visible",
+    "generation_1_lineage_visible",
     "approval_to_reopen_continuous",
     "secrets_reviewed",
     "external_writes_none_visible",
@@ -288,6 +299,19 @@ for key in (
 ):
     if manifest[key] is not True:
         fail(f"manifest gate is not affirmed: {key}")
+
+try:
+    approval_timestamp = float(manifest["human_approval_timestamp_seconds"])
+    receipt_timestamp = float(manifest["bounded_action_receipt_timestamp_seconds"])
+    generation_2_timestamp = float(manifest["generation_2_timestamp_seconds"])
+except (TypeError, ValueError):
+    fail("approval, receipt, and generation-2 timestamps must be numeric")
+if not 60 <= approval_timestamp <= 100:
+    fail("named-human approval must be visibly timestamped between 60 and 100 seconds")
+if not approval_timestamp <= receipt_timestamp <= approval_timestamp + 20:
+    fail("bounded action receipt must become visible within 20 seconds after approval")
+if not receipt_timestamp < generation_2_timestamp <= 140:
+    fail("generation-2 reopen must follow the receipt and be visible by 140 seconds")
 
 proof_type = manifest["google_cloud_proof_type"]
 if proof_type not in {"cloud_run_console", "cloud_run_url"}:

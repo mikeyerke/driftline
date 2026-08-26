@@ -126,6 +126,12 @@ see that the result came from the visible action in the same workflow.
 - Record the exact timestamp where the Cloud Run console or live `*.run.app`
   backend first becomes visible. The final manifest must name which proof type
   was used and bind it to the same release identity.
+- Record the exact timestamps where the named-human approval completes, the
+  bounded action receipt becomes visible, and generation 2 reopens. Scrub those
+  frames before accepting the take: approval must show a non-empty named human
+  and successful authorization; the receipt must visibly follow it; and
+  generation 2 must show the cleared approver plus preserved generation-1
+  lineage. Narration or captions are not substitutes for visible state.
 - Copy `submission/final-demo-manifest.template.json`, replace every placeholder
   from the exact released take, hash the final MP4 and SRT, and run:
   `scripts/verify_final_demo_package.sh VIDEO.mp4 CAPTIONS.srt MANIFEST.json`.
