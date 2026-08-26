@@ -62,6 +62,13 @@ reopening, offline failure, and same-control recovery after reconnecting. A
 fresh unthrottled local performance trace measured 523 ms LCP and 0.00 CLS;
 these are lab observations, not production field data.
 
+Full-resolution asset QA is now complete. The exact-release desktop/mobile
+captures were corrected from JPEG data with misleading `.png` extensions to
+actual PNGs and bound by dimensions and checksums. A fresh production mobile
+run shows generation 2, rollback selected, the approver cleared, and 7/7 checks;
+the local action-result capture is a separate candidate-only file. See
+`../submission/assets/ASSET_REVIEW.md`.
+
 The candidate also fixes a first-impression issue found through a fresh live
 browser run: at 1453 × 726 the production workflow CTA started 31 pixels below
 the fold. The local CTA is now fully visible at 1453 × 670 and 390 × 844 with
@@ -232,12 +239,11 @@ until the exact candidate is released and the native browser journey is rerun.
    that pass the pre-registered human-control and data-quality gates.
 3. Record the under-four-minute public demo from the verified release. Show the
    working product in the first 10–15 seconds and keep the core proof continuous.
-4. Approve the captured desktop/mobile screenshots and architecture asset.
-5. Fill the Devpost form with category, Google SDK, August 18 start date,
+4. Fill the Devpost form with category, Google SDK, August 18 start date,
    disclosure, repo, hosted URL, architecture, and video.
-6. Read and explicitly accept the official rules, register, then separately
+5. Read and explicitly accept the official rules, register, then separately
    authorize final submission.
-7. After submission, freeze the submitted repo/video/links until winners are
+6. After submission, freeze the submitted repo/video/links until winners are
    announced. Optional public content/social bonuses require separate approval.
 
 No registration, submission, email, social post, or public bonus content is
