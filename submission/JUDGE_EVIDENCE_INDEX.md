@@ -64,7 +64,7 @@ safe direct Cloud Run proof tab; it does not pre-prove the unreleased candidate.
 
 ### Demo and production readiness — 30%
 
-The core approval-to-reopen path remains continuous, all seven interactions are
+The core approval-to-reopen path remains continuous, all eight interactions are
 real browser mouse inputs, the approver clears on generation 2, and the closing
 verification frame gives the judge a route to reproduce the result. Strongest
 window: **0:00–2:58**.

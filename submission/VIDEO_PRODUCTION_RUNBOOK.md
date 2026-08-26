@@ -19,8 +19,9 @@ It is a rehearsal template, not the final upload.
 
 `CAPTURE_PRESENTATION_MODE=true` plus
 `scripts/build_final_demo_rehearsal.sh` now produces a 2:58 long-form local
-rehearsal from the real browser state machine. It preserves all seven visible
-clicks, keeps the approval-to-reopen path continuous, uses the candidate
+rehearsal from the real browser state machine. It preserves all eight visible
+clicks, including deliberate focus of the named-approver field, keeps the
+approval-to-reopen path continuous, uses the candidate
 architecture only after the browser proof, burns judge-critical captions into
 the picture, embeds the matching English caption track, and holds -16 LUFS
 reference narration with no detected four-second silence or black interval.
