@@ -23,7 +23,7 @@ above on August 25. Later `main` commits update submission media only.
 
 ## Unreleased local candidate
 
-The isolated candidate is not part of the live score above. It adds seven
+The isolated candidate is not part of the live score above. It adds eight
 judge-facing improvements:
 
 - custom decisions require a PM-authored measurement contract instead of
@@ -43,7 +43,9 @@ judge-facing improvements:
 - a clean checkout now routes the Vite judge UI to the local FastAPI service
   without undocumented frontend configuration. Offline and unreachable-service
   failures state that nothing changed and give a concrete retry path instead of
-  exposing raw browser or HTTP errors.
+  exposing raw browser or HTTP errors; and
+- the public judge lane now identifies itself as an intentional no-sign-in demo
+  instead of presenting disabled operator authentication as a product failure.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
 The candidate passed 462 backend tests, Ruff, the production frontend build,
@@ -61,6 +63,13 @@ resume, double-click approval idempotency, outcome-triggered generation-2
 reopening, offline failure, and same-control recovery after reconnecting. A
 fresh unthrottled local performance trace measured 523 ms LCP and 0.00 CLS;
 these are lab observations, not production field data.
+
+A later fresh first-impression audit at 1453 × 726 and 390 × 844 confirmed the
+intentional **Public demo · no sign-in needed** status, a fully visible primary
+CTA, zero horizontal overflow, and no browser console errors. The complete
+action/reopen driver then passed again with eight real Chrome mouse clicks,
+generation 2, rollback selected, approver cleared, external writes none, and
+the bounded action rolled back.
 
 Full-resolution asset QA is now complete. The exact-release desktop/mobile
 captures were corrected from JPEG data with misleading `.png` extensions to
@@ -197,8 +206,9 @@ Exact-release desktop/mobile screenshots, the Decision Twin architecture, and
 a three-minute 1080p captioned local review cut are complete. A continuous
 local candidate proof now also runs the actual browser state machine and asserts
 the generation-2 rollback outcome. Fresh post-fix desktop and 390-pixel runs
-passed with 514 and 563 frames and seven visible Chrome mouse-input clicks
-apiece; neither required a second outcome click. The retained 31.17-second
+passed with 514 and 563 frames and eight visible Chrome mouse-input clicks
+apiece, including deliberate focus of the named-approver field; neither
+required a duplicate outcome click. The retained 31.17-second
 clip is silent and unreleased; a narrated native browser take remains
 preferable, and no video is complete for submission until it has a public
 YouTube or Vimeo URL.
@@ -209,7 +219,7 @@ pre-candidate release narration. Do not submit it.
 
 A 52-second local continuity rehearsal first proved the visible-click state
 machine and custody boundary. The stronger 2:58 long-form rehearsal now keeps
-the actual browser workflow first, preserves all seven clicks and the
+the actual browser workflow first, preserves all eight clicks and the
 approval-to-reopen continuity, then closes on the candidate architecture and
 release-proof gate. It is watermarked throughout as **UNRELEASED LOCAL
 CANDIDATE · NOT PRODUCTION**, has burned and embedded English captions, and

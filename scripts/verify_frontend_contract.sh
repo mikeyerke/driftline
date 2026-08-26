@@ -171,6 +171,12 @@ if ! node --check scripts/capture_decision_twin_candidate.mjs >/dev/null \
   exit 1
 fi
 
+if ! check_frontend_literal 'Public demo · no sign-in needed' frontend/src/components/OperatorAccess.jsx \
+  || check_frontend_literal 'Operator sign-in unavailable' frontend/src/components/OperatorAccess.jsx; then
+  printf 'Public judge lane exposes a broken-sign-in message instead of intentional no-sign-in access.\n' >&2
+  exit 1
+fi
+
 if ! check_frontend_literal 'Turn conflicting evidence into a decision your team can defend.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'The alignment meeting, evidence hunt, and post-launch guesswork.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Bring a contested decision' frontend/src/components/DecisionRoom.jsx \
