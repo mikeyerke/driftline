@@ -23,6 +23,7 @@ publish or submit without explicit entrant approval.
 | Google Cloud service selections | Cloud Run; Firestore |
 | Additional Google Cloud services described in entry | Firebase Hosting; BigQuery; Vertex AI; Cloud Tasks; Cloud Scheduler; Cloud Storage; Secret Manager; Cloud Build; Artifact Registry |
 | Google AI model | Gemini 3.5 Flash via Vertex AI (global endpoint) |
+| Originality disclosure | **OWNER GATE:** inspect the pre-contest source package and select the factually correct disclosure branch in `submission/ORIGINALITY_PROVENANCE.md`; enumerate any incorporated implementation material rather than relying on the repository date. |
 | Private testing instructions | Open https://driftline-ops.web.app/ while logged out. Click **Run the decision workflow**; inspect the five cited agents and disagreement; enter a review name; approve the segmented experiment; then stop clicking. Verify that Cloud Tasks reopens generation 2 with rollback selected, the approver cleared, 7/7 policy checks, and the original lineage preserved. Open https://driftline-ops.web.app/health to confirm the serving SHA and build. No credentials are required. |
 | Architecture upload | `submission/assets/driftline-decision-twin-architecture.png` |
 | Demo video | **ENTRANT TODO:** public YouTube or Vimeo URL, 4:00 maximum |
@@ -81,6 +82,9 @@ proof all resolve to the same released candidate.
 
 - Confirm registration answers, eligibility, official rules, Devpost terms,
   privacy consent, and the optional marketing answer.
+- Resolve the source-package attestation in
+  `submission/ORIGINALITY_PROVENANCE.md`; do not submit the generic draft as a
+  final originality answer.
 - Record and publish the final public video from the canonical 2:58 continuous
   script; reject at 3:56 or longer.
 - Approve and publish one optional social draft if pursuing that bonus.

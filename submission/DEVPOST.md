@@ -252,12 +252,20 @@ Local and deployment reproduction steps are in the repository README.
 ## New-project and third-party disclosure
 
 The implementation repository began August 18, 2026, within the contest period.
-It continued from earlier product ideation and a source package; that ideation
-is disclosed and is not represented as contest-period implementation. The
-project uses open-source Python, React, Vite, Google ADK, Google Cloud client
-libraries, FastAPI, Pydantic, and Lucide components under their licenses. All
-contest implementation and integration work represented here was completed
-during the submission period.
+The public GitHub repository was created at 13:57:39Z, the dedicated Google
+Cloud project at 14:14:30Z, and the first successful Cloud Build at 20:23:59Z
+that day. The project continued from earlier product ideation and a source
+package, which are not represented as contest-period work. The repository uses
+open-source Python, React, Vite, Google ADK, Google Cloud client libraries,
+FastAPI, Pydantic, and Lucide components under their licenses.
+
+The repository timeline does not prove what the source package contained.
+Before submission, the entrant must verify whether it contained ideation only
+or any code, images, copy, or other implementation assets. If it contained
+implementation material, the final disclosure must enumerate the incorporated
+components, dates, sources, rights, and current derived paths. See
+`submission/ORIGINALITY_PROVENANCE.md`. Until that attestation is complete, this
+disclosure is prepared but not final.
 
 ## What's next
 

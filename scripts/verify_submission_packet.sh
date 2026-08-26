@@ -23,12 +23,14 @@ for file in \
   submission/GITHUB_REPOSITORY_METADATA.md \
   submission/DEVPOST_FORM_AUDIT.md \
   submission/JUDGE_EVIDENCE_INDEX.md \
+  submission/ORIGINALITY_PROVENANCE.md \
   submission/JUDGE_SCORECARD.md \
   submission/final-demo-manifest.template.json \
   docs/JUDGE_SCORECARD.md \
   scripts/build_final_demo_rehearsal.sh \
   scripts/build_candidate_rehearsal.sh \
   scripts/verify_final_demo_package.sh \
+  scripts/verify_contest_provenance.sh \
   scripts/summarize_real_pm_pilot.py \
   scripts/verify_release_candidate_local.sh \
   docs/REAL_PM_CUSTOMER_SPRINT.md \
@@ -101,11 +103,13 @@ require_text README.md 'The local candidate is **not deployed**.'
 require_text README.md '03ec8f12fc23d265c89b462a345a5b599a6411e8'
 require_text README.md 'c01bec2e-a950-407c-873b-b1d4fdc6bae6'
 require_text submission/DEVPOST.md 'unreleased local candidate'
+require_text submission/DEVPOST.md 'The repository timeline does not prove what the source package contained.'
 require_text submission/DEVPOST.md '**Taskmaster proof:** one named authorization'
 require_text submission/DEVPOST.md '**Firebase Hosting** for the stable public judge URL'
 require_text devpost-submission.md 'Status: draft-ready, not release-ready or form-ready.'
 require_text devpost-submission.md '| Submitter type | Individuals |'
 require_text devpost-submission.md '| Project start date | 08-18-26 |'
+require_text devpost-submission.md '| Originality disclosure | **OWNER GATE:**'
 require_text devpost-submission.md '| Google SDK | Agent Development Kit (ADK) |'
 require_text devpost-submission.md '| Google Cloud service selections | Cloud Run; Firestore |'
 require_text devpost-submission.md '| Additional Google Cloud services described in entry | Firebase Hosting; BigQuery; Vertex AI;'
@@ -121,6 +125,9 @@ require_text submission/assets/driftline-final-take.srt 'LIVE GOOGLE CLOUD PROOF
 require_text submission/BUILD_STORY.md 'for the purpose of entering the Google All Things'
 require_text submission/BUILD_STORY.md 'evidence → dissent → counterfactuals → human experiment → outcome → reopen'
 require_text submission/BUILD_STORY.md 'It does not yet prove independent PM adoption'
+require_text submission/ORIGINALITY_PROVENANCE.md 'Entrant attestation required before submission'
+require_text submission/ORIGINALITY_PROVENANCE.md '2026-08-18 13:57:39Z'
+require_text scripts/verify_contest_provenance.sh 'EXPECTED_ROOT="b7a45f1b456f8e5e8cb630574b6e829bd4f575c4"'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'UNRELEASED CANDIDATE'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'release proof required before publication'
 require_text submission/assets/driftline-decision-twin-architecture.svg 'Firebase → Cloud Run + Firestore'

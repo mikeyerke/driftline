@@ -211,7 +211,7 @@ until the exact candidate is released and the native browser journey is rerun.
 | Architecture diagram | 1600×900 PNG/SVG plus checksum-bound full-resolution review | Prepared; local asset QA complete, entrant upload open |
 | Public demo under four minutes | 3:00 review cut, 31.17s continuity proof, and a 2:58 1080p real-click long-form candidate rehearsal with burned and embedded captions | Prepared locally; exact-release final take and public upload remain unproven |
 | SDK and start date answers | Google ADK; implementation repo began August 18 | Prepared; entrant must enter |
-| Originality/third-party disclosure | Earlier ideation/source package and dependencies disclosed | Prepared; entrant must confirm |
+| Originality/third-party disclosure | Root commit, public repo, cloud project, and first build independently date to August 18; pre-contest ideation/source package is disclosed | Timeline proven; entrant must attest exact package contents |
 | Optional public build content | Stand-alone 883-word Decision Twin build story with required hackathon-purpose disclosure | Prepared locally; candidate release and form link open |
 | Optional social post | Consent-gated drafts only | Intentionally unpublished |
 | PM validation | Study kit and fail-closed summarizer | Unproven; no sessions |

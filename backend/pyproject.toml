@@ -1,7 +1,7 @@
 [project]
 name = "driftline-agent"
 version = "0.1.0"
-description = "Autonomous enterprise change-to-action agent"
+description = "Evidence-bound product Decision Twin with human-authorized reversible action"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.116.0",
