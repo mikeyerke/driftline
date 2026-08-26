@@ -24,10 +24,16 @@ falsifiable experiment as a named human. Then stop clicking: a durable Cloud
 Tasks monitor processes the bounded measurement and the same case reopens as
 generation 2 while retaining the complete original approval and experiment plan.
 
-**Taskmaster proof:** one named authorization starts the multi-step background
-workflow. After that approval, Driftline evaluates the committed measurement,
-writes the learning receipt, and reopens the decision without another prompt or
-PM click.
+**Taskmaster proof:** before any human action, Driftline intercepts commitment
+drift and completes a multi-step background task: it harvests cited evidence,
+convenes independent specialists, preserves dissent, and prepares bounded
+options with guardrails and rollback. One named authorization then starts the
+second autonomous task. Driftline evaluates the committed measurement, writes
+the learning receipt, rolls back when required, and reopens the decision without
+another prompt or PM click. The approval is a deliberate authority boundary,
+not manual orchestration of the agent work. This is engineering proof, not
+customer ROI. A separately verified signed Jira marker is supporting
+operator-lane evidence, not the public task's action claim.
 
 The live system uses Gemini 3.5 Flash through Vertex AI and Google ADK on Cloud
 Run. The public judge lane changes only Driftline decision state; a separately
@@ -69,8 +75,10 @@ they do not establish Driftline adoption or customer value.
 Driftline first watches active commitments for decision debt: fresh evidence
 that contradicts a bet, an overdue measurement, or a breached guardrail. It
 creates a cited decision-inbox item with the affected commitment, why it matters
-now, what evidence is still missing, and the next bounded decision. It then
-takes that commitment through five visible stages:
+now, what evidence is still missing, and the next bounded decision. Detection,
+evidence harvest, specialist analysis, dissent preservation, and option
+preparation complete without a prompt loop or human intervention. It then takes
+that commitment through five visible stages:
 
 1. It combines bounded customer, usage, strategy, and feasibility evidence in
    a provenance-preserving graph. Live product metrics come from a
@@ -250,7 +258,7 @@ proof, both using the same workflow and deterministic policy contracts.
 - Durable Cloud Tasks/Firestore execution that survives browser reloads
 - Real source, trace, impact, policy, approval, artifact, and reversal records
 - One hosted signed Jira create/reactivate/reverse round trip
-- 524 backend tests, Ruff, the frontend production build, and all 14 trace
+- 525 backend tests, Ruff, the frontend production build, and all 14 trace
   evaluation cases passing at the current local-candidate checkpoint
 - Public release metadata exposing the exact serving SHA and Cloud Build ID
 - A fail-closed release renderer that emits nothing unless the actual final

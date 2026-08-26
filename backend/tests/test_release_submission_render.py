@@ -46,6 +46,7 @@ def valid_manifest() -> dict[str, object]:
     }
     for key in (
         "first_agent_action_visible",
+        "preapproval_background_workflow_visible",
         "continuous_native_take",
         "setup_and_loading_omitted",
         "approval_to_reopen_continuous",
@@ -118,6 +119,11 @@ def test_valid_manifest_returns_one_release_identity() -> None:
         ("candidate_watermark_absent", False, "candidate_watermark_absent"),
         ("video_sha256", "0" * 64, "nonzero"),
         ("approval_to_reopen_continuous", False, "approval_to_reopen_continuous"),
+        (
+            "preapproval_background_workflow_visible",
+            False,
+            "preapproval_background_workflow_visible",
+        ),
         ("duration_seconds", 236, "below 3:56"),
         ("google_cloud_proof_timestamp_seconds", 170, "ten seconds"),
     ],

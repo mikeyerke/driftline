@@ -34,6 +34,10 @@ squash-merged `main` tree. PR #32 then added research-backed real-PM market-fit
 evidence and the manual exact-SHA CI recovery path; its combined exact tree
 passed all four hosted jobs, equaled its squash-merged `main` tree, and passed a
 fresh clean release preflight at `e4a2f474002c151ab29b08528915292543afd7f2`.
+PR #33 then refreshed the mirrored judge evidence; its exact head passed all
+four hosted jobs, its squash-merged tree was identical, and a new clean
+release-candidate preflight plus hosted run `32986603518` passed at public-main
+SHA `484e764760c06350733189246a17dfa651502891`.
 None of these merged changes is part of the live score above until Cloud Run
 serves the same public-main commit and the full production journey is
 reverified.
@@ -104,7 +108,7 @@ different labels. Stakeholder positions are explicitly evidence-bound decision
 lenses rather than fabricated human quotes.
 
 The UI discloses **scope: decision state only** and **external writes: none**.
-The candidate passed 524 backend tests, Ruff, the production frontend build,
+The candidate passed 525 backend tests, Ruff, the production frontend build,
 the judge-surface literal contract, desktop end-to-end clicks, and a 390 × 844
 rollback/reopen journey. The custom PM path additionally passed two-step
 context/contract entry, back-navigation preservation, directional-threshold
@@ -273,7 +277,7 @@ ownership attestation.
 
 `scripts/verify_clean_checkout.sh` separately exports only committed `HEAD`
 into a new temporary directory, creates a fresh backend environment, installs
-the locked frontend tree, and reruns all 524 backend tests, the 14-case agent
+the locked frontend tree, and reruns all 525 backend tests, the 14-case agent
 evaluation, frontend production build, frontend contract, submission packet,
 and shell syntax checks. This closes the gap between “works in the development
 worktree” and the reproducibility claim a judge receives from the repository.

@@ -41,9 +41,10 @@ keeps the measured outcome attached to the original call.”
 
 **Screen:** Start the workflow; show the five signals and BigQuery aggregate.
 
-**Narration:** “Without a prompt loop, Driftline attaches five cited signals,
-including a privacy-thresholded BigQuery aggregate. The claims keep their source
-and customer segment, so contradictory evidence stays inspectable.”
+**Narration:** “Without a prompt loop or human intervention, Driftline
+intercepts the commitment drift and completes the decision preparation: five
+cited signals, a privacy-thresholded BigQuery aggregate, specialist dissent,
+and reversible options. Every claim keeps its source and segment.”
 
 ## 0:27–0:53 — Independent Google ADK council
 
@@ -135,6 +136,10 @@ loop: evidence, dissent, decision, outcome.”
 - The first visible agent action occurs within 15 seconds, and the final
   manifest records its timestamp plus affirmative continuous-take and
   setup/loading-omitted gates.
+- Before the approval, the take visibly proves a complete autonomous background
+  task—intercept drift, harvest evidence, convene specialists, preserve dissent,
+  and prepare bounded options—rather than implying that autonomy begins only
+  after a human click.
 - The final manifest records `google_cloud_proof_type=cloud_run_url` and the
   exact timestamp at which the `*.run.app` backend becomes visible.
 - The public YouTube/Vimeo result is under four minutes, English or English-

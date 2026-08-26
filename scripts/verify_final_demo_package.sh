@@ -232,6 +232,7 @@ required_fields = {
     "duration_seconds",
     "first_agent_action_timestamp_seconds",
     "first_agent_action_visible",
+    "preapproval_background_workflow_visible",
     "continuous_native_take",
     "setup_and_loading_omitted",
     "human_approval_timestamp_seconds",
@@ -290,6 +291,7 @@ if abs(float(manifest["duration_seconds"]) - duration) > 0.1:
 
 for key in (
     "first_agent_action_visible",
+    "preapproval_background_workflow_visible",
     "continuous_native_take",
     "setup_and_loading_omitted",
     "named_human_approval_visible",

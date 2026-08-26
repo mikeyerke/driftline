@@ -5,8 +5,8 @@ but the commitment does not.
 
 2
 00:00:11,000 --> 00:00:27,000
-Five cited signals preserve source and segment,
-including a privacy-thresholded BigQuery aggregate.
+No prompt loop or human intervention: Driftline intercepts drift,
+harvests cited evidence, preserves dissent, and prepares bounded options.
 
 3
 00:00:27,000 --> 00:00:42,000
