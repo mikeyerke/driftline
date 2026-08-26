@@ -19,7 +19,9 @@ os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 
 _run_mode: ContextVar[str] = ContextVar("driftline_run_mode", default="demo")
 _tenant_id: ContextVar[str | None] = ContextVar("driftline_tenant_id", default=None)
-_workflow_id: ContextVar[str | None] = ContextVar("driftline_workflow_id", default=None)
+_workflow_binding: ContextVar[dict[str, str | None] | None] = ContextVar(
+    "driftline_workflow_binding", default=None
+)
 _source_id: ContextVar[str | None] = ContextVar("driftline_source_id", default=None)
 
 
@@ -41,18 +43,36 @@ def reset_tenant_id(token: Token[str | None]) -> None:
     _tenant_id.reset(token)
 
 
-def set_workflow_id(workflow_id: str | None) -> Token[str | None]:
-    """Bind the workflow created by the current source inspection call."""
-    return _workflow_id.set(workflow_id)
+def set_workflow_id(
+    workflow_id: str | None,
+) -> Token[dict[str, str | None] | None]:
+    """Create a request-local binding shared by ADK child tool tasks.
+
+    ``ContextVar`` values are copied when ADK creates an async task for a tool
+    call. A mutable binding keeps the request isolation provided by the parent
+    context while allowing a workflow created by one tool task to be verified
+    by the next tool task in the same turn.
+    """
+    return _workflow_binding.set({"workflow_id": workflow_id})
 
 
-def reset_workflow_id(token: Token[str | None]) -> None:
-    _workflow_id.reset(token)
+def reset_workflow_id(token: Token[dict[str, str | None] | None]) -> None:
+    _workflow_binding.reset(token)
 
 
 def workflow_id_from_context() -> str | None:
     """Return the workflow created by the current ADK turn, if any."""
-    return _workflow_id.get()
+    binding = _workflow_binding.get()
+    return binding.get("workflow_id") if binding else None
+
+
+def _bind_workflow_id(workflow_id: str) -> None:
+    """Update the current turn binding without replacing its shared object."""
+    binding = _workflow_binding.get()
+    if binding is None:
+        binding = {"workflow_id": None}
+        _workflow_binding.set(binding)
+    binding["workflow_id"] = workflow_id
 
 
 def set_source_id(source_id: str | None) -> Token[str | None]:
@@ -120,7 +140,7 @@ def inspect_source_change(source_id: str) -> dict:
         confidence=float(snapshot.get("confidence", 0.99)),
     )
     persist_workflow(state)
-    _workflow_id.set(state.workflow_id)
+    _bind_workflow_id(state.workflow_id)
     # The persisted/API state remains raw and hash-bound. Only the copy sent
     # back across the ADK tool seam is guarded against source prompt injection.
     return model_safe_state(state.to_dict())
@@ -131,7 +151,7 @@ def get_workflow_state(workflow_id: str) -> dict:
     # A model-supplied identifier is never authority. The source inspection
     # tool binds the one workflow this turn may read; placeholders resolve to
     # it and every other explicit identifier must match it exactly.
-    bound_workflow_id = _workflow_id.get()
+    bound_workflow_id = workflow_id_from_context()
     if not bound_workflow_id:
         raise PermissionError("workflow_turn_binding_required")
     requested_workflow_id = workflow_id.strip()

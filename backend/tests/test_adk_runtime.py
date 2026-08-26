@@ -1,6 +1,9 @@
+import asyncio
+
 import pytest
 
 from app import adk_runtime
+from app import agent as agent_module
 from app.analysis import AnalysisUnavailable
 
 
@@ -70,6 +73,26 @@ def test_workflow_id_response_requires_a_turn_binding() -> None:
     try:
         with pytest.raises(PermissionError, match="workflow_turn_mismatch"):
             adk_runtime._workflow_id_from_turn("foreign-workflow")
+    finally:
+        adk_runtime.reset_workflow_id(token)
+
+
+def test_workflow_binding_survives_separate_adk_tool_tasks() -> None:
+    """A workflow created in one child task is visible to the next tool task."""
+    token = adk_runtime.set_workflow_id(None)
+
+    async def bind_in_child() -> None:
+        agent_module._bind_workflow_id("workflow-from-child-tool")
+
+    async def read_in_child() -> str | None:
+        return adk_runtime.workflow_id_from_context()
+
+    async def run_child_tools() -> str | None:
+        await asyncio.create_task(bind_in_child())
+        return await asyncio.create_task(read_in_child())
+
+    try:
+        assert asyncio.run(run_child_tools()) == "workflow-from-child-tool"
     finally:
         adk_runtime.reset_workflow_id(token)
 
