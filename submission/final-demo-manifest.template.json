@@ -12,6 +12,7 @@
   "duration_seconds": 0,
   "first_agent_action_timestamp_seconds": 0,
   "first_agent_action_visible": false,
+  "preapproval_background_workflow_visible": false,
   "continuous_native_take": false,
   "setup_and_loading_omitted": false,
   "human_approval_timestamp_seconds": 0,

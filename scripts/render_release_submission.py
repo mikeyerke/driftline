@@ -47,6 +47,7 @@ REQUIRED_MANIFEST_FIELDS = {
     "duration_seconds",
     "first_agent_action_timestamp_seconds",
     "first_agent_action_visible",
+    "preapproval_background_workflow_visible",
     "continuous_native_take",
     "setup_and_loading_omitted",
     "human_approval_timestamp_seconds",
@@ -131,6 +132,7 @@ def _validate_manifest(manifest: dict[str, object]) -> dict[str, str]:
 
     for key in (
         "first_agent_action_visible",
+        "preapproval_background_workflow_visible",
         "continuous_native_take",
         "setup_and_loading_omitted",
         "approval_to_reopen_continuous",

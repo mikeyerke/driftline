@@ -46,6 +46,29 @@ exercise this custom-intake branch, and neither branch is production proof.
 
 ## Rubric map
 
+### Exact Taskmaster proof chain
+
+The official Taskmaster question asks whether the agent **intercepts and
+completes a multi-step background workflow without human intervention**. The
+continuous take must make both autonomous tasks distinguishable from the human
+authority boundary:
+
+1. **Before any human action:** the Decision Debt Radar intercepts a conflicting
+   commitment; evidence harvest attaches cited sources; five bounded Google ADK
+   specialists inspect them; synthesis retains dissent; and Driftline prepares
+   four reversible options. This is a complete decision-preparation task, not a
+   chat response and not PM-operated orchestration.
+2. **One bounded human authority transition:** the named approver selects the
+   experiment. The model cannot perform this consequential state change.
+3. **After that one authorization:** the monitor evaluates the precommitted
+   measurement, rolls back the bounded allocation when the guardrail breaks,
+   writes the learning receipt, and reopens generation 2 without a second prompt
+   or PM action.
+
+The personal-friction opening supplies the Bring Your Own Friction link: the
+builder repeatedly saw product commitments outlive the assumptions and evidence
+that created them. This is a truthful origin statement, not a customer claim.
+
 ### Innovation and operational utility — 40%
 
 The video proves the uncommon product loop rather than claiming novelty:
