@@ -66,16 +66,21 @@ mutation, registration, upload, publication, or submission.
 
 ## 5. Devpost — requires authorization
 
-1. Replace only the approved video/social placeholders in
+1. Sign in, then perform the read-only actual-form audit described in
+   `submission/DEVPOST_FORM_AUDIT.md`; do not join, create, save, upload, accept,
+   or submit during that audit.
+2. Reconcile exact labels, limits, selectors, and required confirmations into
+   `devpost-submission.md` and rerun the packet verifier.
+3. Replace only the approved video/social placeholders in
    `devpost-submission.md`; rerun `./scripts/verify_submission_packet.sh`.
-2. Select only Taskmaster and enter Google ADK, the August 18 implementation
+4. Select only Taskmaster and enter Google ADK, the August 18 implementation
    start, repo, hosted URL, architecture, and originality/source disclosure.
-3. Recheck entrant identity, eligibility, rules, terms, privacy consent, links,
+5. Recheck entrant identity, eligibility, rules, terms, privacy consent, links,
    category, rendered copy, screenshots, and the exact public video.
-4. Preserve the distinction between engineering proof, PM evidence, and an
+6. Preserve the distinction between engineering proof, PM evidence, and an
    actual paying customer. Never add an outcome, quote, or attribution without
    its evidence and separate consent.
-5. Submit only after a final explicit authorization of the rendered entry.
+7. Submit only after a final explicit authorization of the rendered entry.
 
 ## 6. Freeze after submission
 

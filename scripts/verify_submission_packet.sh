@@ -21,6 +21,7 @@ for file in \
   submission/DEMO_SCRIPT.md \
   submission/REMOTE_CHECKLIST.md \
   submission/GITHUB_REPOSITORY_METADATA.md \
+  submission/DEVPOST_FORM_AUDIT.md \
   submission/JUDGE_EVIDENCE_INDEX.md \
   submission/JUDGE_SCORECARD.md \
   submission/final-demo-manifest.template.json \
@@ -93,6 +94,8 @@ require_text docs/STATUS.md '## Unreleased candidate custody'
 require_text submission/REMOTE_CHECKLIST.md 'Nothing here authorizes a push, merge, Cloud'
 require_text submission/GITHUB_REPOSITORY_METADATA.md 'requires explicit publication authorization'
 require_text submission/GITHUB_REPOSITORY_METADATA.md 'google-adk'
+require_text submission/DEVPOST_FORM_AUDIT.md 'No Devpost account login'
+require_text submission/DEVPOST_FORM_AUDIT.md 'not proof of exact form compatibility'
 require_text README.md '## Judge it in 60 seconds'
 require_text README.md 'The local candidate is **not deployed**.'
 require_text README.md '03ec8f12fc23d265c89b462a345a5b599a6411e8'
@@ -116,6 +119,8 @@ require_text submission/DEMO_SCRIPT.md 'driftline-xvxczqg62a-uc.a.run.app/health
 require_text submission/assets/driftline-final-take.srt 'External writes: none'
 require_text submission/assets/driftline-final-take.srt 'LIVE GOOGLE CLOUD PROOF'
 require_text submission/BUILD_STORY.md 'for the purpose of entering the Google All Things'
+require_text submission/BUILD_STORY.md 'evidence → dissent → counterfactuals → human experiment → outcome → reopen'
+require_text submission/BUILD_STORY.md 'It does not yet prove independent PM adoption'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'UNRELEASED CANDIDATE'
 require_text submission/assets/driftline-decision-twin-candidate-architecture.svg 'release proof required before publication'
 require_text submission/assets/driftline-decision-twin-architecture.svg 'Firebase → Cloud Run + Firestore'

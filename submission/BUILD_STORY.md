@@ -1,86 +1,128 @@
-# Building Driftline: giving an agent less authority than intelligence
+# Building Driftline: the decision should change when the evidence does
 
 *I created this build story for the purpose of entering the Google All Things
 Agentic Hackathon.*
 
-Most agent demos focus on what the model can do. Driftline started with the
-opposite question: what must the model never be allowed to authorize?
+I kept making roadmap calls whose evidence changed after the commitment. The
+decision itself would survive—in a meeting note, a ticket, or collective
+memory—but the assumptions that justified it would disappear across analytics,
+customer conversations, strategy, and engineering constraints.
 
-The problem is promise drift. A public pricing, product, or policy sentence
-changes and the signal appears immediately, but comparison pages, battlecards,
-deal guidance, FAQs, and internal work stay stale. A summary does not fix that.
-Someone still has to prove the change, determine what it affects, route the
-work, make a consequential decision, and preserve who approved it.
+That is the friction behind Driftline. It is not a chatbot that gives product
+advice. It turns one contested product decision into an inspectable learning
+loop:
 
-Driftline handles that path as an asynchronous Taskmaster workflow:
+`evidence → dissent → counterfactuals → human experiment → outcome → reopen`
 
-`observe -> hash -> interpret -> map -> gate -> claim -> act -> reconcile -> reverse -> audit`
+The twist is what happens after the recommendation. A named human authorizes a
+falsifiable, reversible experiment. A background monitor evaluates the metric
+and risk guardrail committed at approval. If the guardrail breaks, Driftline
+records the result, rolls back its bounded internal allocation, and reopens the
+same decision as a new generation—with the original evidence, disagreement,
+approval, and outcome still attached.
 
-## Gemini interprets; deterministic code authorizes
+## Five agents, one constrained synthesis
 
-Gemini 3.5 Flash runs through Vertex AI and Google ADK. It receives a bounded,
-sanitized evidence projection and returns structured impact analysis and
-decision options. The agent has only two read/inspect tools. It does not receive
-an approval tool.
+The Decision Twin begins with five evidence surfaces: customer, usage,
+strategy, feasibility, and challenger. Five independent Google ADK specialists
+use Gemini 3.5 Flash through Vertex AI to inspect bounded projections of those
+sources. Each role has its own mandate, but none has a mutation or approval
+tool.
 
-Before model output can become work, Pydantic schemas and deterministic policy
-verify the source, evidence hash, artifact allowlist, action, owner, risk,
-citations, and rollback. High-risk state persists at `needs_approval` until a
-named human acts.
+The synthesis must cite the evidence and preserve material disagreement. It
+cannot silently average every position into a safe-sounding paragraph. The
+showcase decision deliberately contains tension: small teams activate faster
+after an onboarding redesign while enterprise activation and permission setup
+degrade. That conflict produces four real alternatives—ship, rollback, segment,
+or defer—with different upside, downside, unknowns, metrics, stop conditions,
+and reversibility.
 
-This is more than a safety wrapper. It makes the product explainable: every
-screen can show which evidence produced which recommendation and where human
-authority begins.
+The useful output is not “AI recommends segmentation.” It is a decision a PM
+can inspect, reject, or turn into an operating contract.
 
-## Durable action, not a chat response
+## The model recommends; a human authorizes
 
-Cloud Tasks invokes the worker asynchronously. Firestore stores the observation,
-job, workflow, trace metadata, action state, and append-only audit trail. A
-stable Change Card identity derives from source and evidence hash, so retries
-cannot manufacture duplicate work.
+Human authority is a state transition, not a sentence in a system prompt.
+Approval is disabled until a reviewer is named. Firestore compare-and-set logic
+binds the approval to the exact evidence hash, synthesis hash, option, and
+decision generation. Stale and conflicting approvals fail closed.
 
-The hardest failure is not a clean connector rejection. It is a process ending
-after a provider may have accepted a write but before the application records
-the final result. Driftline claims a credential-free operation record before
-side effects begin. Approval and reversal enter distinct executing states,
-conflicting decisions fail closed, and an interrupted attempt moves to
-`reconciliation_required`. A named human retries the same operation ID and
-generation; idempotent adapters and artifact keys converge on one durable
-outcome instead of manufacturing a second action. Configured-write recovery
-still requires signed tenant authority. A bounded lease also covers hard
-process termination: an unexpired claim cannot be stolen, and an expired claim
-must first win a separate Firestore CAS into the recovery lane.
+The current verified public release proves the council, human approval, bounded
+outcome, and generation-2 reopen. An unreleased local candidate makes the action
+boundary even more visible: approval creates one allocation only inside
+Driftline’s own decision state. The receipt says **decision state only** and
+**external writes: none**. A breached guardrail rolls that allocation back
+before the decision reopens.
 
-The public judge lane creates only Driftline-owned packets. External writes are
-reserved for a signed tenant lane. In the isolated Jira proof, an approved
-action created or reactivated one scoped marker. Repeating it reused the same
-marker. Reopening the decision reversed only Driftline-owned state and preserved
-the issue and reversal history.
+That candidate is not production proof. It must not be described as live until
+its exact public commit, Cloud Run revision, Cloud Build, image digest, ADK
+trace, and browser journeys are independently reverified.
 
-## The architecture lesson
+## Google Cloud is the execution substrate
 
-An agent can reason broadly while acting narrowly. Trust comes from making the
-authority boundary explicit:
+Firebase Hosting provides a stable credential-free judge URL and rewrites the
+application to Cloud Run. Firestore stores cases, generations, evidence
+identity, approvals, outcomes, and lineage. BigQuery supplies a
+privacy-thresholded aggregate and vector precedent memory. Cloud Tasks runs the
+asynchronous outcome path after approval. Cloud Scheduler provides bounded
+monitor cadence. Cloud Build and Artifact Registry bind the deployed image to a
+reviewable source identity.
 
-- evidence bytes stay immutable;
-- source text is treated as untrusted data;
-- traces exclude prompts, source bodies, and credentials;
-- approval is deterministic and evidence-bound;
-- credentials are tenant-scoped and never sent to the browser;
-- retries reuse one durable operation ID and are idempotent;
-- every action has a reversal contract.
+The direct Cloud Run health endpoint exposes the serving application commit
+and build without revealing credentials. The final continuous video will show
+that `*.run.app` endpoint in-frame; an architecture diagram or “Cloud Run”
+caption is not treated as deployment proof.
 
-## What we refused to claim
+## The hardest engineering problem was authority recovery
 
-The deployment proves agent execution, durability, source observations,
-approval, action, and reversal. It does not prove customer ROI. Time saved,
-revenue, retention, and willingness to pay remain `not_measured` until an
-independent pilot produces paired evidence.
+Happy-path agents are easy to demo. The dangerous state is a process ending
+after an operation may have begun but before the application records the final
+result.
 
-The most important build decision was not adding another connector. It was
-keeping the story focused: one change, four affected work surfaces, one human
-gate, one real least-privilege action, and one clean reversal.
+Driftline uses stable operation identities, compare-and-set transitions,
+idempotent artifacts, bounded leases, and explicit reconciliation states. The
+model never decides whether a side effect already happened. Deterministic code
+and provider evidence do. Retries converge on the same operation rather than
+manufacturing a second action.
+
+The public Decision Twin grants anonymous judges no external-system authority.
+A separate signed tenant lane has exercised a least-privilege Jira marker and
+reversal, but it is supporting engineering proof—not the public demo’s action
+claim and not customer validation.
+
+## Seven checks before a decision can be trusted
+
+The trace evaluator tests seven visible contracts:
+
+1. evidence provenance is retained;
+2. specialist positions are genuinely independent;
+3. synthesis keeps citations;
+4. material disagreement remains visible;
+5. the experiment is falsifiable;
+6. human authority is required; and
+7. the outcome can reopen the original decision without erasing lineage.
+
+The release gate also checks privacy floors, billed-byte ceilings, bounded model
+calls, exact release identity, dependency safety, production browser journeys,
+and current-revision errors. These are not prompt promises. They are code and
+deployment invariants.
+
+## What I refused to claim
+
+The system proves engineering execution: Google ADK and Gemini reasoning,
+privacy-bounded evidence, human approval, asynchronous monitoring, a measured
+demo outcome, rollback, and decision reopening.
+
+It does not yet prove independent PM adoption, customer ROI, revenue, retention,
+time saved, or willingness to pay. Those values remain `not_measured` until a
+qualified external PM brings a current decision and completes the precommitted
+review window. A design-partner conversation is not a customer; payment or a
+signed paid-pilot commitment is required for that claim.
+
+The main lesson is simple: an agent becomes trustworthy when its authority is
+smaller than its reasoning ability. Driftline makes that boundary visible—and
+makes the decision change when reality says it should.
 
 Live application: https://driftline-ops.web.app/
 
-Source: https://github.com/mikeyerke/driftline
+Source and reproducible setup: https://github.com/mikeyerke/driftline
