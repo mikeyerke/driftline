@@ -65,6 +65,33 @@ def test_health_exposes_non_secret_release_identity(monkeypatch) -> None:
     assert payload["build_id"] == "build-123"
 
 
+def test_decision_inbox_projects_observed_workflows_without_external_writes(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    api.workflow_store._runs.clear()
+    try:
+        assert client.post(
+            "/api/workflows/demo?source_id=competitor/pricing"
+        ).status_code == 200
+        assert client.post(
+            "/api/workflows/demo?source_id=competitor/pricing"
+        ).status_code == 200
+        assert client.post(
+            "/api/workflows/demo?source_id=competitor/offerings"
+        ).status_code == 200
+
+        response = client.get("/api/ops/decision-inbox")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["summary"]["decision_threads"] == 2
+        assert payload["summary"]["duplicate_observations_collapsed"] == 1
+        assert payload["counts"]["needs_decision"] == 2
+        assert payload["automation_boundary"]["external_writes"] is False
+    finally:
+        api.workflow_store._runs.clear()
+
+
 def test_decision_twin_demo_runs_complete_approval_and_reopening_loop(
     monkeypatch,
 ) -> None:

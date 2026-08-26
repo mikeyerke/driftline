@@ -5,11 +5,13 @@ import {
   FileCheck2,
   GitBranch,
   Home,
+  Inbox,
   Settings,
   ShieldCheck,
 } from "lucide-react";
 
 export const navItems = [
+  ["Inbox", Inbox],
   ["Overview", Home],
   ["Sources", Box],
   ["Workflows", GitBranch],
@@ -19,4 +21,3 @@ export const navItems = [
 ];
 
 export const artifactIcons = [FileCheck2, ShieldCheck, Activity, GitBranch];
-
