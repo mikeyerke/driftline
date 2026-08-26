@@ -226,7 +226,7 @@ proof, both using the same workflow and deterministic policy contracts.
 - Durable Cloud Tasks/Firestore execution that survives browser reloads
 - Real source, trace, impact, policy, approval, artifact, and reversal records
 - One hosted signed Jira create/reactivate/reverse round trip
-- 450 backend tests, Ruff, the frontend production build, and all 14 trace
+- 462 backend tests, Ruff, the frontend production build, and all 14 trace
   evaluation cases passing at the current local-candidate checkpoint
 - Public release metadata exposing the exact serving SHA and Cloud Build ID
 - No embedded credentials found in the repository

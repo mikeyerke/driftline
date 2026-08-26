@@ -92,7 +92,7 @@ bounded internal allocation, real-measurement follow-up, opaque return link,
 review-window lock, progressive custom-decision intake, clean-checkout API
 routing, and explicit retry recovery described in the judge scorecard.
 
-The local candidate passed 450 backend tests, Ruff, the 14/14 trace evaluation,
+The local candidate passed 462 backend tests, Ruff, the 14/14 trace evaluation,
 the locked frontend build, dependency audit, frontend and submission contracts,
 and shell/diff hygiene on August 26. That is local candidate evidence only.
 `scripts/verify_release_candidate_local.sh --release-candidate` now fails before
