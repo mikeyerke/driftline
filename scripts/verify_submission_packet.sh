@@ -56,6 +56,8 @@ require_text submission/VIDEO_PRODUCTION_RUNBOOK.md 'verify_final_demo_package.s
 require_text submission/assets/ASSET_REVIEW.md 'inspected at original resolution'
 require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_EXPECT_ACTION'
 require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_FINAL_SCREENSHOT'
+require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_EXPECT_RELEASE_SHA'
+require_text scripts/capture_decision_twin_candidate.mjs 'CAPTURE_EXPECT_BUILD_ID'
 require_text scripts/capture_decision_twin_candidate.mjs 'current-release decision-loop proof'
 require_text scripts/summarize_real_pm_pilot.py 'unexpected fields are forbidden to reduce identity/raw-data risk'
 require_text scripts/summarize_real_pm_pilot.py 'not a customer'

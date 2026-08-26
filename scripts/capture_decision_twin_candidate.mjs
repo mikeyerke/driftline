@@ -20,6 +20,8 @@ const captureWidth = Number(process.env.CAPTURE_WIDTH || "1280");
 const captureHeight = Number(process.env.CAPTURE_HEIGHT || "720");
 const captureWaitMs = Number(process.env.CAPTURE_WAIT_MS || "12000");
 const captureExpectAction = process.env.CAPTURE_EXPECT_ACTION !== "false";
+const expectedReleaseSha = process.env.CAPTURE_EXPECT_RELEASE_SHA || null;
+const expectedBuildId = process.env.CAPTURE_EXPECT_BUILD_ID || null;
 if (
   !Number.isInteger(captureWidth) ||
   !Number.isInteger(captureHeight) ||
@@ -40,6 +42,31 @@ await mkdir(framesDir, { recursive: true });
 
 const sleep = (milliseconds) =>
   new Promise((resolveSleep) => setTimeout(resolveSleep, milliseconds));
+
+let releaseIdentity = null;
+if (expectedReleaseSha || expectedBuildId) {
+  const healthUrl = new URL("/health", targetUrl);
+  const response = await fetch(healthUrl);
+  if (!response.ok) {
+    throw new Error(`Capture health preflight returned ${response.status}`);
+  }
+  releaseIdentity = await response.json();
+  if (
+    expectedReleaseSha &&
+    releaseIdentity.release_sha !== expectedReleaseSha
+  ) {
+    throw new Error(
+      `Capture release mismatch: /health reports ${releaseIdentity.release_sha}; ` +
+        `expected ${expectedReleaseSha}`,
+    );
+  }
+  if (expectedBuildId && releaseIdentity.build_id !== expectedBuildId) {
+    throw new Error(
+      `Capture build mismatch: /health reports ${releaseIdentity.build_id}; ` +
+        `expected ${expectedBuildId}`,
+    );
+  }
+}
 
 async function waitForJson(url, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
@@ -576,6 +603,7 @@ try {
         finalState,
         finalScreenshot: finalScreenshotPath,
         viewport: `${captureWidth}x${captureHeight}`,
+        releaseIdentity,
         label: captureExpectAction
           ? "local unreleased candidate proof"
           : "current-release decision-loop proof",

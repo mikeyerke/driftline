@@ -44,6 +44,9 @@ deployed or used as the entrant's final narrated take.
   native take:
   `node scripts/capture_decision_twin_candidate.mjs /tmp/driftline-proof.mp4`.
   Inspect the result at 1×; passing state assertions do not prove legibility.
+- For a serving-release capture, also set `CAPTURE_EXPECT_RELEASE_SHA` and
+  `CAPTURE_EXPECT_BUILD_ID`. The capture must verify `/health` before its first
+  click and fail if either identity differs.
 - For a local-only rehearsal, set
   `DECISION_TWIN_AUTONOMOUS_MONITOR=true` while leaving Cloud Tasks disabled so
   the bounded background fallback exercises the same no-second-click timing.
