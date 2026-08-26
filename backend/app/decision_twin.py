@@ -17,6 +17,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .product_operating_loop import ProductOperatingLoop, build_product_operating_loop
+
 DecisionOptionId = Literal["ship", "rollback", "segment", "defer"]
 MAX_DECISION_GENERATION = 20
 CouncilRole = Literal[
@@ -304,6 +306,7 @@ class DecisionCase(BaseModel):
     action_records: list[BoundedActionRecord] = Field(
         default_factory=list, max_length=MAX_DECISION_GENERATION
     )
+    operating_loop: ProductOperatingLoop | None = None
     reopen_reason: str | None = None
     events: list[dict[str, Any]] = Field(default_factory=list, max_length=128)
 
@@ -311,6 +314,12 @@ class DecisionCase(BaseModel):
 def _digest(value: Any) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def refresh_product_operating_loop(case: DecisionCase) -> DecisionCase:
+    """Refresh the read-only seven-capability projection after a state change."""
+    case.operating_loop = build_product_operating_loop(case)
+    return case
 
 
 def _node(
@@ -668,7 +677,7 @@ def build_demo_decision_case(
     )
     validate_evidence_graph(case)
     validate_council(case)
-    return case
+    return refresh_product_operating_loop(case)
 
 
 def build_intake_decision_case(
@@ -888,7 +897,7 @@ def build_intake_decision_case(
     )
     validate_evidence_graph(case)
     validate_council(case)
-    return case
+    return refresh_product_operating_loop(case)
 
 
 def attach_decision_precedents(
@@ -913,7 +922,7 @@ def attach_decision_precedents(
             "precedent_count": len(updated.precedents),
         }
     )
-    return updated
+    return refresh_product_operating_loop(updated)
 
 
 def attach_aggregate_metrics(
@@ -972,7 +981,7 @@ def attach_aggregate_metrics(
     )
     validate_evidence_graph(updated)
     validate_council(updated)
-    return updated
+    return refresh_product_operating_loop(updated)
 
 
 def validate_evidence_graph(case: DecisionCase) -> None:
@@ -1291,7 +1300,7 @@ def approve_decision_case(
                 "debt_id": approved.decision_debt.debt_id,
             }
         )
-    return approved
+    return refresh_product_operating_loop(approved)
 
 
 def evaluate_outcome(
@@ -1719,4 +1728,4 @@ def record_outcome(
             recorded.decision_debt.recommended_next_step = (
                 "Collect the missing measurement and keep the approved guardrail active."
             )
-    return recorded
+    return refresh_product_operating_loop(recorded)

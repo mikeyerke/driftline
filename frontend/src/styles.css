@@ -251,6 +251,18 @@ main { min-width: 0; overflow-x: clip; }
 .decision-debt-radar-copy > span { color: #9b4515; font-size: 9px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }.decision-debt-radar-copy h3 { margin: 4px 0 6px; color: #172448; font-size: 18px; letter-spacing: -.02em; }.decision-debt-radar-copy p { margin: 0; color: #5c4a3e; font-size: 12px; line-height: 1.5; }.decision-debt-radar-copy small { display: block; margin-top: 8px; color: #5a6475; font-size: 10px; line-height: 1.45; }
 .decision-debt-radar-score { display: grid; grid-template-columns: auto auto; align-items: baseline; min-width: 70px; color: #a84813; text-align: right; }.decision-debt-radar-score strong { font-size: 28px; line-height: 1; }.decision-debt-radar-score > span { font-size: 10px; font-weight: 700; }.decision-debt-radar-score small { grid-column: 1 / 3; margin-top: 4px; color: #7a6253; font-size: 8px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }.decision-debt-radar.monitoring .decision-debt-radar-score { color: #315fae; }.decision-debt-radar.resolved .decision-debt-radar-score { color: #18875b; }.decision-debt-radar.reopened .decision-debt-radar-score, .decision-debt-radar.requires_human_review .decision-debt-radar-score { color: #b93b32; }
 .decision-debt-radar dl { grid-column: 2 / 4; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin: 0; padding-top: 13px; border-top: 1px solid rgba(138, 94, 58, .18); }.decision-debt-radar dl > div { display: grid; gap: 3px; }.decision-debt-radar dt { color: #867060; font-size: 8px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }.decision-debt-radar dd { margin: 0; color: #374154; font-size: 10px; line-height: 1.4; }
+.product-operating-loop { margin: 18px 28px 0; overflow: hidden; border: 1px solid #c6d6eb; border-radius: 9px; background: #f8fbff; }
+.product-operating-loop > header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 18px; border-bottom: 1px solid #d8e3f0; background: linear-gradient(120deg, #f7fbff, #eef5ff); }
+.product-operating-loop > header > div { display: grid; gap: 4px; }.product-operating-loop > header span { color: #315fae; font-size: 9px; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }.product-operating-loop > header h3 { margin: 0; color: #10254d; font-size: 18px; letter-spacing: -.02em; }
+.product-operating-loop > header > b { flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; color: #164d36; background: #dff4e9; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; }
+.product-operating-journey { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); margin: 0; padding: 13px 12px; border-bottom: 1px solid #d8e3f0; list-style: none; background: #fff; }
+.product-operating-journey li { position: relative; display: grid; justify-items: center; gap: 5px; min-width: 0; padding: 0 3px; color: #7a8799; text-align: center; }.product-operating-journey li::after { position: absolute; z-index: 0; top: 10px; left: calc(50% + 11px); width: calc(100% - 22px); height: 1px; background: #d8e0ea; content: ""; }.product-operating-journey li:last-child::after { display: none; }
+.product-operating-journey li > span { z-index: 1; display: grid; width: 21px; height: 21px; place-items: center; border: 1px solid #cbd5e1; border-radius: 50%; background: #fff; font-size: 8px; font-weight: 850; }.product-operating-journey li small { max-width: 86px; font-size: 8px; font-weight: 700; line-height: 1.25; }
+.product-operating-journey li.done { color: #237252; }.product-operating-journey li.done > span { border-color: #8fc8ae; color: #fff; background: #18875b; }.product-operating-journey li.done::after { background: #9bcdb5; }.product-operating-journey li.active { color: #174b9b; }.product-operating-journey li.active > span { border-color: #4f83d1; color: #174b9b; background: #edf5ff; box-shadow: 0 0 0 3px rgba(49, 95, 174, .1); }
+.product-operating-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.product-operating-cards article { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 17px 18px; border-top: 1px solid #d8e3f0; }.product-operating-cards article:nth-child(-n+2) { border-top: 0; }.product-operating-cards article:nth-child(even) { border-left: 1px solid #d8e3f0; }
+.product-operating-card-heading { display: flex; align-items: center; gap: 7px; min-width: 0; color: #315fae; }.product-operating-card-heading > h4 { flex: 1 1 auto; margin: 0; color: #173466; font-size: 10px; font-weight: 850; letter-spacing: .03em; text-transform: uppercase; }.product-operating-card-heading > b { flex: 0 0 auto; color: #526a91; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.product-operating-cards article > p { margin: 0; color: #4d607c; font-size: 10px; line-height: 1.45; }.product-operating-cards ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }.product-operating-cards li { display: flex; justify-content: space-between; gap: 10px; min-width: 0; padding-top: 5px; border-top: 1px solid #e2e9f2; }.product-operating-cards li strong { color: #253d63; font-size: 9px; font-weight: 750; }.product-operating-cards li span { color: #6b7d96; font-size: 8px; text-align: right; }
+.product-operating-cards dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }.product-operating-cards dl > div { display: grid; gap: 2px; padding: 0 9px; border-left: 1px solid #d8e3f0; }.product-operating-cards dl > div:first-child { padding-left: 0; border-left: 0; }.product-operating-cards dt { color: #74839a; font-size: 7px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }.product-operating-cards dd { margin: 0; color: #294466; font-size: 9px; line-height: 1.35; overflow-wrap: anywhere; }.product-operating-cards article > small { color: #687991; font-size: 8px; line-height: 1.4; }
 .decision-at-risk { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 22px; margin: 22px 28px 0; padding: 18px 20px; border-left: 4px solid #e77926; background: #fff8f2; }
 .decision-at-risk div { display: grid; gap: 5px; }.decision-at-risk span { color: #9a4315; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }.decision-at-risk strong { font-size: 17px; line-height: 1.4; }.decision-at-risk p { margin: 0; color: #714426; font-size: 14px; line-height: 1.55; }
 .decision-room-section { margin: 26px 28px 0; padding-top: 23px; border-top: 1px solid var(--line); }
@@ -1227,6 +1239,8 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-autonomy-proof > div > span:nth-child(3) { padding-left: 0; border-left: 0; }
   .decision-memory-proof { grid-template-columns: auto minmax(0, 1fr); }
   .decision-memory-proof dl { grid-column: 2; padding-top: 12px; padding-left: 0; border-top: 1px solid #ded8ef; border-left: 0; }
+  .product-operating-journey { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px 0; }
+  .product-operating-journey li:nth-child(5)::after { display: none; }
   .decision-intake > header { flex-direction: column; gap: 10px; }
   .decision-intake > header > p { max-width: 620px; }
 }
@@ -1256,6 +1270,14 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-autonomy-proof > div > span:first-child { padding-top: 0; border-top: 0; }
   .decision-memory-proof { grid-template-columns: 1fr; margin-left: 18px; margin-right: 18px; }
   .decision-memory-proof dl { grid-column: 1; }
+  .product-operating-loop { margin-left: 18px; margin-right: 18px; }
+  .product-operating-loop > header { align-items: flex-start; flex-direction: column; gap: 9px; }
+  .product-operating-journey { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 0; }
+  .product-operating-journey li:nth-child(5)::after { display: block; }
+  .product-operating-journey li:nth-child(even)::after { display: none; }
+  .product-operating-cards { grid-template-columns: 1fr; }
+  .product-operating-cards article, .product-operating-cards article:nth-child(-n+2), .product-operating-cards article:nth-child(even) { border-top: 1px solid #d8e3f0; border-left: 0; }
+  .product-operating-cards article:first-child { border-top: 0; }
   .decision-intake { padding: 21px 18px; }
   .decision-intake-progress { grid-template-columns: 1fr; }
   .decision-intake form { grid-template-columns: 1fr; }

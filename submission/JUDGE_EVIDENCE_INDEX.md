@@ -31,7 +31,7 @@ be captured in the exact-release final take before judges can score it.
 | 1:45–1:58 | Guardrail breach rolls back the allocation and opens generation 2 | Does the system autonomously complete a meaningful multistep task? |
 | 1:58–2:10 | Prior evidence, dissent, approval, result, and lineage remain linked; approver is cleared | Is the autonomous loop inspectable and human-gated again? |
 | 2:10–2:23 | Architecture: Firebase Hosting, Cloud Run, Firestore, Google ADK, Gemini, BigQuery, Cloud Tasks | Is the backend genuinely implemented on Google technology? |
-| 2:23–2:36 | Seven deterministic policy checks | Are safety and correctness architectural rather than prompt promises? |
+| 2:23–2:36 | Ten deterministic policy checks | Are safety and correctness architectural rather than prompt promises? |
 | 2:36–2:43 | Candidate custody warning and exact-release gate | Is the demo honest about what is and is not deployed? |
 | 2:43–2:52 | Rehearsal release gate; final take must replace it with Cloud Run console or live `.run.app` backend plus health/build identity | Can a judge independently verify Google Cloud deployment? |
 | 2:52–2:58 | Product name and public URL | Can the judge immediately continue testing? |
