@@ -65,7 +65,7 @@ export default function EvidenceCouncil({ decisionCase, canEdit, reviewingEviden
     <section className="decision-room-section evidence-council" aria-labelledby="evidence-council-title">
       <header className="decision-room-section-header">
         <div><span className="decision-room-kicker">Evidence snapshot</span><h3 id="evidence-council-title">{isProvidedIntake ? "Your decision-driving signals, kept honest" : "Three signals changed the decision"}</h3><p className="section-dek">{isProvidedIntake ? "These inputs shape the comparison, but remain explicitly unverified until a connected source corroborates them." : "Usage moved in opposite directions, while customer and support evidence explain why."}</p></div>
-        <span className={`council-mode ${council.mode === "google_adk" ? "live" : "fixture"}`}>{council.mode === "google_adk" ? "Live Google ADK" : isProvidedIntake ? "Bounded fallback" : "Pinned demo data"}</span>
+        <span className={`council-mode ${council.mode === "google_adk" ? "live" : "fixture"}`}>{council.mode === "google_adk" ? "Live evidence analysis" : isProvidedIntake ? "Provisional analysis" : "Pinned demo data"}</span>
       </header>
       <div className="decision-evidence-grid priority">
         {primaryNodes.map(evidenceCard)}
@@ -86,7 +86,7 @@ export default function EvidenceCouncil({ decisionCase, canEdit, reviewingEviden
       </section>}
       <div className="council-conflict"><ShieldQuestion size={20} /><div><strong>The useful disagreement</strong><p>{council.decisive_conflict}</p></div></div>
       <details className="council-reasoning">
-        <summary>Open full evidence and five council positions <span>{decisionCase.evidence_nodes.length} sources · {council.positions.length} perspectives</span></summary>
+        <summary>Open full evidence and detailed reasoning <span>{decisionCase.evidence_nodes.length} sources · {council.positions.length} perspectives</span></summary>
         {supportingNodes.length > 0 && <div className="decision-evidence-grid supporting">{supportingNodes.map(evidenceCard)}</div>}
         <div className="council-position-list" aria-label="Product council positions">
           {council.positions.map((position) => (

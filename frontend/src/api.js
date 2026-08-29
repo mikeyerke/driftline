@@ -202,18 +202,56 @@ export function getHealth() {
 }
 
 export function startDecisionTwin() {
-  return request("/api/decision-twin/demo", {
+  return request("/api/decision-twin/demo/pinned", {
     method: "POST",
-    timeoutMs: COUNCIL_TIMEOUT_MS,
   });
 }
 
-export function startDecisionTwinIntake(payload) {
-  return request("/api/decision-twin/intake", {
-    method: "POST",
-    timeoutMs: COUNCIL_TIMEOUT_MS,
-    body: JSON.stringify(payload),
-  });
+export async function startDecisionTwinIntake(payload, onStage = () => {}) {
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), COUNCIL_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${API_BASE}/api/decision-twin/intake/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/x-ndjson" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      let detail = "";
+      try {
+        const body = await response.json();
+        detail = typeof body?.detail === "string" ? body.detail : "";
+      } catch { /* non-JSON response */ }
+      throw new Error(detail || `Driftline could not build this decision brief (${response.status}).`);
+    }
+    if (!response.body) throw new Error("Driftline did not return a progress stream.");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let completedCase = null;
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.type === "stage") onStage(event);
+        if (event.type === "error") throw new Error(event.message || "Decision analysis failed.");
+        if (event.type === "complete") completedCase = event.case;
+      }
+      if (done) break;
+    }
+    if (!completedCase) throw new Error("Driftline ended the analysis before the decision brief was complete.");
+    return completedCase;
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("Decision analysis timed out. Nothing was approved or published.");
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timer);
+  }
 }
 
 export function getDecisionTwin(caseId) {

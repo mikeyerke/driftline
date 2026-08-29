@@ -62,7 +62,7 @@ const initialDecisions = {
 };
 
 export default function App() {
-  const [selectedNav, setSelectedNav] = useState("Inbox");
+  const [selectedNav, setSelectedNav] = useState("Decisions");
   const [decisionInbox, setDecisionInbox] = useState(null);
   const [decisionInboxLoading, setDecisionInboxLoading] = useState(true);
   const [decisionInboxError, setDecisionInboxError] = useState("");
@@ -85,7 +85,8 @@ export default function App() {
   const [selectedSource, setSelectedSource] = useState("competitor/pricing");
   const [operatorSession, setOperatorSession] = useState(getOperatorSession());
   const [controlPlaneOpen, setControlPlaneOpen] = useState(() => Boolean(getOperatorSession().identityToken));
-  const [decisionWorkspaceOpen, setDecisionWorkspaceOpen] = useState(false);
+  const [decisionWorkspaceOpen, setDecisionWorkspaceOpen] = useState(() => Boolean(new URLSearchParams(window.location.search).get("decision")));
+  const [decisionStartSignal, setDecisionStartSignal] = useState(0);
   const [judgeMode, setJudgeMode] = useState(true);
   const modalRef = useRef(null);
   const modalTriggerRef = useRef(null);
@@ -241,10 +242,20 @@ export default function App() {
   }, [operatorSession.tenantId]);
 
   const selectNav = (label) => {
-    setSelectedNav(label);
-    if (label === "Overview") setDecisionWorkspaceOpen(true);
-    setControlPlaneOpen(true);
-    const targetId = `${label.toLowerCase()}-section`;
+    const destinations = {
+      Decisions: { selected: "Decisions", target: "inbox-section" },
+      Evidence: { selected: "Evidence", target: "sources-section", controlPlane: true },
+      Outcomes: { selected: "Outcomes", target: "proof-section", controlPlane: true },
+      // Internal workflow transitions retain their precise destinations while
+      // the PM-facing navigation stays organized around three jobs.
+      Overview: { selected: "Decisions", target: "overview-section", workspace: true, controlPlane: true },
+      Sources: { selected: "Evidence", target: "sources-section", controlPlane: true },
+    };
+    const destination = destinations[label] || destinations.Decisions;
+    setSelectedNav(destination.selected);
+    if (destination.workspace) setDecisionWorkspaceOpen(true);
+    if (destination.controlPlane) setControlPlaneOpen(true);
+    const targetId = destination.target;
     navScrollTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     navScrollTimersRef.current = [];
     window.requestAnimationFrame(() => {
@@ -292,6 +303,12 @@ export default function App() {
       if (sessionEpochRef.current !== openEpoch) return;
       setScanMessage(`Unable to restore decision · ${error.message || "try again"}`);
     }
+  };
+
+  const startNewDecision = () => {
+    setSelectedNav("Decisions");
+    setDecisionWorkspaceOpen(true);
+    setDecisionStartSignal((current) => current + 1);
   };
 
   const handleSourceChange = (nextSource) => {
@@ -686,10 +703,10 @@ export default function App() {
 
         <div className="content">
         <div className="workspace-banner"><div className="workspace-banner-copy"><strong>{operatorSession.identityToken ? "Signed PM workspace" : "Interactive product-decision example"}</strong><span>{operatorSession.identityToken ? `${operatorSession.tenantId} · source-connected evidence · approval-gated owner handoffs` : "See how a PM resolves conflicting signals without handing authority to AI"}</span></div><span className="banner-status">{operatorSession.identityToken ? (liveWorkflow ? "Signed workflow" : "Signed lane") : "No sign-in needed"}</span><details className="technical-proof-details"><summary>For judges: architecture &amp; safety</summary><ReleaseProof compact /></details></div>
-          <DecisionInbox inbox={decisionInbox} loading={decisionInboxLoading} error={decisionInboxError} onRefresh={() => refreshDecisionInbox()} onReview={openInboxDecision} onStart={() => selectNav("Sources")} />
+          <DecisionInbox inbox={decisionInbox} loading={decisionInboxLoading} error={decisionInboxError} onRefresh={() => refreshDecisionInbox()} onReview={openInboxDecision} onStart={startNewDecision} />
           <details className="decision-workspace-details" open={decisionWorkspaceOpen} onToggle={(event) => setDecisionWorkspaceOpen(event.currentTarget.open)}>
             <summary><div><span>Decision workspace</span><strong>{workflowState?.title || "Explore one decision end to end"}</strong><p>Open the evidence, options, approval boundary, and measured outcome only when a decision needs judgment.</p></div><b>{decisionWorkspaceOpen ? "Hide" : "Open"}</b></summary>
-            <DecisionRoom workflowState={workflowState} job={job} scanning={scanning} scanMessage={scanMessage} scanFailed={scanFailed} scenarioTitle={decisionScenario.title} scenarioLabel={decisionScenario.label} onRunReview={() => runScan()} onOpenWorkflow={() => focusSection("overview-section")} />
+            <DecisionRoom startIntakeSignal={decisionStartSignal} workflowState={workflowState} job={job} scanning={scanning} scanMessage={scanMessage} scanFailed={scanFailed} scenarioTitle={decisionScenario.title} scenarioLabel={decisionScenario.label} onRunReview={() => runScan()} onOpenWorkflow={() => focusSection("overview-section")} />
           </details>
           <details className="legacy-workflow-details" open={controlPlaneOpen} onToggle={(event) => setControlPlaneOpen(event.currentTarget.open)}>
             <summary className="legacy-workflow-summary"><span>Secondary control plane</span><strong>Owner work and evidence trace</strong><p>Optional technical walkthrough for source snapshots, handoffs, and deployment proof.</p><b>{controlPlaneOpen ? "Hide" : "Open"}</b></summary>

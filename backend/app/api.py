@@ -24,7 +24,12 @@ from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -6302,6 +6307,117 @@ async def start_decision_twin_intake(
                         "reason": str(exc)[:240],
                     }
                 )
+    _issue_decision_mutation_capability(case, response)
+    persist_decision_case(case)
+    return _public_decision_case(case, can_edit=True)
+
+
+@app.post("/api/decision-twin/intake/stream")
+async def stream_decision_twin_intake(
+    request: DecisionTwinIntakeRequest,
+) -> StreamingResponse:
+    """Stream truthful server checkpoints while building a custom decision brief."""
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin intake rate limit reached; retry later."
+        )
+    case = build_intake_decision_case(
+        case_id=f"decision-intake-{secrets.token_hex(12)}",
+        question=request.question,
+        current_commitment=request.current_commitment,
+        urgency=request.urgency,
+        positive_signal=request.positive_signal,
+        risk_signal=request.risk_signal,
+        evidence_inputs=request.evidence_inputs,
+        affected_segment=request.affected_segment,
+        measurement_contract=request.measurement_contract,
+    )
+
+    async def event_stream():
+        yield json.dumps(
+            {
+                "type": "stage",
+                "stage": "context_structured",
+                "label": "Decision context structured from your redacted inputs",
+            }
+        ) + "\n"
+        await asyncio.sleep(0)
+        if os.getenv("DECISION_TWIN_LIVE_COUNCIL", "false").casefold() == "true":
+            yield json.dumps(
+                {
+                    "type": "stage",
+                    "stage": "evidence_compared",
+                    "label": "Comparing evidence, disagreement, and reversible responses",
+                }
+            ) + "\n"
+            if not _reserve_product_council_calls():
+                case.events.append(
+                    {
+                        "event_id": "product-council-quota-bounded",
+                        "action": "google_adk_product_council",
+                        "outcome": "deterministic_demo_fallback",
+                        "generation": case.generation,
+                        "reason": "public_model_call_quota",
+                    }
+                )
+            else:
+                try:
+                    case.council = await run_live_product_council(case)
+                    council_event = next(
+                        event
+                        for event in case.events
+                        if event.get("event_id") == "product-council-complete"
+                    )
+                    council_event["action"] = "google_adk_product_council"
+                    council_event["outcome"] = "disagreement_preserved"
+                    council_event["execution_mode"] = "google_adk"
+                    council_event["model"] = os.getenv(
+                        "MODEL_NAME", "gemini-3.5-flash"
+                    )
+                except ProductCouncilUnavailable as exc:
+                    case.events.append(
+                        {
+                            "event_id": "product-council-live-unavailable",
+                            "action": "google_adk_product_council",
+                            "outcome": "deterministic_demo_fallback",
+                            "generation": case.generation,
+                            "reason": str(exc)[:240],
+                        }
+                    )
+        yield json.dumps(
+            {
+                "type": "stage",
+                "stage": "guardrail_bound",
+                "label": "Binding the owner, guardrail, review window, and rollback",
+            }
+        ) + "\n"
+        persist_decision_case(case)
+        yield json.dumps(
+            {
+                "type": "complete",
+                "case": _public_decision_case(case, can_edit=True),
+            }
+        ) + "\n"
+
+    response = StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
+    _issue_decision_mutation_capability(case, response)
+    return response
+
+
+@app.post("/api/decision-twin/demo/pinned")
+def start_pinned_decision_twin_demo(response: Response) -> dict:
+    """Start the labelled, deterministic judge case without a model wait."""
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Decision Twin demo rate limit reached; retry later."
+        )
+    case = build_demo_decision_case(
+        case_id=f"decision-onboarding-{secrets.token_hex(12)}"
+    )
     _issue_decision_mutation_capability(case, response)
     persist_decision_case(case)
     return _public_decision_case(case, can_edit=True)

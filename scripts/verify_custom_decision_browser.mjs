@@ -135,7 +135,19 @@ try {
       const rect = element.getBoundingClientRect();
       return rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
     });
-    await page.getByRole("button", { name: "Use my decision" }).click();
+    await page.getByRole("button", { name: "New decision" }).click();
+    await page.getByLabel("Redacted text").fill([
+      "Decision: Should we expand the beta to every mid-market account next month?",
+      "Commitment: Launch to every mid-market account on September 15.",
+      "Deadline: Sales committed the date and the allocation decision is due Friday.",
+      "Positive signal: Beta users complete the core workflow faster and renewal intent improved.",
+      "Risk: Admins report permission confusion and support volume is rising.",
+    ].join("\n"));
+    await page.getByRole("button", { name: "Extract decision context" }).click();
+    await page.getByText(/Draft extracted locally/).waitFor();
+    const artifactExtracted = (await page.getByLabel("Decision question").inputValue()).includes("expand the beta")
+      && (await page.getByLabel("Current commitment").inputValue()).includes("Launch to every mid-market account")
+      && (await page.getByLabel("Strongest risk signal").inputValue()).includes("permission confusion");
     const decisionText = "Should we expand the beta to every mid-market account next month?";
     const commitmentText = "Launch to every mid-market account on September 15.";
     await page.getByLabel("Decision question").fill(decisionText);
@@ -156,15 +168,18 @@ try {
     await page.getByLabel("Stop threshold", { exact: true }).fill("8");
     const intakeResponsePromise = page.waitForResponse((response) => (
       response.request().method() === "POST"
-      && new URL(response.url()).pathname === "/api/decision-twin/intake"
+      && new URL(response.url()).pathname === "/api/decision-twin/intake/stream"
     ));
     await page.getByRole("button", { name: "Build my decision brief" }).click();
     const intakeResponse = await intakeResponsePromise;
     if (!intakeResponse.ok()) {
       throw new Error(`Decision intake failed for ${name}: HTTP ${intakeResponse.status()} ${await intakeResponse.text()}`);
     }
-    await page.getByText(/PM-provided context · unverified/).first().waitFor();
+    await page.locator("#decision-room-title").waitFor();
     const intakeResultFocused = await page.locator("#decision-room-title").evaluate((element) => document.activeElement === element);
+    const explanation = page.locator("details.decision-explanation");
+    const proofCollapsedByDefault = !(await explanation.evaluate((element) => element.open));
+    await explanation.locator(":scope > summary").click();
 
     const markVisibleEvidenceReviewed = async () => {
       let safety = 0;
@@ -344,6 +359,7 @@ try {
       conciseDistinctTitle: decisionTitle === "Mid-market admins decision review" && decisionTitle !== decisionQuestion.replace(/[ ?.]+$/, ""),
       opaqueCase: Boolean(caseId && /^[a-z0-9][a-z0-9_-]{2,100}$/.test(caseId)),
       pmProvidedVisible: body.includes("PM-provided context · unverified"),
+      artifactExtracted,
       allEvidenceReviewed,
       pilotStarterVerified,
       productObservedBriefTiming,
@@ -363,6 +379,7 @@ try {
       keyboardRadioRoving,
       keyboardApprovalCompleted: body.includes("Named human approval") && body.includes("Independent PM"),
       intakeResultFocused,
+      proofCollapsedByDefault,
       approvalResultFocused,
       modalInitialFocus,
       modalBackgroundInert: backgroundInert,
@@ -372,8 +389,8 @@ try {
       modalFitsViewport: dialogFitsViewport,
       reducedMotionActive: await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches),
       noSmoothScrollUnderReducedMotion: await page.evaluate(() => window.__driftlineScrollBehaviors.every((behavior) => behavior !== "smooth")),
-      mainAccessibilityTree: mainAriaSnapshot.includes('heading "Product decisions, with evidence" [level=1]')
-        && mainAriaSnapshot.includes('region "Turn conflicting evidence into a decision your team can defend."'),
+      mainAccessibilityTree: mainAriaSnapshot.includes('heading "Decision inbox" [level=1]')
+        && mainAriaSnapshot.includes('region "What needs your attention"'),
       dialogAccessibilityTree: dialogAriaSnapshot.includes('dialog "Source evidence"')
         && dialogAriaSnapshot.includes('button "Close source evidence"')
         && dialogAriaSnapshot.includes('button "Close evidence"'),

@@ -182,6 +182,7 @@ if ! node --check scripts/verify_custom_decision_browser.mjs >/dev/null \
   || ! check_frontend_literal 'minimumControlTargets' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'validAriaReferences' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'allEvidenceReviewed' scripts/verify_custom_decision_browser.mjs \
+  || ! check_frontend_literal 'artifactExtracted' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'pilotStarterVerified' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'CUSTOM_BROWSER_EXPECT_RELEASE_SHA' scripts/verify_custom_decision_browser.mjs; then
   printf 'Custom-decision browser gate lost its loopback, review-window, fresh-context, or accessibility contract.\n' >&2
@@ -203,8 +204,8 @@ if ! check_frontend_literal 'Public demo · no sign-in needed' frontend/src/comp
 fi
 
 if ! check_frontend_literal 'Turn conflicting evidence into a decision your team can defend.' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'Autonomous decision inbox' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'Compounding memory' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Background decision monitor' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Decision memory' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Continuous PM operating loop' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Evidence harvest agents' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Stakeholder alignment agent' frontend/src/components/DecisionRoom.jsx \
@@ -273,12 +274,18 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'url.searchParams.set("decision", next.case_id)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'getDecisionTwin(caseId)' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal '/api/decision-twin/intake' frontend/src/api.js \
+  || ! check_frontend_literal '/api/decision-twin/intake/stream' frontend/src/api.js \
+  || ! check_frontend_literal '/api/decision-twin/demo/pinned' frontend/src/api.js \
+  || ! check_frontend_literal 'Extract decision context' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'The raw artifact is discarded and never uploaded.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'New decision' frontend/src/components/DecisionInbox.jsx \
+  || ! check_frontend_literal 'details.decision-explanation' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'This decision has a precedent.' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'window.location.assign(destination)' frontend/src/components/OperatorAccess.jsx \
   || ! check_frontend_literal 'decision-recommendation-strip' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'What Driftline completed autonomously' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'Completed before human approval' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'independent agents' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'What Driftline prepared' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Prepared before human approval' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'independent perspectives' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'Autonomous monitor active' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'No second PM action is required.' frontend/src/components/LearningReceipt.jsx \
   || ! check_frontend_literal 'monitor_status === "fallback_required"' frontend/src/components/DecisionRoom.jsx \
