@@ -6725,6 +6725,9 @@ def get_decision_twin_pilot_evidence_starter(
         raise HTTPException(status_code=404, detail="Decision case not found")
     _require_decision_mutation_capability(case, request)
     response.headers["Cache-Control"] = "no-store, private"
+    response.headers["Content-Disposition"] = (
+        'attachment; filename="driftline-private-pilot-evidence-starter.json"'
+    )
     release_sha = os.getenv("DRIFTLINE_RELEASE_SHA", "")
     if not re.fullmatch(r"[0-9a-f]{40}", release_sha) or release_sha == "0" * 40:
         raise HTTPException(

@@ -298,16 +298,17 @@ export function reviewDecisionTwinEvidence(caseId, evidenceNodeId, expectedGener
 }
 
 export async function downloadDecisionTwinPilotStarter(caseId) {
-  const payload = await request(`/api/decision-twin/${encodeURIComponent(caseId)}/pilot-evidence-starter`);
-  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
+  const path = `/api/decision-twin/${encodeURIComponent(caseId)}/pilot-evidence-starter`;
+  // Validate the capability-bound export before starting a download. The
+  // actual file comes from the same-origin attachment response so production's
+  // strict CSP does not need to allow temporary blob: URLs.
+  const payload = await request(path);
   const link = document.createElement("a");
-  link.href = url;
+  link.href = `${API_BASE}${path}`;
   link.download = "driftline-private-pilot-evidence-starter.json";
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
   return payload;
 }
 
