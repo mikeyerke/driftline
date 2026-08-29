@@ -31,8 +31,22 @@ const captureHeight = Number(process.env.CAPTURE_HEIGHT || "720");
 const captureWaitMs = Number(process.env.CAPTURE_WAIT_MS || "12000");
 const captureExpectAction = process.env.CAPTURE_EXPECT_ACTION !== "false";
 const presentationMode = process.env.CAPTURE_PRESENTATION_MODE === "true";
+const finalSequence = process.env.CAPTURE_FINAL_SEQUENCE === "true";
+const architectureFile = process.env.CAPTURE_ARCHITECTURE_FILE
+  ? resolve(process.env.CAPTURE_ARCHITECTURE_FILE)
+  : null;
+const cloudRunHealthUrl = process.env.CAPTURE_CLOUD_RUN_HEALTH_URL || null;
+const repositoryProofUrl = process.env.CAPTURE_REPOSITORY_PROOF_URL || null;
 const expectedReleaseSha = process.env.CAPTURE_EXPECT_RELEASE_SHA || null;
 const expectedBuildId = process.env.CAPTURE_EXPECT_BUILD_ID || null;
+if (
+  finalSequence &&
+  (!architectureFile || !cloudRunHealthUrl || !repositoryProofUrl)
+) {
+  throw new Error(
+    "CAPTURE_FINAL_SEQUENCE requires architecture, Cloud Run health, and repository proof URLs",
+  );
+}
 if (
   galleryManifestPath &&
   (!heroScreenshotPath || !generation1ScreenshotPath || !finalScreenshotPath)
@@ -468,13 +482,27 @@ try {
   };
 
   await waitFor(
-    `document.body.innerText.includes('Run the decision workflow')`,
-    "candidate overview",
+    `document.body.innerText.includes('Run the decision workflow') ||
+      [...document.querySelectorAll('button')].some(
+        (node) => node.textContent.includes('Review decision'),
+      )`,
+    "decision inbox or candidate overview",
+  );
+  const decisionInboxVisible = await evaluate(
+    `[...document.querySelectorAll('button')].some(
+      (node) => node.textContent.includes('Review decision'),
+    )`,
   );
   await captureReleaseScreenshot(
     heroScreenshotPath,
     "hero",
     `(() => {
+      const target = document.querySelector('#inbox-section');
+      if (target) {
+        target.scrollIntoView({ behavior: 'instant', block: 'start' });
+        scrollBy({ top: -24, behavior: 'instant' });
+        return true;
+      }
       scrollTo({ top: 0, behavior: 'instant' });
       return document.body.innerText.includes('Run the decision workflow');
     })()`,
@@ -506,6 +534,14 @@ try {
   });
 
   await hold(1_000, 2_500);
+  if (decisionInboxVisible) {
+    await clickButton("Review decision");
+    await waitFor(
+      `document.body.innerText.includes('Run the decision workflow')`,
+      "candidate overview from decision inbox",
+    );
+    await hold(1_000, 3_000);
+  }
   await clickButton("Run the decision workflow");
   await waitFor(
     `document.body.innerText.toLowerCase().includes('council recommendation')`,
@@ -655,8 +691,92 @@ try {
     };
   }
 
-  await evaluate(`scrollTo({ top: 0, behavior: 'smooth' })`);
-  await hold(1_200, 5_000);
+  if (finalSequence) {
+    const architectureSvg = await readFile(architectureFile, "utf8");
+    const architectureUrl =
+      `data:image/svg+xml;base64,${Buffer.from(architectureSvg).toString("base64")}`;
+    const navigateForProof = async (url, label, readyExpression, durationMs) => {
+      await client.send("Page.navigate", { url });
+      await waitFor(readyExpression, label, 30_000);
+      if (!url.startsWith("data:")) {
+        const serializedLabel = JSON.stringify(label);
+        await evaluate(`(() => {
+          document.querySelector('#driftline-proof-location')?.remove();
+          const banner = document.createElement('div');
+          banner.id = 'driftline-proof-location';
+          banner.textContent = ${serializedLabel} + ' · ' + location.href;
+          Object.assign(banner.style, {
+            position: 'fixed', left: '20px', right: '20px', top: '16px',
+            zIndex: '2147483647', padding: '12px 16px', borderRadius: '10px',
+            background: 'rgba(8, 24, 52, .94)', color: '#fff',
+            font: '600 18px -apple-system, BlinkMacSystemFont, sans-serif',
+            boxShadow: '0 8px 28px rgba(0,0,0,.28)', overflow: 'hidden',
+            textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+          });
+          document.documentElement.appendChild(banner);
+          if (${serializedLabel} === 'LIVE GOOGLE CLOUD PROOF') {
+            Object.assign(document.documentElement.style, {
+              background: '#f4f7fb',
+              colorScheme: 'light',
+            });
+            Object.assign(document.body.style, {
+              margin: '0',
+              minHeight: '100vh',
+              padding: '96px 72px 72px',
+              boxSizing: 'border-box',
+              background: '#f4f7fb',
+              color: '#101828',
+              font: '24px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace',
+            });
+            const payload = document.querySelector('pre') || document.body.firstElementChild;
+            if (payload) {
+              Object.assign(payload.style, {
+                display: 'block',
+                margin: '0',
+                padding: '36px 42px',
+                border: '2px solid #b8c6dc',
+                borderRadius: '16px',
+                background: '#ffffff',
+                color: '#101828',
+                boxShadow: '0 16px 40px rgba(20, 44, 82, .14)',
+                whiteSpace: 'pre-wrap',
+                overflowWrap: 'anywhere',
+              });
+            }
+          }
+          return true;
+        })()`);
+      }
+      await sleep(durationMs);
+    };
+    await navigateForProof(
+      architectureUrl,
+      "release architecture",
+      `document.readyState === 'complete'`,
+      22_000,
+    );
+    await navigateForProof(
+      cloudRunHealthUrl,
+      "LIVE GOOGLE CLOUD PROOF",
+      `document.body.innerText.includes('${expectedReleaseSha}') && document.body.innerText.includes('${expectedBuildId}')`,
+      9_000,
+    );
+    await navigateForProof(
+      repositoryProofUrl,
+      "EXACT PUBLIC MAIN",
+      `document.body.innerText.includes('${expectedReleaseSha.slice(0, 7)}') || location.href.includes('${expectedReleaseSha}')`,
+      8_000,
+    );
+    await navigateForProof(
+      targetUrl,
+      "LIVE APP",
+      `document.body.innerText.includes('Driftline') && document.body.innerText.includes('Decision inbox')`,
+      6_000,
+    );
+  } else {
+    await evaluate(`scrollTo({ top: 0, behavior: 'smooth' })`);
+    await hold(1_200, 5_000);
+  }
   await client.send("Page.stopScreencast");
   await writeChain;
 
@@ -770,9 +890,13 @@ try {
   } catch {}
   client?.close();
   chrome?.kill("SIGTERM");
-  await sleep(200);
+  await sleep(1_000);
   if (!process.env.KEEP_CAPTURE_FRAMES) {
-    await rm(captureRoot, { recursive: true, force: true });
+    try {
+      await rm(captureRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+    } catch (cleanupError) {
+      console.error(`Capture cleanup warning: ${cleanupError.message}`);
+    }
   } else if (captureError) {
     console.error(`Capture frames retained at ${captureRoot}`);
   }

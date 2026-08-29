@@ -202,14 +202,80 @@ export function getHealth() {
 }
 
 export function startDecisionTwin() {
-  return request("/api/decision-twin/demo", {
+  return request("/api/decision-twin/demo/pinned", {
     method: "POST",
-    timeoutMs: COUNCIL_TIMEOUT_MS,
   });
 }
 
-export function startDecisionTwinIntake(payload) {
-  return request("/api/decision-twin/intake", {
+export async function startDecisionTwinIntake(payload, onStage = () => {}) {
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), COUNCIL_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${API_BASE}/api/decision-twin/intake/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/x-ndjson" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      let detail = "";
+      try {
+        const body = await response.json();
+        detail = typeof body?.detail === "string" ? body.detail : "";
+      } catch { /* non-JSON response */ }
+      throw new Error(detail || `Driftline could not build this decision brief (${response.status}).`);
+    }
+    if (!response.body) throw new Error("Driftline did not return a progress stream.");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let completedCase = null;
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.type === "stage") onStage(event);
+        if (event.type === "error") throw new Error(event.message || "Decision analysis failed.");
+        if (event.type === "complete") completedCase = event.case;
+      }
+      if (done) break;
+    }
+    if (!completedCase) throw new Error("Driftline ended the analysis before the decision brief was complete.");
+    return completedCase;
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("Decision analysis timed out. Nothing was approved or published.");
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timer);
+  }
+}
+
+function fileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Driftline could not read this file."));
+    reader.onload = () => {
+      const value = String(reader.result || "");
+      const separator = value.indexOf(",");
+      if (separator < 0) reject(new Error("Driftline could not encode this file."));
+      else resolve(value.slice(separator + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function extractDecisionArtifact({ artifactText, artifactType, file }) {
+  if (file && file.size > 4 * 1024 * 1024) {
+    throw new Error("Artifact exceeds the 4 MB upload limit.");
+  }
+  const payload = file
+    ? { artifact_type: artifactType, filename: file.name, content_base64: await fileAsBase64(file) }
+    : { artifact_type: artifactType, artifact_text: artifactText };
+  return request("/api/decision-twin/artifacts/extract", {
     method: "POST",
     timeoutMs: COUNCIL_TIMEOUT_MS,
     body: JSON.stringify(payload),

@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { navItems } from "./Icons";
 
 export default function Sidebar({ selected, onSelect, operatorSession }) {
@@ -21,11 +21,10 @@ export default function Sidebar({ selected, onSelect, operatorSession }) {
           </button>
         ))}
       </nav>
-      <button className="profile" type="button">
-        <span className="avatar">DO</span>
-        <span><strong>{signed ? "Signed PM workspace" : "Public judge lane"}</strong><small>{signed ? "Decision Twin · approval-gated" : "Decision Twin · no external writes"}</small></span>
-        <ChevronDown size={16} />
-      </button>
+      <div className="profile workspace-status" role="status">
+        <ShieldCheck size={18} />
+        <span><strong>{signed ? "Signed PM workspace" : "Interactive example"}</strong><small>{signed ? "Human approval required" : "No external writes"}</small></span>
+      </div>
     </aside>
   );
 }

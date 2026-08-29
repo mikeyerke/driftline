@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -267,6 +268,56 @@ def test_decision_twin_intake_builds_an_honestly_labelled_pm_case(monkeypatch) -
         for event in case["events"]
     )
     assert client.get(f"/api/decision-twin/{case['case_id']}").json() == case
+
+
+def test_decision_twin_intake_stream_reports_real_server_checkpoints(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "false")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+    owner = TestClient(app)
+
+    response = owner.post(
+        "/api/decision-twin/intake/stream",
+        json={
+            "question": "Should we expand the beta to all mid-market accounts next month?",
+            "current_commitment": "Launch to every mid-market account on September 15.",
+            "urgency": "Sales committed the date and allocation is due this Friday.",
+            "positive_signal": "Beta users complete the core workflow faster than the control group.",
+            "risk_signal": "Admins report permission confusion and support volume is rising.",
+            "affected_segment": "mid-market admins",
+            "measurement_contract": _pm_measurement_contract_payload(),
+        },
+    )
+
+    assert response.status_code == 200
+    events = [json.loads(line) for line in response.text.splitlines()]
+    assert [event["stage"] for event in events if event["type"] == "stage"] == [
+        "context_structured",
+        "guardrail_bound",
+    ]
+    completed = events[-1]
+    assert completed["type"] == "complete"
+    case = completed["case"]
+    assert case["status"] == "needs_approval"
+    assert owner.get(f"/api/decision-twin/{case['case_id']}").json()["can_edit"] is True
+
+
+def test_pinned_decision_twin_demo_skips_the_live_model_wait(monkeypatch) -> None:
+    monkeypatch.setenv("DRIFTLINE_PERSISTENCE", "memory")
+    monkeypatch.setenv("DECISION_TWIN_LIVE_COUNCIL", "true")
+    monkeypatch.setattr(api, "_reserve_demo_mutation", lambda: True)
+    persistence._decision_cases_memory.clear()
+
+    response = client.post("/api/decision-twin/demo/pinned")
+
+    assert response.status_code == 200
+    case = response.json()
+    assert case["status"] == "needs_approval"
+    assert case["council"]["mode"] == "deterministic_demo_fallback"
+    assert not any(
+        event.get("execution_mode") == "google_adk" for event in case["events"]
+    )
 
 
 def test_private_pilot_starter_is_product_bound_and_owner_only(monkeypatch) -> None:

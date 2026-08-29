@@ -1,23 +1,17 @@
 import {
-  Activity,
-  Box,
-  CheckCircle2,
   FileCheck2,
+  Activity,
+  Database,
   GitBranch,
-  Home,
   Inbox,
-  Settings,
   ShieldCheck,
+  Target,
 } from "lucide-react";
 
 export const navItems = [
-  ["Inbox", Inbox],
-  ["Overview", Home],
-  ["Sources", Box],
-  ["Workflows", GitBranch],
-  ["Approvals", CheckCircle2],
-  ["Activity", Activity],
-  ["Settings", Settings],
+  ["Decisions", Inbox],
+  ["Evidence", Database],
+  ["Outcomes", Target],
 ];
 
 export const artifactIcons = [FileCheck2, ShieldCheck, Activity, GitBranch];

@@ -52,7 +52,7 @@ export default function DecisionInbox({ inbox, loading, error, onRefresh, onRevi
     <section id="inbox-section" className="decision-inbox" aria-labelledby="decision-inbox-title">
       <header className="decision-inbox-header">
         <div><span className="decision-inbox-eyebrow"><Sparkles size={14} />Decision inbox</span><h2 id="decision-inbox-title">What needs your attention</h2><p>Driftline monitors, clusters, and prepares the work. You decide what changes.</p></div>
-        <button className="secondary compact" type="button" onClick={onRefresh} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh"}</button>
+        <div className="decision-inbox-header-actions"><button className="primary compact" type="button" onClick={onStart}>New decision<ArrowRight size={15} /></button><button className="secondary compact" type="button" onClick={onRefresh} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh"}</button></div>
       </header>
       {error && <div className="decision-inbox-error" role="status"><AlertTriangle size={16} />{error}</div>}
       <div className="decision-inbox-summary" aria-label="Decision portfolio summary">

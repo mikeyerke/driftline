@@ -1,12 +1,11 @@
-import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, Download, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Plus, Radar, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, Download, FileCheck2, FileText, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Plus, Radar, RotateCcw, ShieldCheck, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { approveDecisionTwin, downloadDecisionTwinPilotStarter, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, reviewDecisionTwinEvidence, startDecisionTwin, startDecisionTwinIntake } from "../api";
+import { approveDecisionTwin, downloadDecisionTwinPilotStarter, extractDecisionArtifact, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, reviewDecisionTwinEvidence, startDecisionTwin, startDecisionTwinIntake } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
 import EvidenceCouncil from "./EvidenceCouncil";
 import LearningReceipt from "./LearningReceipt";
 
 const stages = ["Detect drift", "Compare options", "Approve action", "Learn"];
-
 const optionTitle = (options, id) => options.find((option) => option.option_id === id)?.title || id;
 
 const humanize = (value) => String(value || "").replaceAll("_", " ");
@@ -58,7 +57,30 @@ function ProductOperatingLoop({ loop }) {
 }
 
 function focusAfterRender(id) {
-  window.requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: true }));
+  window.requestAnimationFrame(() => window.requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: true })));
+}
+
+function extractDecisionContext(text) {
+  const normalized = text.replace(/\r/g, "\n").replace(/[ \t]+/g, " ").trim();
+  const lines = normalized.split(/\n+/).map((line) => line.replace(/^[-*#\d.)\s]+/, "").trim()).filter(Boolean);
+  const sentences = normalized.split(/(?<=[.!?])\s+|\n+/).map((sentence) => sentence.trim()).filter((sentence) => sentence.length >= 12);
+  const find = (pattern) => lines.find((line) => pattern.test(line)) || sentences.find((sentence) => pattern.test(sentence)) || "";
+  const stripLabel = (value) => value.replace(/^(decision|question|commitment|deadline|due|why now|urgency|signal|risk|blocker|concern)\s*[:—-]\s*/i, "").trim();
+  const clip = (value, max) => stripLabel(value).slice(0, max);
+  let question = find(/\?$/);
+  let commitment = find(/\b(commit|launch|ship|rollout|release|migrate|deprecat|price|packag)\w*\b/i);
+  const urgency = find(/\b(due|deadline|by (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this (?:week|month|quarter)|urgent|before|within \d+)\b/i);
+  const positive = find(/\b(improv|increase|faster|adopt|convert|renew|positive|support(?:s|ed)?|requested|demand)\w*\b/i);
+  const risk = find(/\b(risk|block|concern|confus|fail|churn|complain|declin|decreas|support volume|incident|regress)\w*\b/i);
+  if (!commitment) commitment = sentences[0] || lines[0] || "";
+  if (!question && commitment) question = `Should we ${stripLabel(commitment).replace(/[.!]$/, "").replace(/^We\s+/i, "").replace(/^The team\s+/i, "the team ")}?`;
+  return {
+    question: clip(question, 280),
+    current_commitment: clip(commitment, 320),
+    urgency: clip(urgency, 320),
+    positive_signal: clip(positive, 500),
+    risk_signal: clip(risk, 500),
+  };
 }
 
 const emptyIntake = {
@@ -82,7 +104,7 @@ const emptyIntake = {
   action_owner: "",
 };
 
-export default function DecisionRoom({ onOpenWorkflow }) {
+export default function DecisionRoom({ onOpenWorkflow, startIntakeSignal = 0 }) {
   const [decisionCase, setDecisionCase] = useState(null);
   const [selectedId, setSelectedId] = useState("segment");
   const [evaluation, setEvaluation] = useState(null);
@@ -97,8 +119,16 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const [pilotExportStatus, setPilotExportStatus] = useState("");
   const [reviewingEvidenceId, setReviewingEvidenceId] = useState("");
   const [approverName, setApproverName] = useState("");
+  const [workStage, setWorkStage] = useState("");
+  const [artifactText, setArtifactText] = useState("");
+  const [artifactType, setArtifactType] = useState("auto");
+  const [artifactStatus, setArtifactStatus] = useState("");
+  const [artifactFile, setArtifactFile] = useState(null);
+  const [artifactBusy, setArtifactBusy] = useState(false);
+  const [artifactInputKey, setArtifactInputKey] = useState(0);
   const intakeSectionRef = useRef(null);
   const intakeTitleRef = useRef(null);
+  const approverRef = useRef(null);
   const isProvidedIntake = Boolean(decisionCase?.events?.some((event) => event.source_mode === "pm_provided_unverified"));
   const canEdit = decisionCase?.can_edit !== false;
 
@@ -140,6 +170,14 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [intakeOpen, intakeStep]);
+
+  useEffect(() => {
+    if (!startIntakeSignal) return;
+    setDecisionCase(null);
+    setIntakeOpen(true);
+    setIntakeStep(1);
+    setError("");
+  }, [startIntakeSignal]);
 
   useEffect(() => {
     if (!decisionCase?.case_id) return;
@@ -185,12 +223,12 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   }, [decisionCase?.case_id, decisionCase?.generation, decisionCase?.status, isProvidedIntake]);
 
   const runCouncil = async () => {
-    setBusy("council"); setError("");
+    setBusy("council"); setWorkStage("Opening the pinned, redacted decision case"); setError("");
     try {
       const next = await startDecisionTwin();
       applyDecisionCase(next);
       focusAfterRender("decision-room-title");
-    } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
+    } catch (nextError) { setError(nextError.message); } finally { setBusy(""); setWorkStage(""); }
   };
 
   const toggleIntake = () => {
@@ -217,6 +255,59 @@ export default function DecisionRoom({ onOpenWorkflow }) {
     });
   };
 
+  const extractArtifact = () => {
+    if (artifactText.trim().length < 40) {
+      setArtifactStatus("Paste at least a few sentences so Driftline can extract a useful draft.");
+      return;
+    }
+    const extracted = extractDecisionContext(artifactText);
+    const next = { ...intake };
+    const fields = ["question", "current_commitment", "urgency", "positive_signal", "risk_signal"];
+    fields.forEach((field) => { if (extracted[field]) next[field] = extracted[field]; });
+    setIntake(next);
+    const missing = fields.filter((field) => !next[field]?.trim()).length;
+    setArtifactStatus(missing
+      ? `Draft extracted locally. Review it and complete ${missing} missing context field${missing === 1 ? "" : "s"}.`
+      : "Draft extracted locally. Review every field before continuing; the raw artifact will not be uploaded.");
+  };
+
+  const analyzeArtifact = async () => {
+    if (!artifactFile && artifactText.trim().length < 40) {
+      setArtifactStatus("Paste at least a few sentences or choose a supported file.");
+      return;
+    }
+    setArtifactBusy(true);
+    setArtifactStatus("Reading the artifact and extracting only decision-relevant fields…");
+    try {
+      const payload = await extractDecisionArtifact({
+        artifactText: artifactText.trim(),
+        artifactType,
+        file: artifactFile,
+      });
+      const draft = payload.extraction.draft;
+      const next = { ...intake };
+      Object.entries(draft).forEach(([field, value]) => {
+        if (value !== null && value !== undefined && field in next) next[field] = String(value);
+      });
+      setIntake(next);
+      const extractedCount = Object.values(draft).filter((value) => value !== null && value !== undefined).length;
+      const missingCount = payload.extraction.missing_fields.length;
+      const mode = payload.extraction.mode === "google_adk" ? "Gemini" : "Local fallback";
+      const confidence = payload.extraction.overall_confidence === null
+        ? ""
+        : ` at ${Math.round(payload.extraction.overall_confidence * 100)}% field confidence`;
+      const warning = payload.extraction.warnings?.[0] ? ` ${payload.extraction.warnings[0]}` : "";
+      setArtifactStatus(`${mode} extracted ${extractedCount} draft field${extractedCount === 1 ? "" : "s"}${confidence}. ${missingCount} field${missingCount === 1 ? "" : "s"} still need PM review or input. The artifact was not retained.${warning}`);
+      setArtifactText("");
+      setArtifactFile(null);
+      setArtifactInputKey((current) => current + 1);
+    } catch (nextError) {
+      setArtifactStatus(nextError.message);
+    } finally {
+      setArtifactBusy(false);
+    }
+  };
+
   const updateEvidenceInput = (index, field, value) => {
     setIntake({
       ...intake,
@@ -240,7 +331,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       setIntakeStep(2);
       return;
     }
-    setBusy("intake"); setError("");
+    setBusy("intake"); setWorkStage("Sending the redacted decision context"); setError("");
     try {
       const baseline = Number(intake.baseline);
       const successThreshold = Number(intake.success_threshold);
@@ -281,12 +372,17 @@ export default function DecisionRoom({ onOpenWorkflow }) {
         },
       };
       if (!payload.affected_segment.trim()) delete payload.affected_segment;
-      applyDecisionCase(await startDecisionTwinIntake(payload));
+      applyDecisionCase(await startDecisionTwinIntake(payload, (event) => setWorkStage(event.label)));
       focusAfterRender("decision-room-title");
-    } catch (nextError) { setError(nextError.message); } finally { setBusy(""); }
+    } catch (nextError) { setError(nextError.message); } finally { setBusy(""); setWorkStage(""); }
   };
 
   const approve = async () => {
+    if (approverName.trim().length < 2) {
+      setError("Enter your name so the decision has a recorded human approver.");
+      approverRef.current?.focus();
+      return;
+    }
     setBusy("approval"); setError("");
     try {
       setDecisionCase(await approveDecisionTwin(decisionCase.case_id, selectedId, decisionCase.council.synthesis_hash, decisionCase.generation, approverName.trim()));
@@ -451,7 +547,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           </button>
           <span>One approval starts the autonomous monitor · no second PM prompt</span>
         </div>
-        {busy === "council" && <p className="decision-room-status" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Checking evidence, disagreement, and reversible options.</p>}
+        {busy === "council" && <p className="decision-room-status" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} /><span><strong>{workStage}</strong><small>This pinned example opens without waiting for a new model run.</small></span></p>}
         {error && !intakeOpen && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
         <div className="decision-room-outcome-rail" aria-label="What Driftline produces">
           <span><b>Understand</b>What changed—and which segment is at risk</span>
@@ -490,6 +586,13 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       </ol>
       <form onSubmit={submitIntake}>
         {intakeStep === 1 ? <>
+          <section className="decision-artifact-ingest" aria-labelledby="decision-artifact-title">
+            <header><span><ClipboardCheck size={17} /></span><div><strong id="decision-artifact-title">Start from work you already have</strong><small>Upload or paste a redacted PRD, memo, transcript excerpt, ticket, or decision note.</small></div></header>
+            <div className="decision-artifact-controls"><label><span>Artifact type</span><select value={artifactType} onChange={(event) => setArtifactType(event.target.value)}><option value="auto">Detect automatically</option><option value="prd">PRD</option><option value="memo">Decision memo</option><option value="transcript">Transcript excerpt</option><option value="ticket">Ticket</option><option value="note">Decision note</option></select></label><label className="decision-artifact-text"><span>Redacted text</span><textarea rows="5" maxLength="20000" value={artifactText} onChange={(event) => { setArtifactText(event.target.value); setArtifactFile(null); setArtifactInputKey((current) => current + 1); setArtifactStatus(""); }} placeholder="Paste the decision-driving excerpt. Remove names, account details, credentials, and confidential customer data first." /></label></div>
+            <div className="decision-artifact-upload"><label className="decision-artifact-file"><Upload size={16} /><span><strong>{artifactFile ? artifactFile.name : "Choose a redacted file"}</strong><small>PDF, DOCX, TXT, MD, CSV, or JSON · 4 MB maximum</small></span><input key={artifactInputKey} type="file" accept=".pdf,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/json" onChange={(event) => { const file = event.target.files?.[0] || null; setArtifactFile(file); if (file) setArtifactText(""); setArtifactStatus(""); }} /></label>{artifactFile && <button className="icon-button" type="button" aria-label="Remove uploaded artifact" onClick={() => { setArtifactFile(null); setArtifactInputKey((current) => current + 1); }}><X size={15} /></button>}</div>
+            <div className="decision-artifact-footer"><div><ShieldCheck size={14} /><span>Local extraction never uploads text. Gemini analysis sends one redacted artifact for ephemeral schema-bound extraction; Driftline does not retain it.</span></div><span className="decision-artifact-actions"><button className="secondary" type="button" onClick={extractArtifact} disabled={artifactBusy || Boolean(artifactFile)}><ClipboardCheck size={15} />Extract locally</button><button className="primary" type="button" onClick={analyzeArtifact} disabled={artifactBusy}>{artifactBusy ? <LoaderCircle className="spin" size={15} /> : <FileText size={15} />}{artifactBusy ? "Analyzing artifact…" : "Analyze with Gemini"}</button></span></div>
+            {artifactStatus && <p className="decision-artifact-status" role="status">{artifactStatus}</p>}
+          </section>
           <label className="decision-intake-wide"><span>Decision question</span><textarea required minLength="12" maxLength="280" rows="2" value={intake.question} onChange={(event) => setIntake({ ...intake, question: event.target.value })} placeholder="Should we expand the beta to all mid-market accounts next month?" /></label>
           <label><span>Current commitment</span><textarea required minLength="12" maxLength="320" rows="3" value={intake.current_commitment} onChange={(event) => setIntake({ ...intake, current_commitment: event.target.value })} placeholder="Launch to every mid-market account on September 15." /></label>
           <label><span>Why now</span><textarea required minLength="12" maxLength="320" rows="3" value={intake.urgency} onChange={(event) => setIntake({ ...intake, urgency: event.target.value })} placeholder="Sales has committed the date and the allocation decision is due Friday." /></label>
@@ -529,7 +632,7 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           <label><span>Risk baseline</span><input required type="number" step="any" value={intake.risk_baseline} onChange={(event) => setIntake({ ...intake, risk_baseline: event.target.value })} placeholder="3" /></label>
           <label><span>Stop threshold</span><span className="decision-intake-threshold"><select aria-label="Stop direction" value={intake.stop_operator} onChange={(event) => setIntake({ ...intake, stop_operator: event.target.value })}><option value="gte">At least</option><option value="lte">At most</option></select><input aria-label="Stop threshold" required type="number" step="any" value={intake.stop_threshold} onChange={(event) => setIntake({ ...intake, stop_threshold: event.target.value })} placeholder="8" /></span></label>
           </fieldset>
-          <div className="decision-intake-submit"><div><ShieldCheck size={15} /><span>No external actions. A human still approves the response.</span></div><div className="decision-intake-actions"><button className="secondary" type="button" onClick={() => { setIntakeStep(1); setError(""); }} disabled={Boolean(busy)}>Back to decision context</button><button className="primary" type="submit" disabled={Boolean(busy)}>{busy === "intake" ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />}{busy === "intake" ? "Building the decision brief…" : "Build my decision brief"}</button></div></div>
+          <div className="decision-intake-submit"><div><ShieldCheck size={15} /><span>{busy === "intake" ? workStage : "No external actions. A human still approves the response."}</span></div><div className="decision-intake-actions"><button className="secondary" type="button" onClick={() => { setIntakeStep(1); setError(""); }} disabled={Boolean(busy)}>Back to decision context</button><button className="primary" type="submit" disabled={Boolean(busy)}>{busy === "intake" ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />}{busy === "intake" ? "Building the decision brief…" : "Build my decision brief"}</button></div></div>
         </>}
       </form>
       {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
@@ -580,12 +683,14 @@ export default function DecisionRoom({ onOpenWorkflow }) {
   const selectedOption = decisionCase.council.options.find((option) => option.option_id === selectedId);
   const recommendedOption = decisionCase.council.options.find((option) => option.option_id === decisionCase.council.recommendation);
   const councilVotes = new Set(decisionCase.council.positions.map((position) => position.recommendation)).size;
+  const precedent = decisionCase.precedents?.[0];
+  const precedentIsDemo = Boolean(precedent && /demo|fixture|synthetic/i.test(`${precedent.source_label || ""} ${precedent.title || ""}`));
   const approvalLabel = selectedId === "segment" && !isProvidedIntake ? "Approve segmented experiment" : `Approve: ${optionTitle(decisionCase.council.options, selectedId)}`;
   return (
     <section className="decision-room" aria-labelledby="decision-room-title">
       <header className="decision-room-header">
         <div>
-          <div className="decision-room-meta"><span>Decision Twin</span><span>Generation {decisionCase.generation}</span></div>
+          <div className="decision-room-meta"><span>Decision record</span><span>Review cycle {decisionCase.generation}</span></div>
           <h2 id="decision-room-title" tabIndex="-1">{decisionCase.title}</h2>
           <p>{decisionCase.question}</p>
         </div>
@@ -594,62 +699,20 @@ export default function DecisionRoom({ onOpenWorkflow }) {
       {isProvidedIntake && <p className="decision-return-disclosure"><ShieldCheck size={13} />The copied link is view-only. This browser keeps a separate private edit capability for approval and measurements. Never enter secrets or customer-identifying data; the case expires under the deployment's bounded retention policy.</p>}
       {isProvidedIntake && canEdit && <p className="decision-return-disclosure"><ShieldCheck size={13} />The private pilot starter exports hashes and bounded counts—not your decision text, identity, consent, or a validation claim. Complete its manual fields only after a qualified session.</p>}
       {!canEdit && <p className="decision-return-disclosure"><ShieldCheck size={13} />Read-only shared view. Approval, measurements, and reopening require the originating browser's private edit capability.</p>}
-      <nav className="decision-room-stages" aria-label="Decision Twin progress">
+      <nav className="decision-room-stages" aria-label="Decision progress">
         {stages.map((stage, index) => <span className={index < activeStage ? "complete" : index === activeStage ? "current" : ""} key={stage}>
           {index < activeStage ? <CheckCircle2 size={15} /> : <b>{index + 1}</b>}{stage}{index < stages.length - 1 && <ArrowRight size={14} />}
         </span>)}
       </nav>
-      {decisionCase.decision_debt && <section className={`decision-debt-radar ${decisionCase.decision_debt.state}`} aria-labelledby="decision-debt-title">
-        <div className="decision-debt-radar-icon"><Radar size={21} /></div>
-        <div className="decision-debt-radar-copy">
-          <span>{decisionCase.decision_debt.detection_mode === "autonomous_monitor" ? "Autonomous decision inbox" : "PM-surfaced decision debt"}</span>
-          <h3 id="decision-debt-title">{decisionCase.decision_debt.title}</h3>
-          <p>{decisionCase.decision_debt.trigger}</p>
-          <small><strong>Next:</strong> {decisionCase.decision_debt.recommended_next_step}</small>
-        </div>
-        <div className="decision-debt-radar-score" aria-label={`Decision debt score ${decisionCase.decision_debt.score} out of 100`}>
-          <strong>{decisionCase.decision_debt.score}</strong><span>/100</span><small>{decisionCase.decision_debt.state.replaceAll("_", " ")}</small>
-        </div>
-        <dl>
-          <div><dt>Commitment affected</dt><dd>{decisionCase.decision_debt.affected_commitment}</dd></div>
-          <div><dt>Why now</dt><dd>{decisionCase.decision_debt.why_now}</dd></div>
-          <div><dt>Still missing</dt><dd>{decisionCase.decision_debt.missing_evidence.length ? decisionCase.decision_debt.missing_evidence.join(" · ") : "No blocking evidence"}</dd></div>
-          <div><dt>Compounding memory</dt><dd>{decisionCase.decision_debt_history?.length || 0} prior debt cycle{decisionCase.decision_debt_history?.length === 1 ? "" : "s"} preserved</dd></div>
-        </dl>
-      </section>}
-      <ProductOperatingLoop loop={decisionCase.operating_loop} />
       <section className="decision-at-risk" aria-label="Decision at risk">
         <div><span>Current commitment</span><strong>{decisionCase.current_commitment}</strong></div>
         <div><span>Why this needs a decision now</span><p>{decisionCase.urgency}</p></div>
       </section>
-      {recommendedOption && <section className="decision-recommendation-strip" aria-label="Council recommendation">
-        <div className="decision-recommendation-heading"><CheckCircle2 size={18} /><span>Council recommendation</span><strong>{recommendedOption.title}</strong></div>
+      {recommendedOption && <section className="decision-recommendation-strip" aria-label="Recommended response">
+        <div className="decision-recommendation-heading"><CheckCircle2 size={18} /><span>Recommended response</span><strong>{recommendedOption.title}</strong></div>
         <p>{recommendedOption.summary}</p>
-        <span className="decision-recommendation-proof">5 bounded perspectives · disagreement preserved</span>
+        <span className="decision-recommendation-proof">{decisionCase.council.positions.length} perspectives compared · disagreement preserved</span>
       </section>}
-      <section className="decision-autonomy-proof" aria-label="What Driftline completed autonomously">
-        <header><span>Completed before human approval</span><strong>{isProvidedIntake ? "Driftline structured your context without upgrading it to verified evidence." : "Driftline did the evidence work—not just the writing."}</strong></header>
-        <div>
-          <span><Database size={16} /><b>{decisionCase.evidence_nodes.length} cited {isProvidedIntake ? "inputs" : "signals"}</b><small>{isProvidedIntake ? "PM-provided · unverified" : "with source provenance"}</small></span>
-          <span><Bot size={16} /><b>{decisionCase.council.positions.length} independent agents</b><small>{decisionCase.council.mode === "google_adk" ? "through Google ADK" : "bounded fallback"}</small></span>
-          <span><GitCompareArrows size={16} /><b>{councilVotes} competing responses</b><small>dissent preserved</small></span>
-          <span><ShieldCheck size={16} /><b>1 reversible plan</b><small>gated by a human</small></span>
-        </div>
-      </section>
-      {decisionCase.precedents?.length > 0 && <section className="decision-memory-proof" aria-labelledby="decision-memory-title">
-        <div className="decision-memory-icon"><History size={18} /></div>
-        <div>
-          <span>Decision memory</span>
-          <h3 id="decision-memory-title">This decision has a precedent.</h3>
-          <p>{decisionCase.precedents[0].lesson}</p>
-        </div>
-        <dl>
-          <div><dt>Closest match</dt><dd>{decisionCase.precedents[0].title}</dd></div>
-          <div><dt>Prior response</dt><dd>{optionTitle(decisionCase.council.options, decisionCase.precedents[0].chosen_response)}</dd></div>
-          <div><dt>Match</dt><dd>{Math.round(decisionCase.precedents[0].similarity * 100)}% · {decisionCase.precedents[0].source_label}</dd></div>
-        </dl>
-      </section>}
-      <EvidenceCouncil decisionCase={decisionCase} canEdit={canEdit} reviewingEvidenceId={reviewingEvidenceId} onReviewEvidence={reviewEvidence} />
       <CounterfactualCompare options={decisionCase.council.options} recommendedId={decisionCase.council.recommendation} selectedId={selectedId} onSelect={setSelectedId} />
       {waitingForDecision && canEdit && <section className="decision-approval-gate">
         <div>
@@ -663,13 +726,40 @@ export default function DecisionRoom({ onOpenWorkflow }) {
           </ul>
         </div>
         <div className="decision-approver-control">
-          <label htmlFor="decision-approver-name"><span>Human approver</span><input id="decision-approver-name" type="text" minLength="2" maxLength="120" autoComplete="name" value={approverName} onChange={(event) => setApproverName(event.target.value)} placeholder="Your name" /></label>
-          <button className="primary" type="button" onClick={approve} disabled={Boolean(busy) || approverName.trim().length < 2}>
+          <label htmlFor="decision-approver-name"><span>Human approver</span><input ref={approverRef} id="decision-approver-name" type="text" minLength="2" maxLength="120" autoComplete="name" aria-describedby="decision-approver-help" value={approverName} onChange={(event) => { setApproverName(event.target.value); if (error.startsWith("Enter your name")) setError(""); }} placeholder="Your name" /><small id="decision-approver-help">Enter at least two characters so the approval has a named owner.</small></label>
+          <button className="primary" type="button" onClick={approve} disabled={Boolean(busy)}>
             {busy === "approval" ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />}
             {busy === "approval" ? "Recording decision…" : approvalLabel}
           </button>
         </div>
       </section>}
+      <details className="decision-explanation">
+        <summary><span><strong>Why this recommendation?</strong><small>Evidence, precedent, disagreement, and automation proof</small></span></summary>
+        <div className="decision-explanation-body">
+          {decisionCase.decision_debt && <section className={`decision-debt-radar ${decisionCase.decision_debt.state}`} aria-labelledby="decision-debt-title">
+            <div className="decision-debt-radar-icon"><Radar size={21} /></div>
+            <div className="decision-debt-radar-copy">
+              <span>{decisionCase.decision_debt.detection_mode === "autonomous_monitor" ? "Background decision monitor" : "PM-surfaced decision risk"}</span>
+              <h3 id="decision-debt-title">{decisionCase.decision_debt.title}</h3>
+              <p>{decisionCase.decision_debt.trigger}</p>
+              <small><strong>Next:</strong> {decisionCase.decision_debt.recommended_next_step}</small>
+            </div>
+            <div className="decision-debt-radar-score" aria-label={`Decision risk score ${decisionCase.decision_debt.score} out of 100`}><strong>{decisionCase.decision_debt.score}</strong><span>/100</span><small>{decisionCase.decision_debt.state.replaceAll("_", " ")}</small></div>
+            <dl><div><dt>Commitment affected</dt><dd>{decisionCase.decision_debt.affected_commitment}</dd></div><div><dt>Why now</dt><dd>{decisionCase.decision_debt.why_now}</dd></div><div><dt>Still missing</dt><dd>{decisionCase.decision_debt.missing_evidence.length ? decisionCase.decision_debt.missing_evidence.join(" · ") : "No blocking evidence"}</dd></div><div><dt>Decision history</dt><dd>{decisionCase.decision_debt_history?.length || 0} prior review cycle{decisionCase.decision_debt_history?.length === 1 ? "" : "s"} preserved</dd></div></dl>
+          </section>}
+          <ProductOperatingLoop loop={decisionCase.operating_loop} />
+          <section className="decision-autonomy-proof" aria-label="What Driftline prepared">
+            <header><span>Prepared before human approval</span><strong>{isProvidedIntake ? "Driftline structured your context without upgrading it to verified evidence." : "Driftline prepared the evidence and reversible plan."}</strong></header>
+            <div><span><Database size={16} /><b>{decisionCase.evidence_nodes.length} cited {isProvidedIntake ? "inputs" : "signals"}</b><small>{isProvidedIntake ? "PM-provided · unverified" : "with source provenance"}</small></span><span><Bot size={16} /><b>{decisionCase.council.positions.length} independent perspectives</b><small>compared in parallel</small></span><span><GitCompareArrows size={16} /><b>{councilVotes} competing responses</b><small>dissent preserved</small></span><span><ShieldCheck size={16} /><b>1 reversible plan</b><small>gated by a human</small></span></div>
+          </section>
+          {precedent && <section className={`decision-memory-proof${precedentIsDemo ? " demo" : ""}`} aria-labelledby="decision-memory-title">
+            <div className="decision-memory-icon"><History size={18} /></div>
+            <div><span>{precedentIsDemo ? "Demo precedent—not decision evidence" : "Decision memory"}</span><h3 id="decision-memory-title">{precedentIsDemo ? "Illustrative pattern only" : "This decision has a precedent."}</h3><p>{precedent.lesson}</p></div>
+            <dl><div><dt>Closest pattern</dt><dd>{precedent.title}</dd></div><div><dt>Prior response</dt><dd>{optionTitle(decisionCase.council.options, precedent.chosen_response)}</dd></div><div><dt>{precedentIsDemo ? "Use" : "Similarity"}</dt><dd>{precedentIsDemo ? "Context only · excluded from decision evidence" : `${Math.round(precedent.similarity * 100)}% · ${precedent.source_label}`}</dd></div></dl>
+          </section>}
+          <EvidenceCouncil decisionCase={decisionCase} canEdit={canEdit} reviewingEvidenceId={reviewingEvidenceId} onReviewEvidence={reviewEvidence} />
+        </div>
+      </details>
       {decisionCase.status !== "needs_approval" && <LearningReceipt decisionCase={decisionCase} evaluation={evaluation} busy={Boolean(busy)} monitoring={monitoring} fixtureEligible={!isProvidedIntake} canEdit={canEdit} onOutcome={observeOutcome} onMeasuredOutcome={attachMeasurement} />}
       {busy === "outcome" && <p className="decision-room-status decision-room-status-bottom" role="status" aria-live="polite"><LoaderCircle className="spin" size={15} />Evaluating the guardrail and preserving the next generation.</p>}
       {error && <p className="decision-room-error" role="alert"><CircleAlert size={16} />{error}</p>}
