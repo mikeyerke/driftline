@@ -6713,7 +6713,7 @@ def review_decision_twin_evidence(
     return _public_decision_case(updated, can_edit=True)
 
 
-@app.get("/api/decision-twin/{case_id}/pilot-evidence-starter")
+@app.post("/api/decision-twin/{case_id}/pilot-evidence-starter")
 def get_decision_twin_pilot_evidence_starter(
     case_id: str,
     request: Request,

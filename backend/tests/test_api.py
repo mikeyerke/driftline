@@ -369,7 +369,7 @@ def test_private_pilot_starter_is_product_bound_and_owner_only(monkeypatch) -> N
     assert stale.status_code == 409
     assert "stale generation" in stale.json()["detail"]
 
-    response = owner.get(
+    response = owner.post(
         f"/api/decision-twin/{created['case_id']}/pilot-evidence-starter"
     )
     assert response.status_code == 200
@@ -400,7 +400,7 @@ def test_private_pilot_starter_is_product_bound_and_owner_only(monkeypatch) -> N
     assert decision_text not in serialized
     assert commitment_text not in serialized
 
-    denied = shared_viewer.get(
+    denied = shared_viewer.post(
         f"/api/decision-twin/{created['case_id']}/pilot-evidence-starter"
     )
     assert denied.status_code == 403
@@ -416,14 +416,14 @@ def test_pilot_starter_rejects_demo_case_and_unknown_release(monkeypatch) -> Non
     demo = owner.post("/api/decision-twin/demo").json()
 
     monkeypatch.setenv("DRIFTLINE_RELEASE_SHA", "a" * 40)
-    wrong_kind = owner.get(
+    wrong_kind = owner.post(
         f"/api/decision-twin/{demo['case_id']}/pilot-evidence-starter"
     )
     assert wrong_kind.status_code == 409
     assert "PM-provided decision" in wrong_kind.json()["detail"]
 
     monkeypatch.setenv("DRIFTLINE_RELEASE_SHA", "unknown")
-    missing_identity = owner.get(
+    missing_identity = owner.post(
         f"/api/decision-twin/{demo['case_id']}/pilot-evidence-starter"
     )
     assert missing_identity.status_code == 503
