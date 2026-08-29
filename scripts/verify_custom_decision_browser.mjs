@@ -143,11 +143,32 @@ try {
       "Positive signal: Beta users complete the core workflow faster and renewal intent improved.",
       "Risk: Admins report permission confusion and support volume is rising.",
     ].join("\n"));
-    await page.getByRole("button", { name: "Extract decision context" }).click();
+    await page.getByRole("button", { name: "Extract locally" }).click();
     await page.getByText(/Draft extracted locally/).waitFor();
     const artifactExtracted = (await page.getByLabel("Decision question").inputValue()).includes("expand the beta")
       && (await page.getByLabel("Current commitment").inputValue()).includes("Launch to every mid-market account")
       && (await page.getByLabel("Strongest risk signal").inputValue()).includes("permission confusion");
+    const artifactUploadResponse = page.waitForResponse((response) => (
+      response.request().method() === "POST"
+      && new URL(response.url()).pathname === "/api/decision-twin/artifacts/extract"
+    ));
+    await page.locator(".decision-artifact-file input[type=file]").setInputFiles({
+      name: "redacted-beta-decision.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from([
+        "Decision: Should we expand the beta to every mid-market account next month?",
+        "Commitment: Launch to every mid-market account on September 15.",
+        "Deadline: Sales committed the date and the allocation decision is due Friday.",
+        "Positive signal: Beta users complete the core workflow faster and renewal intent improved.",
+        "Risk: Admins report permission confusion and support volume is rising.",
+      ].join("\n")),
+    });
+    await page.getByRole("button", { name: "Analyze with Gemini" }).click();
+    const artifactResponse = await artifactUploadResponse;
+    if (!artifactResponse.ok()) throw new Error(`Artifact analysis failed for ${name}: HTTP ${artifactResponse.status()}`);
+    await page.getByText(/The artifact was not retained/).waitFor();
+    const artifactUploadAnalyzed = (await page.locator(".decision-artifact-file").innerText()).includes("Choose a redacted file")
+      && (await page.getByLabel("Decision question").inputValue()).includes("expand the beta");
     const decisionText = "Should we expand the beta to every mid-market account next month?";
     const commitmentText = "Launch to every mid-market account on September 15.";
     await page.getByLabel("Decision question").fill(decisionText);
@@ -360,6 +381,7 @@ try {
       opaqueCase: Boolean(caseId && /^[a-z0-9][a-z0-9_-]{2,100}$/.test(caseId)),
       pmProvidedVisible: body.includes("PM-provided context · unverified"),
       artifactExtracted,
+      artifactUploadAnalyzed,
       allEvidenceReviewed,
       pilotStarterVerified,
       productObservedBriefTiming,

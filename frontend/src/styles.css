@@ -1168,10 +1168,19 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
 .decision-artifact-ingest > header small { color: #60728e; font-size: 10px; line-height: 1.4; }
 .decision-artifact-controls { display: grid; grid-template-columns: minmax(150px, .3fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .decision-artifact-text textarea { min-height: 116px; }
+.decision-artifact-upload { display: flex; align-items: center; gap: 8px; }
+.decision-artifact-file { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; padding: 11px 12px; border: 1px dashed #a9bfdd; border-radius: 7px; color: #315f9e; background: #fff; cursor: pointer; }
+.decision-artifact-file:hover { border-color: #6d94c8; background: #f8fbff; }
+.decision-artifact-file:focus-within { outline: 3px solid rgba(42, 103, 180, .22); outline-offset: 2px; }
+.decision-artifact-file > span { display: grid; min-width: 0; gap: 2px; }
+.decision-artifact-file strong { overflow: hidden; color: #1b3763; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.decision-artifact-file small { color: #6a7b94; font-size: 9px; }
+.decision-artifact-file input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
 .decision-artifact-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .decision-artifact-footer > div { display: flex; align-items: center; gap: 6px; color: #526a91; font-size: 9px; line-height: 1.45; }
 .decision-artifact-footer > div svg { flex: 0 0 auto; color: var(--green); }
-.decision-artifact-footer .secondary { flex: 0 0 auto; min-height: 38px; }
+.decision-artifact-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.decision-artifact-actions button { min-height: 38px; white-space: nowrap; }
 .decision-artifact-status { margin: -3px 0 0; color: #245a45; font-size: 10px; font-weight: 700; }
 .decision-intake-contract { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px 18px; margin: 3px 0 0; padding: 18px; border: 1px solid #c8d8ed; border-radius: 8px; background: #fff; }
 .decision-intake-contract legend { padding: 0 7px; color: #071a42; font-size: 13px; font-weight: 850; }
@@ -1474,8 +1483,12 @@ tbody tr:focus-visible { outline: 3px solid rgba(7, 91, 232, .24); outline-offse
   .decision-evidence-pack { grid-column: 1; padding: 16px 14px; }
   .decision-artifact-ingest { grid-column: 1; padding: 15px 13px; }
   .decision-artifact-controls { grid-template-columns: 1fr; }
+  .decision-artifact-file { align-items: flex-start; }
+  .decision-artifact-file > span { width: 100%; }
+  .decision-artifact-file strong { overflow: visible; text-overflow: clip; white-space: normal; }
   .decision-artifact-footer { align-items: stretch; flex-direction: column; }
-  .decision-artifact-footer .secondary { justify-content: center; }
+  .decision-artifact-actions { align-items: stretch; flex-direction: column; }
+  .decision-artifact-actions button { justify-content: center; width: 100%; }
   .decision-evidence-pack-intro { align-items: stretch; flex-direction: column; }
   .decision-evidence-pack-intro .secondary { justify-content: center; }
   .decision-evidence-input { grid-template-columns: 1fr; padding: 12px; }

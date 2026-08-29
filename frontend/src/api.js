@@ -254,6 +254,34 @@ export async function startDecisionTwinIntake(payload, onStage = () => {}) {
   }
 }
 
+function fileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Driftline could not read this file."));
+    reader.onload = () => {
+      const value = String(reader.result || "");
+      const separator = value.indexOf(",");
+      if (separator < 0) reject(new Error("Driftline could not encode this file."));
+      else resolve(value.slice(separator + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function extractDecisionArtifact({ artifactText, artifactType, file }) {
+  if (file && file.size > 4 * 1024 * 1024) {
+    throw new Error("Artifact exceeds the 4 MB upload limit.");
+  }
+  const payload = file
+    ? { artifact_type: artifactType, filename: file.name, content_base64: await fileAsBase64(file) }
+    : { artifact_type: artifactType, artifact_text: artifactText };
+  return request("/api/decision-twin/artifacts/extract", {
+    method: "POST",
+    timeoutMs: COUNCIL_TIMEOUT_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getDecisionTwin(caseId) {
   return request(`/api/decision-twin/${encodeURIComponent(caseId)}`);
 }

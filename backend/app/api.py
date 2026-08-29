@@ -41,6 +41,17 @@ except ImportError:  # pragma: no cover - exercised only in a minimal local env.
     TaskAlreadyExists = type("TaskAlreadyExists", (Exception,), {})
 
 from .adk_runtime import run_agent_task
+from .artifact_ingestion import (
+    ArtifactIngestionError,
+    extract_uploaded_artifact,
+    normalize_pasted_artifact,
+)
+from .artifact_semantics import (
+    ArtifactSemanticUnavailable,
+    deterministic_artifact_extraction,
+    missing_artifact_fields,
+    run_semantic_artifact_extraction,
+)
 from .artifacts import persist_action_artifact, persist_operational_output
 from .connectors import (
     ConfluenceConfig,
@@ -480,6 +491,19 @@ class DecisionTwinIntakeRequest(BaseModel):
     evidence_inputs: list[PMEvidenceInput] = Field(default_factory=list, max_length=4)
     affected_segment: str | None = Field(default=None, min_length=2, max_length=80)
     measurement_contract: PMMeasurementContract
+
+
+class DecisionArtifactExtractionRequest(BaseModel):
+    """One ephemeral redacted artifact for bounded semantic extraction."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    artifact_type: Literal["auto", "prd", "memo", "transcript", "ticket", "note"] = (
+        "auto"
+    )
+    artifact_text: str | None = Field(default=None, min_length=40, max_length=20_000)
+    filename: str | None = Field(default=None, min_length=1, max_length=180)
+    content_base64: str | None = Field(default=None, min_length=8, max_length=5_600_000)
 
 
 class DecisionTwinEvidenceReviewRequest(BaseModel):
@@ -6249,6 +6273,117 @@ def get_workflow_scenarios(
         state.evidence.evidence_hash if state.evidence else None,
         state.integration_targets,
     )
+
+
+@app.post("/api/decision-twin/artifacts/extract")
+async def extract_decision_artifact(
+    request: DecisionArtifactExtractionRequest,
+) -> dict[str, object]:
+    """Extract a draft without persisting the upload, text, or model prompt."""
+    if not _reserve_demo_mutation():
+        raise _demo_mutation_rate_limit_error(
+            "Artifact extraction rate limit reached; retry later."
+        )
+    supplied_text = request.artifact_text is not None
+    supplied_file = request.content_base64 is not None or request.filename is not None
+    if supplied_text == supplied_file:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide either artifact_text or one filename/content_base64 pair.",
+        )
+    try:
+        if supplied_text:
+            artifact = normalize_pasted_artifact(request.artifact_text or "")
+        else:
+            artifact = await asyncio.to_thread(
+                extract_uploaded_artifact,
+                filename=request.filename or "",
+                content_base64=request.content_base64 or "",
+            )
+    except ArtifactIngestionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    mode = "deterministic_local_fallback"
+    model = None
+    extraction_warning = None
+    semantic_enabled = os.getenv(
+        "DECISION_TWIN_ARTIFACT_EXTRACTION_ENABLED", "true"
+    ).casefold() == "true"
+    if semantic_enabled:
+        if not _reserve_agent_call():
+            raise _quota_rate_limit_error(
+                "Artifact extraction quota reached; use local extraction or retry later.",
+                AGENT_WINDOW_SECONDS,
+            )
+        try:
+            draft = await run_semantic_artifact_extraction(
+                text=artifact.text,
+                artifact_type=request.artifact_type,
+                filename=artifact.filename,
+            )
+            mode = "google_adk"
+            model = os.getenv("MODEL_NAME", "gemini-3.5-flash")
+        except ArtifactSemanticUnavailable:
+            try:
+                draft = deterministic_artifact_extraction(artifact.text)
+            except ArtifactSemanticUnavailable as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Artifact does not contain a recognizable product decision.",
+                ) from exc
+            extraction_warning = (
+                "Gemini was unavailable; Driftline returned a labelled local fallback."
+            )
+    else:
+        try:
+            draft = deterministic_artifact_extraction(artifact.text)
+        except ArtifactSemanticUnavailable as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="Artifact does not contain a recognizable product decision.",
+            ) from exc
+
+    confidence_values = [item.confidence for item in draft.confidence]
+    warnings = [*draft.warnings]
+    if artifact.truncated:
+        warnings.append(
+            "Only the first 20,000 normalized characters were analyzed."
+        )
+    if artifact.redactions_applied:
+        warnings.append(
+            f"{artifact.redactions_applied} sensitive-value pattern(s) were redacted before analysis."
+        )
+    if extraction_warning:
+        warnings.append(extraction_warning)
+    return {
+        "artifact": {
+            "filename": artifact.filename,
+            "file_type": artifact.file_type,
+            "byte_count": artifact.byte_count,
+            "truncated": artifact.truncated,
+            "redactions_applied": artifact.redactions_applied,
+            "retained": False,
+        },
+        "extraction": {
+            "mode": mode,
+            "model": model,
+            "draft": draft.model_dump(mode="json", exclude={"confidence", "warnings"}),
+            "field_confidence": [
+                item.model_dump(mode="json") for item in draft.confidence
+            ],
+            "overall_confidence": (
+                round(sum(confidence_values) / len(confidence_values), 3)
+                if confidence_values
+                else None
+            ),
+            "missing_fields": missing_artifact_fields(draft),
+            "warnings": warnings,
+        },
+        "authority_boundary": (
+            "Draft only · PM review required · no evidence verification, approval, "
+            "external write, or artifact retention"
+        ),
+    }
 
 
 @app.post("/api/decision-twin/intake")

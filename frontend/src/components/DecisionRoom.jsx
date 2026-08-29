@@ -1,6 +1,6 @@
-import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, Download, FileCheck2, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Plus, Radar, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowRight, Bot, Check, CheckCircle2, CircleAlert, ClipboardCheck, Copy, Database, Download, FileCheck2, FileText, GitCompareArrows, History, LoaderCircle, PencilLine, Play, Plus, Radar, RotateCcw, ShieldCheck, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { approveDecisionTwin, downloadDecisionTwinPilotStarter, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, reviewDecisionTwinEvidence, startDecisionTwin, startDecisionTwinIntake } from "../api";
+import { approveDecisionTwin, downloadDecisionTwinPilotStarter, extractDecisionArtifact, getDecisionTwin, getDecisionTwinEvaluation, recordDecisionTwinMeasurement, recordDecisionTwinOutcome, reviewDecisionTwinEvidence, startDecisionTwin, startDecisionTwinIntake } from "../api";
 import CounterfactualCompare from "./CounterfactualCompare";
 import EvidenceCouncil from "./EvidenceCouncil";
 import LearningReceipt from "./LearningReceipt";
@@ -123,6 +123,9 @@ export default function DecisionRoom({ onOpenWorkflow, startIntakeSignal = 0 }) 
   const [artifactText, setArtifactText] = useState("");
   const [artifactType, setArtifactType] = useState("auto");
   const [artifactStatus, setArtifactStatus] = useState("");
+  const [artifactFile, setArtifactFile] = useState(null);
+  const [artifactBusy, setArtifactBusy] = useState(false);
+  const [artifactInputKey, setArtifactInputKey] = useState(0);
   const intakeSectionRef = useRef(null);
   const intakeTitleRef = useRef(null);
   const approverRef = useRef(null);
@@ -266,6 +269,43 @@ export default function DecisionRoom({ onOpenWorkflow, startIntakeSignal = 0 }) 
     setArtifactStatus(missing
       ? `Draft extracted locally. Review it and complete ${missing} missing context field${missing === 1 ? "" : "s"}.`
       : "Draft extracted locally. Review every field before continuing; the raw artifact will not be uploaded.");
+  };
+
+  const analyzeArtifact = async () => {
+    if (!artifactFile && artifactText.trim().length < 40) {
+      setArtifactStatus("Paste at least a few sentences or choose a supported file.");
+      return;
+    }
+    setArtifactBusy(true);
+    setArtifactStatus("Reading the artifact and extracting only decision-relevant fields…");
+    try {
+      const payload = await extractDecisionArtifact({
+        artifactText: artifactText.trim(),
+        artifactType,
+        file: artifactFile,
+      });
+      const draft = payload.extraction.draft;
+      const next = { ...intake };
+      Object.entries(draft).forEach(([field, value]) => {
+        if (value !== null && value !== undefined && field in next) next[field] = String(value);
+      });
+      setIntake(next);
+      const extractedCount = Object.values(draft).filter((value) => value !== null && value !== undefined).length;
+      const missingCount = payload.extraction.missing_fields.length;
+      const mode = payload.extraction.mode === "google_adk" ? "Gemini" : "Local fallback";
+      const confidence = payload.extraction.overall_confidence === null
+        ? ""
+        : ` at ${Math.round(payload.extraction.overall_confidence * 100)}% field confidence`;
+      const warning = payload.extraction.warnings?.[0] ? ` ${payload.extraction.warnings[0]}` : "";
+      setArtifactStatus(`${mode} extracted ${extractedCount} draft field${extractedCount === 1 ? "" : "s"}${confidence}. ${missingCount} field${missingCount === 1 ? "" : "s"} still need PM review or input. The artifact was not retained.${warning}`);
+      setArtifactText("");
+      setArtifactFile(null);
+      setArtifactInputKey((current) => current + 1);
+    } catch (nextError) {
+      setArtifactStatus(nextError.message);
+    } finally {
+      setArtifactBusy(false);
+    }
   };
 
   const updateEvidenceInput = (index, field, value) => {
@@ -547,9 +587,10 @@ export default function DecisionRoom({ onOpenWorkflow, startIntakeSignal = 0 }) 
       <form onSubmit={submitIntake}>
         {intakeStep === 1 ? <>
           <section className="decision-artifact-ingest" aria-labelledby="decision-artifact-title">
-            <header><span><ClipboardCheck size={17} /></span><div><strong id="decision-artifact-title">Start from work you already have</strong><small>Paste a redacted PRD, memo, transcript excerpt, ticket, or decision note.</small></div></header>
-            <div className="decision-artifact-controls"><label><span>Artifact type</span><select value={artifactType} onChange={(event) => setArtifactType(event.target.value)}><option value="auto">Detect automatically</option><option value="prd">PRD</option><option value="memo">Decision memo</option><option value="transcript">Transcript excerpt</option><option value="ticket">Ticket</option><option value="note">Decision note</option></select></label><label className="decision-artifact-text"><span>Redacted text</span><textarea rows="5" maxLength="12000" value={artifactText} onChange={(event) => { setArtifactText(event.target.value); setArtifactStatus(""); }} placeholder="Paste the decision-driving excerpt. Remove names, account details, credentials, and confidential customer data first." /></label></div>
-            <div className="decision-artifact-footer"><div><ShieldCheck size={14} /><span>Extraction runs in this browser. The raw artifact is discarded and never uploaded.</span></div><button className="secondary" type="button" onClick={extractArtifact}><ClipboardCheck size={15} />Extract decision context</button></div>
+            <header><span><ClipboardCheck size={17} /></span><div><strong id="decision-artifact-title">Start from work you already have</strong><small>Upload or paste a redacted PRD, memo, transcript excerpt, ticket, or decision note.</small></div></header>
+            <div className="decision-artifact-controls"><label><span>Artifact type</span><select value={artifactType} onChange={(event) => setArtifactType(event.target.value)}><option value="auto">Detect automatically</option><option value="prd">PRD</option><option value="memo">Decision memo</option><option value="transcript">Transcript excerpt</option><option value="ticket">Ticket</option><option value="note">Decision note</option></select></label><label className="decision-artifact-text"><span>Redacted text</span><textarea rows="5" maxLength="20000" value={artifactText} onChange={(event) => { setArtifactText(event.target.value); setArtifactFile(null); setArtifactInputKey((current) => current + 1); setArtifactStatus(""); }} placeholder="Paste the decision-driving excerpt. Remove names, account details, credentials, and confidential customer data first." /></label></div>
+            <div className="decision-artifact-upload"><label className="decision-artifact-file"><Upload size={16} /><span><strong>{artifactFile ? artifactFile.name : "Choose a redacted file"}</strong><small>PDF, DOCX, TXT, MD, CSV, or JSON · 4 MB maximum</small></span><input key={artifactInputKey} type="file" accept=".pdf,.docx,.txt,.md,.markdown,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/json" onChange={(event) => { const file = event.target.files?.[0] || null; setArtifactFile(file); if (file) setArtifactText(""); setArtifactStatus(""); }} /></label>{artifactFile && <button className="icon-button" type="button" aria-label="Remove uploaded artifact" onClick={() => { setArtifactFile(null); setArtifactInputKey((current) => current + 1); }}><X size={15} /></button>}</div>
+            <div className="decision-artifact-footer"><div><ShieldCheck size={14} /><span>Local extraction never uploads text. Gemini analysis sends one redacted artifact for ephemeral schema-bound extraction; Driftline does not retain it.</span></div><span className="decision-artifact-actions"><button className="secondary" type="button" onClick={extractArtifact} disabled={artifactBusy || Boolean(artifactFile)}><ClipboardCheck size={15} />Extract locally</button><button className="primary" type="button" onClick={analyzeArtifact} disabled={artifactBusy}>{artifactBusy ? <LoaderCircle className="spin" size={15} /> : <FileText size={15} />}{artifactBusy ? "Analyzing artifact…" : "Analyze with Gemini"}</button></span></div>
             {artifactStatus && <p className="decision-artifact-status" role="status">{artifactStatus}</p>}
           </section>
           <label className="decision-intake-wide"><span>Decision question</span><textarea required minLength="12" maxLength="280" rows="2" value={intake.question} onChange={(event) => setIntake({ ...intake, question: event.target.value })} placeholder="Should we expand the beta to all mid-market accounts next month?" /></label>

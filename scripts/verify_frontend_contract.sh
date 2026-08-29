@@ -276,8 +276,10 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal '/api/decision-twin/intake' frontend/src/api.js \
   || ! check_frontend_literal '/api/decision-twin/intake/stream' frontend/src/api.js \
   || ! check_frontend_literal '/api/decision-twin/demo/pinned' frontend/src/api.js \
-  || ! check_frontend_literal 'Extract decision context' frontend/src/components/DecisionRoom.jsx \
-  || ! check_frontend_literal 'The raw artifact is discarded and never uploaded.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Extract locally' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Analyze with Gemini' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'Driftline does not retain it.' frontend/src/components/DecisionRoom.jsx \
+  || ! check_frontend_literal 'artifactUploadAnalyzed' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'New decision' frontend/src/components/DecisionInbox.jsx \
   || ! check_frontend_literal 'details.decision-explanation' scripts/verify_custom_decision_browser.mjs \
   || ! check_frontend_literal 'This decision has a precedent.' frontend/src/components/DecisionRoom.jsx \
