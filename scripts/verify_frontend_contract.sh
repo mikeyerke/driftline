@@ -245,7 +245,8 @@ if ! check_frontend_literal 'Turn conflicting evidence into a decision your team
   || ! check_frontend_literal 'Download private pilot starter' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal 'not your decision text, identity, consent, or a validation claim' frontend/src/components/DecisionRoom.jsx \
   || ! check_frontend_literal '/pilot-evidence-starter' frontend/src/api.js \
-  || ! check_frontend_literal 'strict CSP does not need to allow temporary blob: URLs' frontend/src/api.js \
+  || ! check_frontend_literal 'cacheable public GET' frontend/src/api.js \
+  || ! check_frontend_literal 'form.requestSubmit()' frontend/src/api.js \
   || ! check_frontend_literal '/review' frontend/src/api.js \
   || ! check_frontend_literal 'Mark source reviewed' frontend/src/components/EvidenceCouncil.jsx \
   || ! check_frontend_literal 'capability-bound review receipt' frontend/src/components/EvidenceCouncil.jsx \

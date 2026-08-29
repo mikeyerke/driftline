@@ -299,16 +299,18 @@ export function reviewDecisionTwinEvidence(caseId, evidenceNodeId, expectedGener
 
 export async function downloadDecisionTwinPilotStarter(caseId) {
   const path = `/api/decision-twin/${encodeURIComponent(caseId)}/pilot-evidence-starter`;
-  // Validate the capability-bound export before starting a download. The
-  // actual file comes from the same-origin attachment response so production's
-  // strict CSP does not need to allow temporary blob: URLs.
-  const payload = await request(path);
-  const link = document.createElement("a");
-  link.href = `${API_BASE}${path}`;
-  link.download = "driftline-private-pilot-evidence-starter.json";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  // Use POST for both validation and the browser download so Firebase's
+  // hosting rewrite cannot treat this capability-bound private export as a
+  // cacheable public GET. A same-origin form preserves the HttpOnly capability
+  // cookie and keeps production's strict CSP free of temporary blob: URLs.
+  const payload = await request(path, { method: "POST" });
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = `${API_BASE}${path}`;
+  form.hidden = true;
+  document.body.appendChild(form);
+  form.requestSubmit();
+  window.setTimeout(() => form.remove(), 0);
   return payload;
 }
 
