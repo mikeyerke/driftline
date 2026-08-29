@@ -374,6 +374,9 @@ def test_private_pilot_starter_is_product_bound_and_owner_only(monkeypatch) -> N
     )
     assert response.status_code == 200
     assert "no-store" in response.headers["cache-control"]
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="driftline-private-pilot-evidence-starter.json"'
+    )
     starter = response.json()
     assert starter["record"]["app_release_sha"] == "a" * 40
     assert starter["record"]["app_state"] == "verified_production"
